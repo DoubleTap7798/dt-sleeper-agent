@@ -555,18 +555,18 @@ export async function registerRoutes(
 
         const prompt = `Analyze this fantasy football dynasty trade:
 
-${teamADisplayName} gives up: ${teamAPlayerNames || "Nothing"} (Total value: ${teamAValue})
-${teamBDisplayName} gives up: ${teamBPlayerNames || "Nothing"} (Total value: ${teamBValue})
+TRADE DETAILS:
+- ${teamADisplayName} SENDS: ${teamAPlayerNames || "Nothing"} (value: ${teamAValue})
+- ${teamADisplayName} RECEIVES: ${teamBPlayerNames || "Nothing"} (value: ${teamBValue})
+
+- ${teamBDisplayName} SENDS: ${teamBPlayerNames || "Nothing"} (value: ${teamBValue})
+- ${teamBDisplayName} RECEIVES: ${teamAPlayerNames || "Nothing"} (value: ${teamAValue})
 
 Trade grade: ${gradeResult.grade}
-Value difference: ${Math.abs(gradeResult.difference)} (${gradeResult.percentageDiff.toFixed(1)}%)
+Value difference: ${Math.abs(gradeResult.difference)} points (${gradeResult.percentageDiff.toFixed(1)}%)
+${gradeResult.winner === "A" ? `${teamADisplayName} receives more value.` : gradeResult.winner === "B" ? `${teamBDisplayName} receives more value.` : "Trade is even."}
 
-Provide a brief 2-3 sentence analysis of this trade, focusing on:
-1. Whether it's fair
-2. Who benefits more (use their actual name: ${teamADisplayName} or ${teamBDisplayName}) and why
-3. Any strategic considerations
-
-Keep it concise and actionable. Always refer to teams by their actual names (${teamADisplayName} and ${teamBDisplayName}), never as "Team A" or "Team B".`;
+Provide a brief 2-3 sentence analysis. Be specific about who wins and what they're getting. Use the owner names ${teamADisplayName} and ${teamBDisplayName}, never "Team A" or "Team B".`;
 
         const response = await openai.chat.completions.create({
           model: "gpt-4o-mini",
