@@ -117,6 +117,11 @@ export function calculateTradeGrade(
   teamAValue: number,
   teamBValue: number
 ): { grade: string; winner: "A" | "B" | "even"; difference: number; percentageDiff: number } {
+  // teamAValue = what Team A gives away
+  // teamBValue = what Team B gives away
+  // Team A RECEIVES teamBValue, Team B RECEIVES teamAValue
+  // Team A wins if they receive more than they give (teamBValue > teamAValue)
+  
   const difference = Math.abs(teamAValue - teamBValue);
   const maxValue = Math.max(teamAValue, teamBValue);
   const percentageDiff = maxValue > 0 ? (difference / maxValue) * 100 : 0;
@@ -124,51 +129,56 @@ export function calculateTradeGrade(
   let grade: string;
   let winner: "A" | "B" | "even";
 
+  // Determine winner: Team wins if they RECEIVE more than they GIVE
+  // Team A receives teamBValue, so A wins if teamBValue > teamAValue
+  const teamAWins = teamBValue > teamAValue;
+
   if (percentageDiff < 5) {
     grade = "A+";
     winner = "even";
   } else if (percentageDiff < 10) {
     grade = "A";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else if (percentageDiff < 15) {
     grade = "A-";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else if (percentageDiff < 20) {
     grade = "B+";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else if (percentageDiff < 25) {
     grade = "B";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else if (percentageDiff < 30) {
     grade = "B-";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else if (percentageDiff < 35) {
     grade = "C+";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else if (percentageDiff < 40) {
     grade = "C";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else if (percentageDiff < 45) {
     grade = "C-";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else if (percentageDiff < 50) {
     grade = "D+";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else if (percentageDiff < 55) {
     grade = "D";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else if (percentageDiff < 60) {
     grade = "D-";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   } else {
     grade = "F";
-    winner = teamAValue > teamBValue ? "A" : "B";
+    winner = teamAWins ? "A" : "B";
   }
 
+  // Difference: positive = Team A receives more, negative = Team B receives more
   return {
     grade,
     winner,
-    difference: teamAValue - teamBValue,
+    difference: teamBValue - teamAValue,
     percentageDiff,
   };
 }
