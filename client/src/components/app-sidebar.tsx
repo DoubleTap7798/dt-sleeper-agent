@@ -47,12 +47,6 @@ const navigationItems = [
     description: "League standings & playoff predictions",
   },
   {
-    title: "Rivalries",
-    url: "/league/rivalries",
-    icon: Swords,
-    description: "Head-to-head records",
-  },
-  {
     title: "Waiver Wire",
     url: "/league/waivers",
     icon: Users,
@@ -69,6 +63,12 @@ const navigationItems = [
     url: "/league/history",
     icon: History,
     description: "Historical trades & analysis",
+  },
+  {
+    title: "Rivalries",
+    url: "/league/rivalries",
+    icon: Swords,
+    description: "Head-to-head records",
   },
   {
     title: "Trophy Room",

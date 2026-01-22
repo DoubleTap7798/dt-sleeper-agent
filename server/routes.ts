@@ -1200,7 +1200,16 @@ Keep it concise and actionable.`;
 
       const rivalries = Array.from(rivalryMap.values())
         .filter(r => r.totalGames > 0)
-        .sort((a, b) => b.totalGames - a.totalGames);
+        .sort((a, b) => {
+          // Sort by highest winning percentage (the dominant owner's win rate)
+          const aMaxWinPct = Math.max(a.owner1Wins, a.owner2Wins) / a.totalGames;
+          const bMaxWinPct = Math.max(b.owner1Wins, b.owner2Wins) / b.totalGames;
+          if (bMaxWinPct !== aMaxWinPct) {
+            return bMaxWinPct - aMaxWinPct;
+          }
+          // Tiebreaker: more total games first
+          return b.totalGames - a.totalGames;
+        });
 
       res.json({
         rivalries,
