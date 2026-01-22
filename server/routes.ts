@@ -804,14 +804,18 @@ Format your response with clear section headers using markdown. Be concise but i
       const state = await sleeperApi.getState();
       
       // Determine the correct season for stats:
-      // Use the most recent season with complete stats
-      const currentYear = new Date().getFullYear();
-      let statsSeason = state?.season || String(currentYear);
+      // The NFL season runs Sep-Feb, so in Jan-Aug we should use the previous year's completed season
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth(); // 0-indexed (0 = Jan, 7 = Aug)
+      const currentYear = currentDate.getFullYear();
       
-      // If in offseason (week 0 or display_week 0), use previous season which has complete data
-      const isOffseason = state && (state.display_week === 0 || state.week === 0);
-      if (isOffseason) {
-        statsSeason = String(parseInt(statsSeason) - 1);
+      // Before September, use the previous year's season (which has complete stats)
+      // After September, use the current year's season
+      let statsSeason: string;
+      if (currentMonth < 8) { // Before September
+        statsSeason = String(currentYear - 1);
+      } else {
+        statsSeason = String(currentYear);
       }
       
       // Check if league has non-standard scoring (beyond PPR/half/std)
