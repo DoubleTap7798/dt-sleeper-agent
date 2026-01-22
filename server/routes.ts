@@ -1067,5 +1067,152 @@ Keep it concise and actionable.`;
     }
   });
 
+  // Rivalry Head-to-Head Records
+  app.get("/api/sleeper/rivalries/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      
+      const league = await sleeperApi.getLeague(leagueId);
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+
+      const leagueHistory = await sleeperApi.getLeagueHistory(leagueId);
+      
+      interface MatchupResult {
+        season: string;
+        week: number;
+        roster1Points: number;
+        roster2Points: number;
+        winner: number;
+      }
+
+      interface RivalryRecord {
+        rosterId1: number;
+        rosterId2: number;
+        owner1Name: string;
+        owner2Name: string;
+        owner1Avatar: string | null;
+        owner2Avatar: string | null;
+        owner1Wins: number;
+        owner2Wins: number;
+        ties: number;
+        totalGames: number;
+        owner1TotalPoints: number;
+        owner2TotalPoints: number;
+        matchups: MatchupResult[];
+      }
+
+      const rivalryMap = new Map<string, RivalryRecord>();
+      
+      for (const historyEntry of leagueHistory) {
+        const rosters = await sleeperApi.getLeagueRosters(historyEntry.leagueId);
+        const users = await sleeperApi.getLeagueUsers(historyEntry.leagueId);
+        const seasonLeague = await sleeperApi.getLeague(historyEntry.leagueId);
+        
+        if (!rosters || !users || !seasonLeague) continue;
+
+        const userMap = new Map(users.map(u => [u.user_id, u]));
+        const rosterOwnerMap = new Map<number, { name: string; avatar: string | null }>();
+        
+        for (const roster of rosters) {
+          const user = userMap.get(roster.owner_id);
+          rosterOwnerMap.set(roster.roster_id, {
+            name: user?.display_name || user?.username || `Team ${roster.roster_id}`,
+            avatar: user?.avatar ? `https://sleepercdn.com/avatars/thumbs/${user.avatar}` : null,
+          });
+        }
+
+        const regularSeasonWeeks = seasonLeague.settings?.playoff_week_start 
+          ? seasonLeague.settings.playoff_week_start - 1 
+          : 14;
+
+        for (let week = 1; week <= regularSeasonWeeks; week++) {
+          const matchups = await sleeperApi.getMatchups(historyEntry.leagueId, week);
+          if (!matchups || matchups.length === 0) continue;
+
+          const matchupGroups = new Map<number, sleeperApi.SleeperMatchup[]>();
+          for (const m of matchups) {
+            if (m.matchup_id === null) continue;
+            if (!matchupGroups.has(m.matchup_id)) {
+              matchupGroups.set(m.matchup_id, []);
+            }
+            matchupGroups.get(m.matchup_id)!.push(m);
+          }
+
+          for (const [, group] of Array.from(matchupGroups)) {
+            if (group.length !== 2) continue;
+            
+            const sortedGroup = [...group].sort((a: sleeperApi.SleeperMatchup, b: sleeperApi.SleeperMatchup) => a.roster_id - b.roster_id);
+            const [m1, m2] = sortedGroup;
+            const key = `${m1.roster_id}-${m2.roster_id}`;
+            
+            const owner1 = rosterOwnerMap.get(m1.roster_id);
+            const owner2 = rosterOwnerMap.get(m2.roster_id);
+            
+            if (!owner1 || !owner2) continue;
+
+            if (!rivalryMap.has(key)) {
+              rivalryMap.set(key, {
+                rosterId1: m1.roster_id,
+                rosterId2: m2.roster_id,
+                owner1Name: owner1.name,
+                owner2Name: owner2.name,
+                owner1Avatar: owner1.avatar,
+                owner2Avatar: owner2.avatar,
+                owner1Wins: 0,
+                owner2Wins: 0,
+                ties: 0,
+                totalGames: 0,
+                owner1TotalPoints: 0,
+                owner2TotalPoints: 0,
+                matchups: [],
+              });
+            }
+
+            const rivalry = rivalryMap.get(key)!;
+            rivalry.totalGames++;
+            rivalry.owner1TotalPoints += m1.points || 0;
+            rivalry.owner2TotalPoints += m2.points || 0;
+
+            let winner: number;
+            if ((m1.points || 0) > (m2.points || 0)) {
+              rivalry.owner1Wins++;
+              winner = m1.roster_id;
+            } else if ((m2.points || 0) > (m1.points || 0)) {
+              rivalry.owner2Wins++;
+              winner = m2.roster_id;
+            } else {
+              rivalry.ties++;
+              winner = 0;
+            }
+
+            rivalry.matchups.push({
+              season: historyEntry.season,
+              week,
+              roster1Points: m1.points || 0,
+              roster2Points: m2.points || 0,
+              winner,
+            });
+          }
+        }
+      }
+
+      const rivalries = Array.from(rivalryMap.values())
+        .filter(r => r.totalGames > 0)
+        .sort((a, b) => b.totalGames - a.totalGames);
+
+      res.json({
+        rivalries,
+        leagueName: league.name,
+        totalSeasons: leagueHistory.length,
+        seasons: leagueHistory.map(h => h.season).sort((a, b) => b.localeCompare(a)),
+      });
+    } catch (error) {
+      console.error("Error fetching rivalries:", error);
+      res.status(500).json({ message: "Failed to fetch rivalry data" });
+    }
+  });
+
   return httpServer;
 }

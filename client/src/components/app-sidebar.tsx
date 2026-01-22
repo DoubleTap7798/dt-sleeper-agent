@@ -7,6 +7,7 @@ import {
   Users,
   LogOut,
   ChevronDown,
+  Swords,
 } from "lucide-react";
 import {
   Sidebar,
@@ -44,6 +45,12 @@ const navigationItems = [
     url: "/league",
     icon: Home,
     description: "League standings & playoff predictions",
+  },
+  {
+    title: "Rivalries",
+    url: "/league/rivalries",
+    icon: Swords,
+    description: "Head-to-head records",
   },
   {
     title: "Waiver Wire",

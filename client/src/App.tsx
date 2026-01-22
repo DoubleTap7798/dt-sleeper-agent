@@ -15,6 +15,7 @@ import WaiverWirePage from "@/pages/waiver-wire";
 import TradeCalculatorPage from "@/pages/trade-calculator";
 import TradeHistoryPage from "@/pages/trade-history";
 import TrophyRoomPage from "@/pages/trophy-room";
+import RivalryPage from "@/pages/rivalry";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -101,6 +102,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <TrophyRoomPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/rivalries">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <RivalryPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
