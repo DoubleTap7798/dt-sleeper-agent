@@ -299,13 +299,13 @@ export async function getSeasonStats(season: string = "2024", seasonType: string
   }
 
   try {
-    let response = await fetch(`https://api.sleeper.app/stats/nfl/${seasonType}/${season}`);
+    let response = await fetch(`https://api.sleeper.app/v1/stats/nfl/${seasonType}/${season}`);
     
     // If current season fails, try previous season (stats may not be available yet)
     if (!response.ok && parseInt(season) > 2020) {
       const fallbackSeason = String(parseInt(season) - 1);
       console.log(`Stats not available for ${season}, trying ${fallbackSeason}`);
-      response = await fetch(`https://api.sleeper.app/stats/nfl/${seasonType}/${fallbackSeason}`);
+      response = await fetch(`https://api.sleeper.app/v1/stats/nfl/${seasonType}/${fallbackSeason}`);
     }
     
     if (!response.ok) {
