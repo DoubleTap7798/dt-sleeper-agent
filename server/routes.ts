@@ -1211,8 +1211,118 @@ Keep it concise and actionable.`;
           return b.totalGames - a.totalGames;
         });
 
+      // Organize by team for accordion view
+      interface TeamRecord {
+        rosterId: number;
+        ownerName: string;
+        avatar: string | null;
+        totalWins: number;
+        totalLosses: number;
+        totalTies: number;
+        totalGames: number;
+        opponents: {
+          opponentRosterId: number;
+          opponentName: string;
+          opponentAvatar: string | null;
+          wins: number;
+          losses: number;
+          ties: number;
+          totalGames: number;
+          winPct: number;
+          matchups: MatchupResult[];
+        }[];
+      }
+
+      const teamMap = new Map<number, TeamRecord>();
+
+      for (const rivalry of rivalries) {
+        // Add for owner1
+        if (!teamMap.has(rivalry.rosterId1)) {
+          teamMap.set(rivalry.rosterId1, {
+            rosterId: rivalry.rosterId1,
+            ownerName: rivalry.owner1Name,
+            avatar: rivalry.owner1Avatar,
+            totalWins: 0,
+            totalLosses: 0,
+            totalTies: 0,
+            totalGames: 0,
+            opponents: [],
+          });
+        }
+        const team1 = teamMap.get(rivalry.rosterId1)!;
+        team1.totalWins += rivalry.owner1Wins;
+        team1.totalLosses += rivalry.owner2Wins;
+        team1.totalTies += rivalry.ties;
+        team1.totalGames += rivalry.totalGames;
+        team1.opponents.push({
+          opponentRosterId: rivalry.rosterId2,
+          opponentName: rivalry.owner2Name,
+          opponentAvatar: rivalry.owner2Avatar,
+          wins: rivalry.owner1Wins,
+          losses: rivalry.owner2Wins,
+          ties: rivalry.ties,
+          totalGames: rivalry.totalGames,
+          winPct: rivalry.totalGames > 0 ? rivalry.owner1Wins / rivalry.totalGames : 0,
+          matchups: rivalry.matchups.map(m => ({
+            ...m,
+            teamPoints: m.roster1Points,
+            opponentPoints: m.roster2Points,
+            won: m.winner === rivalry.rosterId1,
+          })),
+        });
+
+        // Add for owner2
+        if (!teamMap.has(rivalry.rosterId2)) {
+          teamMap.set(rivalry.rosterId2, {
+            rosterId: rivalry.rosterId2,
+            ownerName: rivalry.owner2Name,
+            avatar: rivalry.owner2Avatar,
+            totalWins: 0,
+            totalLosses: 0,
+            totalTies: 0,
+            totalGames: 0,
+            opponents: [],
+          });
+        }
+        const team2 = teamMap.get(rivalry.rosterId2)!;
+        team2.totalWins += rivalry.owner2Wins;
+        team2.totalLosses += rivalry.owner1Wins;
+        team2.totalTies += rivalry.ties;
+        team2.totalGames += rivalry.totalGames;
+        team2.opponents.push({
+          opponentRosterId: rivalry.rosterId1,
+          opponentName: rivalry.owner1Name,
+          opponentAvatar: rivalry.owner1Avatar,
+          wins: rivalry.owner2Wins,
+          losses: rivalry.owner1Wins,
+          ties: rivalry.ties,
+          totalGames: rivalry.totalGames,
+          winPct: rivalry.totalGames > 0 ? rivalry.owner2Wins / rivalry.totalGames : 0,
+          matchups: rivalry.matchups.map(m => ({
+            ...m,
+            teamPoints: m.roster2Points,
+            opponentPoints: m.roster1Points,
+            won: m.winner === rivalry.rosterId2,
+          })),
+        });
+      }
+
+      // Sort each team's opponents by win percentage (best to worst)
+      Array.from(teamMap.values()).forEach((team: TeamRecord) => {
+        team.opponents.sort((a, b) => b.winPct - a.winPct);
+      });
+
+      // Convert to array and sort teams by overall win percentage
+      const teamRecords = Array.from(teamMap.values())
+        .sort((a, b) => {
+          const aWinPct = a.totalGames > 0 ? a.totalWins / a.totalGames : 0;
+          const bWinPct = b.totalGames > 0 ? b.totalWins / b.totalGames : 0;
+          return bWinPct - aWinPct;
+        });
+
       res.json({
         rivalries,
+        teamRecords,
         leagueName: league.name,
         totalSeasons: leagueHistory.length,
         seasons: leagueHistory.map(h => h.season).sort((a, b) => b.localeCompare(a)),
