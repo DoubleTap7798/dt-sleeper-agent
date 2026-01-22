@@ -444,89 +444,149 @@ Keep it concise and actionable.`;
     }
   });
 
-  // Get trade history
+  // Get trade history (all seasons)
   app.get("/api/sleeper/trades/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;
 
-      const [allTransactions, rosters, users, allPlayers] = await Promise.all([
-        sleeperApi.getAllLeagueTransactions(leagueId),
+      const [historicalTransactions, rosters, users, allPlayers] = await Promise.all([
+        sleeperApi.getAllHistoricalTransactions(leagueId),
         sleeperApi.getLeagueRosters(leagueId),
         sleeperApi.getLeagueUsers(leagueId),
         sleeperApi.getAllPlayers(),
       ]);
 
-      if (!allTransactions || !rosters) {
-        return res.json({ trades: [], teamStats: [], season: "2025" });
+      if (!historicalTransactions || !rosters) {
+        return res.json({ 
+          seasonTrades: [], 
+          teamStats: [], 
+          leagueHistory: [], 
+          bestTrades: [], 
+          totalTrades: 0,
+          currentSeason: "2025"
+        });
       }
 
-      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
-      const rosterToOwner = new Map(rosters.map((r) => [r.roster_id, r.owner_id]));
+      const userMap = new Map((users || []).map((u: sleeperApi.SleeperUser) => [u.user_id, u]));
+      const rosterToOwner = new Map(rosters.map((r: sleeperApi.SleeperRoster) => [r.roster_id, r.owner_id]));
       const playerData = allPlayers || {};
 
-      // Filter to trades only
-      const trades = allTransactions
-        .filter((t) => t.type === "trade" && t.status === "complete")
-        .sort((a, b) => b.created - a.created)
-        .map((trade) => {
-          const [rosterId1, rosterId2] = trade.roster_ids;
-          const ownerId1 = rosterToOwner.get(rosterId1);
-          const ownerId2 = rosterToOwner.get(rosterId2);
-          const user1 = ownerId1 ? userMap.get(ownerId1) : null;
-          const user2 = ownerId2 ? userMap.get(ownerId2) : null;
+      // Helper to format player names as "First Initial. Last Name"
+      const formatPlayerName = (fullName: string): string => {
+        if (!fullName) return "Unknown";
+        const parts = fullName.split(" ");
+        if (parts.length === 1) return fullName;
+        const firstName = parts[0];
+        const lastName = parts.slice(1).join(" ");
+        return `${firstName.charAt(0)}. ${lastName}`;
+      };
 
-          // Parse assets received by each team
-          const team1Received: any[] = [];
-          const team2Received: any[] = [];
-
-          // Players
-          if (trade.adds) {
-            Object.entries(trade.adds).forEach(([playerId, rosterId]) => {
-              const player = playerData[playerId];
-              const asset = {
-                id: playerId,
-                name: player?.full_name || playerId,
-                type: "player" as const,
-                position: player?.fantasy_positions?.[0],
-              };
-              if (rosterId === rosterId1) team1Received.push(asset);
-              else if (rosterId === rosterId2) team2Received.push(asset);
-            });
+      // Helper to get asset value using KTC values
+      const getAssetValue = (asset: { type: string; id: string; name: string; position?: string }): number => {
+        if (asset.type === "player") {
+          const player = playerData[asset.id];
+          const position = asset.position || player?.fantasy_positions?.[0] || "WR";
+          const age = player?.age || 25;
+          const yearsExp = player?.years_exp || 0;
+          return ktcValues.getPlayerValue(asset.id, position, age, yearsExp);
+        } else if (asset.type === "pick") {
+          const match = asset.name.match(/(\d{4}) Round (\d+)/);
+          if (match) {
+            const year = match[1];
+            const round = parseInt(match[2]);
+            return ktcValues.getPickValue(year, round);
           }
+        }
+        return 0;
+      };
 
-          // Draft picks
-          if (trade.draft_picks) {
-            trade.draft_picks.forEach((pick) => {
-              const asset = {
-                id: `${pick.season}-${pick.round}`,
-                name: `${pick.season} Round ${pick.round}`,
-                type: "pick" as const,
-              };
-              if (pick.owner_id === rosterId1) team1Received.push(asset);
-              else if (pick.owner_id === rosterId2) team2Received.push(asset);
-            });
-          }
+      // Process trades by season
+      const seasonTrades: any[] = [];
+      const allTrades: any[] = [];
 
-          return {
-            transactionId: trade.transaction_id,
-            timestamp: trade.created,
-            week: trade.leg,
-            team1: {
-              rosterId: rosterId1,
-              ownerName: user1?.display_name || user1?.username || "Unknown",
-              avatar: sleeperApi.getAvatarUrl(user1?.avatar || null),
-              received: team1Received,
-            },
-            team2: {
-              rosterId: rosterId2,
-              ownerName: user2?.display_name || user2?.username || "Unknown",
-              avatar: sleeperApi.getAvatarUrl(user2?.avatar || null),
-              received: team2Received,
-            },
-          };
-        });
+      for (const seasonData of historicalTransactions) {
+        const tradesForSeason = seasonData.transactions
+          .filter((t) => t.type === "trade" && t.status === "complete")
+          .sort((a, b) => b.created - a.created)
+          .map((trade) => {
+            const [rosterId1, rosterId2] = trade.roster_ids;
+            const ownerId1 = rosterToOwner.get(rosterId1);
+            const ownerId2 = rosterToOwner.get(rosterId2);
+            const user1 = ownerId1 ? userMap.get(ownerId1) : null;
+            const user2 = ownerId2 ? userMap.get(ownerId2) : null;
 
-      // Calculate team stats
+            const team1Received: any[] = [];
+            const team2Received: any[] = [];
+
+            // Players
+            if (trade.adds) {
+              Object.entries(trade.adds).forEach(([playerId, rosterId]) => {
+                const player = playerData[playerId];
+                const asset = {
+                  id: playerId,
+                  name: player?.full_name || playerId,
+                  displayName: formatPlayerName(player?.full_name || playerId),
+                  type: "player" as const,
+                  position: player?.fantasy_positions?.[0],
+                };
+                if (rosterId === rosterId1) team1Received.push(asset);
+                else if (rosterId === rosterId2) team2Received.push(asset);
+              });
+            }
+
+            // Draft picks
+            if (trade.draft_picks) {
+              trade.draft_picks.forEach((pick) => {
+                const asset = {
+                  id: `${pick.season}-${pick.round}`,
+                  name: `${pick.season} Round ${pick.round}`,
+                  displayName: `'${pick.season.slice(-2)} Rd ${pick.round}`,
+                  type: "pick" as const,
+                };
+                if (pick.owner_id === rosterId1) team1Received.push(asset);
+                else if (pick.owner_id === rosterId2) team2Received.push(asset);
+              });
+            }
+
+            // Calculate trade values
+            const team1Value = team1Received.reduce((sum, a) => sum + getAssetValue(a), 0);
+            const team2Value = team2Received.reduce((sum, a) => sum + getAssetValue(a), 0);
+            const valueDiff = team1Value - team2Value;
+
+            return {
+              transactionId: trade.transaction_id,
+              timestamp: trade.created,
+              week: trade.leg,
+              season: seasonData.season,
+              team1: {
+                rosterId: rosterId1,
+                ownerName: user1?.display_name || user1?.username || "Unknown",
+                avatar: sleeperApi.getAvatarUrl(user1?.avatar || null),
+                received: team1Received,
+                value: team1Value,
+              },
+              team2: {
+                rosterId: rosterId2,
+                ownerName: user2?.display_name || user2?.username || "Unknown",
+                avatar: sleeperApi.getAvatarUrl(user2?.avatar || null),
+                received: team2Received,
+                value: team2Value,
+              },
+              valueDiff,
+              absValueDiff: Math.abs(valueDiff),
+            };
+          });
+
+        if (tradesForSeason.length > 0) {
+          seasonTrades.push({
+            season: seasonData.season,
+            trades: tradesForSeason,
+          });
+          allTrades.push(...tradesForSeason);
+        }
+      }
+
+      // Calculate team stats across all seasons
       const teamStats = new Map<string, any>();
       
       rosters.forEach((roster) => {
@@ -537,11 +597,10 @@ Keep it concise and actionable.`;
           avatar: sleeperApi.getAvatarUrl(user?.avatar || null),
           totalTrades: 0,
           tradingPartners: {},
-          bestTrade: null,
         });
       });
 
-      trades.forEach((trade) => {
+      allTrades.forEach((trade) => {
         const stats1 = teamStats.get(rosterToOwner.get(trade.team1.rosterId) || "");
         const stats2 = teamStats.get(rosterToOwner.get(trade.team2.rosterId) || "");
 
@@ -557,12 +616,64 @@ Keep it concise and actionable.`;
         }
       });
 
+      // Find best and worst trades (by value difference)
+      const tradesWithValue = allTrades.filter(t => t.absValueDiff > 0);
+      const sortedByDiff = [...tradesWithValue].sort((a, b) => b.absValueDiff - a.absValueDiff);
+      const topTrades = sortedByDiff.slice(0, 5);
+
+      // Generate AI analysis for top trades
+      const generateTradeAnalysis = async (trade: any): Promise<string> => {
+        const winner = trade.valueDiff > 0 ? trade.team1 : trade.team2;
+        const loser = trade.valueDiff > 0 ? trade.team2 : trade.team1;
+        const winnerAssets = winner.received.map((a: any) => a.displayName || a.name).join(", ");
+        const loserAssets = loser.received.map((a: any) => a.displayName || a.name).join(", ");
+
+        try {
+          const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: "You are a dynasty fantasy football expert analyzing trade history. Give a brief, insightful analysis of this trade in 1-2 sentences. Focus on why the trade was good or bad for the winner.",
+              },
+              {
+                role: "user",
+                content: `In ${trade.season}, ${winner.ownerName} traded ${loserAssets} and received ${winnerAssets}. They gained ${trade.absValueDiff} in dynasty value. Why was this a good trade for them?`,
+              },
+            ],
+            max_tokens: 100,
+          });
+          return response.choices[0]?.message?.content || "Trade analysis unavailable";
+        } catch (error) {
+          return "Trade analysis unavailable";
+        }
+      };
+
+      // Generate AI analysis for top 3 trades only (to keep API costs down)
+      const bestTradesWithAnalysis = await Promise.all(
+        topTrades.slice(0, 3).map(async (trade) => {
+          const analysis = await generateTradeAnalysis(trade);
+          const winner = trade.valueDiff > 0 ? trade.team1.ownerName : trade.team2.ownerName;
+          const loser = trade.valueDiff > 0 ? trade.team2.ownerName : trade.team1.ownerName;
+          return {
+            ...trade,
+            winner,
+            loser,
+            aiAnalysis: analysis,
+          };
+        })
+      );
+
       const league = await sleeperApi.getLeague(leagueId);
+      const leagueHistory = await sleeperApi.getLeagueHistory(leagueId);
 
       res.json({
-        trades,
+        seasonTrades,
         teamStats: Array.from(teamStats.values()),
-        season: league?.season || "2025",
+        leagueHistory: leagueHistory.map(h => h.season),
+        currentSeason: league?.season || "2025",
+        bestTrades: bestTradesWithAnalysis,
+        totalTrades: allTrades.length,
       });
     } catch (error) {
       console.error("Error fetching trades:", error);

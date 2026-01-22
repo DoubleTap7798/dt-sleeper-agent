@@ -27,6 +27,7 @@ export interface SleeperLeague {
   };
   status: string;
   avatar: string | null;
+  previous_league_id: string | null;
 }
 
 export interface SleeperRoster {
@@ -141,6 +142,55 @@ export async function getAllLeagueTransactions(leagueId: string): Promise<Sleepe
   const results = await Promise.all(weekPromises);
   
   return results.flat();
+}
+
+export interface LeagueHistory {
+  leagueId: string;
+  season: string;
+  name: string;
+}
+
+export async function getLeagueHistory(leagueId: string): Promise<LeagueHistory[]> {
+  const history: LeagueHistory[] = [];
+  let currentLeagueId: string | null = leagueId;
+  
+  while (currentLeagueId) {
+    const league = await getLeague(currentLeagueId);
+    if (!league) break;
+    
+    history.push({
+      leagueId: league.league_id,
+      season: league.season,
+      name: league.name,
+    });
+    
+    currentLeagueId = league.previous_league_id;
+  }
+  
+  return history;
+}
+
+export interface SeasonTransactions {
+  season: string;
+  leagueId: string;
+  transactions: SleeperTransaction[];
+}
+
+export async function getAllHistoricalTransactions(leagueId: string): Promise<SeasonTransactions[]> {
+  const history = await getLeagueHistory(leagueId);
+  
+  const results = await Promise.all(
+    history.map(async (h) => {
+      const transactions = await getAllLeagueTransactions(h.leagueId);
+      return {
+        season: h.season,
+        leagueId: h.leagueId,
+        transactions,
+      };
+    })
+  );
+  
+  return results.sort((a, b) => b.season.localeCompare(a.season));
 }
 
 export async function getLeagueDraftPicks(leagueId: string): Promise<SleeperDraftPick[]> {
