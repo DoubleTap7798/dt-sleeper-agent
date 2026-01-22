@@ -194,29 +194,55 @@ export default function TradeCalculatorPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-              <div className="p-4 rounded-lg bg-card border">
-                <p className="text-sm text-muted-foreground mb-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-4 rounded-lg bg-card border space-y-3">
+                <p className="text-lg font-semibold text-center border-b pb-2">
                   {teamA?.ownerName || "Team A"}
                 </p>
-                <p className="text-2xl font-bold font-mono">
-                  {analysis.teamA.totalValue.toLocaleString()}
-                </p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Trading Away:</span>
+                    <span className="font-mono text-red-500">-{analysis.teamA.totalValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Receiving:</span>
+                    <span className="font-mono text-green-500">+{analysis.teamB.totalValue.toLocaleString()}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Net Value:</span>
+                    <span className={`font-mono font-bold ${analysis.teamB.totalValue - analysis.teamA.totalValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {analysis.teamB.totalValue - analysis.teamA.totalValue >= 0 ? '+' : ''}{(analysis.teamB.totalValue - analysis.teamA.totalValue).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="p-4 flex items-center justify-center">
-                <ArrowLeftRight className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <div className="p-4 rounded-lg bg-card border">
-                <p className="text-sm text-muted-foreground mb-1">
+              
+              <div className="p-4 rounded-lg bg-card border space-y-3">
+                <p className="text-lg font-semibold text-center border-b pb-2">
                   {teamB?.ownerName || "Team B"}
                 </p>
-                <p className="text-2xl font-bold font-mono">
-                  {analysis.teamB.totalValue.toLocaleString()}
-                </p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Trading Away:</span>
+                    <span className="font-mono text-red-500">-{analysis.teamB.totalValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Receiving:</span>
+                    <span className="font-mono text-green-500">+{analysis.teamA.totalValue.toLocaleString()}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Net Value:</span>
+                    <span className={`font-mono font-bold ${analysis.teamA.totalValue - analysis.teamB.totalValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {analysis.teamA.totalValue - analysis.teamB.totalValue >= 0 ? '+' : ''}{(analysis.teamA.totalValue - analysis.teamB.totalValue).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="text-center">
+            <div className="text-center p-4 rounded-lg bg-muted/30 border">
               <p className="text-lg">
                 {analysis.winner === "even" ? (
                   <span className="text-muted-foreground">This trade is fairly even!</span>
@@ -225,9 +251,9 @@ export default function TradeCalculatorPage() {
                     <span className="font-semibold">
                       {analysis.winner === "A" ? teamA?.ownerName : teamB?.ownerName}
                     </span>
-                    <span className="text-muted-foreground"> wins by </span>
-                    <span className="font-bold text-foreground">
-                      {Math.abs(analysis.difference).toLocaleString()} ({analysis.percentageDiff.toFixed(1)}%)
+                    <span className="text-muted-foreground"> gets the better deal by </span>
+                    <span className="font-bold text-green-500">
+                      +{Math.abs(analysis.difference).toLocaleString()} ({analysis.percentageDiff.toFixed(1)}%)
                     </span>
                   </>
                 )}
