@@ -203,6 +203,59 @@ export async function getMatchups(leagueId: string, week: number): Promise<Sleep
   return matchups || [];
 }
 
+export interface PlayoffBracketMatch {
+  r: number;
+  m: number;
+  t1: number | null;
+  t2: number | null;
+  w: number | null;
+  l: number | null;
+  t1_from?: { w?: number; l?: number };
+  t2_from?: { w?: number; l?: number };
+}
+
+export async function getPlayoffBracket(leagueId: string): Promise<PlayoffBracketMatch[]> {
+  const bracket = await fetchFromSleeper<PlayoffBracketMatch[]>(`/league/${leagueId}/winners_bracket`);
+  return bracket || [];
+}
+
+export function findChampionFromBracket(bracket: PlayoffBracketMatch[]): number | null {
+  if (!bracket || bracket.length === 0) return null;
+  
+  const maxRound = Math.max(...bracket.map(m => m.r));
+  const finalMatch = bracket.find(m => m.r === maxRound && m.w !== null);
+  
+  return finalMatch?.w || null;
+}
+
+export interface SeasonRosters {
+  season: string;
+  leagueId: string;
+  rosters: SleeperRoster[];
+  users: SleeperUser[];
+}
+
+export async function getAllHistoricalRosters(leagueId: string): Promise<SeasonRosters[]> {
+  const history = await getLeagueHistory(leagueId);
+  
+  const results = await Promise.all(
+    history.map(async (h) => {
+      const [rosters, users] = await Promise.all([
+        getLeagueRosters(h.leagueId),
+        getLeagueUsers(h.leagueId),
+      ]);
+      return {
+        season: h.season,
+        leagueId: h.leagueId,
+        rosters,
+        users,
+      };
+    })
+  );
+  
+  return results.sort((a, b) => b.season.localeCompare(a.season));
+}
+
 export async function getState(): Promise<{ week: number; season: string; display_week: number } | null> {
   return fetchFromSleeper<{ week: number; season: string; display_week: number }>("/state/nfl");
 }

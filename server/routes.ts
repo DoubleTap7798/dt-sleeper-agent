@@ -686,61 +686,218 @@ Keep it concise and actionable.`;
     try {
       const { leagueId } = req.params;
 
-      const [league, rosters, users] = await Promise.all([
+      const [league, leagueHistory, historicalRosters] = await Promise.all([
         sleeperApi.getLeague(leagueId),
-        sleeperApi.getLeagueRosters(leagueId),
-        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getLeagueHistory(leagueId),
+        sleeperApi.getAllHistoricalRosters(leagueId),
       ]);
 
       if (!league) {
         return res.status(404).json({ message: "League not found" });
       }
 
-      const userMap = new Map(users.map((u) => [u.user_id, u]));
+      // Get playoff brackets for all seasons to find champions
+      const bracketPromises = leagueHistory.map(async (h) => {
+        const bracket = await sleeperApi.getPlayoffBracket(h.leagueId);
+        return { season: h.season, leagueId: h.leagueId, bracket };
+      });
+      const allBrackets = await Promise.all(bracketPromises);
 
-      // Build all-time records from current season data
-      // In a real app, you'd aggregate across multiple seasons
-      const allTimeRecords = rosters.map((roster) => {
-        const user = userMap.get(roster.owner_id);
-        const fpts = (roster.settings.fpts || 0) + (roster.settings.fpts_decimal || 0) / 100;
-        const totalGames = (roster.settings.wins || 0) + (roster.settings.losses || 0) + (roster.settings.ties || 0);
+      // Build user map from all seasons (most recent data takes priority)
+      const globalUserMap = new Map<string, sleeperApi.SleeperUser>();
+      for (const seasonData of historicalRosters) {
+        for (const user of seasonData.users) {
+          if (!globalUserMap.has(user.user_id)) {
+            globalUserMap.set(user.user_id, user);
+          }
+        }
+      }
 
+      // Find champions for each completed season
+      const champions: { season: string; rosterId: number; ownerName: string; avatar: string | null }[] = [];
+      for (const bracketData of allBrackets) {
+        const championRosterId = sleeperApi.findChampionFromBracket(bracketData.bracket);
+        if (championRosterId) {
+          const seasonRosters = historicalRosters.find(sr => sr.season === bracketData.season);
+          if (seasonRosters) {
+            const championRoster = seasonRosters.rosters.find(r => r.roster_id === championRosterId);
+            if (championRoster) {
+              const user = globalUserMap.get(championRoster.owner_id);
+              champions.push({
+                season: bracketData.season,
+                rosterId: championRosterId,
+                ownerName: user?.display_name || user?.username || "Unknown",
+                avatar: sleeperApi.getAvatarUrl(user?.avatar || null),
+              });
+            }
+          }
+        }
+      }
+      champions.sort((a, b) => b.season.localeCompare(a.season));
+
+      // Aggregate all-time stats by owner
+      const ownerStats = new Map<string, {
+        ownerId: string;
+        ownerName: string;
+        avatar: string | null;
+        totalWins: number;
+        totalLosses: number;
+        totalTies: number;
+        totalPointsFor: number;
+        totalMaxPoints: number;
+        championships: number;
+        seasonRecords: { season: string; wins: number; losses: number; ties: number; pointsFor: number; maxPoints: number }[];
+      }>();
+
+      for (const seasonData of historicalRosters) {
+        for (const roster of seasonData.rosters) {
+          const user = globalUserMap.get(roster.owner_id);
+          const fpts = (roster.settings.fpts || 0) + (roster.settings.fpts_decimal || 0) / 100;
+          const ppts = (roster.settings.ppts || 0) + (roster.settings.ppts_decimal || 0) / 100;
+          
+          const existing = ownerStats.get(roster.owner_id);
+          if (existing) {
+            existing.totalWins += roster.settings.wins || 0;
+            existing.totalLosses += roster.settings.losses || 0;
+            existing.totalTies += roster.settings.ties || 0;
+            existing.totalPointsFor += fpts;
+            existing.totalMaxPoints += ppts;
+            existing.seasonRecords.push({
+              season: seasonData.season,
+              wins: roster.settings.wins || 0,
+              losses: roster.settings.losses || 0,
+              ties: roster.settings.ties || 0,
+              pointsFor: fpts,
+              maxPoints: ppts,
+            });
+          } else {
+            ownerStats.set(roster.owner_id, {
+              ownerId: roster.owner_id,
+              ownerName: user?.display_name || user?.username || "Unknown",
+              avatar: sleeperApi.getAvatarUrl(user?.avatar || null),
+              totalWins: roster.settings.wins || 0,
+              totalLosses: roster.settings.losses || 0,
+              totalTies: roster.settings.ties || 0,
+              totalPointsFor: fpts,
+              totalMaxPoints: ppts,
+              championships: 0,
+              seasonRecords: [{
+                season: seasonData.season,
+                wins: roster.settings.wins || 0,
+                losses: roster.settings.losses || 0,
+                ties: roster.settings.ties || 0,
+                pointsFor: fpts,
+                maxPoints: ppts,
+              }],
+            });
+          }
+        }
+      }
+
+      // Count championships per owner
+      for (const champion of champions) {
+        const seasonRosters = historicalRosters.find(sr => sr.season === champion.season);
+        if (seasonRosters) {
+          const championRoster = seasonRosters.rosters.find(r => r.roster_id === champion.rosterId);
+          if (championRoster) {
+            const stats = ownerStats.get(championRoster.owner_id);
+            if (stats) {
+              stats.championships += 1;
+            }
+          }
+        }
+      }
+
+      // Build all-time records sorted by wins
+      const allTimeRecords = Array.from(ownerStats.values()).map(stats => {
+        const totalGames = stats.totalWins + stats.totalLosses + stats.totalTies;
         return {
-          ownerId: roster.owner_id,
-          ownerName: user?.display_name || user?.username || "Unknown",
-          avatar: sleeperApi.getAvatarUrl(user?.avatar || null),
-          totalWins: roster.settings.wins || 0,
-          totalLosses: roster.settings.losses || 0,
-          totalTies: roster.settings.ties || 0,
-          totalPointsFor: fpts,
-          championships: 0, // Would come from historical data
-          winPercentage: totalGames > 0 ? (roster.settings.wins || 0) / totalGames : 0,
+          ownerId: stats.ownerId,
+          ownerName: stats.ownerName,
+          avatar: stats.avatar,
+          totalWins: stats.totalWins,
+          totalLosses: stats.totalLosses,
+          totalTies: stats.totalTies,
+          totalPointsFor: Math.round(stats.totalPointsFor * 100) / 100,
+          totalMaxPoints: Math.round(stats.totalMaxPoints * 100) / 100,
+          championships: stats.championships,
+          winPercentage: totalGames > 0 ? stats.totalWins / totalGames : 0,
         };
       }).sort((a, b) => {
         if (a.totalWins !== b.totalWins) return b.totalWins - a.totalWins;
         return b.totalPointsFor - a.totalPointsFor;
       });
 
-      // Find top performers
-      const topPointsFor = [...allTimeRecords].sort((a, b) => b.totalPointsFor - a.totalPointsFor)[0] || null;
-      const topWinPercentage = [...allTimeRecords].sort((a, b) => b.winPercentage - a.winPercentage)[0] || null;
+      // Calculate season records (best single-season performances)
+      interface SeasonRecord {
+        ownerName: string;
+        avatar: string | null;
+        season: string;
+        value: number;
+        record?: string;
+      }
+      
+      let bestSeasonRecord: SeasonRecord | null = null;
+      let bestSeasonPoints: SeasonRecord | null = null;
+      let bestSeasonMaxPoints: SeasonRecord | null = null;
 
-      // Champions would come from historical data
-      // For now, we'll simulate with current leader
-      const champions = allTimeRecords.length > 0 ? [{
-        season: league.season,
-        rosterId: rosters.find((r) => r.owner_id === allTimeRecords[0].ownerId)?.roster_id || 0,
-        ownerName: allTimeRecords[0].ownerName,
-        avatar: allTimeRecords[0].avatar,
-      }] : [];
+      for (const [ownerId, stats] of Array.from(ownerStats.entries())) {
+        for (const sr of stats.seasonRecords) {
+          const totalGames = sr.wins + sr.losses + sr.ties;
+          if (totalGames === 0) continue;
+
+          const winPct = sr.wins / totalGames;
+          
+          // Best win/loss record
+          if (!bestSeasonRecord || winPct > bestSeasonRecord.value || 
+              (winPct === bestSeasonRecord.value && sr.wins > (bestSeasonRecord.record?.split('-')[0] ? parseInt(bestSeasonRecord.record.split('-')[0]) : 0))) {
+            bestSeasonRecord = {
+              ownerName: stats.ownerName,
+              avatar: stats.avatar,
+              season: sr.season,
+              value: winPct,
+              record: `${sr.wins}-${sr.losses}${sr.ties > 0 ? `-${sr.ties}` : ''}`,
+            };
+          }
+
+          // Best points for in a season
+          if (!bestSeasonPoints || sr.pointsFor > bestSeasonPoints.value) {
+            bestSeasonPoints = {
+              ownerName: stats.ownerName,
+              avatar: stats.avatar,
+              season: sr.season,
+              value: Math.round(sr.pointsFor * 100) / 100,
+            };
+          }
+
+          // Best max points in a season
+          if (!bestSeasonMaxPoints || sr.maxPoints > bestSeasonMaxPoints.value) {
+            bestSeasonMaxPoints = {
+              ownerName: stats.ownerName,
+              avatar: stats.avatar,
+              season: sr.season,
+              value: Math.round(sr.maxPoints * 100) / 100,
+            };
+          }
+        }
+      }
+
+      // Top all-time performers
+      const topPointsFor = [...allTimeRecords].sort((a, b) => b.totalPointsFor - a.totalPointsFor)[0] || null;
+      const topWinPercentage = [...allTimeRecords].filter(r => (r.totalWins + r.totalLosses + r.totalTies) >= 10)
+        .sort((a, b) => b.winPercentage - a.winPercentage)[0] || allTimeRecords[0] || null;
 
       res.json({
         champions,
         allTimeRecords,
         topPointsFor,
         topWinPercentage,
+        bestSeasonRecord,
+        bestSeasonPoints,
+        bestSeasonMaxPoints,
         leagueName: league.name,
-        leagueAge: 1, // Would calculate from first season
+        leagueAge: leagueHistory.length,
+        seasons: leagueHistory.map(h => h.season).sort((a, b) => b.localeCompare(a)),
       });
     } catch (error) {
       console.error("Error fetching trophies:", error);

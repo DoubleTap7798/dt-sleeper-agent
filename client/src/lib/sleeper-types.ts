@@ -193,6 +193,15 @@ export interface AllTimeRecord {
   totalLosses: number;
   totalTies: number;
   totalPointsFor: number;
+  totalMaxPoints?: number;
   championships: number;
   winPercentage: number;
+}
+
+export interface SeasonRecord {
+  ownerName: string;
+  avatar: string | null;
+  season: string;
+  value: number;
+  record?: string;
 }
