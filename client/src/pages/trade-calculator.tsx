@@ -55,6 +55,8 @@ export default function TradeCalculatorPage() {
         leagueId,
         teamAId,
         teamBId,
+        teamAName: teamA?.ownerName || "Team A",
+        teamBName: teamB?.ownerName || "Team B",
         teamAAssets,
         teamBAssets,
       });

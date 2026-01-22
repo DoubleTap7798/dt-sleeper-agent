@@ -29,6 +29,8 @@ const analyzeTradeSchema = z.object({
   leagueId: z.string().min(1),
   teamAId: z.string().min(1),
   teamBId: z.string().min(1),
+  teamAName: z.string().optional(),
+  teamBName: z.string().optional(),
   teamAAssets: z.array(tradeAssetSchema),
   teamBAssets: z.array(tradeAssetSchema),
 });
@@ -535,7 +537,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid trade data" });
       }
 
-      const { leagueId, teamAId, teamBId, teamAAssets, teamBAssets } = parsed.data;
+      const { leagueId, teamAId, teamBId, teamAName, teamBName, teamAAssets, teamBAssets } = parsed.data;
+
+      const teamADisplayName = teamAName || "Team A";
+      const teamBDisplayName = teamBName || "Team B";
 
       const teamAValue = teamAAssets.reduce((sum: number, a) => sum + a.value, 0);
       const teamBValue = teamBAssets.reduce((sum: number, a) => sum + a.value, 0);
@@ -545,23 +550,23 @@ export async function registerRoutes(
       // Generate AI analysis
       let aiAnalysis = "";
       try {
-        const teamANames = teamAAssets.map((a: any) => a.name).join(", ");
-        const teamBNames = teamBAssets.map((a: any) => a.name).join(", ");
+        const teamAPlayerNames = teamAAssets.map((a: any) => a.name).join(", ");
+        const teamBPlayerNames = teamBAssets.map((a: any) => a.name).join(", ");
 
         const prompt = `Analyze this fantasy football dynasty trade:
 
-Team A gives up: ${teamANames || "Nothing"} (Total value: ${teamAValue})
-Team B gives up: ${teamBNames || "Nothing"} (Total value: ${teamBValue})
+${teamADisplayName} gives up: ${teamAPlayerNames || "Nothing"} (Total value: ${teamAValue})
+${teamBDisplayName} gives up: ${teamBPlayerNames || "Nothing"} (Total value: ${teamBValue})
 
 Trade grade: ${gradeResult.grade}
 Value difference: ${Math.abs(gradeResult.difference)} (${gradeResult.percentageDiff.toFixed(1)}%)
 
 Provide a brief 2-3 sentence analysis of this trade, focusing on:
 1. Whether it's fair
-2. Who benefits more and why
+2. Who benefits more (use their actual name: ${teamADisplayName} or ${teamBDisplayName}) and why
 3. Any strategic considerations
 
-Keep it concise and actionable.`;
+Keep it concise and actionable. Always refer to teams by their actual names (${teamADisplayName} and ${teamBDisplayName}), never as "Team A" or "Team B".`;
 
         const response = await openai.chat.completions.create({
           model: "gpt-4o-mini",
@@ -584,13 +589,13 @@ Keep it concise and actionable.`;
       res.json({
         teamA: {
           teamId: teamAId,
-          teamName: "Team A",
+          teamName: teamADisplayName,
           assets: teamAAssets,
           totalValue: teamAValue,
         },
         teamB: {
           teamId: teamBId,
-          teamName: "Team B",
+          teamName: teamBDisplayName,
           assets: teamBAssets,
           totalValue: teamBValue,
         },
