@@ -535,6 +535,83 @@ export async function registerRoutes(
     }
   });
 
+  // Get playoff bracket
+  app.get("/api/sleeper/bracket/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+
+      const [league, bracket, rosters, users, state] = await Promise.all([
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getPlayoffBracket(leagueId),
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getState(),
+      ]);
+
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+      const rosterMap = new Map((rosters || []).map((r) => [r.roster_id, r]));
+
+      const getTeamInfo = (rosterId: number | null) => {
+        if (rosterId === null) return null;
+        const roster = rosterMap.get(rosterId);
+        if (!roster) return { rosterId, ownerName: "TBD", avatar: null };
+        const user = userMap.get(roster.owner_id);
+        return {
+          rosterId,
+          ownerName: user?.display_name || "Unknown",
+          avatar: user?.avatar ? `https://sleepercdn.com/avatars/${user.avatar}` : null,
+        };
+      };
+
+      const playoffWeekStart = league.settings?.playoff_week_start || 15;
+      const playoffTeams = league.settings?.playoff_teams || 6;
+      const currentWeek = state?.display_week || state?.week || 1;
+
+      // Determine number of rounds based on playoff teams
+      const numRounds = Math.ceil(Math.log2(playoffTeams));
+
+      // Transform bracket matchups
+      const matchups = (bracket || []).map((match) => ({
+        round: match.r,
+        matchId: match.m,
+        team1: getTeamInfo(match.t1),
+        team2: getTeamInfo(match.t2),
+        winner: match.w,
+        loser: match.l,
+        team1From: match.t1_from,
+        team2From: match.t2_from,
+      }));
+
+      // Group matchups by round
+      const rounds: Record<number, typeof matchups> = {};
+      matchups.forEach((m) => {
+        if (!rounds[m.round]) rounds[m.round] = [];
+        rounds[m.round].push(m);
+      });
+
+      res.json({
+        leagueId,
+        leagueName: league.name,
+        season: league.season,
+        playoffWeekStart,
+        playoffTeams,
+        currentWeek,
+        numRounds,
+        rounds,
+        matchups,
+        isPlayoffsStarted: currentWeek >= playoffWeekStart,
+        isComplete: league.status === "complete",
+      });
+    } catch (error) {
+      console.error("Error fetching playoff bracket:", error);
+      res.status(500).json({ message: "Failed to fetch playoff bracket" });
+    }
+  });
+
   // Get devy players with rankings and draft eligibility from KTC
   app.get("/api/sleeper/devy", isAuthenticated, async (req: any, res: Response) => {
     try {

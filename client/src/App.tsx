@@ -19,6 +19,7 @@ import RivalryPage from "@/pages/rivalry";
 import MatchupsPage from "@/pages/matchups";
 import SchedulePage from "@/pages/schedule";
 import DevyPage from "@/pages/devy";
+import PlayoffBracketPage from "@/pages/playoff-bracket";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -133,6 +134,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <RivalryPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/bracket">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <PlayoffBracketPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

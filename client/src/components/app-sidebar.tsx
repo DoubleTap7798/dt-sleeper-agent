@@ -11,6 +11,7 @@ import {
   Gamepad2,
   CalendarDays,
   GraduationCap,
+  GitBranch,
 } from "lucide-react";
 import {
   Sidebar,
@@ -60,6 +61,12 @@ const navigationItems = [
     url: "/league/schedule",
     icon: CalendarDays,
     description: "Your season schedule",
+  },
+  {
+    title: "Playoff Bracket",
+    url: "/league/bracket",
+    icon: GitBranch,
+    description: "Playoff matchups & bracket",
   },
   {
     title: "Waiver Wire",
