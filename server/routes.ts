@@ -896,16 +896,25 @@ Format your response with clear section headers using markdown. Be concise but i
           college: player.college,
           height: player.height,
           weight: player.weight,
-          // Include key stats
+          snapPct: playerStats?.off_snp && playerStats?.tm_off_snp 
+            ? Math.round((playerStats.off_snp / playerStats.tm_off_snp) * 100 * 10) / 10
+            : null,
           stats: {
             passYd: playerStats?.pass_yd || 0,
             passTd: playerStats?.pass_td || 0,
             passInt: playerStats?.pass_int || 0,
+            passAtt: playerStats?.pass_att || 0,
+            passCmp: playerStats?.pass_cmp || 0,
+            passFd: playerStats?.pass_fd || 0,
             rushYd: playerStats?.rush_yd || 0,
             rushTd: playerStats?.rush_td || 0,
+            rushAtt: playerStats?.rush_att || 0,
+            rushFd: playerStats?.rush_fd || 0,
             rec: playerStats?.rec || 0,
             recYd: playerStats?.rec_yd || 0,
             recTd: playerStats?.rec_td || 0,
+            recTgt: playerStats?.rec_tgt || 0,
+            recFd: playerStats?.rec_fd || 0,
           },
         });
       });

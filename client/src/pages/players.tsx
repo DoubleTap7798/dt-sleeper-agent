@@ -48,15 +48,23 @@ interface Player {
   college: string | null;
   height: string | null;
   weight: string | null;
+  snapPct: number | null;
   stats: {
     passYd: number;
     passTd: number;
     passInt: number;
+    passAtt: number;
+    passCmp: number;
+    passFd: number;
     rushYd: number;
     rushTd: number;
+    rushAtt: number;
+    rushFd: number;
     rec: number;
     recYd: number;
     recTd: number;
+    recTgt: number;
+    recFd: number;
   };
 }
 
@@ -191,6 +199,7 @@ export default function PlayersPage() {
                 <TableHead className="w-[80px] text-right">Pts</TableHead>
                 <TableHead className="w-[60px] text-right">PPG</TableHead>
                 <TableHead className="w-[40px] text-right">GP</TableHead>
+                <TableHead className="w-[60px] text-right">Snap%</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -233,6 +242,9 @@ export default function PlayersPage() {
                   </TableCell>
                   <TableCell className="text-right font-mono text-muted-foreground">
                     {player.gamesPlayed}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-muted-foreground">
+                    {player.snapPct !== null ? `${player.snapPct}%` : "-"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -295,9 +307,17 @@ export default function PlayersPage() {
 
               <div className="space-y-2">
                 <h4 className="text-sm font-medium text-muted-foreground">Season Stats</h4>
-                <div className="grid grid-cols-4 gap-2 text-center">
-                  {selectedPlayer.position === "QB" ? (
-                    <>
+                {selectedPlayer.position === "QB" ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Pass Att</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.passAtt}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Comp</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.passCmp}</p>
+                      </Card>
                       <Card className="p-2">
                         <p className="text-xs text-muted-foreground">Pass Yds</p>
                         <p className="font-mono font-medium">{selectedPlayer.stats.passYd.toLocaleString()}</p>
@@ -306,17 +326,51 @@ export default function PlayersPage() {
                         <p className="text-xs text-muted-foreground">Pass TDs</p>
                         <p className="font-mono font-medium">{selectedPlayer.stats.passTd}</p>
                       </Card>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
                       <Card className="p-2">
                         <p className="text-xs text-muted-foreground">INTs</p>
                         <p className="font-mono font-medium">{selectedPlayer.stats.passInt}</p>
                       </Card>
                       <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">1st Downs</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.passFd}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rush Att</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rushAtt}</p>
+                      </Card>
+                      <Card className="p-2">
                         <p className="text-xs text-muted-foreground">Rush Yds</p>
                         <p className="font-mono font-medium">{selectedPlayer.stats.rushYd}</p>
                       </Card>
-                    </>
-                  ) : (
-                    <>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rush TDs</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rushTd}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rush 1st</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rushFd}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Snap %</p>
+                        <p className="font-mono font-medium">{selectedPlayer.snapPct !== null ? `${selectedPlayer.snapPct}%` : "-"}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Games</p>
+                        <p className="font-mono font-medium">{selectedPlayer.gamesPlayed}</p>
+                      </Card>
+                    </div>
+                  </div>
+                ) : selectedPlayer.position === "RB" ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rush Att</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rushAtt}</p>
+                      </Card>
                       <Card className="p-2">
                         <p className="text-xs text-muted-foreground">Rush Yds</p>
                         <p className="font-mono font-medium">{selectedPlayer.stats.rushYd.toLocaleString()}</p>
@@ -326,6 +380,20 @@ export default function PlayersPage() {
                         <p className="font-mono font-medium">{selectedPlayer.stats.rushTd}</p>
                       </Card>
                       <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rush 1st</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rushFd}</p>
+                      </Card>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Targets</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.recTgt}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rec</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rec}</p>
+                      </Card>
+                      <Card className="p-2">
                         <p className="text-xs text-muted-foreground">Rec Yds</p>
                         <p className="font-mono font-medium">{selectedPlayer.stats.recYd.toLocaleString()}</p>
                       </Card>
@@ -333,9 +401,66 @@ export default function PlayersPage() {
                         <p className="text-xs text-muted-foreground">Rec TDs</p>
                         <p className="font-mono font-medium">{selectedPlayer.stats.recTd}</p>
                       </Card>
-                    </>
-                  )}
-                </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rec 1st</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.recFd}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Total 1st</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rushFd + selectedPlayer.stats.recFd}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Snap %</p>
+                        <p className="font-mono font-medium">{selectedPlayer.snapPct !== null ? `${selectedPlayer.snapPct}%` : "-"}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Games</p>
+                        <p className="font-mono font-medium">{selectedPlayer.gamesPlayed}</p>
+                      </Card>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Targets</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.recTgt}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rec</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rec}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rec Yds</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.recYd.toLocaleString()}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rec TDs</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.recTd}</p>
+                      </Card>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rec 1st</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.recFd}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Snap %</p>
+                        <p className="font-mono font-medium">{selectedPlayer.snapPct !== null ? `${selectedPlayer.snapPct}%` : "-"}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Games</p>
+                        <p className="font-mono font-medium">{selectedPlayer.gamesPlayed}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rush Yds</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rushYd}</p>
+                      </Card>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
