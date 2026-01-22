@@ -293,15 +293,15 @@ export default function LeagueStandingsPage() {
             <div className="mt-6 space-y-6">
               <div className="grid grid-cols-3 gap-3">
                 <Card className="p-3 text-center" data-testid="card-player-value">
-                  <p className="text-xs text-muted-foreground">Players</p>
+                  <p className="text-xs text-muted-foreground">Player Value</p>
                   <p className="text-lg font-bold font-mono" data-testid="text-player-value">{teamDetail.totalPlayerValue.toLocaleString()}</p>
                 </Card>
                 <Card className="p-3 text-center" data-testid="card-pick-value">
-                  <p className="text-xs text-muted-foreground">Picks</p>
+                  <p className="text-xs text-muted-foreground">Pick Value</p>
                   <p className="text-lg font-bold font-mono" data-testid="text-pick-value">{teamDetail.totalPickValue.toLocaleString()}</p>
                 </Card>
                 <Card className="p-3 text-center" data-testid="card-total-value">
-                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="text-xs text-muted-foreground">Total Value</p>
                   <p className="text-lg font-bold font-mono" data-testid="text-total-value">{teamDetail.totalValue.toLocaleString()}</p>
                 </Card>
               </div>
