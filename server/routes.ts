@@ -566,6 +566,80 @@ export async function registerRoutes(
     }
   });
 
+  // Get AI-generated insights for a devy player
+  app.get("/api/sleeper/devy/:playerId/insights", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { playerId } = req.params;
+      
+      // Get player from KTC data
+      const player = ktcValues.getDevyPlayerById(playerId);
+      if (!player) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+
+      // Generate AI insights about the player
+      const prompt = `You are a college football and NFL draft expert providing dynasty fantasy football analysis. Generate a comprehensive scouting report for the following college prospect:
+
+Player: ${player.name}
+Position: ${player.position}
+College: ${player.college}
+Draft Eligible: ${player.draftEligibleYear}
+KTC Ranking: #${player.rank} overall, ${player.position}${player.positionRank}
+Dynasty Value Tier: ${player.tier}
+KTC Value: ${player.value}
+30-Day Trend: ${player.trend30Day > 0 ? '+' + player.trend30Day : player.trend30Day}
+
+Please provide:
+1. **Player Overview**: A 2-3 sentence summary of who this player is and their current status
+2. **College Performance**: Key stats, achievements, and highlights from their college career (be specific with stats if known)
+3. **Strengths**: 3-4 key strengths that make them a valuable dynasty asset
+4. **Areas to Improve**: 2-3 areas where they need development
+5. **NFL Comparison**: 1-2 NFL player comparisons for their play style
+6. **Draft Outlook**: Expected draft position and landing spot analysis
+7. **Dynasty Value**: Analysis of their fantasy football ceiling and floor, and whether they're a buy/hold/sell at current value
+
+Format your response with clear section headers using markdown. Be concise but informative. Focus on actionable fantasy football insights.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert college football analyst and dynasty fantasy football advisor. Provide accurate, up-to-date information about college prospects. If you don't have specific information about a player, provide reasonable context based on their school, position, and ranking. Always be helpful and provide actionable dynasty fantasy advice."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        max_tokens: 1000,
+        temperature: 0.7,
+      });
+
+      const insights = response.choices[0]?.message?.content || "Unable to generate insights at this time.";
+
+      res.json({
+        player: {
+          id: player.id,
+          name: player.name,
+          position: player.position,
+          positionRank: player.positionRank,
+          college: player.college,
+          draftEligibleYear: player.draftEligibleYear,
+          tier: player.tier,
+          value: player.value,
+          trend30Day: player.trend30Day,
+          rank: player.rank,
+        },
+        insights,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error generating devy player insights:", error);
+      res.status(500).json({ message: "Failed to generate player insights" });
+    }
+  });
+
   // Get rosters for trade calculator
   app.get("/api/sleeper/rosters/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {

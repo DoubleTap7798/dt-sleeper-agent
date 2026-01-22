@@ -82,6 +82,15 @@ export function getDevyPlayers(): KTCDevyPlayer[] {
   }));
 }
 
+export function getDevyPlayerById(playerId: string): (KTCDevyPlayer & { rank: number }) | null {
+  const index = KTC_DEVY_PLAYERS.findIndex(p => p.id === playerId);
+  if (index === -1) return null;
+  return {
+    ...KTC_DEVY_PLAYERS[index],
+    rank: index + 1,
+  };
+}
+
 // KTC values cache (in production, you'd fetch from KTC API or scrape)
 // These are sample values - in production, integrate with KTC's actual API
 const POSITION_BASE_VALUES: Record<string, number> = {
