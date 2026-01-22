@@ -10,6 +10,7 @@ import {
   Swords,
   Gamepad2,
   CalendarDays,
+  GraduationCap,
 } from "lucide-react";
 import {
   Sidebar,
@@ -65,6 +66,12 @@ const navigationItems = [
     url: "/league/waivers",
     icon: Users,
     description: "Available players & stats",
+  },
+  {
+    title: "Devy Rankings",
+    url: "/league/devy",
+    icon: GraduationCap,
+    description: "College player rankings",
   },
   {
     title: "Trade Calculator",

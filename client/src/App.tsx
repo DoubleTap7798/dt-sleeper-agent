@@ -18,6 +18,7 @@ import TrophyRoomPage from "@/pages/trophy-room";
 import RivalryPage from "@/pages/rivalry";
 import MatchupsPage from "@/pages/matchups";
 import SchedulePage from "@/pages/schedule";
+import DevyPage from "@/pages/devy";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -97,6 +98,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <WaiverWirePage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/devy">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DevyPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
