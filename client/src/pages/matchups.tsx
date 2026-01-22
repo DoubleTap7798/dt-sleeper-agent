@@ -17,6 +17,7 @@ interface PlayerScore {
   playerId: string;
   name: string;
   position: string;
+  slotPosition: string; // The lineup slot (QB, RB, FLEX, SUPER_FLEX, etc.)
   team: string;
   points: number;
   isStarter: boolean;
@@ -298,15 +299,9 @@ interface PlayerListProps {
 }
 
 function PlayerList({ team, isWinning }: PlayerListProps) {
+  // Keep starters in their original order (matches lineup slots)
   const starters = team.players.filter((p) => p.isStarter);
   const bench = team.players.filter((p) => !p.isStarter);
-
-  const positionOrder = ["QB", "RB", "WR", "TE", "K", "DEF", "FLEX", "SUPER_FLEX"];
-  starters.sort((a, b) => {
-    const aIdx = positionOrder.indexOf(a.position);
-    const bIdx = positionOrder.indexOf(b.position);
-    return aIdx - bIdx;
-  });
 
   return (
     <div className="p-4" data-testid={`player-list-${team.rosterId}`}>
@@ -317,16 +312,16 @@ function PlayerList({ team, isWinning }: PlayerListProps) {
 
       <div className="space-y-1">
         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2" data-testid={`label-starters-${team.rosterId}`}>Starters</p>
-        {starters.map((player) => (
-          <PlayerRow key={player.playerId} player={player} />
+        {starters.map((player, idx) => (
+          <PlayerRow key={`${player.playerId}-${idx}`} player={player} />
         ))}
       </div>
 
       {bench.length > 0 && (
         <div className="mt-4 space-y-1">
           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2" data-testid={`label-bench-${team.rosterId}`}>Bench</p>
-          {bench.slice(0, 5).map((player) => (
-            <PlayerRow key={player.playerId} player={player} isBench />
+          {bench.slice(0, 5).map((player, idx) => (
+            <PlayerRow key={`${player.playerId}-bench-${idx}`} player={player} isBench />
           ))}
           {bench.length > 5 && (
             <p className="text-xs text-muted-foreground" data-testid={`text-bench-overflow-${team.rosterId}`}>+{bench.length - 5} more</p>
@@ -342,17 +337,33 @@ interface PlayerRowProps {
   isBench?: boolean;
 }
 
+// Format slot position for display
+function formatSlotPosition(slot: string): string {
+  const slotMap: Record<string, string> = {
+    "SUPER_FLEX": "SF",
+    "FLEX": "FLX",
+    "IDP_FLEX": "IDP",
+    "BN": "BN",
+  };
+  return slotMap[slot] || slot;
+}
+
 function PlayerRow({ player, isBench }: PlayerRowProps) {
+  const displaySlot = formatSlotPosition(player.slotPosition || player.position);
+  
   return (
     <div
       className={`flex items-center justify-between py-1 ${isBench ? "opacity-60" : ""}`}
       data-testid={`player-row-${player.playerId}`}
     >
       <div className="flex items-center gap-2">
-        <Badge variant="secondary" className="text-xs" data-testid={`badge-position-${player.playerId}`}>
-          {player.position}
+        <Badge variant="secondary" className="text-xs w-8 justify-center" data-testid={`badge-slot-${player.playerId}`}>
+          {displaySlot}
         </Badge>
-        <span className="text-sm truncate max-w-[120px]" data-testid={`text-player-name-${player.playerId}`}>{player.name}</span>
+        <span className="text-sm truncate max-w-[100px]" data-testid={`text-player-name-${player.playerId}`}>{player.name}</span>
+        <span className="text-xs text-muted-foreground" data-testid={`text-player-position-${player.playerId}`}>
+          {player.position}
+        </span>
         <span className="text-xs text-muted-foreground" data-testid={`text-player-team-${player.playerId}`}>{player.team}</span>
       </div>
       <span className={`text-sm font-medium ${player.points > 0 ? "" : "text-muted-foreground"}`} data-testid={`text-player-points-${player.playerId}`}>

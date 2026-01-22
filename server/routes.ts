@@ -314,6 +314,9 @@ export async function registerRoutes(
       // Determine if games are in progress (rough heuristic based on current week)
       const gamesInProgress = selectedWeek === currentWeek && state.season === league.season;
 
+      // Get roster positions from league settings (excludes bench positions)
+      const rosterPositions = (league.roster_positions || []).filter((pos: string) => pos !== "BN");
+
       const formatTeam = (matchupData: sleeperApi.SleeperMatchup) => {
         const roster = rosterMap.get(matchupData.roster_id);
         const user = roster ? userMap.get(roster.owner_id) : null;
@@ -321,11 +324,13 @@ export async function registerRoutes(
         const players = (matchupData.starters || []).map((playerId, idx) => {
           const player = playerData[playerId];
           const points = matchupData.starters_points?.[idx] || 0;
+          const slotPosition = rosterPositions[idx] || "FLEX";
 
           return {
             playerId,
             name: player?.full_name || player?.first_name || playerId,
             position: player?.fantasy_positions?.[0] || "?",
+            slotPosition, // The lineup slot (QB, RB, FLEX, SUPER_FLEX, etc.)
             team: player?.team || "?",
             points,
             isStarter: true,
@@ -342,6 +347,7 @@ export async function registerRoutes(
               playerId,
               name: player?.full_name || player?.first_name || playerId,
               position: player?.fantasy_positions?.[0] || "?",
+              slotPosition: "BN", // Bench
               team: player?.team || "?",
               points: points || 0,
               isStarter: false,
