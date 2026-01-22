@@ -774,6 +774,159 @@ Format your response with clear section headers using markdown. Be concise but i
     }
   });
 
+  // Get NFL players list (excluding devy players)
+  app.get("/api/sleeper/players", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const devyPlayerIds = new Set(ktcValues.KTC_DEVY_PLAYERS.map(p => p.id));
+      
+      // Filter to active NFL players (exclude devy/college players)
+      const nflPlayers: any[] = [];
+      const positions = ["QB", "RB", "WR", "TE"];
+      
+      Object.entries(allPlayers).forEach(([playerId, player]: [string, any]) => {
+        // Skip devy players
+        if (devyPlayerIds.has(playerId)) return;
+        
+        // Only include active NFL players with valid positions
+        const position = player.position || player.fantasy_positions?.[0];
+        if (!positions.includes(position)) return;
+        
+        // Must be on an NFL team or a free agent with NFL experience
+        if (!player.team && player.years_exp === 0) return;
+        
+        // Get KTC value
+        const value = ktcValues.getPlayerValue(
+          playerId,
+          position,
+          player.age,
+          player.years_exp || 0
+        );
+        
+        // Skip players with very low value (likely inactive/practice squad)
+        if (value < 100) return;
+        
+        nflPlayers.push({
+          id: playerId,
+          name: player.position === "DEF" 
+            ? `${player.first_name} ${player.last_name}`
+            : `${player.first_name?.charAt(0) || ""}. ${player.last_name || ""}`.trim(),
+          fullName: `${player.first_name || ""} ${player.last_name || ""}`.trim(),
+          position,
+          team: player.team || "FA",
+          age: player.age,
+          yearsExp: player.years_exp || 0,
+          value,
+          injuryStatus: player.injury_status || null,
+          number: player.number,
+          college: player.college,
+          height: player.height,
+          weight: player.weight,
+        });
+      });
+      
+      // Sort by value descending to determine ranks
+      nflPlayers.sort((a, b) => b.value - a.value);
+      
+      // Add overall rank and position rank
+      const positionRanks: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+      
+      nflPlayers.forEach((player, index) => {
+        player.overallRank = index + 1;
+        positionRanks[player.position] = (positionRanks[player.position] || 0) + 1;
+        player.positionRank = positionRanks[player.position];
+        
+        // Generate approximate ADP based on rank with some variance
+        // Top players have lower ADP, later players have higher
+        const baseAdp = Math.ceil((index + 1) * 1.2);
+        player.adp = baseAdp;
+      });
+      
+      res.json({
+        players: nflPlayers,
+        totalCount: nflPlayers.length,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error fetching NFL players:", error);
+      res.status(500).json({ message: "Failed to fetch players" });
+    }
+  });
+
+  // Get player insights with AI-generated news and stats
+  app.get("/api/sleeper/players/:playerId/insights", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { playerId } = req.params;
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const player = allPlayers[playerId];
+      
+      if (!player) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+      
+      const position = player.position || player.fantasy_positions?.[0] || "N/A";
+      const value = ktcValues.getPlayerValue(
+        playerId,
+        position,
+        player.age,
+        player.years_exp || 0
+      );
+      
+      const playerName = `${player.first_name || ""} ${player.last_name || ""}`.trim();
+      const team = player.team || "Free Agent";
+      const age = player.age || "Unknown";
+      const yearsExp = player.years_exp || 0;
+      
+      const prompt = `You are a fantasy football expert. Provide a brief analysis for ${playerName}, ${position} for the ${team}.
+
+Player Info:
+- Age: ${age}
+- Experience: ${yearsExp} year${yearsExp !== 1 ? 's' : ''} in the NFL
+- Injury Status: ${player.injury_status || 'Healthy'}
+- College: ${player.college || 'Unknown'}
+- Dynasty Trade Value: ${value.toLocaleString()}
+
+Provide a concise response with these 3 sections (keep each section to 2-3 sentences max):
+
+**Latest News**: Recent developments, trades, injuries, or team news affecting this player.
+
+**Fantasy Outlook**: Current fantasy value, role on team, and expectations for upcoming games.
+
+**Dynasty Analysis**: Long-term value, age curve considerations, and whether to buy/hold/sell.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 500,
+        temperature: 0.7,
+      });
+
+      const insights = response.choices[0]?.message?.content || "Unable to generate insights.";
+      
+      res.json({
+        player: {
+          id: playerId,
+          name: playerName,
+          position,
+          team,
+          age,
+          yearsExp,
+          value,
+          injuryStatus: player.injury_status || null,
+          number: player.number,
+          college: player.college,
+          height: player.height,
+          weight: player.weight,
+        },
+        insights,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error generating player insights:", error);
+      res.status(500).json({ message: "Failed to generate player insights" });
+    }
+  });
+
   // Get rosters for trade calculator
   app.get("/api/sleeper/rosters/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {

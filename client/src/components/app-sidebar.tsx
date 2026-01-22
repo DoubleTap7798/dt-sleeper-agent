@@ -12,6 +12,7 @@ import {
   CalendarDays,
   GraduationCap,
   GitBranch,
+  UserCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -73,6 +74,12 @@ const navigationItems = [
     url: "/league/waivers",
     icon: Users,
     description: "Available players & stats",
+  },
+  {
+    title: "NFL Players",
+    url: "/league/players",
+    icon: UserCircle,
+    description: "Player rankings & insights",
   },
   {
     title: "Devy Rankings",

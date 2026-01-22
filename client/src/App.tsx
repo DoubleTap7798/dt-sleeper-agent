@@ -20,6 +20,7 @@ import MatchupsPage from "@/pages/matchups";
 import SchedulePage from "@/pages/schedule";
 import DevyPage from "@/pages/devy";
 import PlayoffBracketPage from "@/pages/playoff-bracket";
+import PlayersPage from "@/pages/players";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -141,6 +142,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <PlayoffBracketPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/players">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <PlayersPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
