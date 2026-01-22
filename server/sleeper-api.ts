@@ -336,53 +336,112 @@ export function getScoringType(scoringSettings: Record<string, number>): "ppr" |
   return "std";
 }
 
-// Calculate fantasy points based on league scoring settings
-// Uses Sleeper's pre-calculated pts_* fields when available for accuracy
+// Standard scoring defaults for PPR format  
+const STANDARD_PPR_DEFAULTS: Record<string, number> = {
+  pass_yd: 0.04,
+  pass_td: 4,
+  pass_int: -2,
+  pass_2pt: 2,
+  rush_yd: 0.1,
+  rush_td: 6,
+  rush_2pt: 2,
+  rec: 1,
+  rec_yd: 0.1,
+  rec_td: 6,
+  rec_2pt: 2,
+  fum_lost: -2,
+};
+
+// Keys that are not stat multipliers (don't have corresponding stats)
+const NON_STAT_KEYS = new Set([
+  // Points allowed ranges (defense)
+  "pts_allow_0", "pts_allow_1_6", "pts_allow_7_13", "pts_allow_14_20",
+  "pts_allow_21_27", "pts_allow_28_34", "pts_allow_35p",
+  // Position-specific bonuses handled separately
+  "bonus_rec_te", "bonus_rec_rb", "bonus_rec_wr",
+]);
+
+// Calculate fantasy points using a hybrid approach:
+// 1. Use Sleeper's pre-calculated pts_* as base (includes per-game bonuses correctly)
+// 2. Adjust for differences in core scoring categories
+// 3. Add points for additional scoring categories not in standard formats
 export function calculateFantasyPoints(
   stats: PlayerStats[string],
   scoringSettings: Record<string, number>
 ): number {
   if (!stats) return 0;
   
-  // Determine scoring type and use Sleeper's pre-calculated points if available
+  // Get the base pre-calculated points from Sleeper
   const scoringType = getScoringType(scoringSettings);
+  let basePoints = 0;
+  let hasBasePoints = false;
   
-  // Use Sleeper's pre-calculated fantasy points based on scoring type
-  // These are more accurate as they account for per-game bonuses correctly
   if (scoringType === "ppr" && stats.pts_ppr !== undefined) {
-    return Math.round(stats.pts_ppr * 100) / 100;
-  }
-  if (scoringType === "half_ppr" && stats.pts_half_ppr !== undefined) {
-    return Math.round(stats.pts_half_ppr * 100) / 100;
-  }
-  if (scoringType === "std" && stats.pts_std !== undefined) {
-    return Math.round(stats.pts_std * 100) / 100;
+    basePoints = stats.pts_ppr;
+    hasBasePoints = true;
+  } else if (scoringType === "half_ppr" && stats.pts_half_ppr !== undefined) {
+    basePoints = stats.pts_half_ppr;
+    hasBasePoints = true;
+  } else if (scoringType === "std" && stats.pts_std !== undefined) {
+    basePoints = stats.pts_std;
+    hasBasePoints = true;
   }
   
-  // Fallback: calculate manually if pts_* not available
+  if (!hasBasePoints) {
+    // No pre-calculated points, use fully generic calculation
+    return calculateFantasyPointsGeneric(stats, scoringSettings);
+  }
+  
+  // Get the defaults for the scoring type to calculate differences
+  const defaults = { ...STANDARD_PPR_DEFAULTS };
+  if (scoringType === "half_ppr") {
+    defaults.rec = 0.5;
+  } else if (scoringType === "std") {
+    defaults.rec = 0;
+  }
+  
+  // Iterate ALL scoring settings and apply adjustments/additions
+  for (const [scoringKey, leagueValue] of Object.entries(scoringSettings)) {
+    if (typeof leagueValue !== "number") continue;
+    if (NON_STAT_KEYS.has(scoringKey)) continue;
+    
+    const statValue = stats[scoringKey];
+    if (typeof statValue !== "number") continue;
+    
+    const defaultValue = defaults[scoringKey];
+    
+    if (typeof defaultValue === "number") {
+      // This is a key included in standard scoring - adjust for difference
+      const diff = (leagueValue - defaultValue) * statValue;
+      if (Math.abs(diff) > 0.001) {
+        basePoints += diff;
+      }
+    } else {
+      // This is an additional key not in standard scoring - add full value
+      if (leagueValue !== 0) {
+        basePoints += statValue * leagueValue;
+      }
+    }
+  }
+  
+  return Math.round(basePoints * 100) / 100;
+}
+
+// Fully generic calculation when no pre-calculated points available
+function calculateFantasyPointsGeneric(
+  stats: PlayerStats[string],
+  scoringSettings: Record<string, number>
+): number {
   let points = 0;
   
-  // Core scoring categories
-  const scoringMap: [string, string][] = [
-    ["pass_yd", "pass_yd"],
-    ["pass_td", "pass_td"],
-    ["pass_int", "pass_int"],
-    ["pass_2pt", "pass_2pt"],
-    ["rush_yd", "rush_yd"],
-    ["rush_td", "rush_td"],
-    ["rush_2pt", "rush_2pt"],
-    ["rec", "rec"],
-    ["rec_yd", "rec_yd"],
-    ["rec_td", "rec_td"],
-    ["rec_2pt", "rec_2pt"],
-    ["fum_lost", "fum_lost"],
-    ["fum", "fum"],
-  ];
-  
-  for (const [statKey, scoringKey] of scoringMap) {
-    const statValue = stats[statKey];
-    const scoringValue = scoringSettings[scoringKey];
-    if (typeof statValue === "number" && typeof scoringValue === "number") {
+  // Iterate all scoring settings and apply matching stats
+  for (const [scoringKey, scoringValue] of Object.entries(scoringSettings)) {
+    if (typeof scoringValue !== "number" || scoringValue === 0) continue;
+    if (NON_STAT_KEYS.has(scoringKey)) continue;
+    
+    // Check if stats has a matching key
+    const statValue = stats[scoringKey];
+    if (typeof statValue === "number") {
       points += statValue * scoringValue;
     }
   }

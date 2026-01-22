@@ -818,21 +818,10 @@ Format your response with clear section headers using markdown. Be concise but i
         statsSeason = String(currentYear);
       }
       
-      // Check if league has non-standard scoring (beyond PPR/half/std)
-      let isCustomScoring = false;
-      const customScoringKeys = ["pass_td", "bonus_", "te_premium", "idp"];
-      for (const key of Object.keys(scoringSettings)) {
-        // Check for 6pt passing TDs (standard is 4)
-        if (key === "pass_td" && scoringSettings[key] !== 4) {
-          isCustomScoring = true;
-          break;
-        }
-        // Check for bonuses or TE premium
-        if (customScoringKeys.some(k => key.includes(k) && k !== "pass_td")) {
-          isCustomScoring = true;
-          break;
-        }
-      }
+      // Position-specific reception bonuses
+      const tePremium = scoringSettings.bonus_rec_te || 0;
+      const rbBonus = scoringSettings.bonus_rec_rb || 0;
+      const wrBonus = scoringSettings.bonus_rec_wr || 0;
       
       const [allPlayers, seasonStats] = await Promise.all([
         sleeperApi.getAllPlayers(),
@@ -860,7 +849,20 @@ Format your response with clear section headers using markdown. Be concise but i
         const playerStats = seasonStats[playerId];
         
         // Calculate fantasy points based on league scoring settings
-        const fantasyPoints = sleeperApi.calculateFantasyPoints(playerStats, scoringSettings);
+        let fantasyPoints = sleeperApi.calculateFantasyPoints(playerStats, scoringSettings);
+        
+        // Apply position-specific reception bonuses
+        const receptions = playerStats?.rec || 0;
+        if (position === "TE" && tePremium > 0 && receptions > 0) {
+          fantasyPoints += receptions * tePremium;
+        }
+        if (position === "RB" && rbBonus > 0 && receptions > 0) {
+          fantasyPoints += receptions * rbBonus;
+        }
+        if (position === "WR" && wrBonus > 0 && receptions > 0) {
+          fantasyPoints += receptions * wrBonus;
+        }
+        fantasyPoints = Math.round(fantasyPoints * 100) / 100;
         
         // Only include players with actual production (minimum 10 points)
         if (fantasyPoints < 10) return;
@@ -933,17 +935,19 @@ Format your response with clear section headers using markdown. Be concise but i
       
       // Determine scoring type label
       const scoringType = sleeperApi.getScoringType(scoringSettings);
-      let scoringLabel = scoringType === "ppr" ? "PPR" : scoringType === "half_ppr" ? "Half PPR" : "Standard";
-      if (isCustomScoring) {
-        scoringLabel += "*"; // Indicate approximate scoring
-      }
+      const scoringLabel = scoringType === "ppr" ? "PPR" : scoringType === "half_ppr" ? "Half PPR" : "Standard";
+      
+      // Check if this league has custom scoring beyond standard formats
+      const hasPositionBonuses = tePremium !== 0 || rbBonus !== 0 || wrBonus !== 0;
+      const hasNonStandardTds = (scoringSettings.pass_td || 4) !== 4;
+      const isCustomScoring = hasPositionBonuses || hasNonStandardTds;
       
       res.json({
         players: nflPlayers,
         totalCount: nflPlayers.length,
         season: statsSeason,
-        scoringType: scoringLabel,
-        isCustomScoring, // Let frontend know if scoring is approximate
+        scoringType: isCustomScoring ? `${scoringLabel} (custom)` : scoringLabel,
+        isCustomScoring,
         lastUpdated: new Date().toISOString(),
       });
     } catch (error) {
