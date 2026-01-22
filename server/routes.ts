@@ -264,6 +264,128 @@ export async function registerRoutes(
     }
   });
 
+  // Get current week matchups with scoring
+  app.get("/api/sleeper/matchups/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const requestedWeek = req.query.week ? parseInt(req.query.week as string) : null;
+
+      const [league, state, rosters, users, allPlayers] = await Promise.all([
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      if (!league || !state) {
+        return res.status(404).json({ message: "League or state not found" });
+      }
+
+      const currentWeek = state.display_week || state.week || 1;
+      const selectedWeek = requestedWeek || currentWeek;
+
+      const matchupsRaw = await sleeperApi.getMatchups(leagueId, selectedWeek);
+
+      if (!matchupsRaw || matchupsRaw.length === 0) {
+        return res.json({
+          matchups: [],
+          currentWeek,
+          selectedWeek,
+          seasonType: "regular",
+          gamesInProgress: false,
+        });
+      }
+
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+      const rosterMap = new Map((rosters || []).map((r) => [r.roster_id, r]));
+      const playerData = allPlayers || {};
+
+      // Group matchups by matchup_id
+      const matchupGroups = new Map<number, typeof matchupsRaw>();
+      for (const m of matchupsRaw) {
+        if (m.matchup_id === null || m.matchup_id === undefined) continue;
+        if (!matchupGroups.has(m.matchup_id)) {
+          matchupGroups.set(m.matchup_id, []);
+        }
+        matchupGroups.get(m.matchup_id)!.push(m);
+      }
+
+      // Determine if games are in progress (rough heuristic based on current week)
+      const gamesInProgress = selectedWeek === currentWeek && state.season === league.season;
+
+      const formatTeam = (matchupData: sleeperApi.SleeperMatchup) => {
+        const roster = rosterMap.get(matchupData.roster_id);
+        const user = roster ? userMap.get(roster.owner_id) : null;
+
+        const players = (matchupData.starters || []).map((playerId, idx) => {
+          const player = playerData[playerId];
+          const points = matchupData.starters_points?.[idx] || 0;
+
+          return {
+            playerId,
+            name: player?.full_name || player?.first_name || playerId,
+            position: player?.fantasy_positions?.[0] || "?",
+            team: player?.team || "?",
+            points,
+            isStarter: true,
+          };
+        });
+
+        // Add bench players
+        const starterIds = new Set(matchupData.starters || []);
+        const benchPlayers = Object.entries(matchupData.players_points || {})
+          .filter(([playerId]) => !starterIds.has(playerId))
+          .map(([playerId, points]) => {
+            const player = playerData[playerId];
+            return {
+              playerId,
+              name: player?.full_name || player?.first_name || playerId,
+              position: player?.fantasy_positions?.[0] || "?",
+              team: player?.team || "?",
+              points: points || 0,
+              isStarter: false,
+            };
+          })
+          .sort((a, b) => b.points - a.points);
+
+        return {
+          rosterId: matchupData.roster_id,
+          ownerId: roster?.owner_id || "",
+          ownerName: user?.display_name || user?.username || `Team ${matchupData.roster_id}`,
+          avatar: user?.avatar ? sleeperApi.getAvatarUrl(user.avatar) : null,
+          totalPoints: matchupData.points || 0,
+          players: [...players, ...benchPlayers],
+        };
+      };
+
+      const matchups = Array.from(matchupGroups.entries())
+        .map(([matchupId, teams]) => {
+          const teamA = teams[0] ? formatTeam(teams[0]) : null;
+          const teamB = teams[1] ? formatTeam(teams[1]) : null;
+
+          return {
+            matchupId,
+            teamA: teamA!,
+            teamB,
+          };
+        })
+        .filter((m) => m.teamA)
+        .sort((a, b) => a.matchupId - b.matchupId);
+
+      res.json({
+        matchups,
+        currentWeek,
+        selectedWeek,
+        seasonType: selectedWeek >= (league.settings?.playoff_week_start || 15) ? "playoff" : "regular",
+        gamesInProgress,
+      });
+    } catch (error) {
+      console.error("Error fetching matchups:", error);
+      res.status(500).json({ message: "Failed to fetch matchups" });
+    }
+  });
+
   // Get rosters for trade calculator
   app.get("/api/sleeper/rosters/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {

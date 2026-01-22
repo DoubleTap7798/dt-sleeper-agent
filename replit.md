@@ -6,6 +6,7 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 
 ## Features
 - **Standings**: League standings with playoff predictions, clickable teams show roster and draft picks
+- **Matchups**: Current week matchups with live scoring, expandable to see player breakdowns
 - **Rivalries**: Head-to-head records between teams across all seasons
 - **Waiver Wire**: Available players and stats
 - **Trade Calculator**: Calculate trade values with KTC dynasty values and AI analysis
