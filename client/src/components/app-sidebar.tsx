@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Swords,
   Gamepad2,
+  CalendarDays,
 } from "lucide-react";
 import {
   Sidebar,
@@ -52,6 +53,12 @@ const navigationItems = [
     url: "/league/matchups",
     icon: Gamepad2,
     description: "Current week matchups & live scoring",
+  },
+  {
+    title: "Schedule",
+    url: "/league/schedule",
+    icon: CalendarDays,
+    description: "Your season schedule",
   },
   {
     title: "Waiver Wire",

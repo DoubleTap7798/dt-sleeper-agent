@@ -386,6 +386,149 @@ export async function registerRoutes(
     }
   });
 
+  // Get user's schedule for the entire season
+  app.get("/api/sleeper/schedule/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+
+      // Get user profile to find their sleeper user id
+      const profile = await storage.getUserProfile(userId);
+      if (!profile || !profile.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [league, state, rosters, users] = await Promise.all([
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+      ]);
+
+      if (!league || !state) {
+        return res.status(404).json({ message: "League or state not found" });
+      }
+
+      // Find user's roster
+      const userRoster = rosters.find(r => r.owner_id === profile.sleeperUserId);
+      if (!userRoster) {
+        return res.status(404).json({ message: "User roster not found in this league" });
+      }
+
+      const userRosterId = userRoster.roster_id;
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+      const rosterMap = new Map((rosters || []).map((r) => [r.roster_id, r]));
+
+      const currentWeek = state.display_week || state.week || 1;
+      const playoffWeekStart = league.settings?.playoff_week_start || 15;
+
+      // Fetch matchups for all regular season weeks in parallel
+      const regularSeasonWeeks = playoffWeekStart - 1;
+      const weekPromises = Array.from({ length: regularSeasonWeeks }, (_, i) =>
+        sleeperApi.getMatchups(leagueId, i + 1).then(matchups => ({ week: i + 1, matchups }))
+      );
+      const weekResults = await Promise.all(weekPromises);
+
+      // Build schedule from matchups
+      const schedule = weekResults.map(({ week, matchups }) => {
+        if (!matchups || matchups.length === 0) {
+          return {
+            week,
+            opponent: null,
+            userPoints: 0,
+            opponentPoints: 0,
+            result: "upcoming" as const,
+            isPastWeek: week < currentWeek,
+            isCurrentWeek: week === currentWeek,
+          };
+        }
+
+        // Find user's matchup
+        const userMatchup = matchups.find(m => m.roster_id === userRosterId);
+        if (!userMatchup || userMatchup.matchup_id === null || userMatchup.matchup_id === undefined) {
+          return {
+            week,
+            opponent: null,
+            userPoints: 0,
+            opponentPoints: 0,
+            result: "bye" as const,
+            isPastWeek: week < currentWeek,
+            isCurrentWeek: week === currentWeek,
+          };
+        }
+
+        // Find opponent in the same matchup
+        const opponentMatchup = matchups.find(
+          m => m.matchup_id === userMatchup.matchup_id && m.roster_id !== userRosterId
+        );
+
+        let opponent = null;
+        let opponentPoints = 0;
+
+        if (opponentMatchup) {
+          const opponentRoster = rosterMap.get(opponentMatchup.roster_id);
+          const opponentUser = opponentRoster ? userMap.get(opponentRoster.owner_id) : null;
+          opponentPoints = opponentMatchup.points || 0;
+
+          opponent = {
+            rosterId: opponentMatchup.roster_id,
+            ownerId: opponentRoster?.owner_id || "",
+            ownerName: opponentUser?.display_name || opponentUser?.username || `Team ${opponentMatchup.roster_id}`,
+            avatar: opponentUser?.avatar ? sleeperApi.getAvatarUrl(opponentUser.avatar) : null,
+          };
+        }
+
+        const userPoints = userMatchup.points || 0;
+        const isPastWeek = week < currentWeek;
+        const isCurrentWeek = week === currentWeek;
+
+        let result: "win" | "loss" | "tie" | "upcoming" | "in_progress" | "bye" = "upcoming";
+        if (isPastWeek) {
+          if (userPoints > opponentPoints) result = "win";
+          else if (userPoints < opponentPoints) result = "loss";
+          else result = "tie";
+        } else if (isCurrentWeek) {
+          result = "in_progress";
+        }
+
+        return {
+          week,
+          opponent,
+          userPoints,
+          opponentPoints,
+          result,
+          isPastWeek,
+          isCurrentWeek,
+        };
+      });
+
+      // Calculate record
+      const wins = schedule.filter(s => s.result === "win").length;
+      const losses = schedule.filter(s => s.result === "loss").length;
+      const ties = schedule.filter(s => s.result === "tie").length;
+
+      // Get user info for display
+      const currentUser = userMap.get(profile.sleeperUserId);
+
+      res.json({
+        schedule,
+        currentWeek,
+        playoffWeekStart,
+        record: { wins, losses, ties },
+        user: {
+          rosterId: userRosterId,
+          ownerName: currentUser?.display_name || currentUser?.username || `Team ${userRosterId}`,
+          avatar: currentUser?.avatar ? sleeperApi.getAvatarUrl(currentUser.avatar) : null,
+        },
+        leagueName: league.name,
+        season: league.season,
+      });
+    } catch (error) {
+      console.error("Error fetching schedule:", error);
+      res.status(500).json({ message: "Failed to fetch schedule" });
+    }
+  });
+
   // Get rosters for trade calculator
   app.get("/api/sleeper/rosters/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {

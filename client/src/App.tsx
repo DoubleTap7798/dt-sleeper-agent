@@ -17,6 +17,7 @@ import TradeHistoryPage from "@/pages/trade-history";
 import TrophyRoomPage from "@/pages/trophy-room";
 import RivalryPage from "@/pages/rivalry";
 import MatchupsPage from "@/pages/matchups";
+import SchedulePage from "@/pages/schedule";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -82,6 +83,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <MatchupsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/schedule">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <SchedulePage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
