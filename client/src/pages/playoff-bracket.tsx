@@ -153,6 +153,34 @@ export default function PlayoffBracketPage() {
     .map(Number)
     .sort((a, b) => a - b);
 
+  // Identify bye teams: teams that appear in round 2+ but not in round 1
+  const round1Teams = new Set<number>();
+  const round2Teams = new Set<number>();
+  
+  bracket.matchups.forEach((m) => {
+    if (m.round === 1) {
+      if (m.team1) round1Teams.add(m.team1.rosterId);
+      if (m.team2) round1Teams.add(m.team2.rosterId);
+    }
+    if (m.round === 2) {
+      if (m.team1) round2Teams.add(m.team1.rosterId);
+      if (m.team2) round2Teams.add(m.team2.rosterId);
+    }
+  });
+  
+  // Bye teams are in round 2 but not round 1
+  const byeTeamIds = new Set<number>();
+  round2Teams.forEach((id) => {
+    if (!round1Teams.has(id)) byeTeamIds.add(id);
+  });
+  
+  // Get full team info for bye teams
+  const byeTeams = bracket.matchups
+    .filter((m) => m.round === 2)
+    .flatMap((m) => [m.team1, m.team2])
+    .filter((team): team is Team => team !== null && byeTeamIds.has(team.rosterId))
+    .filter((team, index, self) => self.findIndex(t => t.rosterId === team.rosterId) === index);
+
   const champion = bracket.matchups.find(
     (m) => m.round === bracket.numRounds && m.winner !== null
   );
@@ -196,6 +224,24 @@ export default function PlayoffBracketPage() {
             )}
           </p>
         </Card>
+      )}
+
+      {byeTeams.length > 0 && (
+        <div className="flex items-center gap-4 p-3 bg-muted/30 rounded-md" data-testid="bye-teams-section">
+          <span className="text-sm text-muted-foreground font-medium">First Round Bye:</span>
+          <div className="flex gap-3">
+            {byeTeams.map((team) => (
+              <div key={team.rosterId} className="flex items-center gap-2" data-testid={`bye-team-${team.rosterId}`}>
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={team.avatar || undefined} alt={team.ownerName} />
+                  <AvatarFallback className="text-xs">{team.ownerName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium">{team.ownerName}</span>
+                <Badge variant="outline" className="text-xs">BYE</Badge>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="flex gap-6 overflow-x-auto pb-4">
