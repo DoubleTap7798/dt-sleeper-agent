@@ -364,6 +364,168 @@ export async function registerRoutes(
     }
   });
 
+  // Get single team roster with players and picks
+  app.get("/api/sleeper/team/:leagueId/:rosterId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId, rosterId } = req.params;
+      const rosterIdNum = parseInt(rosterId);
+
+      const [rosters, users, allPlayers, draftPicks, league] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeagueDraftPicks(leagueId),
+        sleeperApi.getLeague(leagueId),
+      ]);
+
+      if (!rosters || rosters.length === 0) {
+        return res.status(404).json({ message: "Rosters not found" });
+      }
+
+      const roster = rosters.find((r) => r.roster_id === rosterIdNum);
+      if (!roster) {
+        return res.status(404).json({ message: "Team not found" });
+      }
+
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+      const playerData = allPlayers || {};
+      const user = userMap.get(roster.owner_id);
+
+      // Helper for display name
+      const getDisplayName = (player: any): string => {
+        if (player.position === "DEF") {
+          return player.first_name + " " + player.last_name;
+        }
+        const firstName = player.first_name || "";
+        const lastName = player.last_name || "";
+        const firstInitial = firstName ? firstName.charAt(0) + "." : "";
+        return `${firstInitial} ${lastName}`.trim();
+      };
+
+      // Get player assets with positions
+      const starters: any[] = [];
+      const bench: any[] = [];
+      const taxi: any[] = [];
+      const ir: any[] = [];
+
+      const starterIds = new Set(roster.starters || []);
+      const taxiIds = new Set(roster.taxi || []);
+      const reserveIds = new Set(roster.reserve || []);
+
+      (roster.players || []).forEach((playerId) => {
+        const player = playerData[playerId];
+        if (!player) return;
+
+        const position = player.position || player.fantasy_positions?.[0] || "N/A";
+        const playerInfo = {
+          id: playerId,
+          name: getDisplayName(player),
+          fullName: `${player.first_name} ${player.last_name}`,
+          position,
+          team: player.team || "FA",
+          age: player.age,
+          value: ktcValues.getPlayerValue(playerId, position, player.age, player.years_exp || 0),
+        };
+
+        if (starterIds.has(playerId)) {
+          starters.push(playerInfo);
+        } else if (taxiIds.has(playerId)) {
+          taxi.push(playerInfo);
+        } else if (reserveIds.has(playerId)) {
+          ir.push(playerInfo);
+        } else {
+          bench.push(playerInfo);
+        }
+      });
+
+      // Sort by value descending
+      const sortByValue = (a: any, b: any) => b.value - a.value;
+      starters.sort(sortByValue);
+      bench.sort(sortByValue);
+      taxi.sort(sortByValue);
+      ir.sort(sortByValue);
+
+      // Get draft picks for this roster
+      const tradedPicks = (draftPicks || []).filter((p) => p.owner_id === rosterIdNum);
+      const totalRosters = league?.total_rosters || rosters.length;
+
+      const picks: any[] = [];
+      const currentYear = new Date().getFullYear();
+      
+      // Generate picks for next 3 years
+      for (let season = currentYear; season <= currentYear + 2; season++) {
+        for (let round = 1; round <= 5; round++) {
+          const id = `${season}-${round}-${rosterIdNum}`;
+          const tradedAway = tradedPicks.find(
+            (p) => p.season === String(season) && p.round === round && p.previous_owner_id === rosterIdNum
+          );
+          const tradedIn = tradedPicks.find(
+            (p) => p.season === String(season) && p.round === round && p.owner_id === rosterIdNum && p.previous_owner_id !== rosterIdNum
+          );
+
+          if (tradedAway && !tradedIn) {
+            // Team traded this pick away, skip it
+            continue;
+          }
+
+          if (tradedIn) {
+            // Got a pick from another team
+            const originalOwner = rosters.find((r) => r.roster_id === tradedIn.previous_owner_id);
+            const originalUser = originalOwner ? userMap.get(originalOwner.owner_id) : null;
+            picks.push({
+              id: `${season}-${round}-${tradedIn.previous_owner_id}`,
+              name: `${season} Round ${round} (from ${originalUser?.display_name || "Unknown"})`,
+              season: String(season),
+              round,
+              originalOwner: originalUser?.display_name || "Unknown",
+              isOwn: false,
+              value: ktcValues.getPickValue(String(season), round),
+            });
+          } else {
+            // Own pick
+            picks.push({
+              id,
+              name: `${season} Round ${round}`,
+              season: String(season),
+              round,
+              isOwn: true,
+              value: ktcValues.getPickValue(String(season), round),
+            });
+          }
+        }
+      }
+
+      // Calculate total roster value
+      const allPlayers2 = [...starters, ...bench, ...taxi, ...ir];
+      const totalPlayerValue = allPlayers2.reduce((sum, p) => sum + p.value, 0);
+      const totalPickValue = picks.reduce((sum, p) => sum + p.value, 0);
+
+      res.json({
+        rosterId: roster.roster_id,
+        ownerId: roster.owner_id,
+        ownerName: user?.display_name || "Unknown",
+        avatar: user?.avatar ? `https://sleepercdn.com/avatars/thumbs/${user.avatar}` : null,
+        record: {
+          wins: roster.settings.wins || 0,
+          losses: roster.settings.losses || 0,
+          ties: roster.settings.ties || 0,
+          pointsFor: (roster.settings.fpts || 0) + (roster.settings.fpts_decimal || 0) / 100,
+        },
+        starters,
+        bench,
+        taxi,
+        ir,
+        picks,
+        totalPlayerValue,
+        totalPickValue,
+        totalValue: totalPlayerValue + totalPickValue,
+      });
+    } catch (error) {
+      console.error("Error fetching team:", error);
+      res.status(500).json({ message: "Failed to fetch team" });
+    }
+  });
+
   // Analyze trade
   app.post("/api/trade/analyze", isAuthenticated, async (req: any, res: Response) => {
     try {
