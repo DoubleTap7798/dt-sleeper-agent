@@ -1,38 +1,45 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { userProfiles, type UserProfile, type InsertUserProfile } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getUserProfile(userId: string): Promise<UserProfile | undefined>;
+  upsertUserProfile(profile: InsertUserProfile): Promise<UserProfile>;
+  updateSelectedLeague(userId: string, leagueId: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getUserProfile(userId: string): Promise<UserProfile | undefined> {
+    const [profile] = await db
+      .select()
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId));
+    return profile || undefined;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async upsertUserProfile(profileData: InsertUserProfile): Promise<UserProfile> {
+    const [profile] = await db
+      .insert(userProfiles)
+      .values(profileData)
+      .onConflictDoUpdate({
+        target: userProfiles.userId,
+        set: {
+          sleeperUsername: profileData.sleeperUsername,
+          sleeperUserId: profileData.sleeperUserId,
+          selectedLeagueId: profileData.selectedLeagueId,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return profile;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async updateSelectedLeague(userId: string, leagueId: string): Promise<void> {
+    await db
+      .update(userProfiles)
+      .set({ selectedLeagueId: leagueId, updatedAt: new Date() })
+      .where(eq(userProfiles.userId, userId));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
