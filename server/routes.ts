@@ -574,21 +574,31 @@ export async function registerRoutes(
       // Determine number of rounds based on playoff teams
       const numRounds = Math.ceil(Math.log2(playoffTeams));
 
-      // Transform bracket matchups - filter out consolation games (those fed by losers)
-      const matchups = (bracket || []).map((match) => ({
-        round: match.r,
-        matchId: match.m,
-        team1: getTeamInfo(match.t1),
-        team2: getTeamInfo(match.t2),
-        winner: match.w,
-        loser: match.l,
-        team1From: match.t1_from,
-        team2From: match.t2_from,
-        isConsolation: !!(match.t1_from?.l || match.t2_from?.l),
-      }));
+      // Transform bracket matchups
+      const matchups = (bracket || []).map((match) => {
+        // A matchup is a consolation game if BOTH teams are fed from loser positions
+        // A matchup is championship bracket if at least one team is from a winner or is a first-round team
+        const isBothFromLosers = !!(match.t1_from?.l && match.t2_from?.l);
+        
+        return {
+          round: match.r,
+          matchId: match.m,
+          team1: getTeamInfo(match.t1),
+          team2: getTeamInfo(match.t2),
+          winner: match.w,
+          loser: match.l,
+          team1From: match.t1_from,
+          team2From: match.t2_from,
+          isThirdPlaceGame: isBothFromLosers && match.r === numRounds,
+          isConsolation: isBothFromLosers,
+        };
+      });
 
-      // Filter to only championship bracket (non-consolation) matchups
+      // Championship bracket: exclude games where BOTH teams are from losers
       const championshipMatchups = matchups.filter((m) => !m.isConsolation);
+      
+      // 3rd place game: final round matchup where both teams are from losers
+      const thirdPlaceGame = matchups.find((m) => m.isThirdPlaceGame) || null;
 
       // Group matchups by round (championship only)
       const rounds: Record<number, typeof championshipMatchups> = {};
@@ -607,6 +617,7 @@ export async function registerRoutes(
         numRounds,
         rounds,
         matchups: championshipMatchups,
+        thirdPlaceGame,
         isPlayoffsStarted: currentWeek >= playoffWeekStart,
         isComplete: league.status === "complete",
       });
