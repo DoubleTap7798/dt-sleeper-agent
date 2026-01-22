@@ -2,7 +2,15 @@
 
 ## Overview
 
-DT Sleeper Agent is a fantasy football companion application for Sleeper leagues. It provides league management tools including trade calculators with KTC (Keep Trade Cut) values, waiver wire analysis, playoff predictions, trade history tracking, and a trophy room for league achievements. The application integrates with the Sleeper API to fetch real-time league data and uses AI (OpenAI) for trade analysis and recommendations.
+DT Sleeper Agent is a fantasy football companion application for Sleeper leagues. It provides league management tools including trade calculators with KTC (Keep Trade Cut) values, waiver wire analysis, playoff predictions, trade history tracking, rivalry head-to-head records, and a trophy room for league achievements. The application integrates with the Sleeper API to fetch real-time league data and uses AI (OpenAI) for trade analysis and recommendations.
+
+## Features
+- **Standings**: League standings with playoff predictions, clickable teams show roster and draft picks
+- **Rivalries**: Head-to-head records between teams across all seasons
+- **Waiver Wire**: Available players and stats
+- **Trade Calculator**: Calculate trade values with KTC dynasty values and AI analysis
+- **Trade History**: Historical trades from ALL league years with AI insights
+- **Trophy Room**: Champions, all-time standings, season records
 
 ## User Preferences
 
