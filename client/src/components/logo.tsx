@@ -1,4 +1,4 @@
-import { Shield } from "lucide-react";
+import dtLogo from "@assets/1768235453036_1769043440542.jpeg";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg" | "xl";
@@ -23,17 +23,12 @@ const textSizeClasses = {
 export function Logo({ size = "md", showText = true, className = "" }: LogoProps) {
   return (
     <div className={`flex flex-col items-center gap-2 ${className}`} data-testid="logo">
-      <div className={`relative ${sizeClasses[size]}`}>
-        <Shield 
-          className={`${sizeClasses[size]} text-foreground fill-background stroke-[1.5]`} 
-          data-testid="logo-icon"
-        />
-        <span className={`absolute inset-0 flex items-center justify-center font-bold ${
-          size === "sm" ? "text-xs" : size === "md" ? "text-sm" : size === "lg" ? "text-xl" : "text-3xl"
-        }`}>
-          DT
-        </span>
-      </div>
+      <img 
+        src={dtLogo} 
+        alt="DT Sleeper Agent Logo" 
+        className={`${sizeClasses[size]} rounded-full object-cover`}
+        data-testid="logo-icon"
+      />
       {showText && (
         <div className="text-center">
           <h1 className={`font-bold tracking-tight ${textSizeClasses[size]}`} data-testid="logo-text">
