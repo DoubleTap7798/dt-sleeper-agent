@@ -574,7 +574,7 @@ export async function registerRoutes(
       // Determine number of rounds based on playoff teams
       const numRounds = Math.ceil(Math.log2(playoffTeams));
 
-      // Transform bracket matchups
+      // Transform bracket matchups - filter out consolation games (those fed by losers)
       const matchups = (bracket || []).map((match) => ({
         round: match.r,
         matchId: match.m,
@@ -584,11 +584,15 @@ export async function registerRoutes(
         loser: match.l,
         team1From: match.t1_from,
         team2From: match.t2_from,
+        isConsolation: !!(match.t1_from?.l || match.t2_from?.l),
       }));
 
-      // Group matchups by round
-      const rounds: Record<number, typeof matchups> = {};
-      matchups.forEach((m) => {
+      // Filter to only championship bracket (non-consolation) matchups
+      const championshipMatchups = matchups.filter((m) => !m.isConsolation);
+
+      // Group matchups by round (championship only)
+      const rounds: Record<number, typeof championshipMatchups> = {};
+      championshipMatchups.forEach((m) => {
         if (!rounds[m.round]) rounds[m.round] = [];
         rounds[m.round].push(m);
       });
@@ -602,7 +606,7 @@ export async function registerRoutes(
         currentWeek,
         numRounds,
         rounds,
-        matchups,
+        matchups: championshipMatchups,
         isPlayoffsStarted: currentWeek >= playoffWeekStart,
         isComplete: league.status === "complete",
       });

@@ -133,10 +133,14 @@ export default function PlayoffBracketPage() {
     );
   }
 
-  const getRoundName = (round: number, numRounds: number): string => {
+  const getRoundName = (round: number, numRounds: number, playoffTeams: number): string => {
+    // For 6-team playoffs: Round 1 = Wildcard, Round 2 = Semifinals, Round 3 = Championship
+    // For 4-team playoffs: Round 1 = Semifinals, Round 2 = Championship
+    // For 8-team playoffs: Round 1 = Quarterfinals, Round 2 = Semifinals, Round 3 = Championship
     if (round === numRounds) return "Championship";
-    if (round === numRounds - 1 && numRounds >= 2) return "Semifinals";
-    if (round === numRounds - 2 && numRounds >= 3) return "Quarterfinals";
+    if (round === numRounds - 1) return "Semifinals";
+    if (playoffTeams === 6 && round === 1) return "Wildcard";
+    if (playoffTeams === 8 && round === 1) return "Quarterfinals";
     return `Round ${round}`;
   };
 
@@ -192,7 +196,7 @@ export default function PlayoffBracketPage() {
       <div className="flex gap-6 overflow-x-auto pb-4">
         {rounds.map((round) => {
           const roundMatchups = bracket.rounds[round] || [];
-          const roundName = getRoundName(round, bracket.numRounds);
+          const roundName = getRoundName(round, bracket.numRounds, bracket.playoffTeams);
           const isChampionship = round === bracket.numRounds;
 
           return (
