@@ -8,6 +8,10 @@ export interface SleeperUser {
   username: string;
   display_name: string;
   avatar: string | null;
+  metadata?: {
+    team_name?: string;
+    [key: string]: any;
+  };
 }
 
 export interface SleeperLeague {
@@ -24,6 +28,7 @@ export interface SleeperLeague {
     waiver_budget: number;
     trade_deadline: number;
     type: number;
+    leg?: number;
   };
   status: string;
   avatar: string | null;

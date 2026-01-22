@@ -59,3 +59,43 @@ export const tradeAnalyses = pgTable("trade_analyses", {
 });
 
 export type TradeAnalysis = typeof tradeAnalyses.$inferSelect;
+
+// League notifications for real-time updates
+export const leagueNotifications = pgTable("league_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leagueId: text("league_id").notNull(),
+  type: text("type").notNull(), // 'trade', 'waiver', 'free_agent', 'scoring_update'
+  transactionId: text("transaction_id"), // Sleeper transaction ID to prevent duplicates
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  metadata: jsonb("metadata"), // Additional data about the notification
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLeagueNotificationSchema = createInsertSchema(leagueNotifications).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type LeagueNotification = typeof leagueNotifications.$inferSelect;
+export type InsertLeagueNotification = z.infer<typeof insertLeagueNotificationSchema>;
+
+// Track which notifications a user has seen
+export const userNotificationStatus = pgTable("user_notification_status", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  notificationId: varchar("notification_id").notNull(),
+  readAt: timestamp("read_at").defaultNow(),
+});
+
+export type UserNotificationStatus = typeof userNotificationStatus.$inferSelect;
+
+// Track last sync timestamp per league
+export const leagueSyncStatus = pgTable("league_sync_status", {
+  leagueId: varchar("league_id").primaryKey(),
+  lastTransactionCheck: timestamp("last_transaction_check"),
+  lastScoringCheck: timestamp("last_scoring_check"),
+  lastKnownWeek: integer("last_known_week"),
+});
+
+export type LeagueSyncStatus = typeof leagueSyncStatus.$inferSelect;

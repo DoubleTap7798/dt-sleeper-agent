@@ -15,6 +15,8 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **Trade Calculator**: Calculate trade values with KTC dynasty values and AI analysis
 - **Trade History**: Historical trades from ALL league years with AI insights
 - **Trophy Room**: Champions, all-time standings, season records
+- **NFL Players**: Player rankings by fantasy points with snap %, position-specific stats (1st downs, targets, attempts)
+- **Real-Time Notifications**: Bell icon in header shows trades, waiver claims, and free agent pickups with auto-sync every 60 seconds
 
 ## User Preferences
 

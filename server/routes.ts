@@ -2124,5 +2124,278 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
     }
   });
 
+  // ============================================
+  // NOTIFICATIONS & REAL-TIME UPDATES
+  // ============================================
+
+  // Helper to verify user belongs to a league
+  async function verifyUserInLeague(userId: string, leagueId: string): Promise<boolean> {
+    try {
+      const profile = await storage.getUserProfile(userId);
+      if (!profile?.sleeperUserId) return false;
+      
+      const leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, new Date().getFullYear().toString());
+      return leagues?.some(l => l.league_id === leagueId) || false;
+    } catch {
+      return false;
+    }
+  }
+
+  // Get notifications for a league
+  app.get("/api/notifications/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      
+      // Verify user has access to this league
+      const hasAccess = await verifyUserInLeague(userId, leagueId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "You don't have access to this league" });
+      }
+      
+      const notifications = await storage.getNotificationsByLeague(leagueId, 50);
+      res.json({ notifications });
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  // Get unread notifications for a user
+  app.get("/api/notifications/:leagueId/unread", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      
+      // Verify user has access to this league
+      const hasAccess = await verifyUserInLeague(userId, leagueId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "You don't have access to this league" });
+      }
+      
+      const notifications = await storage.getUnreadNotifications(userId, leagueId);
+      res.json({ notifications, unreadCount: notifications.length });
+    } catch (error) {
+      console.error("Error fetching unread notifications:", error);
+      res.status(500).json({ message: "Failed to fetch unread notifications" });
+    }
+  });
+
+  // Mark notifications as read
+  app.post("/api/notifications/mark-read", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { notificationIds, leagueId } = req.body;
+      
+      if (!Array.isArray(notificationIds)) {
+        return res.status(400).json({ message: "notificationIds must be an array" });
+      }
+      
+      if (!leagueId) {
+        return res.status(400).json({ message: "leagueId is required" });
+      }
+      
+      // Verify user has access to this league
+      const hasAccess = await verifyUserInLeague(userId, leagueId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "You don't have access to this league" });
+      }
+      
+      // Verify the notifications belong to this league before marking as read
+      const leagueNotifications = await storage.getNotificationsByLeague(leagueId, 100);
+      const validIds = new Set(leagueNotifications.map(n => n.id));
+      const filteredIds = notificationIds.filter(id => validIds.has(id));
+      
+      if (filteredIds.length > 0) {
+        await storage.markNotificationsRead(userId, filteredIds);
+      }
+      
+      res.json({ success: true, markedCount: filteredIds.length });
+    } catch (error) {
+      console.error("Error marking notifications read:", error);
+      res.status(500).json({ message: "Failed to mark notifications as read" });
+    }
+  });
+
+  // Check for new transactions and create notifications
+  app.post("/api/notifications/:leagueId/sync", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      
+      // Get current league state
+      const [league, rosters, users, allPlayers] = await Promise.all([
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+      
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+      
+      const userMap = new Map((users || []).map((u: sleeperApi.SleeperUser) => [u.user_id, u]));
+      const rosterUserMap = new Map((rosters || []).map((r: sleeperApi.SleeperRoster) => [r.roster_id, r.owner_id]));
+      
+      const getTeamName = (rosterId: number) => {
+        const ownerId = rosterUserMap.get(rosterId);
+        const user = ownerId ? userMap.get(ownerId) : null;
+        return user?.metadata?.team_name || user?.display_name || `Team ${rosterId}`;
+      };
+      
+      const getPlayerName = (playerId: string) => {
+        const player = allPlayers?.[playerId];
+        return player ? `${player.first_name} ${player.last_name}` : playerId;
+      };
+      
+      // Get sync status
+      const syncStatus = await storage.getSyncStatus(leagueId);
+      const currentWeek = league.settings?.leg || 1;
+      
+      // Fetch recent transactions (last 3 weeks to catch any missed)
+      const weeksToCheck = [currentWeek, Math.max(1, currentWeek - 1), Math.max(1, currentWeek - 2)];
+      const transactionPromises = weeksToCheck.map(week => sleeperApi.getLeagueTransactions(leagueId, week));
+      const transactionResults = await Promise.all(transactionPromises);
+      const allTransactions = transactionResults.flat();
+      
+      // Filter to only completed transactions
+      const completedTransactions = allTransactions.filter(t => t.status === "complete");
+      
+      // Sort by created timestamp (newest first)
+      completedTransactions.sort((a, b) => (b.created || 0) - (a.created || 0));
+      
+      // Take only the most recent transactions (limit to 20)
+      const recentTransactions = completedTransactions.slice(0, 20);
+      
+      let newNotifications = 0;
+      
+      for (const transaction of recentTransactions) {
+        const transactionId = transaction.transaction_id;
+        
+        // Check if we already have a notification for this transaction
+        const exists = await storage.notificationExists(transactionId);
+        if (exists) continue;
+        
+        let title = "";
+        let message = "";
+        let type = transaction.type;
+        
+        if (transaction.type === "trade") {
+          // Trade notification
+          const rosterIds = transaction.roster_ids || [];
+          const teamNames = rosterIds.map((id: number) => getTeamName(id));
+          
+          title = "Trade Completed";
+          
+          // Build trade details
+          const adds = transaction.adds || {};
+          const drops = transaction.drops || {};
+          const draftPicks = transaction.draft_picks || [];
+          
+          const tradeDetails: string[] = [];
+          
+          rosterIds.forEach((rosterId: number, index: number) => {
+            const teamName = teamNames[index];
+            const received: string[] = [];
+            
+            // Players received
+            Object.entries(adds).forEach(([playerId, rId]) => {
+              if (rId === rosterId) {
+                received.push(getPlayerName(playerId));
+              }
+            });
+            
+            // Picks received
+            draftPicks.forEach((pick: any) => {
+              if (pick.owner_id === rosterId) {
+                received.push(`${pick.season} Round ${pick.round} pick`);
+              }
+            });
+            
+            if (received.length > 0) {
+              tradeDetails.push(`${teamName} receives: ${received.join(", ")}`);
+            }
+          });
+          
+          message = tradeDetails.join(" | ");
+        } else if (transaction.type === "waiver") {
+          // Waiver claim
+          const rosterId = transaction.roster_ids?.[0];
+          const teamName = rosterId ? getTeamName(rosterId) : "Unknown";
+          const adds = Object.keys(transaction.adds || {});
+          const drops = Object.keys(transaction.drops || {});
+          
+          title = "Waiver Claim";
+          
+          const addedPlayers = adds.map(id => getPlayerName(id)).join(", ");
+          const droppedPlayers = drops.map(id => getPlayerName(id)).join(", ");
+          
+          if (addedPlayers && droppedPlayers) {
+            message = `${teamName} added ${addedPlayers} and dropped ${droppedPlayers}`;
+          } else if (addedPlayers) {
+            message = `${teamName} added ${addedPlayers}`;
+          } else if (droppedPlayers) {
+            message = `${teamName} dropped ${droppedPlayers}`;
+          }
+        } else if (transaction.type === "free_agent") {
+          // Free agent pickup
+          const rosterId = transaction.roster_ids?.[0];
+          const teamName = rosterId ? getTeamName(rosterId) : "Unknown";
+          const adds = Object.keys(transaction.adds || {});
+          const drops = Object.keys(transaction.drops || {});
+          
+          title = "Free Agent Move";
+          
+          const addedPlayers = adds.map(id => getPlayerName(id)).join(", ");
+          const droppedPlayers = drops.map(id => getPlayerName(id)).join(", ");
+          
+          if (addedPlayers && droppedPlayers) {
+            message = `${teamName} added ${addedPlayers} and dropped ${droppedPlayers}`;
+          } else if (addedPlayers) {
+            message = `${teamName} added ${addedPlayers}`;
+          } else if (droppedPlayers) {
+            message = `${teamName} dropped ${droppedPlayers}`;
+          }
+        }
+        
+        if (title && message) {
+          await storage.createNotification({
+            leagueId,
+            type,
+            transactionId,
+            title,
+            message,
+            metadata: {
+              rosterIds: transaction.roster_ids,
+              adds: transaction.adds,
+              drops: transaction.drops,
+              draftPicks: transaction.draft_picks,
+              week: currentWeek,
+            },
+          });
+          newNotifications++;
+        }
+      }
+      
+      // Update sync status
+      await storage.updateSyncStatus(leagueId, {
+        lastTransactionCheck: new Date(),
+        lastKnownWeek: currentWeek,
+      });
+      
+      // Return current notifications
+      const notifications = await storage.getNotificationsByLeague(leagueId, 20);
+      
+      res.json({
+        success: true,
+        newNotifications,
+        notifications,
+      });
+    } catch (error) {
+      console.error("Error syncing notifications:", error);
+      res.status(500).json({ message: "Failed to sync notifications" });
+    }
+  });
+
   return httpServer;
 }

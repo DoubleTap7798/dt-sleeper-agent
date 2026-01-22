@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
@@ -103,7 +104,10 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
                 </h1>
               )}
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <NotificationBell leagueId={selectedLeague?.league_id} />
+              <ThemeToggle />
+            </div>
           </header>
           <main className="flex-1 overflow-auto p-4 md:p-6">
             {selectedLeague ? (
