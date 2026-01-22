@@ -58,7 +58,7 @@ export default function TradeCalculatorPage() {
         teamAAssets,
         teamBAssets,
       });
-      return response as TradeAnalysisResult;
+      return await response.json() as TradeAnalysisResult;
     },
     onSuccess: (result) => {
       setAnalysis(result);

@@ -215,6 +215,10 @@ export async function registerRoutes(
         sleeperApi.getState(),
       ]);
 
+      if (!rosters || !allPlayers) {
+        return res.json({ players: [], week: state?.week || 1 });
+      }
+
       // Get all rostered player IDs
       const rosteredPlayers = new Set<string>();
       rosters.forEach((roster) => {
@@ -270,14 +274,19 @@ export async function registerRoutes(
         sleeperApi.getLeagueDraftPicks(leagueId),
       ]);
 
-      const userMap = new Map(users.map((u) => [u.user_id, u]));
+      if (!rosters || rosters.length === 0) {
+        return res.json({ rosters: [] });
+      }
+
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+      const playerData = allPlayers || {};
 
       const rostersWithAssets = rosters.map((roster) => {
         const user = userMap.get(roster.owner_id);
         
         // Get player assets
         const players = (roster.players || []).map((playerId) => {
-          const player = allPlayers[playerId];
+          const player = playerData[playerId];
           if (!player) return null;
           
           const position = player.fantasy_positions?.[0] || "?";
@@ -299,7 +308,7 @@ export async function registerRoutes(
         }).filter(Boolean);
 
         // Get draft pick assets for this roster
-        const picks = draftPicks
+        const picks = (draftPicks || [])
           .filter((p) => p.owner_id === roster.roster_id)
           .map((pick) => {
             const originalOwner = pick.previous_owner_id !== pick.owner_id
@@ -326,7 +335,7 @@ export async function registerRoutes(
         ["2025", "2026", "2027"].forEach((season) => {
           [1, 2, 3, 4].forEach((round) => {
             const id = `${season}-${round}-${roster.roster_id}`;
-            if (!currentPicks.has(id) && !draftPicks.find(
+            if (!currentPicks.has(id) && !(draftPicks || []).find(
               (p) => p.season === season && p.round === round && p.previous_owner_id === roster.roster_id
             )) {
               picks.push({
@@ -447,8 +456,13 @@ Keep it concise and actionable.`;
         sleeperApi.getAllPlayers(),
       ]);
 
-      const userMap = new Map(users.map((u) => [u.user_id, u]));
+      if (!allTransactions || !rosters) {
+        return res.json({ trades: [], teamStats: [], season: "2025" });
+      }
+
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
       const rosterToOwner = new Map(rosters.map((r) => [r.roster_id, r.owner_id]));
+      const playerData = allPlayers || {};
 
       // Filter to trades only
       const trades = allTransactions
@@ -468,7 +482,7 @@ Keep it concise and actionable.`;
           // Players
           if (trade.adds) {
             Object.entries(trade.adds).forEach(([playerId, rosterId]) => {
-              const player = allPlayers[playerId];
+              const player = playerData[playerId];
               const asset = {
                 id: playerId,
                 name: player?.full_name || playerId,

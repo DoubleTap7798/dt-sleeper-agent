@@ -1,4 +1,4 @@
-import { useLocation, Link } from "wouter";
+import { useLocation, Link, useSearch } from "wouter";
 import {
   Home,
   RefreshCw,
@@ -73,7 +73,12 @@ const navigationItems = [
 
 export function AppSidebar({ leagues, selectedLeague, onLeagueChange }: AppSidebarProps) {
   const [location] = useLocation();
+  const searchString = useSearch();
   const { user, logout } = useAuth();
+  
+  // Get leagueId from URL or selected league
+  const urlParams = new URLSearchParams(searchString);
+  const leagueId = urlParams.get("id") || selectedLeague?.league_id;
 
   const getInitials = () => {
     if (user?.firstName && user?.lastName) {
@@ -142,6 +147,7 @@ export function AppSidebar({ leagues, selectedLeague, onLeagueChange }: AppSideb
               {navigationItems.map((item) => {
                 const isActive = location === item.url || 
                   (item.url === "/league" && location === "/league");
+                const linkUrl = leagueId ? `${item.url}?id=${leagueId}` : item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -150,7 +156,7 @@ export function AppSidebar({ leagues, selectedLeague, onLeagueChange }: AppSideb
                       tooltip={item.description}
                       data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}
                     >
-                      <Link href={item.url}>
+                      <Link href={linkUrl}>
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
                       </Link>

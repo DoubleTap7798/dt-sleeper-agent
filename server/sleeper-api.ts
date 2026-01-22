@@ -135,15 +135,12 @@ export async function getLeagueTransactions(leagueId: string, week: number): Pro
 }
 
 export async function getAllLeagueTransactions(leagueId: string): Promise<SleeperTransaction[]> {
-  const allTransactions: SleeperTransaction[] = [];
+  // Fetch transactions for all weeks in parallel (1-18 for regular season + playoffs)
+  const weeks = Array.from({ length: 18 }, (_, i) => i + 1);
+  const weekPromises = weeks.map((week) => getLeagueTransactions(leagueId, week));
+  const results = await Promise.all(weekPromises);
   
-  // Fetch transactions for all weeks (1-18 for regular season + playoffs)
-  for (let week = 1; week <= 18; week++) {
-    const weekTransactions = await getLeagueTransactions(leagueId, week);
-    allTransactions.push(...weekTransactions);
-  }
-  
-  return allTransactions;
+  return results.flat();
 }
 
 export async function getLeagueDraftPicks(leagueId: string): Promise<SleeperDraftPick[]> {
