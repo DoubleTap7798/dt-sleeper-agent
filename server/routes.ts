@@ -529,93 +529,23 @@ export async function registerRoutes(
     }
   });
 
-  // Get devy players with rankings and draft eligibility
+  // Get devy players with rankings and draft eligibility from KTC
   app.get("/api/sleeper/devy", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const allPlayers = await sleeperApi.getAllPlayers();
-      const state = await sleeperApi.getState();
-      const currentYear = state?.season ? parseInt(state.season) : new Date().getFullYear();
+      // Use KTC devy rankings instead of Sleeper data
+      const devyPlayers = ktcValues.getDevyPlayers();
 
-      // Filter for devy players (college players not yet in NFL)
-      const devyPlayers: any[] = [];
-      
-      for (const [playerId, player] of Object.entries(allPlayers)) {
-        if (!player) continue;
-        
-        // Devy players in Sleeper typically have:
-        // - No NFL team or empty/null team
-        // - College field populated
-        // - Fantasy positions defined (skill positions mainly)
-        // - years_exp of 0, null, undefined, or negative (negative = years until draft eligible)
-        // - Not a retired or previously active NFL player
-        
-        const hasNoTeam = !player.team || player.team === "" || player.team === "FA";
-        const hasCollege = !!player.college;
-        const hasFantasyPositions = player.fantasy_positions && player.fantasy_positions.length > 0;
-        const isNotActiveNFL = player.status !== "Active";
-        const isYoung = player.years_exp === null || player.years_exp === undefined || player.years_exp <= 0;
-        
-        // Additional check: exclude players who clearly had NFL careers (high years_exp)
-        const notVeteran = player.years_exp === null || player.years_exp === undefined || player.years_exp < 1;
-        
-        // Only include players with relevant fantasy positions (exclude K, DEF, etc for devy)
-        const relevantPositions = ["QB", "RB", "WR", "TE"];
-        const hasRelevantPosition = player.fantasy_positions?.some((p: string) => relevantPositions.includes(p));
-        
-        const isDevy = hasNoTeam && hasCollege && hasFantasyPositions && isNotActiveNFL && isYoung && notVeteran && hasRelevantPosition;
-
-        if (isDevy) {
-          // Calculate draft eligibility year
-          let draftEligibleYear: number | null = null;
-          
-          // If years_exp is negative, it indicates years until NFL eligible
-          if (player.years_exp !== null && player.years_exp !== undefined && player.years_exp < 0) {
-            draftEligibleYear = currentYear + Math.abs(player.years_exp);
-          } else if (player.birth_date) {
-            // Calculate from birth date: NFL eligibility is 3 years out of high school
-            // Typically ~21 years old at earliest draft eligibility
-            try {
-              const birthDate = new Date(player.birth_date);
-              const birthYear = birthDate.getFullYear();
-              // Players are typically draft eligible at age 21 (3 years after 18)
-              const eligibleAge = 21;
-              draftEligibleYear = birthYear + eligibleAge;
-              // If calculated year is in the past, set to next year
-              if (draftEligibleYear <= currentYear) {
-                draftEligibleYear = currentYear + 1;
-              }
-            } catch {
-              draftEligibleYear = currentYear + 1;
-            }
-          } else {
-            // Default to next year if we can't determine
-            draftEligibleYear = currentYear + 1;
-          }
-
-          const position = player.fantasy_positions?.[0] || "?";
-          
-          devyPlayers.push({
-            playerId,
-            name: player.full_name || `${player.first_name} ${player.last_name}`,
-            firstName: player.first_name || "",
-            lastName: player.last_name || "",
-            position,
-            college: player.college || "Unknown",
-            draftEligibleYear,
-            height: player.height || null,
-            weight: player.weight || null,
-            age: player.age || null,
-            searchRank: player.search_rank || 9999999,
-          });
-        }
-      }
-
-      // Sort by search_rank (lower is better/more popular) as default ranking
-      devyPlayers.sort((a, b) => a.searchRank - b.searchRank);
-
-      // Assign rank based on position in sorted list
+      // Transform to match expected format
       const rankedPlayers = devyPlayers.map((player, index) => ({
-        ...player,
+        playerId: player.id,
+        name: player.name,
+        position: player.position,
+        positionRank: player.positionRank,
+        college: player.college,
+        draftEligibleYear: player.draftEligibleYear,
+        tier: player.tier,
+        trend30Day: player.trend30Day,
+        value: player.value,
         rank: index + 1,
       }));
 
@@ -628,6 +558,7 @@ export async function registerRoutes(
         positions,
         years,
         totalCount: rankedPlayers.length,
+        source: "KTC",
       });
     } catch (error) {
       console.error("Error fetching devy players:", error);

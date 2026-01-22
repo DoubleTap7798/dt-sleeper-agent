@@ -11,21 +11,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GraduationCap, Filter, ArrowUpDown } from "lucide-react";
+import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown } from "lucide-react";
 
 interface DevyPlayer {
   playerId: string;
   name: string;
-  firstName: string;
-  lastName: string;
   position: string;
+  positionRank: number;
   college: string;
   draftEligibleYear: number;
-  height: string | null;
-  weight: number | null;
-  age: number | null;
+  tier: number;
+  trend30Day: number;
+  value: number;
   rank: number;
-  searchRank: number;
 }
 
 interface DevyData {
@@ -33,9 +31,10 @@ interface DevyData {
   positions: string[];
   years: number[];
   totalCount: number;
+  source: string;
 }
 
-type SortField = "rank" | "name" | "position" | "year" | "college";
+type SortField = "rank" | "name" | "position" | "year" | "college" | "value" | "tier";
 type SortDirection = "asc" | "desc";
 
 export default function DevyPage() {
@@ -85,6 +84,12 @@ export default function DevyPage() {
         break;
       case "college":
         comparison = a.college.localeCompare(b.college);
+        break;
+      case "value":
+        comparison = a.value - b.value;
+        break;
+      case "tier":
+        comparison = a.tier - b.tier;
         break;
     }
     return sortDirection === "asc" ? comparison : -comparison;
@@ -162,10 +167,13 @@ export default function DevyPage() {
 
       <Card data-testid="card-devy-table">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle className="text-lg" data-testid="text-showing-count">
               Showing {sortedPlayers.length} of {players.length} players
             </CardTitle>
+            <Badge variant="outline" data-testid="badge-source">
+              Source: KTC
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -173,7 +181,7 @@ export default function DevyPage() {
             <table className="w-full" data-testid="table-devy">
               <thead className="border-b">
                 <tr className="text-left text-sm text-muted-foreground">
-                  <th className="p-3 w-16">
+                  <th className="p-3 w-14">
                     <SortButton field="rank" label="Rank" />
                   </th>
                   <th className="p-3">
@@ -185,15 +193,24 @@ export default function DevyPage() {
                   <th className="p-3">
                     <SortButton field="college" label="College" />
                   </th>
-                  <th className="p-3 w-28">
-                    <SortButton field="year" label="Draft Year" />
+                  <th className="p-3 w-24">
+                    <SortButton field="year" label="Draft" />
+                  </th>
+                  <th className="p-3 w-16">
+                    <SortButton field="tier" label="Tier" />
+                  </th>
+                  <th className="p-3 w-20">
+                    <SortButton field="value" label="Value" />
+                  </th>
+                  <th className="p-3 w-16 text-center">
+                    <span className="font-medium">Trend</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {sortedPlayers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
+                    <td colSpan={8} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
                       No players match the selected filters
                     </td>
                   </tr>
@@ -214,7 +231,7 @@ export default function DevyPage() {
                       </td>
                       <td className="p-3">
                         <Badge variant="secondary" data-testid={`badge-position-${player.playerId}`}>
-                          {player.position}
+                          {player.position}{player.positionRank}
                         </Badge>
                       </td>
                       <td className="p-3 text-muted-foreground" data-testid={`text-college-${player.playerId}`}>
@@ -224,6 +241,29 @@ export default function DevyPage() {
                         <Badge variant="outline" data-testid={`badge-year-${player.playerId}`}>
                           {player.draftEligibleYear}
                         </Badge>
+                      </td>
+                      <td className="p-3 text-center" data-testid={`text-tier-${player.playerId}`}>
+                        {player.tier}
+                      </td>
+                      <td className="p-3 font-medium" data-testid={`text-value-${player.playerId}`}>
+                        {player.value.toLocaleString()}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center justify-center gap-1" data-testid={`trend-${player.playerId}`}>
+                          {player.trend30Day > 0 ? (
+                            <>
+                              <TrendingUp className="h-3 w-3" />
+                              <span className="text-sm">+{player.trend30Day}</span>
+                            </>
+                          ) : player.trend30Day < 0 ? (
+                            <>
+                              <TrendingDown className="h-3 w-3" />
+                              <span className="text-sm">{player.trend30Day}</span>
+                            </>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
