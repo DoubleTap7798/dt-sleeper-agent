@@ -37,20 +37,35 @@ interface Player {
   team: string;
   age: number | null;
   yearsExp: number;
-  value: number;
+  fantasyPoints: number;
+  pointsPerGame: number;
+  gamesPlayed: number;
+  dynastyValue: number;
   overallRank: number;
   positionRank: number;
-  adp: number;
   injuryStatus: string | null;
   number: number | null;
   college: string | null;
   height: string | null;
   weight: string | null;
+  stats: {
+    passYd: number;
+    passTd: number;
+    passInt: number;
+    rushYd: number;
+    rushTd: number;
+    rec: number;
+    recYd: number;
+    recTd: number;
+  };
 }
 
 interface PlayersData {
   players: Player[];
   totalCount: number;
+  season: string;
+  scoringType: string;
+  isCustomScoring?: boolean;
   lastUpdated: string;
 }
 
@@ -89,8 +104,9 @@ export default function PlayersPage() {
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
+  const playersUrl = leagueId ? `/api/sleeper/players?leagueId=${leagueId}` : "/api/sleeper/players";
   const { data, isLoading, error } = useQuery<PlayersData>({
-    queryKey: ["/api/sleeper/players"],
+    queryKey: [playersUrl],
   });
 
   const insightsUrl = selectedPlayer ? `/api/sleeper/players/${selectedPlayer.id}/insights` : null;
@@ -128,7 +144,12 @@ export default function PlayersPage() {
             NFL Players
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {data.totalCount.toLocaleString()} players with dynasty rankings and ADP
+            {data.totalCount.toLocaleString()} players ranked by {data.season} fantasy production ({data.scoringType})
+            {data.isCustomScoring && (
+              <span className="ml-2 text-xs" title="Your league has custom scoring settings. Rankings are approximate.">
+                (approximate)
+              </span>
+            )}
           </p>
         </div>
       </div>
@@ -167,9 +188,9 @@ export default function PlayersPage() {
                 <TableHead>Player</TableHead>
                 <TableHead className="w-[60px]">Pos</TableHead>
                 <TableHead className="w-[60px]">Team</TableHead>
-                <TableHead className="w-[60px] text-right">Age</TableHead>
-                <TableHead className="w-[80px] text-right">Value</TableHead>
-                <TableHead className="w-[60px] text-right">ADP</TableHead>
+                <TableHead className="w-[80px] text-right">Pts</TableHead>
+                <TableHead className="w-[60px] text-right">PPG</TableHead>
+                <TableHead className="w-[40px] text-right">GP</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -204,14 +225,14 @@ export default function PlayersPage() {
                   <TableCell className="text-muted-foreground">
                     {player.team}
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {player.age || "-"}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {player.value.toLocaleString()}
+                  <TableCell className="text-right font-mono font-medium">
+                    {player.fantasyPoints.toFixed(1)}
                   </TableCell>
                   <TableCell className="text-right font-mono text-muted-foreground">
-                    {player.adp}
+                    {player.pointsPerGame.toFixed(1)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-muted-foreground">
+                    {player.gamesPlayed}
                   </TableCell>
                 </TableRow>
               ))}
@@ -247,20 +268,20 @@ export default function PlayersPage() {
             <div className="mt-6 space-y-6">
               <div className="grid grid-cols-2 gap-3">
                 <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Team</p>
-                  <p className="text-lg font-bold">{selectedPlayer.team}</p>
+                  <p className="text-xs text-muted-foreground">Total Points</p>
+                  <p className="text-lg font-bold font-mono">{selectedPlayer.fantasyPoints.toFixed(1)}</p>
                 </Card>
                 <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Age</p>
-                  <p className="text-lg font-bold">{selectedPlayer.age || "-"}</p>
+                  <p className="text-xs text-muted-foreground">Points/Game</p>
+                  <p className="text-lg font-bold font-mono">{selectedPlayer.pointsPerGame.toFixed(1)}</p>
+                </Card>
+                <Card className="p-3">
+                  <p className="text-xs text-muted-foreground">Games Played</p>
+                  <p className="text-lg font-bold">{selectedPlayer.gamesPlayed}</p>
                 </Card>
                 <Card className="p-3">
                   <p className="text-xs text-muted-foreground">Dynasty Value</p>
-                  <p className="text-lg font-bold font-mono">{selectedPlayer.value.toLocaleString()}</p>
-                </Card>
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">ADP</p>
-                  <p className="text-lg font-bold font-mono">{selectedPlayer.adp}</p>
+                  <p className="text-lg font-bold font-mono">{selectedPlayer.dynastyValue.toLocaleString()}</p>
                 </Card>
                 <Card className="p-3">
                   <p className="text-xs text-muted-foreground">Overall Rank</p>
@@ -272,12 +293,57 @@ export default function PlayersPage() {
                 </Card>
               </div>
 
-              {selectedPlayer.college && (
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <span>College: {selectedPlayer.college}</span>
-                  <span>Exp: {selectedPlayer.yearsExp} yr{selectedPlayer.yearsExp !== 1 ? "s" : ""}</span>
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-muted-foreground">Season Stats</h4>
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  {selectedPlayer.position === "QB" ? (
+                    <>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Pass Yds</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.passYd.toLocaleString()}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Pass TDs</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.passTd}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">INTs</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.passInt}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rush Yds</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rushYd}</p>
+                      </Card>
+                    </>
+                  ) : (
+                    <>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rush Yds</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rushYd.toLocaleString()}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rush TDs</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.rushTd}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rec Yds</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.recYd.toLocaleString()}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Rec TDs</p>
+                        <p className="font-mono font-medium">{selectedPlayer.stats.recTd}</p>
+                      </Card>
+                    </>
+                  )}
                 </div>
-              )}
+              </div>
+
+              <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                <span>{selectedPlayer.team}</span>
+                {selectedPlayer.age && <span>Age: {selectedPlayer.age}</span>}
+                {selectedPlayer.college && <span>College: {selectedPlayer.college}</span>}
+                <span>Exp: {selectedPlayer.yearsExp} yr{selectedPlayer.yearsExp !== 1 ? "s" : ""}</span>
+              </div>
 
               {selectedPlayer.injuryStatus && (
                 <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg">

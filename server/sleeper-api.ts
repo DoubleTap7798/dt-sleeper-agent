@@ -260,6 +260,121 @@ export async function getState(): Promise<{ week: number; season: string; displa
   return fetchFromSleeper<{ week: number; season: string; display_week: number }>("/state/nfl");
 }
 
+// Player stats types
+export interface PlayerStats {
+  [playerId: string]: {
+    pts_ppr?: number;
+    pts_half_ppr?: number;
+    pts_std?: number;
+    pass_yd?: number;
+    pass_td?: number;
+    pass_int?: number;
+    pass_att?: number;
+    pass_cmp?: number;
+    rush_yd?: number;
+    rush_td?: number;
+    rush_att?: number;
+    rec?: number;
+    rec_yd?: number;
+    rec_td?: number;
+    fum?: number;
+    fum_lost?: number;
+    gp?: number;
+    [key: string]: number | undefined;
+  };
+}
+
+// Cache for player stats - keyed by season
+const statsCacheMap: Map<string, { data: PlayerStats; time: number }> = new Map();
+const STATS_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
+// Get season stats for all players
+export async function getSeasonStats(season: string = "2024", seasonType: string = "regular"): Promise<PlayerStats> {
+  const cacheKey = `${season}-${seasonType}`;
+  const now = Date.now();
+  const cached = statsCacheMap.get(cacheKey);
+  
+  if (cached && now - cached.time < STATS_CACHE_DURATION) {
+    return cached.data;
+  }
+
+  try {
+    const response = await fetch(`https://api.sleeper.app/stats/nfl/${seasonType}/${season}`);
+    if (!response.ok) {
+      console.error(`Stats API error: ${response.status}`);
+      return cached?.data || {};
+    }
+    const stats = await response.json();
+    statsCacheMap.set(cacheKey, { data: stats, time: now });
+    return stats;
+  } catch (error) {
+    console.error("Error fetching player stats:", error);
+    return cached?.data || {};
+  }
+}
+
+// Determine scoring type from league settings
+export function getScoringType(scoringSettings: Record<string, number>): "ppr" | "half_ppr" | "std" {
+  const recPoints = scoringSettings.rec || 0;
+  if (recPoints >= 1) return "ppr";
+  if (recPoints >= 0.5) return "half_ppr";
+  return "std";
+}
+
+// Calculate fantasy points based on league scoring settings
+// Uses Sleeper's pre-calculated pts_* fields when available for accuracy
+export function calculateFantasyPoints(
+  stats: PlayerStats[string],
+  scoringSettings: Record<string, number>
+): number {
+  if (!stats) return 0;
+  
+  // Determine scoring type and use Sleeper's pre-calculated points if available
+  const scoringType = getScoringType(scoringSettings);
+  
+  // Use Sleeper's pre-calculated fantasy points based on scoring type
+  // These are more accurate as they account for per-game bonuses correctly
+  if (scoringType === "ppr" && stats.pts_ppr !== undefined) {
+    return Math.round(stats.pts_ppr * 100) / 100;
+  }
+  if (scoringType === "half_ppr" && stats.pts_half_ppr !== undefined) {
+    return Math.round(stats.pts_half_ppr * 100) / 100;
+  }
+  if (scoringType === "std" && stats.pts_std !== undefined) {
+    return Math.round(stats.pts_std * 100) / 100;
+  }
+  
+  // Fallback: calculate manually if pts_* not available
+  let points = 0;
+  
+  // Core scoring categories
+  const scoringMap: [string, string][] = [
+    ["pass_yd", "pass_yd"],
+    ["pass_td", "pass_td"],
+    ["pass_int", "pass_int"],
+    ["pass_2pt", "pass_2pt"],
+    ["rush_yd", "rush_yd"],
+    ["rush_td", "rush_td"],
+    ["rush_2pt", "rush_2pt"],
+    ["rec", "rec"],
+    ["rec_yd", "rec_yd"],
+    ["rec_td", "rec_td"],
+    ["rec_2pt", "rec_2pt"],
+    ["fum_lost", "fum_lost"],
+    ["fum", "fum"],
+  ];
+  
+  for (const [statKey, scoringKey] of scoringMap) {
+    const statValue = stats[statKey];
+    const scoringValue = scoringSettings[scoringKey];
+    if (typeof statValue === "number" && typeof scoringValue === "number") {
+      points += statValue * scoringValue;
+    }
+  }
+  
+  return Math.round(points * 100) / 100;
+}
+
 // Player data is large - we'll cache it in memory
 let playersCache: Record<string, any> | null = null;
 let playersCacheTime: number = 0;

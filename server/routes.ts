@@ -777,7 +777,64 @@ Format your response with clear section headers using markdown. Be concise but i
   // Get NFL players list (excluding devy players)
   app.get("/api/sleeper/players", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const allPlayers = await sleeperApi.getAllPlayers();
+      const leagueId = req.query.leagueId as string | undefined;
+      
+      // Get league scoring settings if leagueId provided
+      let scoringSettings: Record<string, number> = {
+        // Default PPR scoring if no league specified
+        pass_yd: 0.04,
+        pass_td: 4,
+        pass_int: -2,
+        rush_yd: 0.1,
+        rush_td: 6,
+        rec: 1,
+        rec_yd: 0.1,
+        rec_td: 6,
+        fum_lost: -2,
+      };
+      
+      if (leagueId) {
+        const league = await sleeperApi.getLeague(leagueId);
+        if (league?.scoring_settings) {
+          scoringSettings = league.scoring_settings;
+        }
+      }
+
+      // Get current state to determine the right season for stats
+      const state = await sleeperApi.getState();
+      
+      // Determine the correct season for stats:
+      // Use the most recent season with complete stats
+      const currentYear = new Date().getFullYear();
+      let statsSeason = state?.season || String(currentYear);
+      
+      // If in offseason (week 0 or display_week 0), use previous season which has complete data
+      const isOffseason = state && (state.display_week === 0 || state.week === 0);
+      if (isOffseason) {
+        statsSeason = String(parseInt(statsSeason) - 1);
+      }
+      
+      // Check if league has non-standard scoring (beyond PPR/half/std)
+      let isCustomScoring = false;
+      const customScoringKeys = ["pass_td", "bonus_", "te_premium", "idp"];
+      for (const key of Object.keys(scoringSettings)) {
+        // Check for 6pt passing TDs (standard is 4)
+        if (key === "pass_td" && scoringSettings[key] !== 4) {
+          isCustomScoring = true;
+          break;
+        }
+        // Check for bonuses or TE premium
+        if (customScoringKeys.some(k => key.includes(k) && k !== "pass_td")) {
+          isCustomScoring = true;
+          break;
+        }
+      }
+      
+      const [allPlayers, seasonStats] = await Promise.all([
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getSeasonStats(statsSeason, "regular"),
+      ]);
+      
       const devyPlayerIds = new Set(ktcValues.KTC_DEVY_PLAYERS.map(p => p.id));
       
       // Filter to active NFL players (exclude devy/college players)
@@ -792,19 +849,29 @@ Format your response with clear section headers using markdown. Be concise but i
         const position = player.position || player.fantasy_positions?.[0];
         if (!positions.includes(position)) return;
         
-        // Must be on an NFL team or a free agent with NFL experience
-        if (!player.team && player.years_exp === 0) return;
+        // Must be on an NFL team
+        if (!player.team) return;
         
-        // Get KTC value
-        const value = ktcValues.getPlayerValue(
+        // Get player stats
+        const playerStats = seasonStats[playerId];
+        
+        // Calculate fantasy points based on league scoring settings
+        const fantasyPoints = sleeperApi.calculateFantasyPoints(playerStats, scoringSettings);
+        
+        // Only include players with actual production (minimum 10 points)
+        if (fantasyPoints < 10) return;
+        
+        // Get games played
+        const gamesPlayed = playerStats?.gp || 0;
+        const pointsPerGame = gamesPlayed > 0 ? Math.round((fantasyPoints / gamesPlayed) * 10) / 10 : 0;
+        
+        // Get KTC dynasty value for reference
+        const dynastyValue = ktcValues.getPlayerValue(
           playerId,
           position,
           player.age,
           player.years_exp || 0
         );
-        
-        // Skip players with very low value (likely inactive/practice squad)
-        if (value < 100) return;
         
         nflPlayers.push({
           id: playerId,
@@ -813,20 +880,34 @@ Format your response with clear section headers using markdown. Be concise but i
             : `${player.first_name?.charAt(0) || ""}. ${player.last_name || ""}`.trim(),
           fullName: `${player.first_name || ""} ${player.last_name || ""}`.trim(),
           position,
-          team: player.team || "FA",
+          team: player.team,
           age: player.age,
           yearsExp: player.years_exp || 0,
-          value,
+          fantasyPoints,
+          pointsPerGame,
+          gamesPlayed,
+          dynastyValue,
           injuryStatus: player.injury_status || null,
           number: player.number,
           college: player.college,
           height: player.height,
           weight: player.weight,
+          // Include key stats
+          stats: {
+            passYd: playerStats?.pass_yd || 0,
+            passTd: playerStats?.pass_td || 0,
+            passInt: playerStats?.pass_int || 0,
+            rushYd: playerStats?.rush_yd || 0,
+            rushTd: playerStats?.rush_td || 0,
+            rec: playerStats?.rec || 0,
+            recYd: playerStats?.rec_yd || 0,
+            recTd: playerStats?.rec_td || 0,
+          },
         });
       });
       
-      // Sort by value descending to determine ranks
-      nflPlayers.sort((a, b) => b.value - a.value);
+      // Sort by fantasy points descending (actual production)
+      nflPlayers.sort((a, b) => b.fantasyPoints - a.fantasyPoints);
       
       // Add overall rank and position rank
       const positionRanks: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
@@ -835,16 +916,21 @@ Format your response with clear section headers using markdown. Be concise but i
         player.overallRank = index + 1;
         positionRanks[player.position] = (positionRanks[player.position] || 0) + 1;
         player.positionRank = positionRanks[player.position];
-        
-        // Generate approximate ADP based on rank with some variance
-        // Top players have lower ADP, later players have higher
-        const baseAdp = Math.ceil((index + 1) * 1.2);
-        player.adp = baseAdp;
       });
+      
+      // Determine scoring type label
+      const scoringType = sleeperApi.getScoringType(scoringSettings);
+      let scoringLabel = scoringType === "ppr" ? "PPR" : scoringType === "half_ppr" ? "Half PPR" : "Standard";
+      if (isCustomScoring) {
+        scoringLabel += "*"; // Indicate approximate scoring
+      }
       
       res.json({
         players: nflPlayers,
         totalCount: nflPlayers.length,
+        season: statsSeason,
+        scoringType: scoringLabel,
+        isCustomScoring, // Let frontend know if scoring is approximate
         lastUpdated: new Date().toISOString(),
       });
     } catch (error) {
