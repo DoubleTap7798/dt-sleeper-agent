@@ -577,7 +577,6 @@ export async function registerRoutes(
       // Transform bracket matchups
       const matchups = (bracket || []).map((match) => {
         // A matchup is a consolation game if BOTH teams are fed from loser positions
-        // A matchup is championship bracket if at least one team is from a winner or is a first-round team
         const isBothFromLosers = !!(match.t1_from?.l && match.t2_from?.l);
         
         return {
@@ -589,7 +588,6 @@ export async function registerRoutes(
           loser: match.l,
           team1From: match.t1_from,
           team2From: match.t2_from,
-          isThirdPlaceGame: isBothFromLosers && match.r === numRounds,
           isConsolation: isBothFromLosers,
         };
       });
@@ -597,8 +595,26 @@ export async function registerRoutes(
       // Championship bracket: exclude games where BOTH teams are from losers
       const championshipMatchups = matchups.filter((m) => !m.isConsolation);
       
-      // 3rd place game: final round matchup where both teams are from losers
-      const thirdPlaceGame = matchups.find((m) => m.isThirdPlaceGame) || null;
+      // All consolation games (where both teams are from losers)
+      const consolationMatchups = matchups
+        .filter((m) => m.isConsolation)
+        .map((m) => {
+          // Determine placement label based on round
+          // Final round consolation = 3rd place, semi-final round consolation = 5th place, etc.
+          const roundsFromFinal = numRounds - m.round;
+          let placementLabel = "";
+          if (roundsFromFinal === 0) {
+            placementLabel = "3rd Place Game";
+          } else if (roundsFromFinal === 1) {
+            placementLabel = "5th Place Game";
+          } else if (roundsFromFinal === 2) {
+            placementLabel = "7th Place Game";
+          } else {
+            placementLabel = `Consolation Round ${m.round}`;
+          }
+          return { ...m, placementLabel };
+        })
+        .sort((a, b) => b.round - a.round); // Sort by round descending (3rd place first, then 5th, etc.)
 
       // Group matchups by round (championship only)
       const rounds: Record<number, typeof championshipMatchups> = {};
@@ -617,7 +633,7 @@ export async function registerRoutes(
         numRounds,
         rounds,
         matchups: championshipMatchups,
-        thirdPlaceGame,
+        consolationMatchups,
         isPlayoffsStarted: currentWeek >= playoffWeekStart,
         isComplete: league.status === "complete",
       });

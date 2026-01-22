@@ -23,6 +23,10 @@ interface BracketMatchup {
   team2From?: { w?: number; l?: number };
 }
 
+interface ConsolationMatchup extends BracketMatchup {
+  placementLabel: string;
+}
+
 interface BracketData {
   leagueId: string;
   leagueName: string;
@@ -33,7 +37,7 @@ interface BracketData {
   numRounds: number;
   rounds: Record<number, BracketMatchup[]>;
   matchups: BracketMatchup[];
-  thirdPlaceGame: BracketMatchup | null;
+  consolationMatchups: ConsolationMatchup[];
   isPlayoffsStarted: boolean;
   isComplete: boolean;
 }
@@ -224,17 +228,22 @@ export default function PlayoffBracketPage() {
         })}
       </div>
 
-      {bracket.thirdPlaceGame && (
-        <div className="mt-6 pt-6 border-t border-border" data-testid="third-place-section">
+      {bracket.consolationMatchups && bracket.consolationMatchups.length > 0 && (
+        <div className="mt-6 pt-6 border-t border-border" data-testid="consolation-section">
           <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-            3rd Place Game
+            Consolation Games
           </h3>
-          <div className="max-w-[200px]">
-            <MatchupCard 
-              matchup={bracket.thirdPlaceGame} 
-              roundName="3rd Place"
-              isChampionship={false}
-            />
+          <div className="flex flex-wrap gap-4">
+            {bracket.consolationMatchups.map((matchup) => (
+              <div key={matchup.matchId} className="min-w-[180px]">
+                <p className="text-xs text-muted-foreground mb-1">{matchup.placementLabel}</p>
+                <MatchupCard 
+                  matchup={matchup} 
+                  roundName={matchup.placementLabel}
+                  isChampionship={false}
+                />
+              </div>
+            ))}
           </div>
         </div>
       )}
