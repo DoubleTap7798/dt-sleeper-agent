@@ -574,10 +574,30 @@ export async function registerRoutes(
       // Determine number of rounds based on playoff teams
       const numRounds = Math.ceil(Math.log2(playoffTeams));
 
+      // First pass: build a map of losers by round
+      // Track which roster IDs lost in each round
+      const losersByRound: Record<number, Set<number>> = {};
+      (bracket || []).forEach((match) => {
+        if (match.l !== null) {
+          if (!losersByRound[match.r]) losersByRound[match.r] = new Set();
+          losersByRound[match.r].add(match.l);
+        }
+      });
+
       // Transform bracket matchups
       const matchups = (bracket || []).map((match) => {
-        // A matchup is a consolation game if BOTH teams are fed from loser positions
-        const isBothFromLosers = !!(match.t1_from?.l && match.t2_from?.l);
+        // Check if metadata says both teams are from losers
+        const isBothFromLosersMetadata = !!(match.t1_from?.l && match.t2_from?.l);
+        
+        // Also check if both teams in this matchup lost in the previous round
+        // (for consolation games where Sleeper doesn't set the loser-feed metadata)
+        const previousRound = match.r - 1;
+        const previousRoundLosers = losersByRound[previousRound] || new Set();
+        const team1LostPreviousRound = match.t1 !== null && previousRoundLosers.has(match.t1);
+        const team2LostPreviousRound = match.t2 !== null && previousRoundLosers.has(match.t2);
+        const isBothFromLosersByHistory = match.r > 1 && team1LostPreviousRound && team2LostPreviousRound;
+        
+        const isConsolation = isBothFromLosersMetadata || isBothFromLosersByHistory;
         
         return {
           round: match.r,
@@ -588,14 +608,14 @@ export async function registerRoutes(
           loser: match.l,
           team1From: match.t1_from,
           team2From: match.t2_from,
-          isConsolation: isBothFromLosers,
+          isConsolation,
         };
       });
 
-      // Championship bracket: exclude games where BOTH teams are from losers
+      // Championship bracket: exclude consolation games
       const championshipMatchups = matchups.filter((m) => !m.isConsolation);
       
-      // All consolation games (where both teams are from losers)
+      // All consolation games (where both teams lost in the previous round)
       const consolationMatchups = matchups
         .filter((m) => m.isConsolation)
         .map((m) => {
