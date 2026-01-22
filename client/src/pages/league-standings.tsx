@@ -142,7 +142,7 @@ export default function LeagueStandingsPage() {
                     return (
                       <TableRow
                         key={team.rosterId}
-                        className={`cursor-pointer transition-colors hover-elevate ${isPlayoffSpot ? "bg-accent/30" : ""}`}
+                        className={`cursor-pointer transition-colors hover-elevate ${isPlayoffSpot ? "bg-white/5" : ""}`}
                         onClick={() => setSelectedTeam({ rosterId: team.rosterId, ownerName: team.ownerName })}
                         data-testid={`row-standings-${team.rosterId}`}
                       >
