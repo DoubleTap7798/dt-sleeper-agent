@@ -8,6 +8,7 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **Standings**: League standings with playoff predictions, clickable teams show roster and draft picks
 - **Matchups**: Current week matchups with live scoring, expandable to see player breakdowns
 - **Schedule**: Full season schedule with week-by-week matchups, opponents, scores, and W/L/T results
+- **Playoff Bracket**: Visual bracket display with matchups organized by round (Quarterfinals, Semifinals, Championship)
 - **Rivalries**: Head-to-head records between teams across all seasons
 - **Waiver Wire**: Available players and stats
 - **Devy Rankings**: Top 50 college prospects from KTC with tier, value, trend, position ranks, and draft eligibility years (2026-2028)
