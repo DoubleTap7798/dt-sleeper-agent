@@ -34,6 +34,7 @@ interface PlayerInfo {
   name: string;
   fullName: string;
   position: string;
+  slotPosition?: string;
   team: string;
   age: number | null;
   value: number;
@@ -313,7 +314,7 @@ export default function LeagueStandingsPage() {
                 </h3>
                 <div className="space-y-2">
                   {teamDetail.starters.map((player) => (
-                    <PlayerRow key={player.id} player={player} />
+                    <PlayerRow key={player.id} player={player} showSlot />
                   ))}
                 </div>
               </div>
@@ -323,11 +324,7 @@ export default function LeagueStandingsPage() {
                   <Users className="h-4 w-4" />
                   Bench ({teamDetail.bench.length})
                 </h3>
-                <div className="space-y-2">
-                  {teamDetail.bench.map((player) => (
-                    <PlayerRow key={player.id} player={player} />
-                  ))}
-                </div>
+                <BenchByPosition players={teamDetail.bench} />
               </div>
 
               {teamDetail.taxi.length > 0 && (
@@ -389,15 +386,22 @@ export default function LeagueStandingsPage() {
   );
 }
 
-function PlayerRow({ player }: { player: PlayerInfo }) {
-  const positionColors: Record<string, string> = {
-    QB: "bg-red-500/20 dark:bg-red-500/30 text-red-700 dark:text-red-300",
-    RB: "bg-green-500/20 dark:bg-green-500/30 text-green-700 dark:text-green-300",
-    WR: "bg-blue-500/20 dark:bg-blue-500/30 text-blue-700 dark:text-blue-300",
-    TE: "bg-orange-500/20 dark:bg-orange-500/30 text-orange-700 dark:text-orange-300",
-    K: "bg-purple-500/20 dark:bg-purple-500/30 text-purple-700 dark:text-purple-300",
-    DEF: "bg-yellow-500/20 dark:bg-yellow-500/30 text-yellow-700 dark:text-yellow-300",
-  };
+const positionColors: Record<string, string> = {
+  QB: "bg-red-500/20 dark:bg-red-500/30 text-red-700 dark:text-red-300",
+  RB: "bg-green-500/20 dark:bg-green-500/30 text-green-700 dark:text-green-300",
+  WR: "bg-blue-500/20 dark:bg-blue-500/30 text-blue-700 dark:text-blue-300",
+  TE: "bg-orange-500/20 dark:bg-orange-500/30 text-orange-700 dark:text-orange-300",
+  K: "bg-purple-500/20 dark:bg-purple-500/30 text-purple-700 dark:text-purple-300",
+  DEF: "bg-yellow-500/20 dark:bg-yellow-500/30 text-yellow-700 dark:text-yellow-300",
+  FLEX: "bg-pink-500/20 dark:bg-pink-500/30 text-pink-700 dark:text-pink-300",
+  SUPER_FLEX: "bg-indigo-500/20 dark:bg-indigo-500/30 text-indigo-700 dark:text-indigo-300",
+  REC_FLEX: "bg-cyan-500/20 dark:bg-cyan-500/30 text-cyan-700 dark:text-cyan-300",
+  IDP_FLEX: "bg-slate-500/20 dark:bg-slate-500/30 text-slate-700 dark:text-slate-300",
+};
+
+function PlayerRow({ player, showSlot = false }: { player: PlayerInfo; showSlot?: boolean }) {
+  const displayPosition = showSlot && player.slotPosition ? player.slotPosition : player.position;
+  const colorKey = player.slotPosition?.includes("FLEX") ? player.slotPosition : player.position;
 
   return (
     <div 
@@ -407,10 +411,10 @@ function PlayerRow({ player }: { player: PlayerInfo }) {
       <div className="flex items-center gap-2">
         <Badge 
           variant="outline" 
-          className={`text-xs w-9 justify-center ${positionColors[player.position] || ""}`}
+          className={`text-xs min-w-[3rem] justify-center ${positionColors[colorKey] || ""}`}
           data-testid={`badge-position-${player.id}`}
         >
-          {player.position}
+          {displayPosition}
         </Badge>
         <div>
           <p className="text-sm font-medium" data-testid={`text-player-name-${player.id}`}>{player.name}</p>
@@ -422,6 +426,41 @@ function PlayerRow({ player }: { player: PlayerInfo }) {
       <Badge variant="secondary" className="font-mono text-xs" data-testid={`badge-value-${player.id}`}>
         {player.value.toLocaleString()}
       </Badge>
+    </div>
+  );
+}
+
+function BenchByPosition({ players }: { players: PlayerInfo[] }) {
+  const positionOrder = ["QB", "RB", "WR", "TE", "K", "DEF"];
+  
+  const grouped = players.reduce((acc, player) => {
+    const pos = player.position;
+    if (!acc[pos]) acc[pos] = [];
+    acc[pos].push(player);
+    return acc;
+  }, {} as Record<string, PlayerInfo[]>);
+
+  const sortedPositions = Object.keys(grouped).sort((a, b) => {
+    const aIdx = positionOrder.indexOf(a);
+    const bIdx = positionOrder.indexOf(b);
+    if (aIdx === -1 && bIdx === -1) return a.localeCompare(b);
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx;
+  });
+
+  return (
+    <div className="space-y-3">
+      {sortedPositions.map((pos) => (
+        <div key={pos} className="space-y-1">
+          <p className="text-xs text-muted-foreground font-medium pl-1">{pos}</p>
+          <div className="space-y-1">
+            {grouped[pos].map((player) => (
+              <PlayerRow key={player.id} player={player} />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

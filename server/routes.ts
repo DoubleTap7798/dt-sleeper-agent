@@ -914,7 +914,10 @@ Format your response with clear section headers using markdown. Be concise but i
         return `${firstInitial} ${lastName}`.trim();
       };
 
-      // Get player assets with positions
+      // Get roster slot positions from league settings (excluding BN = bench)
+      const rosterPositions = (league?.roster_positions || []).filter((pos: string) => pos !== "BN");
+      
+      // Build starters in slot order using roster.starters (which is already ordered by slot)
       const starters: any[] = [];
       const bench: any[] = [];
       const taxi: any[] = [];
@@ -924,7 +927,31 @@ Format your response with clear section headers using markdown. Be concise but i
       const taxiIds = new Set(roster.taxi || []);
       const reserveIds = new Set(roster.reserve || []);
 
+      // Process starters in order to match with slot positions
+      (roster.starters || []).forEach((playerId, index) => {
+        if (!playerId) return; // Empty slot
+        const player = playerData[playerId];
+        if (!player) return;
+
+        const position = player.position || player.fantasy_positions?.[0] || "N/A";
+        const slotPosition = rosterPositions[index] || position;
+        
+        starters.push({
+          id: playerId,
+          name: getDisplayName(player),
+          fullName: `${player.first_name} ${player.last_name}`,
+          position,
+          slotPosition,
+          team: player.team || "FA",
+          age: player.age,
+          value: ktcValues.getPlayerValue(playerId, position, player.age, player.years_exp || 0),
+        });
+      });
+
+      // Process non-starters (bench, taxi, IR)
       (roster.players || []).forEach((playerId) => {
+        if (starterIds.has(playerId)) return; // Already processed as starter
+        
         const player = playerData[playerId];
         if (!player) return;
 
@@ -939,9 +966,7 @@ Format your response with clear section headers using markdown. Be concise but i
           value: ktcValues.getPlayerValue(playerId, position, player.age, player.years_exp || 0),
         };
 
-        if (starterIds.has(playerId)) {
-          starters.push(playerInfo);
-        } else if (taxiIds.has(playerId)) {
+        if (taxiIds.has(playerId)) {
           taxi.push(playerInfo);
         } else if (reserveIds.has(playerId)) {
           ir.push(playerInfo);
@@ -950,9 +975,8 @@ Format your response with clear section headers using markdown. Be concise but i
         }
       });
 
-      // Sort by value descending
+      // Sort bench, taxi, IR by value descending (starters stay in slot order)
       const sortByValue = (a: any, b: any) => b.value - a.value;
-      starters.sort(sortByValue);
       bench.sort(sortByValue);
       taxi.sort(sortByValue);
       ir.sort(sortByValue);
