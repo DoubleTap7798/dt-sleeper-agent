@@ -74,6 +74,7 @@ export interface SleeperTransaction {
   }[];
   waiver_budget: { sender: number; receiver: number; amount: number }[];
   created: number;
+  status_updated?: number;
   metadata?: Record<string, string>;
   consenter_ids?: number[];
   leg?: number;

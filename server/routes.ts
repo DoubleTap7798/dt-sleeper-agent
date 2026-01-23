@@ -143,6 +143,34 @@ export async function registerRoutes(
     }
   });
 
+  // Get league transactions
+  app.get("/api/sleeper/transactions/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      
+      const state = await sleeperApi.getState();
+      const currentWeek = state?.week || 1;
+      
+      // Get transactions from the last few weeks
+      const weeksToCheck = [];
+      for (let w = currentWeek; w >= Math.max(1, currentWeek - 3); w--) {
+        weeksToCheck.push(w);
+      }
+      
+      const transactionPromises = weeksToCheck.map(week => sleeperApi.getLeagueTransactions(leagueId, week));
+      const transactionArrays = await Promise.all(transactionPromises);
+      const allTransactions = transactionArrays.flat();
+      
+      // Sort by timestamp descending
+      allTransactions.sort((a, b) => (b.status_updated || b.created || 0) - (a.status_updated || a.created || 0));
+      
+      res.json({ transactions: allTransactions.slice(0, 20) });
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
   // Get league standings
   app.get("/api/sleeper/standings/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
@@ -2947,8 +2975,8 @@ Return JSON: {"players": [{...}]}`;
         }
       }
 
-      // Process each current league and trace back its history
-      for (const league of currentLeagues.slice(0, 10)) {
+      // Process ALL current leagues and trace back their history
+      for (const league of currentLeagues) {
         await processLeagueHistory(league.league_id, league.name);
       }
 
@@ -2971,6 +2999,136 @@ Return JSON: {"players": [{...}]}`;
     } catch (error) {
       console.error("Error fetching summary:", error);
       res.status(500).json({ message: "Failed to fetch summary" });
+    }
+  });
+
+  // League-Specific Summary - Stats for a single league across all its seasons
+  app.get("/api/fantasy/league-summary/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "No Sleeper account connected" });
+      }
+
+      let totalWins = 0;
+      let totalLosses = 0;
+      let totalTies = 0;
+      let championships = 0;
+      let runnerUps = 0;
+      let playoffAppearances = 0;
+      const seasonStats: any[] = [];
+      const processedLeagueIds = new Set<string>();
+
+      // Trace back through league history for this specific league
+      let currentLeagueId: string | null = leagueId;
+      
+      while (currentLeagueId && currentLeagueId !== "0" && !processedLeagueIds.has(currentLeagueId)) {
+        processedLeagueIds.add(currentLeagueId);
+        
+        try {
+          const league = await sleeperApi.getLeague(currentLeagueId);
+          if (!league) break;
+          
+          const rosters = await sleeperApi.getLeagueRosters(currentLeagueId);
+          
+          // Find user's roster in this season
+          const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+          if (userRoster) {
+            const wins = userRoster.settings?.wins || 0;
+            const losses = userRoster.settings?.losses || 0;
+            const ties = userRoster.settings?.ties || 0;
+            
+            totalWins += wins;
+            totalLosses += losses;
+            totalTies += ties;
+            
+            // Calculate rank based on wins, then points for tie-breaking
+            const sortedRosters = [...rosters].sort((a, b) => {
+              const winsA = a.settings?.wins || 0;
+              const winsB = b.settings?.wins || 0;
+              if (winsB !== winsA) return winsB - winsA;
+              const fptsA = (a.settings?.fpts || 0) + (a.settings?.fpts_decimal || 0) / 100;
+              const fptsB = (b.settings?.fpts || 0) + (b.settings?.fpts_decimal || 0) / 100;
+              return fptsB - fptsA;
+            });
+            const rank = sortedRosters.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
+            
+            const playoffTeams = league.settings?.playoff_teams || 6;
+            const isPlayoffs = rank <= playoffTeams;
+            if (isPlayoffs) playoffAppearances++;
+            
+            let isChampion = false;
+            let isRunnerUp = false;
+            
+            try {
+              const bracket = await sleeperApi.getPlayoffBracket(currentLeagueId);
+              if (bracket && bracket.length > 0) {
+                const champMatch = bracket.reduce((max, match) => 
+                  (match.r > (max?.r || 0)) ? match : max, bracket[0]);
+                
+                if (champMatch && champMatch.w === userRoster.roster_id) {
+                  isChampion = true;
+                  championships++;
+                } else if (champMatch && champMatch.l === userRoster.roster_id) {
+                  isRunnerUp = true;
+                  runnerUps++;
+                }
+              }
+            } catch (bracketError) {
+              if (league.status === "complete" && rank === 1) {
+                isChampion = true;
+                championships++;
+              } else if (league.status === "complete" && rank === 2) {
+                isRunnerUp = true;
+                runnerUps++;
+              }
+            }
+            
+            seasonStats.push({
+              leagueId: currentLeagueId,
+              season: league.season,
+              wins,
+              losses,
+              ties,
+              rank,
+              totalTeams: rosters.length,
+              isChampion,
+              isPlayoffs,
+              isRunnerUp,
+            });
+          }
+          
+          currentLeagueId = league.previous_league_id;
+        } catch (e) {
+          console.error(`Error processing league ${currentLeagueId}:`, e);
+          break;
+        }
+      }
+
+      // Sort by season descending
+      seasonStats.sort((a, b) => b.season.localeCompare(a.season));
+
+      // Get current league info for name
+      const currentLeague = await sleeperApi.getLeague(leagueId);
+
+      res.json({
+        leagueName: currentLeague?.name || "Unknown League",
+        totalSeasons: seasonStats.length,
+        totalWins,
+        totalLosses,
+        totalTies,
+        championships,
+        runnerUps,
+        playoffAppearances,
+        bestFinish: championships > 0 ? "Champion" : runnerUps > 0 ? "Runner-up" : playoffAppearances > 0 ? "Playoffs" : "N/A",
+        seasonStats,
+      });
+    } catch (error) {
+      console.error("Error fetching league summary:", error);
+      res.status(500).json({ message: "Failed to fetch league summary" });
     }
   });
 
