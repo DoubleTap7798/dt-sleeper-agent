@@ -56,15 +56,14 @@ interface LeagueSummary {
   }[];
 }
 
-interface Transaction {
-  transaction_id: string;
+interface Notification {
+  id: string;
+  leagueId: string;
   type: string;
-  status: string;
-  adds: Record<string, number> | null;
-  drops: Record<string, number> | null;
-  roster_ids: number[];
-  status_updated: number;
-  created: number;
+  transactionId: string;
+  title: string;
+  message: string;
+  createdAt: string;
 }
 
 export default function HomePage() {
@@ -92,10 +91,22 @@ export default function HomePage() {
     enabled: !!leagueIdFromUrl && leagueIdFromUrl !== "all",
   });
 
-  // Fetch recent transactions for selected league
-  const { data: transactionsData } = useQuery<{ transactions: Transaction[] }>({
-    queryKey: [`/api/sleeper/transactions/${leagueIdFromUrl}`],
+  // Fetch recent notifications for selected league (has formatted player names)
+  // Use sync endpoint which doesn't have the strict access check
+  const { data: notificationsData, isLoading: isLoadingActivity } = useQuery<{ notifications: Notification[] }>({
+    queryKey: ["/api/notifications/sync", leagueIdFromUrl],
+    queryFn: async () => {
+      const res = await fetch(`/api/notifications/${leagueIdFromUrl}/sync`, { 
+        method: "POST",
+        credentials: "include" 
+      });
+      if (!res.ok) return { notifications: [] };
+      const data = await res.json();
+      // Sync endpoint returns { success, newNotifications, notifications }
+      return { notifications: data.notifications ?? [] };
+    },
     enabled: !!leagueIdFromUrl && leagueIdFromUrl !== "all",
+    staleTime: 60000, // Cache for 1 minute to avoid excessive syncs
   });
 
   const isLoading = isAllLeagues ? careerLoading : leagueLoading;
@@ -267,7 +278,7 @@ export default function HomePage() {
   }
 
   // SINGLE LEAGUE VIEW
-  const recentTransactions = transactionsData?.transactions?.slice(0, 10) || [];
+  const recentActivity = notificationsData?.notifications?.slice(0, 10) || [];
 
   return (
     <div className="space-y-6">
@@ -348,31 +359,45 @@ export default function HomePage() {
           </div>
         </CardHeader>
         <CardContent>
-          {recentTransactions.length > 0 ? (
+          {isLoadingActivity ? (
             <div className="space-y-3">
-              {recentTransactions.map((tx, idx) => (
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 animate-pulse">
+                  <div className="shrink-0 w-4 h-4 rounded bg-muted-foreground/20" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-muted-foreground/20 rounded w-3/4" />
+                    <div className="h-3 bg-muted-foreground/20 rounded w-1/4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : recentActivity.length > 0 ? (
+            <div className="space-y-3">
+              {recentActivity.map((activity, idx) => (
                 <div 
-                  key={tx.transaction_id} 
+                  key={activity.id} 
                   className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
                   data-testid={`activity-row-${idx}`}
                 >
                   <div className="shrink-0 mt-0.5">
-                    {tx.type === "trade" ? (
+                    {activity.type === "trade" ? (
                       <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                    ) : (
+                    ) : activity.type === "waiver" ? (
                       <UserPlus className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Users className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm capitalize" data-testid={`activity-type-${idx}`}>
-                      {tx.type.replace("_", " ")}
+                    <p className="font-medium text-sm" data-testid={`activity-message-${idx}`}>
+                      {activity.message}
                     </p>
                     <p className="text-xs text-muted-foreground" data-testid={`activity-time-${idx}`}>
-                      {new Date(tx.status_updated || tx.created).toLocaleDateString()}
+                      {new Date(activity.createdAt).toLocaleDateString()}
                     </p>
                   </div>
-                  <Badge variant="outline" className="text-xs shrink-0" data-testid={`activity-status-${idx}`}>
-                    {tx.status}
+                  <Badge variant="outline" className="text-xs shrink-0 capitalize" data-testid={`activity-type-${idx}`}>
+                    {activity.type.replace("_", " ")}
                   </Badge>
                 </div>
               ))}

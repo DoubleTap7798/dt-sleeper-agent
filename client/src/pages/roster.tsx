@@ -37,11 +37,36 @@ const positionOrder: Record<string, number> = {
 export default function RosterPage() {
   const league = useSelectedLeague();
   const leagueId = league?.league_id;
+
+  // Early return if no league selected - prevents query from running
+  if (!leagueId) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Users className="h-6 w-6" />
+          <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-page-title">My Roster</h1>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground" data-testid="text-no-league">
+              Please select a league to view your roster.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return <RosterContent leagueId={leagueId} />;
+}
+
+function RosterContent({ leagueId }: { leagueId: string }) {
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
   const [positionFilter, setPositionFilter] = useState<string>("all");
 
   const { data, isLoading, error } = useQuery<RosterResponse>({
-    queryKey: ["/api/fantasy/roster", { leagueId }],
+    queryKey: ["/api/fantasy/roster", leagueId],
     queryFn: async () => {
       const res = await fetch(`/api/fantasy/roster?leagueId=${leagueId}`, {
         credentials: "include",
@@ -52,7 +77,6 @@ export default function RosterPage() {
       }
       return res.json();
     },
-    enabled: !!leagueId && leagueId.length > 0,
   });
 
   const getPositionColor = () => {
@@ -89,25 +113,6 @@ export default function RosterPage() {
             <Skeleton key={i} className="h-16" />
           ))}
         </div>
-      </div>
-    );
-  }
-
-  if (!leagueId) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Users className="h-6 w-6" />
-          <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-page-title">My Roster</h1>
-        </div>
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground" data-testid="text-no-league">
-              Please select a league to view your roster.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     );
   }
