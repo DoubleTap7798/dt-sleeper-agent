@@ -988,12 +988,25 @@ Format your response with clear section headers using markdown. Be concise but i
   app.get("/api/sleeper/players/:playerId/insights", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { playerId } = req.params;
-      const allPlayers = await sleeperApi.getAllPlayers();
+      const [allPlayers, state] = await Promise.all([
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getState(),
+      ]);
       const player = allPlayers[playerId];
       
       if (!player) {
         return res.status(404).json({ message: "Player not found" });
       }
+      
+      // Get current date and NFL week for context
+      const currentDate = new Date().toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const currentWeek = state?.week || 1;
+      const currentSeason = state?.season || new Date().getFullYear().toString();
       
       const position = player.position || player.fantasy_positions?.[0] || "N/A";
       const value = ktcValues.getPlayerValue(
@@ -1008,7 +1021,9 @@ Format your response with clear section headers using markdown. Be concise but i
       const age = player.age || "Unknown";
       const yearsExp = player.years_exp || 0;
       
-      const prompt = `You are a fantasy football expert. Provide a brief analysis for ${playerName}, ${position} for the ${team}.
+      const prompt = `Today is ${currentDate}. We are in Week ${currentWeek} of the ${currentSeason} NFL season.
+
+You are a fantasy football expert. Provide a brief analysis for ${playerName}, ${position} for the ${team}.
 
 Player Info:
 - Age: ${age}
@@ -1019,9 +1034,9 @@ Player Info:
 
 Provide a concise response with these 3 sections (keep each section to 2-3 sentences max):
 
-**Latest News**: Recent developments, trades, injuries, or team news affecting this player.
+**Latest News**: Recent developments from TODAY or this week affecting this player - practice reports, injury updates, coach comments.
 
-**Fantasy Outlook**: Current fantasy value, role on team, and expectations for upcoming games.
+**Fantasy Outlook**: Week ${currentWeek} fantasy value, current role on team, and matchup expectations.
 
 **Dynasty Analysis**: Long-term value, age curve considerations, and whether to buy/hold/sell.`;
 
@@ -2432,7 +2447,20 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
   // Fantasy News Feed
   app.get("/api/fantasy/news", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const allPlayers = await sleeperApi.getAllPlayers();
+      const [allPlayers, state] = await Promise.all([
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getState(),
+      ]);
+      
+      // Get current date and NFL week for context
+      const currentDate = new Date().toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const currentWeek = state?.week || 1;
+      const currentSeason = state?.season || new Date().getFullYear().toString();
       
       // Get top trending players and generate news
       const topPlayers = Object.entries(allPlayers)
@@ -2443,16 +2471,18 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
         .map(([id, p]: [string, any]) => ({ id, ...p }))
         .slice(0, 50);
 
-      const newsPrompt = `Generate 15 realistic fantasy football news items for the current NFL season. Include a mix of:
-- Injury updates (2-3 items)
-- Trade rumors or analysis (2-3 items)
-- Waiver wire recommendations (2-3 items)
-- Player performance analysis (4-5 items)
-- General fantasy news (2-3 items)
+      const newsPrompt = `Today is ${currentDate}. Generate 15 realistic fantasy football news items for the ${currentSeason} NFL season, Week ${currentWeek}. 
+
+The news should reflect events happening TODAY or within the last 24-48 hours. Include a mix of:
+- Injury updates (2-3 items) - practice reports, game status updates
+- Trade rumors or analysis (2-3 items) - deadline buzz, recent moves
+- Waiver wire recommendations (2-3 items) - who to add/drop this week
+- Player performance analysis (4-5 items) - recent games, Week ${currentWeek} matchups
+- General fantasy news (2-3 items) - coaching changes, weather impacts, etc.
 
 For each news item, provide:
-- title: headline (max 80 chars)
-- summary: 1-2 sentence summary
+- title: headline (max 80 chars) - should feel like breaking news from today
+- summary: 1-2 sentence summary with current context
 - category: one of "injury", "trade", "waiver", "analysis", "news"
 - players: array of player names mentioned (1-3 players)
 
@@ -2505,7 +2535,20 @@ Return as JSON array with this format:
   app.get("/api/fantasy/trends", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.query;
-      const allPlayers = await sleeperApi.getAllPlayers();
+      const [allPlayers, state] = await Promise.all([
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getState(),
+      ]);
+      
+      // Get current date and season context
+      const currentDate = new Date().toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const currentSeason = state?.season || new Date().getFullYear().toString();
+      const currentWeek = state?.week || 1;
       
       // Get established players with stats
       const establishedPlayers = Object.entries(allPlayers)
@@ -2517,17 +2560,19 @@ Return as JSON array with this format:
         .map(([id, p]: [string, any]) => ({ id, ...p }))
         .slice(0, 40);
 
-      const trendsPrompt = `Analyze multi-season trends for these NFL players and provide career trajectory analysis.
+      const trendsPrompt = `Today is ${currentDate}. We are in Week ${currentWeek} of the ${currentSeason} NFL season.
+
+Analyze multi-season trends for these NFL players and provide career trajectory analysis through the current point in the ${currentSeason} season.
 
 Players: ${establishedPlayers.map(p => `${p.full_name} (${p.position}, ${p.team}, age ${p.age || "?"}, ${p.years_exp} years exp)`).join("; ")}
 
 For each player provide:
-- trend: "up" (improving), "down" (declining), or "stable"
+- trend: "up" (improving), "down" (declining), or "stable" - based on their ${currentSeason} performance so far
 - avgPpg: average PPG over career (realistic number based on position)
 - careerHigh: best season PPG
 - careerLow: worst season PPG  
-- trajectory: 1-2 sentence analysis of their career arc
-- seasons: array of 3 most recent seasons with {season: "2024", games: 16, points: 250, ppg: 15.6, rank: 12, positionRank: 8}
+- trajectory: 1-2 sentence analysis of their career arc including current season performance
+- seasons: array of 3 most recent seasons with {season: "${currentSeason}", games: X, points: Y, ppg: Z, rank: N, positionRank: M}
 
 Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, careerHigh, careerLow, trajectory, seasons}]}`;
 
@@ -2683,7 +2728,19 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
       const starters = starterIds.map(getPlayerInfo).filter(Boolean);
       const bench = benchIds.map(getPlayerInfo).filter(Boolean);
 
-      const lineupPrompt = `Provide start/sit recommendations for this fantasy football lineup in Week ${state?.week || 1}.
+      // Get current date for context
+      const currentDate = new Date().toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const currentWeek = state?.week || 1;
+      const currentSeason = state?.season || new Date().getFullYear().toString();
+
+      const lineupPrompt = `Today is ${currentDate}. This is Week ${currentWeek} of the ${currentSeason} NFL season.
+
+Provide start/sit recommendations for this fantasy football lineup based on THIS WEEK'S matchups and latest injury reports.
 
 STARTERS: ${starters.map((p: any) => `${p.name} (${p.position}, ${p.team})`).join(", ")}
 BENCH: ${bench.map((p: any) => `${p.name} (${p.position}, ${p.team})`).join(", ")}
@@ -2692,12 +2749,12 @@ For each player (starters and bench), provide:
 - recommendation: "start", "sit", or "flex"
 - confidence: 60-95 (percentage)
 - matchup: {opponent: "vs DEN", opponentRank: 1-32, projected: points, ceiling: points, floor: points}
-- reasoning: why start/sit (1 sentence)
-- gameScript: predicted game flow impact (1 sentence)
+- reasoning: why start/sit based on Week ${currentWeek} matchup (1 sentence)
+- gameScript: predicted game flow impact for this week's game (1 sentence)
 
 Also provide:
 - suggestions: array of {type: "swap"|"warning"|"opportunity", message: "suggestion text", players: ["names"]}
-- overallAnalysis: 2-3 sentence overall lineup assessment
+- overallAnalysis: 2-3 sentence Week ${currentWeek} lineup assessment
 
 Return JSON with: {starters: [...], bench: [...], suggestions: [...], overallAnalysis: "..."}`;
 
@@ -2753,11 +2810,25 @@ Return JSON with: {starters: [...], bench: [...], suggestions: [...], overallAna
   app.get("/api/fantasy/projections", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.query;
-      const allPlayers = await sleeperApi.getAllPlayers();
+      const [allPlayers, state] = await Promise.all([
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getState(),
+      ]);
+
+      // Get current date and season context
+      const currentDate = new Date().toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const currentWeek = state?.week || 1;
+      const currentSeason = state?.season || new Date().getFullYear().toString();
+      const remainingWeeks = Math.max(0, 18 - currentWeek); // NFL regular season is 18 weeks, clamp to 0 minimum
 
       let stats: Record<string, any> = {};
       try {
-        stats = await sleeperApi.getSeasonStats("2024", "regular");
+        stats = await sleeperApi.getSeasonStats(currentSeason, "regular");
       } catch (e) {
         stats = {};
       }
@@ -2782,22 +2853,24 @@ Return JSON with: {starters: [...], bench: [...], suggestions: [...], overallAna
         })
         .slice(0, 60);
 
-      const projectionsPrompt = `Generate rest-of-season fantasy projections for these NFL players.
+      const projectionsPrompt = `Today is ${currentDate}. We are in Week ${currentWeek} of the ${currentSeason} NFL season with approximately ${remainingWeeks} weeks remaining.
+
+Generate rest-of-season (ROS) fantasy projections for these NFL players from Week ${currentWeek + 1} through Week 17.
 
 Players: ${topPlayers.map(p => `${p.name} (${p.position}, ${p.team}, age ${p.age})`).join("; ")}
 
 For each player provide:
-- projectedPoints: total ROS fantasy points (realistic based on position)
-- projectedPpg: points per game ROS
+- projectedPoints: total ROS fantasy points for the remaining ${remainingWeeks} weeks
+- projectedPpg: expected points per game ROS
 - confidence: 50-95 (how confident in projection)
-- upside: ceiling PPG
-- downside: floor PPG
-- trend: "up", "down", or "stable"
-- outlook: 1-2 sentence ROS analysis
-- keyFactors: array of 2-3 key factors affecting outlook
-- scheduleStrength: 1-10 (1=easiest, 10=hardest)
+- upside: ceiling PPG ROS
+- downside: floor PPG ROS
+- trend: "up", "down", or "stable" based on recent performance
+- outlook: 1-2 sentence ROS analysis including current form
+- keyFactors: array of 2-3 key factors affecting remaining schedule outlook
+- scheduleStrength: 1-10 (1=easiest, 10=hardest) for remaining games
 - injuryRisk: "low", "medium", or "high"
-- byeWeek: 5-14 (NFL bye week)
+- byeWeek: 5-14 (NFL bye week - mark as "past" if already happened)
 
 Return JSON: {"players": [{...}]}`;
 
