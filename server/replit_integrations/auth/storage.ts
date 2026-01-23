@@ -33,16 +33,26 @@ class AuthStorage implements IAuthStorage {
         // Update related tables and migrate user atomically within a transaction
         // This preserves user data and associations while preventing partial state
         return await db.transaction(async (tx) => {
-          // Update related tables to use the new user ID
-          await tx
-            .update(userProfiles)
-            .set({ userId: newUserId, updatedAt: new Date() })
-            .where(eq(userProfiles.userId, oldUserId));
+          // Check if a profile already exists for the new user ID
+          const existingNewProfile = await tx
+            .select()
+            .from(userProfiles)
+            .where(eq(userProfiles.userId, newUserId))
+            .then(r => r[0]);
           
-          await tx
-            .update(userNotificationStatus)
-            .set({ userId: newUserId })
-            .where(eq(userNotificationStatus.userId, oldUserId));
+          if (existingNewProfile) {
+            // New user already has a profile - just delete the old user's profile
+            await tx.delete(userProfiles).where(eq(userProfiles.userId, oldUserId));
+          } else {
+            // Migrate old profile to new user ID
+            await tx
+              .update(userProfiles)
+              .set({ userId: newUserId, updatedAt: new Date() })
+              .where(eq(userProfiles.userId, oldUserId));
+          }
+          
+          // For notification status, delete old and keep new (or migrate if no new exists)
+          await tx.delete(userNotificationStatus).where(eq(userNotificationStatus.userId, oldUserId));
           
           // Delete the old user record
           await tx.delete(users).where(eq(users.id, oldUserId));
