@@ -3135,11 +3135,16 @@ Return JSON: {"players": [{...}]}`;
   // Roster - Get user's roster for selected league
   app.get("/api/fantasy/roster", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const { leagueId } = req.query;
       
+      console.log("[Roster] Request received - userId:", userId, "leagueId:", leagueId);
+      
       const userProfile = await storage.getUserProfile(userId);
+      console.log("[Roster] User profile - sleeperUserId:", userProfile?.sleeperUserId);
+      
       if (!userProfile?.sleeperUserId || !leagueId) {
+        console.log("[Roster] Missing data - sleeperUserId:", userProfile?.sleeperUserId, "leagueId:", leagueId);
         return res.status(400).json({ message: "League ID required" });
       }
 

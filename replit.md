@@ -57,6 +57,8 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **Storage Pattern**: Database operations abstracted through storage classes (e.g., `DatabaseStorage`, `AuthStorage`)
 - **API Integration**: External API calls (Sleeper, OpenAI) wrapped in dedicated service modules
 - **Authentication Middleware**: `isAuthenticated` middleware protects authenticated routes
+- **User ID Access**: Authenticated routes must use `req.user.claims.sub` to get the user ID from OIDC claims (not `req.user.id`)
+- **Auth Upsert with Email Conflict**: AuthStorage.upsertUser handles email conflicts by migrating related data (userProfiles, userNotificationStatus) to the new user ID atomically within a transaction before deleting the old user record
 - **Notification Sync Pattern**: Home page uses POST `/api/notifications/:leagueId/sync` endpoint (instead of GET) because it includes formatted player names and doesn't have the strict year-based access check that can fail for previous seasons
 - **Conditional Component Pattern**: Pages requiring leagueId (like Roster) use a parent/child component pattern - parent checks for valid leagueId and returns early if missing, child component only renders with valid leagueId to prevent React Query from firing without required parameters
 - **QueryKey Array Format**: Use array format for React Query keys with variables like `["/api/fantasy/roster", leagueId]` instead of dynamic strings for proper cache invalidation
