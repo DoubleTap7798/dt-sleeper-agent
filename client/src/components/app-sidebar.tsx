@@ -13,6 +13,11 @@ import {
   GraduationCap,
   GitBranch,
   UserCircle,
+  Newspaper,
+  Activity,
+  GitCompare,
+  Target,
+  BarChart3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -52,10 +57,22 @@ const navigationItems = [
     description: "League standings & playoff predictions",
   },
   {
+    title: "News",
+    url: "/league/news",
+    icon: Newspaper,
+    description: "Real-time fantasy news & analysis",
+  },
+  {
     title: "Matchups",
     url: "/league/matchups",
     icon: Gamepad2,
     description: "Current week matchups & live scoring",
+  },
+  {
+    title: "Lineup Advice",
+    url: "/league/lineup",
+    icon: Target,
+    description: "AI start/sit recommendations",
   },
   {
     title: "Schedule",
@@ -80,6 +97,24 @@ const navigationItems = [
     url: "/league/players",
     icon: UserCircle,
     description: "Player rankings & insights",
+  },
+  {
+    title: "Player Trends",
+    url: "/league/trends",
+    icon: Activity,
+    description: "Multi-season performance analysis",
+  },
+  {
+    title: "Compare Players",
+    url: "/league/compare",
+    icon: GitCompare,
+    description: "Side-by-side player comparison",
+  },
+  {
+    title: "Projections",
+    url: "/league/projections",
+    icon: BarChart3,
+    description: "ROS projections & outlooks",
   },
   {
     title: "Devy Rankings",

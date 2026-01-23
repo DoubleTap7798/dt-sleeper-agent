@@ -21,6 +21,11 @@ import SchedulePage from "@/pages/schedule";
 import DevyPage from "@/pages/devy";
 import PlayoffBracketPage from "@/pages/playoff-bracket";
 import PlayersPage from "@/pages/players";
+import NewsFeedPage from "@/pages/news-feed";
+import PlayerTrendsPage from "@/pages/player-trends";
+import PlayerComparePage from "@/pages/player-compare";
+import LineupAdvicePage from "@/pages/lineup-advice";
+import ProjectionsPage from "@/pages/projections";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -149,6 +154,41 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <PlayersPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/news">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <NewsFeedPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/trends">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <PlayerTrendsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/compare">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <PlayerComparePage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/lineup">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <LineupAdvicePage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/projections">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <ProjectionsPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

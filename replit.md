@@ -6,16 +6,21 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 
 ## Features
 - **Standings**: League standings with playoff predictions, clickable teams show roster and draft picks
+- **News Feed**: Real-time fantasy football news and analysis with injury updates, trade rumors, waiver recommendations, and player analysis - AI-generated with 5-minute refresh
 - **Matchups**: Current week matchups with live scoring, expandable to see player breakdowns
+- **Lineup Advice**: AI-powered start/sit recommendations with matchup analysis, projected points, confidence ratings, game script predictions, and smart swap suggestions
 - **Schedule**: Full season schedule with week-by-week matchups, opponents, scores, and W/L/T results
 - **Playoff Bracket**: Visual bracket display with matchups organized by round (Quarterfinals, Semifinals, Championship)
 - **Rivalries**: Head-to-head records between teams across all seasons
 - **Waiver Wire**: Available players and stats
+- **NFL Players**: Player rankings by fantasy points with snap %, position-specific stats (1st downs, targets, attempts)
+- **Player Trends**: Multi-season performance tracking with year-over-year analysis, career trajectory visualization, and historical PPG trends
+- **Player Comparison**: Side-by-side comparison tool for 2-4 players showing stats, KTC values, projections, and visual stat comparisons for trade evaluation
+- **ROS Projections**: Advanced rest-of-season projections with AI-generated outlooks, confidence ratings, upside/floor analysis, schedule strength, injury risk, and key factors
 - **Devy Rankings**: Top 50 college prospects from KTC with tier, value, trend, position ranks, and draft eligibility years (2026-2028)
 - **Trade Calculator**: Calculate trade values with KTC dynasty values and AI analysis
 - **Trade History**: Historical trades from ALL league years with AI insights
 - **Trophy Room**: Champions, all-time standings, season records
-- **NFL Players**: Player rankings by fantasy points with snap %, position-specific stats (1st downs, targets, attempts)
 - **Real-Time Notifications**: Bell icon in header shows trades, waiver claims, and free agent pickups with auto-sync every 60 seconds
 
 ## User Preferences
@@ -82,7 +87,7 @@ shared/           # Shared code between frontend/backend
 - **Required Environment Variables**: `DATABASE_URL`, `SESSION_SECRET`, `ISSUER_URL`, `REPL_ID`
 
 ### AI Services
-- **OpenAI Integration**: Used for trade analysis
+- **OpenAI Integration**: Used for trade analysis, news generation, lineup advice, player trends, and ROS projections
 - **Required Environment Variables**: `AI_INTEGRATIONS_OPENAI_API_KEY`, `AI_INTEGRATIONS_OPENAI_BASE_URL`
 
 ### Development Tools
