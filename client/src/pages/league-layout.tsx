@@ -151,14 +151,24 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
 export function useSelectedLeague() {
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
-  const leagueId = urlParams.get("id");
+  const urlLeagueId = urlParams.get("id");
 
-  const { data: leagues = [], isLoading } = useQuery<SleeperLeague[]>({
+  const { data: leagues = [], isLoading: leaguesLoading } = useQuery<SleeperLeague[]>({
     queryKey: ["/api/sleeper/leagues"],
   });
 
-  const selectedLeague = leagues.find((l) => l.league_id === leagueId) || leagues[0] || null;
-  return { league: selectedLeague, isLoading };
+  const { data: profile, isLoading: profileLoading } = useQuery<UserProfile>({
+    queryKey: ["/api/user/profile"],
+  });
+
+  // Priority: URL param > profile's selected league > first league in list
+  const leagueId = urlLeagueId || (profile?.selectedLeagueId !== "all" ? profile?.selectedLeagueId : null);
+  
+  const selectedLeague = leagueId 
+    ? leagues.find((l) => l.league_id === leagueId) || leagues[0] || null
+    : leagues[0] || null;
+    
+  return { league: selectedLeague, isLoading: leaguesLoading || profileLoading };
 }
 
 // Backwards compatible hook that returns just the league (for components that don't need loading state)
