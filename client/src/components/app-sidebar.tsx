@@ -46,7 +46,8 @@ import type { SleeperLeague } from "@/lib/sleeper-types";
 interface AppSidebarProps {
   leagues: SleeperLeague[];
   selectedLeague: SleeperLeague | null;
-  onLeagueChange: (league: SleeperLeague) => void;
+  isAllLeagues: boolean;
+  onLeagueChange: (league: SleeperLeague | null) => void;
 }
 
 const navigationItems = [
@@ -55,119 +56,142 @@ const navigationItems = [
     url: "/league",
     icon: Home,
     description: "Dashboard overview & stats",
+    requiresLeague: false,
   },
   {
     title: "Standings",
     url: "/league/standings",
     icon: BarChart3,
     description: "League standings & playoff predictions",
+    requiresLeague: true,
   },
   {
     title: "My Roster",
     url: "/league/roster",
     icon: Users,
     description: "Your team roster",
+    requiresLeague: true,
   },
   {
     title: "News",
     url: "/league/news",
     icon: Newspaper,
     description: "Real-time fantasy news & analysis",
+    requiresLeague: false,
   },
   {
     title: "Matchups",
     url: "/league/matchups",
     icon: Gamepad2,
     description: "Current week matchups & live scoring",
+    requiresLeague: true,
   },
   {
     title: "Lineup Advice",
     url: "/league/lineup",
     icon: Target,
     description: "AI start/sit recommendations",
+    requiresLeague: true,
   },
   {
     title: "Schedule",
     url: "/league/schedule",
     icon: CalendarDays,
     description: "Your season schedule",
+    requiresLeague: true,
   },
   {
     title: "Playoff Bracket",
     url: "/league/bracket",
     icon: GitBranch,
     description: "Playoff matchups & bracket",
+    requiresLeague: true,
   },
   {
     title: "Waiver Wire",
     url: "/league/waivers",
     icon: UserCircle,
     description: "Available players & stats",
+    requiresLeague: true,
   },
   {
     title: "NFL Players",
     url: "/league/players",
     icon: UserCircle,
     description: "Player rankings & insights",
+    requiresLeague: false,
   },
   {
     title: "Player Trends",
     url: "/league/trends",
     icon: Activity,
     description: "Multi-season performance analysis",
+    requiresLeague: false,
   },
   {
     title: "Compare Players",
     url: "/league/compare",
     icon: GitCompare,
     description: "Side-by-side player comparison",
+    requiresLeague: false,
   },
   {
     title: "Projections",
     url: "/league/projections",
     icon: BarChart3,
     description: "ROS projections & outlooks",
+    requiresLeague: false,
   },
   {
     title: "Devy Rankings",
     url: "/league/devy",
     icon: GraduationCap,
     description: "College player rankings",
+    requiresLeague: false,
   },
   {
     title: "Trade Calculator",
     url: "/league/trade",
     icon: RefreshCw,
     description: "Calculate trade values",
+    requiresLeague: true,
   },
   {
     title: "Trade History",
     url: "/league/history",
     icon: History,
     description: "Historical trades & analysis",
+    requiresLeague: true,
   },
   {
     title: "Rivalries",
     url: "/league/rivalries",
     icon: Swords,
     description: "Head-to-head records",
+    requiresLeague: true,
   },
   {
     title: "Trophy Room",
     url: "/league/trophies",
     icon: Trophy,
     description: "Champions & records",
+    requiresLeague: true,
   },
 ];
 
-export function AppSidebar({ leagues, selectedLeague, onLeagueChange }: AppSidebarProps) {
+export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChange }: AppSidebarProps) {
   const [location] = useLocation();
   const searchString = useSearch();
   const { user, logout } = useAuth();
   
   // Get leagueId from URL or selected league
   const urlParams = new URLSearchParams(searchString);
-  const leagueId = urlParams.get("id") || selectedLeague?.league_id;
+  const leagueId = isAllLeagues ? null : (urlParams.get("id") || selectedLeague?.league_id);
+  
+  // Filter nav items based on whether a specific league is selected
+  const visibleNavItems = navigationItems.filter(item => 
+    !item.requiresLeague || !isAllLeagues
+  );
 
   const getInitials = () => {
     if (user?.firstName && user?.lastName) {
@@ -196,12 +220,23 @@ export function AppSidebar({ leagues, selectedLeague, onLeagueChange }: AppSideb
                   data-testid="button-league-selector"
                 >
                   <span className="truncate">
-                    {selectedLeague?.name || "Select a league"}
+                    {isAllLeagues ? "All Leagues" : (selectedLeague?.name || "Select a league")}
                   </span>
                   <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-[--radix-dropdown-menu-trigger-width]">
+                <DropdownMenuItem
+                  onClick={() => onLeagueChange(null)}
+                  className="cursor-pointer font-medium"
+                  data-testid="menu-item-all-leagues"
+                >
+                  <span>All Leagues</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    Career Stats
+                  </span>
+                </DropdownMenuItem>
+                <div className="h-px bg-border my-1" />
                 {leagues.map((league) => (
                   <DropdownMenuItem
                     key={league.league_id}
@@ -233,7 +268,7 @@ export function AppSidebar({ leagues, selectedLeague, onLeagueChange }: AppSideb
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const isActive = location === item.url || 
                   (item.url === "/league" && location === "/league");
                 const linkUrl = leagueId ? `${item.url}?id=${leagueId}` : item.url;

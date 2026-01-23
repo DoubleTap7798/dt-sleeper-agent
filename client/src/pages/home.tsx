@@ -7,6 +7,7 @@ import { Trophy, Users, TrendingUp, TrendingDown, Calendar, Target, Crown, Medal
 
 interface LeagueSummary {
   totalLeagues: number;
+  totalSeasons: number;
   totalWins: number;
   totalLosses: number;
   totalTies: number;
@@ -26,17 +27,16 @@ interface LeagueSummary {
     totalTeams: number;
     isChampion: boolean;
     isPlayoffs: boolean;
+    isRunnerUp?: boolean;
   }[];
 }
 
 export default function HomePage() {
   const selectedLeague = useSelectedLeague();
   const leagues = useLeagues();
-  const leagueIds = leagues?.map((l: { league_id: string }) => l.league_id).join(",") || "";
 
   const { data, isLoading, error } = useQuery<LeagueSummary>({
-    queryKey: [`/api/fantasy/summary?leagueIds=${leagueIds}`],
-    enabled: !!leagueIds,
+    queryKey: ["/api/fantasy/summary"],
   });
 
   if (isLoading) {
@@ -72,14 +72,14 @@ export default function HomePage() {
       <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         <Card data-testid="card-total-leagues">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Total Leagues</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium">Career Seasons</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold" data-testid="stat-total-leagues">
-              {data?.totalLeagues || leagues?.length || 0}
+              {data?.totalSeasons || data?.leagueStats?.length || 0}
             </div>
-            <p className="text-xs text-muted-foreground">Active leagues</p>
+            <p className="text-xs text-muted-foreground">{data?.totalLeagues || leagues?.length || 0} active leagues</p>
           </CardContent>
         </Card>
 
@@ -135,7 +135,7 @@ export default function HomePage() {
             <div className="space-y-3">
               {data.leagueStats.map((league, idx) => (
                 <div 
-                  key={league.leagueId} 
+                  key={`${league.leagueId}-${league.season}`} 
                   className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-muted/50 gap-2"
                   data-testid={`league-row-${idx}`}
                 >

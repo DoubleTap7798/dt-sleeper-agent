@@ -13,7 +13,7 @@ const connectSleeperSchema = z.object({
 });
 
 const selectLeagueSchema = z.object({
-  leagueId: z.string().min(1, "League ID is required"),
+  leagueId: z.string().min(1, "League ID is required").or(z.literal("all")),
 });
 
 const tradeAssetSchema = z.object({
@@ -2820,11 +2820,10 @@ Return JSON: {"players": [{...}]}`;
     }
   });
 
-  // League Summary - Overall stats across leagues
+  // League Summary - Overall stats across leagues including ALL historical seasons
   app.get("/api/fantasy/summary", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user.id;
-      const { leagueIds } = req.query;
+      const userId = req.user.claims.sub;
       
       const userProfile = await storage.getUserProfile(userId);
       if (!userProfile?.sleeperUserId) {
@@ -2842,7 +2841,7 @@ Return JSON: {"players": [{...}]}`;
         });
       }
 
-      const leagues = await sleeperApi.getUserLeagues(userProfile.sleeperUserId);
+      const currentLeagues = await sleeperApi.getUserLeagues(userProfile.sleeperUserId);
       
       let totalWins = 0;
       let totalLosses = 0;
@@ -2851,61 +2850,121 @@ Return JSON: {"players": [{...}]}`;
       let runnerUps = 0;
       let playoffAppearances = 0;
       const leagueStats: any[] = [];
+      const processedLeagueIds = new Set<string>();
 
-      for (const league of leagues.slice(0, 10)) {
-        try {
-          const rosters = await sleeperApi.getLeagueRosters(league.league_id);
-          const users = await sleeperApi.getLeagueUsers(league.league_id);
+      // Helper function to trace back through league history
+      const processLeagueHistory = async (leagueId: string, leagueName: string) => {
+        let currentLeagueId: string | null = leagueId;
+        
+        while (currentLeagueId && currentLeagueId !== "0" && !processedLeagueIds.has(currentLeagueId)) {
+          processedLeagueIds.add(currentLeagueId);
           
-          const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
-          if (userRoster) {
-            const wins = userRoster.settings?.wins || 0;
-            const losses = userRoster.settings?.losses || 0;
-            const ties = userRoster.settings?.ties || 0;
+          try {
+            const league = await sleeperApi.getLeague(currentLeagueId);
+            if (!league) break;
             
-            totalWins += wins;
-            totalLosses += losses;
-            totalTies += ties;
+            const rosters = await sleeperApi.getLeagueRosters(currentLeagueId);
             
-            const sortedRosters = [...rosters].sort((a, b) => 
-              (b.settings?.wins || 0) - (a.settings?.wins || 0)
-            );
-            const rank = sortedRosters.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
+            // Find user's roster in this season
+            const userRoster = rosters.find(r => r.owner_id === userProfile!.sleeperUserId);
+            if (userRoster) {
+              const wins = userRoster.settings?.wins || 0;
+              const losses = userRoster.settings?.losses || 0;
+              const ties = userRoster.settings?.ties || 0;
+              
+              totalWins += wins;
+              totalLosses += losses;
+              totalTies += ties;
+              
+              // Calculate rank based on wins, then points for tie-breaking
+              const sortedRosters = [...rosters].sort((a, b) => {
+                const winsA = a.settings?.wins || 0;
+                const winsB = b.settings?.wins || 0;
+                if (winsB !== winsA) return winsB - winsA;
+                // Tie-break by fantasy points
+                const fptsA = (a.settings?.fpts || 0) + (a.settings?.fpts_decimal || 0) / 100;
+                const fptsB = (b.settings?.fpts || 0) + (b.settings?.fpts_decimal || 0) / 100;
+                return fptsB - fptsA;
+              });
+              const rank = sortedRosters.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
+              
+              // Check for playoff appearance
+              const playoffTeams = league.settings?.playoff_teams || 6;
+              const isPlayoffs = rank <= playoffTeams;
+              if (isPlayoffs) playoffAppearances++;
+              
+              // Check for championship by looking at bracket data
+              let isChampion = false;
+              let isRunnerUp = false;
+              
+              try {
+                const bracket = await sleeperApi.getPlayoffBracket(currentLeagueId);
+                if (bracket && bracket.length > 0) {
+                  // Find the championship match (usually the last match or highest round)
+                  const champMatch = bracket.reduce((max, match) => 
+                    (match.r > (max?.r || 0)) ? match : max, bracket[0]);
+                  
+                  if (champMatch && champMatch.w === userRoster.roster_id) {
+                    isChampion = true;
+                    championships++;
+                  } else if (champMatch && champMatch.l === userRoster.roster_id) {
+                    isRunnerUp = true;
+                    runnerUps++;
+                  }
+                }
+              } catch (bracketError) {
+                // If bracket fails, fall back to rank-based determination for completed seasons
+                if (league.status === "complete" && rank === 1) {
+                  isChampion = true;
+                  championships++;
+                } else if (league.status === "complete" && rank === 2) {
+                  isRunnerUp = true;
+                  runnerUps++;
+                }
+              }
+              
+              leagueStats.push({
+                leagueId: currentLeagueId,
+                leagueName: leagueName,
+                season: league.season,
+                wins,
+                losses,
+                ties,
+                rank,
+                totalTeams: rosters.length,
+                isChampion,
+                isPlayoffs,
+                isRunnerUp,
+              });
+            }
             
-            const playoffTeams = league.settings?.playoff_teams || 6;
-            const isPlayoffs = rank <= playoffTeams;
-            if (isPlayoffs) playoffAppearances++;
-            
-            if (rank === 1 && wins > losses) championships++;
-            if (rank === 2) runnerUps++;
-            
-            leagueStats.push({
-              leagueId: league.league_id,
-              leagueName: league.name,
-              season: league.season,
-              wins,
-              losses,
-              ties,
-              rank,
-              totalTeams: rosters.length,
-              isChampion: rank === 1 && wins > losses,
-              isPlayoffs,
-            });
+            // Move to previous season
+            currentLeagueId = league.previous_league_id;
+          } catch (e) {
+            console.error(`Error processing league ${currentLeagueId}:`, e);
+            break;
           }
-        } catch (e) {
-          // Skip league if error
         }
       }
 
+      // Process each current league and trace back its history
+      for (const league of currentLeagues.slice(0, 10)) {
+        await processLeagueHistory(league.league_id, league.name);
+      }
+
+      // Sort league stats by season descending
+      leagueStats.sort((a, b) => b.season.localeCompare(a.season));
+
       res.json({
-        totalLeagues: leagues.length,
+        totalLeagues: currentLeagues.length,
+        totalSeasons: leagueStats.length,
         totalWins,
         totalLosses,
         totalTies,
         championships,
         runnerUps,
         playoffAppearances,
-        bestFinish: championships > 0 ? "Champion" : runnerUps > 0 ? "Runner-up" : "Playoffs",
+        bestFinish: championships > 0 ? "Champion" : runnerUps > 0 ? "Runner-up" : playoffAppearances > 0 ? "Playoffs" : "N/A",
         currentSeason: new Date().getFullYear().toString(),
         leagueStats,
       });

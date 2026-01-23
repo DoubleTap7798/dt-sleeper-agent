@@ -40,6 +40,7 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
   });
 
   const [selectedLeague, setSelectedLeague] = useState<SleeperLeague | null>(null);
+  const [isAllLeagues, setIsAllLeagues] = useState(true);
 
   const selectLeagueMutation = useMutation({
     mutationFn: async (leagueId: string) => {
@@ -57,17 +58,47 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
     }
 
     if (leagues.length > 0) {
-      const targetLeagueId = leagueIdFromUrl || profile?.selectedLeagueId || leagues[0].league_id;
-      const league = leagues.find((l) => l.league_id === targetLeagueId) || leagues[0];
-      setSelectedLeague(league);
+      // Check if URL has a specific league ID
+      if (leagueIdFromUrl) {
+        const league = leagues.find((l) => l.league_id === leagueIdFromUrl);
+        if (league) {
+          setSelectedLeague(league);
+          setIsAllLeagues(false);
+        }
+      } else if (profile?.selectedLeagueId && profile.selectedLeagueId !== "all") {
+        // Restore previously selected league from profile
+        const savedLeague = leagues.find((l) => l.league_id === profile.selectedLeagueId);
+        if (savedLeague) {
+          setSelectedLeague(savedLeague);
+          setIsAllLeagues(false);
+        } else {
+          // Saved league not found in current leagues, default to All
+          setIsAllLeagues(true);
+          setSelectedLeague(null);
+        }
+      } else {
+        // Default to "All Leagues" view
+        setIsAllLeagues(true);
+        setSelectedLeague(null);
+      }
     }
   }, [authLoading, profileLoading, profile, leagues, leagueIdFromUrl, setLocation]);
 
-  const handleLeagueChange = (league: SleeperLeague) => {
-    setSelectedLeague(league);
-    selectLeagueMutation.mutate(league.league_id);
-    const currentPath = window.location.pathname;
-    setLocation(`${currentPath}?id=${league.league_id}`);
+  const handleLeagueChange = (league: SleeperLeague | null) => {
+    if (league === null) {
+      // "All Leagues" selected
+      setIsAllLeagues(true);
+      setSelectedLeague(null);
+      selectLeagueMutation.mutate("all");
+      setLocation("/league");
+    } else {
+      // Specific league selected
+      setIsAllLeagues(false);
+      setSelectedLeague(league);
+      selectLeagueMutation.mutate(league.league_id);
+      const currentPath = window.location.pathname;
+      setLocation(`${currentPath}?id=${league.league_id}`);
+    }
   };
 
   const sidebarStyle = {
@@ -92,31 +123,24 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
         <AppSidebar
           leagues={leagues}
           selectedLeague={selectedLeague}
+          isAllLeagues={isAllLeagues}
           onLeagueChange={handleLeagueChange}
         />
         <SidebarInset className="flex flex-col flex-1">
           <header className="flex items-center justify-between h-14 px-4 border-b border-border shrink-0 gap-2">
             <div className="flex items-center gap-2">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
-              {selectedLeague && (
-                <h1 className="text-lg font-semibold truncate" data-testid="text-league-name">
-                  {selectedLeague.name}
-                </h1>
-              )}
+              <h1 className="text-lg font-semibold truncate" data-testid="text-league-name">
+                {isAllLeagues ? "All Leagues" : selectedLeague?.name}
+              </h1>
             </div>
             <div className="flex items-center gap-2">
-              <NotificationBell leagueId={selectedLeague?.league_id} />
+              {!isAllLeagues && <NotificationBell leagueId={selectedLeague?.league_id} />}
               <ThemeToggle />
             </div>
           </header>
           <main className="flex-1 overflow-auto p-4 md:p-6">
-            {selectedLeague ? (
-              children
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">Select a league to get started</p>
-              </div>
-            )}
+            {children}
           </main>
         </SidebarInset>
       </div>
