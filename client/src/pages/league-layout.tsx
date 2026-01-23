@@ -153,11 +153,18 @@ export function useSelectedLeague() {
   const urlParams = new URLSearchParams(searchString);
   const leagueId = urlParams.get("id");
 
-  const { data: leagues = [] } = useQuery<SleeperLeague[]>({
+  const { data: leagues = [], isLoading } = useQuery<SleeperLeague[]>({
     queryKey: ["/api/sleeper/leagues"],
   });
 
-  return leagues.find((l) => l.league_id === leagueId) || leagues[0] || null;
+  const selectedLeague = leagues.find((l) => l.league_id === leagueId) || leagues[0] || null;
+  return { league: selectedLeague, isLoading };
+}
+
+// Backwards compatible hook that returns just the league (for components that don't need loading state)
+export function useSelectedLeagueSimple() {
+  const { league } = useSelectedLeague();
+  return league;
 }
 
 export function useLeagues(): SleeperLeague[] {

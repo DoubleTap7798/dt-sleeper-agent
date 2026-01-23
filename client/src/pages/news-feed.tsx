@@ -27,7 +27,7 @@ interface NewsResponse {
 }
 
 export default function NewsFeedPage() {
-  const league = useSelectedLeague();
+  const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");

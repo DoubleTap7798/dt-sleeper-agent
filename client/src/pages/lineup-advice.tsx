@@ -55,7 +55,7 @@ interface LineupAdvice {
 }
 
 export default function LineupAdvicePage() {
-  const league = useSelectedLeague();
+  const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
   const [activeTab, setActiveTab] = useState("starters");
 

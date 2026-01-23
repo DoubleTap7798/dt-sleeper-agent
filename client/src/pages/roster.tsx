@@ -35,8 +35,29 @@ const positionOrder: Record<string, number> = {
 };
 
 export default function RosterPage() {
-  const league = useSelectedLeague();
+  const { league, isLoading: isLoadingLeagues } = useSelectedLeague();
   const leagueId = league?.league_id;
+
+  // Show loading while leagues are being fetched
+  if (isLoadingLeagues) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Users className="h-6 w-6" />
+          <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-page-title">My Roster</h1>
+        </div>
+        <Card>
+          <CardContent className="py-6">
+            <div className="space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Early return if no league selected - prevents query from running
   if (!leagueId) {

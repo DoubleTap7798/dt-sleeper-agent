@@ -42,7 +42,7 @@ interface PlayersResponse {
 }
 
 export default function PlayerComparePage() {
-  const league = useSelectedLeague();
+  const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
   const [selectedPlayers, setSelectedPlayers] = useState<ComparePlayer[]>([]);
   const [searchTerm, setSearchTerm] = useState("");

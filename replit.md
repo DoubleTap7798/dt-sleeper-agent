@@ -60,6 +60,7 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **Notification Sync Pattern**: Home page uses POST `/api/notifications/:leagueId/sync` endpoint (instead of GET) because it includes formatted player names and doesn't have the strict year-based access check that can fail for previous seasons
 - **Conditional Component Pattern**: Pages requiring leagueId (like Roster) use a parent/child component pattern - parent checks for valid leagueId and returns early if missing, child component only renders with valid leagueId to prevent React Query from firing without required parameters
 - **QueryKey Array Format**: Use array format for React Query keys with variables like `["/api/fantasy/roster", leagueId]` instead of dynamic strings for proper cache invalidation
+- **useSelectedLeague Hook**: Returns `{ league, isLoading }` object - pages should destructure with `const { league } = useSelectedLeague()` and optionally use `isLoading` for showing loading skeletons while leagues are being fetched
 
 ### Project Structure
 ```

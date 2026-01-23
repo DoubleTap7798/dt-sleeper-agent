@@ -37,7 +37,7 @@ interface TrendsResponse {
 }
 
 export default function PlayerTrendsPage() {
-  const league = useSelectedLeague();
+  const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
   const [searchTerm, setSearchTerm] = useState("");
   const [positionFilter, setPositionFilter] = useState<string>("all");
