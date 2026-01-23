@@ -25,7 +25,8 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 
 ## User Preferences
 
-Preferred communication style: Simple, everyday language.
+- Preferred communication style: Simple, everyday language.
+- Design: Strict pure grayscale theme (0% saturation) - no colored highlights, all UI elements use semantic grayscale tokens (text-muted-foreground, bg-muted, etc.)
 
 ## System Architecture
 

@@ -81,15 +81,7 @@ export default function WaiverWirePage() {
   }
 
   const getPositionColor = (position: string) => {
-    switch (position) {
-      case "QB": return "bg-red-500/10 text-red-500 border-red-500/20";
-      case "RB": return "bg-green-500/10 text-green-500 border-green-500/20";
-      case "WR": return "bg-blue-500/10 text-blue-500 border-blue-500/20";
-      case "TE": return "bg-orange-500/10 text-orange-500 border-orange-500/20";
-      case "K": return "bg-purple-500/10 text-purple-500 border-purple-500/20";
-      case "DEF": return "bg-gray-500/10 text-gray-500 border-gray-500/20";
-      default: return "";
-    }
+    return "bg-muted text-muted-foreground border-border";
   };
 
   return (

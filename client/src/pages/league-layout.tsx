@@ -135,3 +135,11 @@ export function useSelectedLeague() {
 
   return leagues.find((l) => l.league_id === leagueId) || leagues[0] || null;
 }
+
+export function useLeagues(): SleeperLeague[] {
+  const { data: leagues = [] } = useQuery<SleeperLeague[]>({
+    queryKey: ["/api/sleeper/leagues"],
+  });
+
+  return leagues;
+}

@@ -57,7 +57,7 @@ function MatchupCard({ matchup, roundName, isChampionship }: { matchup: BracketM
 
     return (
       <div 
-        className={`flex items-center gap-2 p-2 ${isTop ? "border-b border-border/50" : ""} ${isWinner ? "bg-white/5" : ""}`}
+        className={`flex items-center gap-2 p-2 ${isTop ? "border-b border-border/50" : ""} ${isWinner ? "bg-muted/30" : ""}`}
         data-testid={`bracket-team-${team.rosterId}`}
       >
         <Avatar className="h-6 w-6">

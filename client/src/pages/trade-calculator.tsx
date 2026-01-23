@@ -114,11 +114,7 @@ export default function TradeCalculatorPage() {
   const canAnalyze = teamAId && teamBId && (teamAAssets.length > 0 || teamBAssets.length > 0);
 
   const getGradeColor = (grade: string) => {
-    if (grade.startsWith("A")) return "text-green-500 bg-green-500/10";
-    if (grade.startsWith("B")) return "text-blue-500 bg-blue-500/10";
-    if (grade.startsWith("C")) return "text-yellow-500 bg-yellow-500/10";
-    if (grade.startsWith("D")) return "text-orange-500 bg-orange-500/10";
-    return "text-red-500 bg-red-500/10";
+    return "text-muted-foreground bg-muted";
   };
 
   if (dataLoading) {
@@ -204,16 +200,16 @@ export default function TradeCalculatorPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Trading Away:</span>
-                    <span className="font-mono text-red-500">-{analysis.teamA.totalValue.toLocaleString()}</span>
+                    <span className="font-mono text-muted-foreground">-{analysis.teamA.totalValue.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Receiving:</span>
-                    <span className="font-mono text-green-500">+{analysis.teamB.totalValue.toLocaleString()}</span>
+                    <span className="font-mono font-semibold">+{analysis.teamB.totalValue.toLocaleString()}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Net Value:</span>
-                    <span className={`font-mono font-bold ${analysis.teamB.totalValue - analysis.teamA.totalValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    <span className="font-mono font-bold">
                       {analysis.teamB.totalValue - analysis.teamA.totalValue >= 0 ? '+' : ''}{(analysis.teamB.totalValue - analysis.teamA.totalValue).toLocaleString()}
                     </span>
                   </div>
@@ -227,16 +223,16 @@ export default function TradeCalculatorPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Trading Away:</span>
-                    <span className="font-mono text-red-500">-{analysis.teamB.totalValue.toLocaleString()}</span>
+                    <span className="font-mono text-muted-foreground">-{analysis.teamB.totalValue.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Receiving:</span>
-                    <span className="font-mono text-green-500">+{analysis.teamA.totalValue.toLocaleString()}</span>
+                    <span className="font-mono font-semibold">+{analysis.teamA.totalValue.toLocaleString()}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Net Value:</span>
-                    <span className={`font-mono font-bold ${analysis.teamA.totalValue - analysis.teamB.totalValue >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    <span className="font-mono font-bold">
                       {analysis.teamA.totalValue - analysis.teamB.totalValue >= 0 ? '+' : ''}{(analysis.teamA.totalValue - analysis.teamB.totalValue).toLocaleString()}
                     </span>
                   </div>
@@ -254,7 +250,7 @@ export default function TradeCalculatorPage() {
                       {analysis.winner === "A" ? teamA?.ownerName : teamB?.ownerName}
                     </span>
                     <span className="text-muted-foreground"> gets the better deal by </span>
-                    <span className="font-bold text-green-500">
+                    <span className="font-bold">
                       +{Math.abs(analysis.difference).toLocaleString()} ({analysis.percentageDiff.toFixed(1)}%)
                     </span>
                   </>
@@ -305,13 +301,7 @@ function TradeSide({
   const totalValue = selectedAssets.reduce((sum, a) => sum + a.value, 0);
 
   const getPositionColor = (position?: string) => {
-    switch (position) {
-      case "QB": return "bg-red-500/10 text-red-500";
-      case "RB": return "bg-green-500/10 text-green-500";
-      case "WR": return "bg-blue-500/10 text-blue-500";
-      case "TE": return "bg-orange-500/10 text-orange-500";
-      default: return "bg-gray-500/10 text-gray-500";
-    }
+    return "bg-muted text-muted-foreground border-border";
   };
 
   return (

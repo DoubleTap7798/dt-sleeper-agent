@@ -143,7 +143,7 @@ export default function LeagueStandingsPage() {
                     return (
                       <TableRow
                         key={team.rosterId}
-                        className={`cursor-pointer transition-colors hover-elevate ${isPlayoffSpot ? "bg-white/5" : ""}`}
+                        className={`cursor-pointer transition-colors hover-elevate ${isPlayoffSpot ? "bg-muted/30" : ""}`}
                         onClick={() => setSelectedTeam({ rosterId: team.rosterId, ownerName: team.ownerName })}
                         data-testid={`row-standings-${team.rosterId}`}
                       >
@@ -151,7 +151,7 @@ export default function LeagueStandingsPage() {
                           <div className="flex items-center gap-1">
                             {index + 1}
                             {index === 0 && (
-                              <Trophy className="h-4 w-4 text-yellow-500" />
+                              <Trophy className="h-4 w-4 text-muted-foreground" />
                             )}
                           </div>
                         </TableCell>
@@ -208,7 +208,7 @@ export default function LeagueStandingsPage() {
             <CardContent className="space-y-4">
               {standings.slice(0, 8).map((team, index) => {
                 const odds = team.playoffOdds ?? (100 - index * 12);
-                const oddsColor = odds >= 70 ? "text-green-500" : odds >= 40 ? "text-yellow-500" : "text-red-500";
+                const oddsColor = "text-muted-foreground";
                 return (
                   <div key={team.rosterId} className="space-y-1.5" data-testid={`playoff-odds-${team.rosterId}`}>
                     <div className="flex items-center justify-between text-sm">
@@ -387,16 +387,16 @@ export default function LeagueStandingsPage() {
 }
 
 const positionColors: Record<string, string> = {
-  QB: "bg-red-500/20 dark:bg-red-500/30 text-red-700 dark:text-red-300",
-  RB: "bg-green-500/20 dark:bg-green-500/30 text-green-700 dark:text-green-300",
-  WR: "bg-blue-500/20 dark:bg-blue-500/30 text-blue-700 dark:text-blue-300",
-  TE: "bg-orange-500/20 dark:bg-orange-500/30 text-orange-700 dark:text-orange-300",
-  K: "bg-purple-500/20 dark:bg-purple-500/30 text-purple-700 dark:text-purple-300",
-  DEF: "bg-yellow-500/20 dark:bg-yellow-500/30 text-yellow-700 dark:text-yellow-300",
-  FLEX: "bg-pink-500/20 dark:bg-pink-500/30 text-pink-700 dark:text-pink-300",
-  SUPER_FLEX: "bg-indigo-500/20 dark:bg-indigo-500/30 text-indigo-700 dark:text-indigo-300",
-  REC_FLEX: "bg-cyan-500/20 dark:bg-cyan-500/30 text-cyan-700 dark:text-cyan-300",
-  IDP_FLEX: "bg-slate-500/20 dark:bg-slate-500/30 text-slate-700 dark:text-slate-300",
+  QB: "bg-muted text-muted-foreground border-border",
+  RB: "bg-muted text-muted-foreground border-border",
+  WR: "bg-muted text-muted-foreground border-border",
+  TE: "bg-muted text-muted-foreground border-border",
+  K: "bg-muted text-muted-foreground border-border",
+  DEF: "bg-muted text-muted-foreground border-border",
+  FLEX: "bg-muted text-muted-foreground border-border",
+  SUPER_FLEX: "bg-muted text-muted-foreground border-border",
+  REC_FLEX: "bg-muted text-muted-foreground border-border",
+  IDP_FLEX: "bg-muted text-muted-foreground border-border",
 };
 
 function PlayerRow({ player, showSlot = false }: { player: PlayerInfo; showSlot?: boolean }) {

@@ -152,7 +152,7 @@ export default function TrophyRoomPage() {
         <Card className="lg:col-span-1">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Crown className="h-5 w-5 text-yellow-500" />
+              <Crown className="h-5 w-5 text-muted-foreground" />
               Hall of Champions
             </CardTitle>
             <CardDescription>
@@ -173,7 +173,7 @@ export default function TrophyRoomPage() {
                     data-testid={`champion-${champion.season}`}
                   >
                     <div className="relative">
-                      <Avatar className="h-10 w-10 ring-2 ring-yellow-500/50">
+                      <Avatar className="h-10 w-10 ring-2 ring-border">
                         <AvatarImage src={champion.avatar || undefined} />
                         <AvatarFallback className="text-sm">
                           {champion.ownerName?.slice(0, 2).toUpperCase()}
@@ -181,7 +181,7 @@ export default function TrophyRoomPage() {
                       </Avatar>
                       {index === 0 && (
                         <div className="absolute -top-1 -right-1">
-                          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                          <Star className="h-4 w-4 text-muted-foreground fill-muted-foreground" />
                         </div>
                       )}
                     </div>
@@ -193,7 +193,7 @@ export default function TrophyRoomPage() {
                         </Badge>
                       </div>
                     </div>
-                    <Trophy className="h-5 w-5 text-yellow-500 shrink-0" />
+                    <Trophy className="h-5 w-5 text-muted-foreground shrink-0" />
                   </div>
                 ))}
               </div>
@@ -232,7 +232,7 @@ export default function TrophyRoomPage() {
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-1">
                         {index + 1}
-                        {index === 0 && <Crown className="h-4 w-4 text-yellow-500" />}
+                        {index === 0 && <Crown className="h-4 w-4 text-muted-foreground" />}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -255,7 +255,7 @@ export default function TrophyRoomPage() {
                     <TableCell className="text-right">
                       {record.championships > 0 && (
                         <div className="flex items-center justify-end gap-1">
-                          <Trophy className="h-4 w-4 text-yellow-500" />
+                          <Trophy className="h-4 w-4 text-muted-foreground" />
                           <span className="font-bold">{record.championships}</span>
                         </div>
                       )}

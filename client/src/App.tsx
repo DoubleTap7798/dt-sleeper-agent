@@ -26,6 +26,8 @@ import PlayerTrendsPage from "@/pages/player-trends";
 import PlayerComparePage from "@/pages/player-compare";
 import LineupAdvicePage from "@/pages/lineup-advice";
 import ProjectionsPage from "@/pages/projections";
+import HomePage from "@/pages/home";
+import RosterPage from "@/pages/roster";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -83,7 +85,21 @@ function Router() {
       <Route path="/league">
         <AuthenticatedRoute>
           <LeagueLayout>
+            <HomePage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/standings">
+        <AuthenticatedRoute>
+          <LeagueLayout>
             <LeagueStandingsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/roster">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <RosterPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

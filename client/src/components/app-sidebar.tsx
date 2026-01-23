@@ -54,7 +54,19 @@ const navigationItems = [
     title: "Home",
     url: "/league",
     icon: Home,
+    description: "Dashboard overview & stats",
+  },
+  {
+    title: "Standings",
+    url: "/league/standings",
+    icon: BarChart3,
     description: "League standings & playoff predictions",
+  },
+  {
+    title: "My Roster",
+    url: "/league/roster",
+    icon: Users,
+    description: "Your team roster",
   },
   {
     title: "News",
@@ -89,7 +101,7 @@ const navigationItems = [
   {
     title: "Waiver Wire",
     url: "/league/waivers",
-    icon: Users,
+    icon: UserCircle,
     description: "Available players & stats",
   },
   {

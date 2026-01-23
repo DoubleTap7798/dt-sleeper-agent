@@ -2442,9 +2442,13 @@ Return as JSON array with this format:
 
       let newsItems: any[] = [];
       try {
-        const parsed = JSON.parse(response.choices[0]?.message?.content || "{}");
-        newsItems = parsed.news || parsed.items || (Array.isArray(parsed) ? parsed : []);
+        const content = response.choices[0]?.message?.content || "{}";
+        const parsed = JSON.parse(content);
+        // Handle various response formats from OpenAI
+        newsItems = parsed.news || parsed.items || parsed.newsItems || parsed.articles || 
+                   (Array.isArray(parsed) ? parsed : Object.values(parsed).find(v => Array.isArray(v)) || []);
       } catch (e) {
+        console.error("Error parsing news response:", e);
         newsItems = [];
       }
 
@@ -2508,8 +2512,14 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
 
       let trendData: any = { players: [] };
       try {
-        trendData = JSON.parse(response.choices[0]?.message?.content || "{}");
+        const content = response.choices[0]?.message?.content || "{}";
+        const parsed = JSON.parse(content);
+        // Handle various response formats
+        trendData = { 
+          players: parsed.players || Object.values(parsed).find(v => Array.isArray(v)) || [] 
+        };
       } catch (e) {
+        console.error("Error parsing trends response:", e);
         trendData = { players: [] };
       }
 
@@ -2807,6 +2817,173 @@ Return JSON: {"players": [{...}]}`;
     } catch (error) {
       console.error("Error generating projections:", error);
       res.status(500).json({ message: "Failed to generate projections" });
+    }
+  });
+
+  // League Summary - Overall stats across leagues
+  app.get("/api/fantasy/summary", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const { leagueIds } = req.query;
+      
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.json({
+          totalLeagues: 0,
+          totalWins: 0,
+          totalLosses: 0,
+          totalTies: 0,
+          championships: 0,
+          runnerUps: 0,
+          playoffAppearances: 0,
+          bestFinish: "N/A",
+          currentSeason: new Date().getFullYear().toString(),
+          leagueStats: [],
+        });
+      }
+
+      const leagues = await sleeperApi.getUserLeagues(userProfile.sleeperUserId);
+      
+      let totalWins = 0;
+      let totalLosses = 0;
+      let totalTies = 0;
+      let championships = 0;
+      let runnerUps = 0;
+      let playoffAppearances = 0;
+      const leagueStats: any[] = [];
+
+      for (const league of leagues.slice(0, 10)) {
+        try {
+          const rosters = await sleeperApi.getLeagueRosters(league.league_id);
+          const users = await sleeperApi.getLeagueUsers(league.league_id);
+          
+          const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+          if (userRoster) {
+            const wins = userRoster.settings?.wins || 0;
+            const losses = userRoster.settings?.losses || 0;
+            const ties = userRoster.settings?.ties || 0;
+            
+            totalWins += wins;
+            totalLosses += losses;
+            totalTies += ties;
+            
+            const sortedRosters = [...rosters].sort((a, b) => 
+              (b.settings?.wins || 0) - (a.settings?.wins || 0)
+            );
+            const rank = sortedRosters.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
+            
+            const playoffTeams = league.settings?.playoff_teams || 6;
+            const isPlayoffs = rank <= playoffTeams;
+            if (isPlayoffs) playoffAppearances++;
+            
+            if (rank === 1 && wins > losses) championships++;
+            if (rank === 2) runnerUps++;
+            
+            leagueStats.push({
+              leagueId: league.league_id,
+              leagueName: league.name,
+              season: league.season,
+              wins,
+              losses,
+              ties,
+              rank,
+              totalTeams: rosters.length,
+              isChampion: rank === 1 && wins > losses,
+              isPlayoffs,
+            });
+          }
+        } catch (e) {
+          // Skip league if error
+        }
+      }
+
+      res.json({
+        totalLeagues: leagues.length,
+        totalWins,
+        totalLosses,
+        totalTies,
+        championships,
+        runnerUps,
+        playoffAppearances,
+        bestFinish: championships > 0 ? "Champion" : runnerUps > 0 ? "Runner-up" : "Playoffs",
+        currentSeason: new Date().getFullYear().toString(),
+        leagueStats,
+      });
+    } catch (error) {
+      console.error("Error fetching summary:", error);
+      res.status(500).json({ message: "Failed to fetch summary" });
+    }
+  });
+
+  // Roster - Get user's roster for selected league
+  app.get("/api/fantasy/roster", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const { leagueId } = req.query;
+      
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId || !leagueId) {
+        return res.status(400).json({ message: "League ID required" });
+      }
+
+      const rosters = await sleeperApi.getLeagueRosters(leagueId as string);
+      const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+      
+      if (!userRoster) {
+        return res.json({ players: [], teamName: "My Team", ownerId: "", totalValue: 0, starters: [] });
+      }
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const starters = userRoster.starters || [];
+      const playerIds = userRoster.players || [];
+
+      const players = playerIds.map(playerId => {
+        const player = allPlayers[playerId];
+        const ktcValue = ktcValues.getPlayerValue(playerId, player?.position || "?", player?.age || 25, player?.years_exp || 0);
+        const isStarter = starters.includes(playerId);
+        const starterIndex = starters.indexOf(playerId);
+        
+        let slotPosition = "BN";
+        if (isStarter && starterIndex >= 0) {
+          if (starterIndex === 0) slotPosition = "QB";
+          else if (starterIndex <= 2) slotPosition = "RB";
+          else if (starterIndex <= 4) slotPosition = "WR";
+          else if (starterIndex === 5) slotPosition = "TE";
+          else if (starterIndex <= 7) slotPosition = "FLEX";
+          else slotPosition = "FLEX";
+        }
+
+        return {
+          playerId,
+          name: player?.full_name || player?.first_name + " " + player?.last_name || "Unknown",
+          position: player?.position || "?",
+          team: player?.team || "FA",
+          age: player?.age || 0,
+          number: player?.number || "",
+          status: player?.status || null,
+          injuryStatus: player?.injury_status || null,
+          ktcValue,
+          projectedPoints: Math.round((ktcValue / 800) * 10 + Math.random() * 5),
+          isStarter,
+          slotPosition,
+        };
+      }).sort((a, b) => {
+        if (a.isStarter !== b.isStarter) return a.isStarter ? -1 : 1;
+        return b.ktcValue - a.ktcValue;
+      });
+
+      const totalValue = players.reduce((sum, p) => sum + p.ktcValue, 0);
+
+      res.json({
+        players,
+        teamName: "My Team",
+        ownerId: userProfile.sleeperUserId,
+        totalValue,
+        starters,
+      });
+    } catch (error) {
+      console.error("Error fetching roster:", error);
+      res.status(500).json({ message: "Failed to fetch roster" });
     }
   });
 
