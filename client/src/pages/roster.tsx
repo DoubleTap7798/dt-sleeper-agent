@@ -98,6 +98,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
       }
       return res.json();
     },
+    enabled: !!leagueId,
   });
 
   const getPositionColor = () => {
