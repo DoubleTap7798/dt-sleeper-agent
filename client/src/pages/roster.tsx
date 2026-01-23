@@ -41,8 +41,18 @@ export default function RosterPage() {
   const [positionFilter, setPositionFilter] = useState<string>("all");
 
   const { data, isLoading, error } = useQuery<RosterResponse>({
-    queryKey: [`/api/fantasy/roster${leagueId ? `?leagueId=${leagueId}` : ""}`],
-    enabled: !!leagueId,
+    queryKey: ["/api/fantasy/roster", { leagueId }],
+    queryFn: async () => {
+      const res = await fetch(`/api/fantasy/roster?leagueId=${leagueId}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || res.statusText);
+      }
+      return res.json();
+    },
+    enabled: !!leagueId && leagueId.length > 0,
   });
 
   const getPositionColor = () => {
