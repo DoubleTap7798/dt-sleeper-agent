@@ -805,6 +805,144 @@ Format your response with clear section headers using markdown. Be concise but i
     }
   });
 
+  // Get devy player full profile with bio, college stats, game logs, and news
+  app.get("/api/sleeper/devy/:playerId/profile", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { playerId } = req.params;
+      
+      const player = ktcValues.getDevyPlayerById(playerId);
+      if (!player) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+
+      // Generate comprehensive devy profile with AI
+      const prompt = `You are a college football expert providing dynasty fantasy football data for ${player.name} (${player.position}) from ${player.college}.
+
+Return a JSON object with this EXACT structure (no markdown, just valid JSON):
+{
+  "bio": {
+    "height": "string like 6'2\\"",
+    "weight": "string like 215",
+    "hometown": "string",
+    "highSchoolRank": "string like 5-star, #3 nationally",
+    "class": "string like Junior or Sophomore",
+    "conference": "string like SEC or Big Ten"
+  },
+  "collegeStats": {
+    "seasons": [
+      {
+        "year": "2025",
+        "games": 12,
+        "stats": {
+          "passYds": 0,
+          "passTd": 0,
+          "rushYds": 800,
+          "rushTd": 10,
+          "recYds": 0,
+          "recTd": 0,
+          "receptions": 0
+        }
+      }
+    ],
+    "careerTotals": {
+      "games": 24,
+      "passYds": 0,
+      "passTd": 0,
+      "rushYds": 1600,
+      "rushTd": 20,
+      "recYds": 0,
+      "recTd": 0,
+      "receptions": 0
+    }
+  },
+  "gameLogs": [
+    {
+      "week": 1,
+      "opponent": "Team Name",
+      "result": "W 35-21",
+      "stats": "18 car, 120 yds, 2 TD"
+    }
+  ],
+  "news": [
+    {
+      "headline": "News headline",
+      "summary": "Brief summary of news",
+      "date": "2025-01-15"
+    }
+  ],
+  "scoutingReport": {
+    "strengths": ["strength 1", "strength 2", "strength 3"],
+    "weaknesses": ["weakness 1", "weakness 2"],
+    "nflComparison": "NFL player comparison",
+    "draftProjection": "Round 1, top 15 pick",
+    "fantasyOutlook": "Brief dynasty value outlook"
+  }
+}
+
+KTC Dynasty Value: ${player.value}
+Draft Eligible: ${player.draftEligibleYear}
+Position Rank: ${player.position}${player.positionRank}
+Overall Rank: #${player.rank}
+
+Provide realistic data based on what you know about this player. For stats, use realistic college production numbers appropriate for their position. Include 3-5 recent game logs and 2-3 news items. Return ONLY valid JSON, no other text.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a college football data API. Return ONLY valid JSON with no markdown formatting or extra text. Provide accurate player information based on your knowledge."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        max_tokens: 1500,
+        temperature: 0.3,
+      });
+
+      const content = response.choices[0]?.message?.content || "{}";
+      
+      // Parse the JSON response
+      let profileData;
+      try {
+        // Remove any markdown code blocks if present
+        const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        profileData = JSON.parse(cleanContent);
+      } catch (parseError) {
+        console.error("Failed to parse devy profile JSON:", parseError);
+        profileData = {
+          bio: { height: "N/A", weight: "N/A", hometown: "N/A", highSchoolRank: "N/A", class: "N/A", conference: "N/A" },
+          collegeStats: { seasons: [], careerTotals: {} },
+          gameLogs: [],
+          news: [],
+          scoutingReport: { strengths: [], weaknesses: [], nflComparison: "N/A", draftProjection: "N/A", fantasyOutlook: "N/A" }
+        };
+      }
+
+      res.json({
+        player: {
+          id: player.id,
+          name: player.name,
+          position: player.position,
+          positionRank: player.positionRank,
+          college: player.college,
+          draftEligibleYear: player.draftEligibleYear,
+          tier: player.tier,
+          value: player.value,
+          trend30Day: player.trend30Day,
+          rank: player.rank,
+        },
+        ...profileData,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error fetching devy player profile:", error);
+      res.status(500).json({ message: "Failed to fetch player profile" });
+    }
+  });
+
   // Get NFL players list (excluding devy players)
   app.get("/api/sleeper/players", isAuthenticated, async (req: any, res: Response) => {
     try {
@@ -3351,12 +3489,62 @@ Return JSON: {"players": [{...}]}`;
 
       const rosters = await sleeperApi.getLeagueRosters(leagueId as string);
       const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const leagueSize = rosters.length;
       
       if (!userRoster) {
-        return res.json({ players: [], teamName: "My Team", ownerId: "", totalValue: 0, starters: [] });
+        return res.json({ 
+          players: [], 
+          teamName: "My Team", 
+          ownerId: "", 
+          totalValue: 0, 
+          starters: [],
+          positionRankings: { QB: { rank: 0, total: leagueSize }, RB: { rank: 0, total: leagueSize }, WR: { rank: 0, total: leagueSize }, TE: { rank: 0, total: leagueSize } }
+        });
       }
 
-      const allPlayers = await sleeperApi.getAllPlayers();
+      // Calculate position group values for ALL teams
+      const teamPositionValues: Record<string, { QB: number; RB: number; WR: number; TE: number }> = {};
+      
+      for (const roster of rosters) {
+        const ownerId = roster.owner_id;
+        const rosterPlayers = roster.players || [];
+        
+        const posValues = { QB: 0, RB: 0, WR: 0, TE: 0 };
+        
+        for (const pid of rosterPlayers) {
+          const player = allPlayers[pid];
+          if (!player) continue;
+          
+          const pos = player.position as "QB" | "RB" | "WR" | "TE";
+          if (pos in posValues) {
+            const value = ktcValues.getPlayerValue(pid, pos, player.age || 25, player.years_exp || 0);
+            posValues[pos] += value;
+          }
+        }
+        
+        teamPositionValues[ownerId] = posValues;
+      }
+
+      // Rank each position group
+      const positions = ["QB", "RB", "WR", "TE"] as const;
+      const positionRankings: Record<string, { rank: number; total: number; value: number }> = {};
+      
+      for (const pos of positions) {
+        const sorted = Object.entries(teamPositionValues)
+          .map(([oid, vals]) => ({ ownerId: oid, value: vals[pos] }))
+          .sort((a, b) => b.value - a.value);
+        
+        const userIndex = sorted.findIndex(t => t.ownerId === userProfile.sleeperUserId);
+        const userValue = userIndex >= 0 ? sorted[userIndex].value : 0;
+        
+        positionRankings[pos] = {
+          rank: userIndex + 1,
+          total: leagueSize,
+          value: userValue,
+        };
+      }
+
       const starters = userRoster.starters || [];
       const playerIds = userRoster.players || [];
 
@@ -3403,6 +3591,8 @@ Return JSON: {"players": [{...}]}`;
         ownerId: userProfile.sleeperUserId,
         totalValue,
         starters,
+        positionRankings,
+        leagueSize,
       });
     } catch (error) {
       console.error("Error fetching roster:", error);

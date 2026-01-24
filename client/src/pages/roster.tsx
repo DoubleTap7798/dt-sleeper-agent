@@ -24,12 +24,20 @@ interface RosterPlayer {
   slotPosition: string;
 }
 
+interface PositionRanking {
+  rank: number;
+  total: number;
+  value: number;
+}
+
 interface RosterResponse {
   players: RosterPlayer[];
   teamName: string;
   ownerId: string;
   totalValue: number;
   starters: string[];
+  positionRankings?: Record<string, PositionRanking>;
+  leagueSize?: number;
 }
 
 const positionOrder: Record<string, number> = {
@@ -254,14 +262,30 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           <Users className="h-6 w-6" />
           <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-page-title">My Roster</h1>
         </div>
-        <div className="flex items-center gap-3">
-          {data?.totalValue && (
-            <Badge variant="outline" className="text-xs sm:text-sm" data-testid="badge-total-value">
-              Total Value: {data.totalValue.toLocaleString()}
-            </Badge>
-          )}
-        </div>
       </div>
+
+      {data?.positionRankings && Object.keys(data.positionRankings).length > 0 && (
+        <div className="flex flex-wrap gap-2" data-testid="position-rankings">
+          {(["QB", "RB", "WR", "TE"] as const).map((pos) => {
+            const ranking = data.positionRankings![pos];
+            if (!ranking || ranking.rank === 0 || ranking.total === 0) return null;
+            const isTop = ranking.rank === 1;
+            const isBottom = ranking.rank === ranking.total;
+            return (
+              <Badge
+                key={pos}
+                variant="outline"
+                className="text-xs sm:text-sm"
+                data-testid={`badge-${pos.toLowerCase()}-rank`}
+              >
+                {pos}: #{ranking.rank} of {ranking.total}
+                {isTop && " (Best)"}
+                {isBottom && " (Last)"}
+              </Badge>
+            );
+          })}
+        </div>
+      )}
 
       <Tabs value={positionFilter} onValueChange={setPositionFilter}>
         <TabsList className="flex-wrap h-auto gap-1">

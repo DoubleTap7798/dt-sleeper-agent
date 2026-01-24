@@ -11,15 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, X, Loader2 } from "lucide-react";
-import Markdown from "react-markdown";
+import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight } from "lucide-react";
+import { DevyProfileModal } from "@/components/devy-profile-modal";
 
 interface DevyPlayer {
   playerId: string;
@@ -42,12 +35,6 @@ interface DevyData {
   source: string;
 }
 
-interface PlayerInsights {
-  player: DevyPlayer;
-  insights: string;
-  generatedAt: string;
-}
-
 type SortField = "rank" | "name" | "position" | "year" | "college" | "value" | "tier";
 type SortDirection = "asc" | "desc";
 
@@ -57,14 +44,10 @@ export default function DevyPage() {
   const [sortField, setSortField] = useState<SortField>("rank");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedPlayer, setSelectedPlayer] = useState<DevyPlayer | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery<DevyData>({
     queryKey: ["/api/sleeper/devy"],
-  });
-
-  const { data: insightsData, isLoading: insightsLoading, error: insightsError } = useQuery<PlayerInsights>({
-    queryKey: ["/api/sleeper/devy", selectedPlayer?.playerId, "insights"],
-    enabled: !!selectedPlayer,
   });
 
   if (isLoading) {
@@ -126,6 +109,7 @@ export default function DevyPage() {
 
   const handlePlayerClick = (player: DevyPlayer) => {
     setSelectedPlayer(player);
+    setModalOpen(true);
   };
 
   const SortButton = ({ field, label }: { field: SortField; label: string }) => (
@@ -204,7 +188,8 @@ export default function DevyPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full" data-testid="table-devy">
               <thead className="border-b">
                 <tr className="text-left text-sm text-muted-foreground">
@@ -299,110 +284,71 @@ export default function DevyPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden p-3 space-y-2" data-testid="mobile-devy-list">
+            {sortedPlayers.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground" data-testid="text-no-players-mobile">
+                No players match the selected filters
+              </div>
+            ) : (
+              sortedPlayers.map((player) => (
+                <div
+                  key={player.playerId}
+                  className="p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer"
+                  onClick={() => handlePlayerClick(player)}
+                  data-testid={`card-player-${player.playerId}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-lg font-bold shrink-0 w-8">#{player.rank}</span>
+                      <div className="min-w-0">
+                        <div className="font-semibold truncate">{player.name}</div>
+                        <div className="flex items-center gap-1 flex-wrap mt-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {player.position}{player.positionRank}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{player.college}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right">
+                        <div className="font-medium text-sm">{player.value.toLocaleString()}</div>
+                        <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
+                          {player.trend30Day > 0 ? (
+                            <>
+                              <TrendingUp className="h-3 w-3" />
+                              +{player.trend30Day}
+                            </>
+                          ) : player.trend30Day < 0 ? (
+                            <>
+                              <TrendingDown className="h-3 w-3" />
+                              {player.trend30Day}
+                            </>
+                          ) : (
+                            "-"
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      <Sheet open={!!selectedPlayer} onOpenChange={(open) => !open && setSelectedPlayer(null)}>
-        <SheetContent className="w-full sm:max-w-xl overflow-hidden" data-testid="sheet-player-details">
-          <SheetHeader className="pb-4 border-b">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <SheetTitle className="text-xl" data-testid="text-player-name">
-                  {selectedPlayer?.name}
-                </SheetTitle>
-                {selectedPlayer && (
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <Badge variant="secondary" data-testid="badge-player-position">
-                      {selectedPlayer.position}{selectedPlayer.positionRank}
-                    </Badge>
-                    <Badge variant="outline" data-testid="badge-player-college">
-                      {selectedPlayer.college}
-                    </Badge>
-                    <Badge variant="outline" data-testid="badge-player-draft">
-                      {selectedPlayer.draftEligibleYear} Draft
-                    </Badge>
-                  </div>
-                )}
-              </div>
-            </div>
-          </SheetHeader>
-          
-          {selectedPlayer && (
-            <div className="py-4">
-              <div className="grid grid-cols-4 gap-3 mb-4">
-                <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-rank">
-                  <div className="text-2xl font-bold">#{selectedPlayer.rank}</div>
-                  <div className="text-xs text-muted-foreground">Overall</div>
-                </div>
-                <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-tier">
-                  <div className="text-2xl font-bold">{selectedPlayer.tier}</div>
-                  <div className="text-xs text-muted-foreground">Tier</div>
-                </div>
-                <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-value">
-                  <div className="text-2xl font-bold">{selectedPlayer.value.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground">Value</div>
-                </div>
-                <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-trend">
-                  <div className="text-2xl font-bold flex items-center justify-center gap-1">
-                    {selectedPlayer.trend30Day > 0 ? (
-                      <>
-                        <TrendingUp className="h-4 w-4" />
-                        +{selectedPlayer.trend30Day}
-                      </>
-                    ) : selectedPlayer.trend30Day < 0 ? (
-                      <>
-                        <TrendingDown className="h-4 w-4" />
-                        {selectedPlayer.trend30Day}
-                      </>
-                    ) : (
-                      "-"
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground">30-Day</div>
-                </div>
-              </div>
-
-              <ScrollArea className="h-[calc(100vh-320px)]">
-                {insightsLoading ? (
-                  <div className="flex flex-col items-center justify-center py-12 gap-3" data-testid="status-loading-insights">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                    <p className="text-muted-foreground">Generating player insights...</p>
-                  </div>
-                ) : insightsError ? (
-                  <div className="flex flex-col items-center justify-center py-12 gap-2" data-testid="status-error-insights">
-                    <p className="text-muted-foreground">Failed to load player insights</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setSelectedPlayer({...selectedPlayer})}
-                      data-testid="button-retry-insights"
-                    >
-                      Try Again
-                    </Button>
-                  </div>
-                ) : insightsData ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none pr-4" data-testid="content-insights">
-                    <Markdown
-                      components={{
-                        h1: (props) => <h2 className="text-lg font-bold mt-4 mb-2">{props.children}</h2>,
-                        h2: (props) => <h3 className="text-base font-semibold mt-3 mb-2">{props.children}</h3>,
-                        h3: (props) => <h4 className="text-sm font-semibold mt-2 mb-1">{props.children}</h4>,
-                        p: (props) => <p className="mb-2 text-sm leading-relaxed">{props.children}</p>,
-                        ul: (props) => <ul className="list-disc pl-4 mb-2 space-y-1">{props.children}</ul>,
-                        ol: (props) => <ol className="list-decimal pl-4 mb-2 space-y-1">{props.children}</ol>,
-                        li: (props) => <li className="text-sm">{props.children}</li>,
-                        strong: (props) => <strong className="font-semibold">{props.children}</strong>,
-                      }}
-                    >
-                      {insightsData.insights}
-                    </Markdown>
-                  </div>
-                ) : null}
-              </ScrollArea>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+      <DevyProfileModal
+        open={modalOpen}
+        onOpenChange={(open) => {
+          setModalOpen(open);
+          if (!open) setSelectedPlayer(null);
+        }}
+        player={selectedPlayer}
+      />
     </div>
   );
 }
