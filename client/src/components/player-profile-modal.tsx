@@ -1,3 +1,4 @@
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -69,6 +71,7 @@ interface GameLog {
   result: string;
   score: string;
   stats: Record<string, number | string>;
+  season: string;
 }
 
 interface PlayerProfile {
@@ -388,6 +391,27 @@ function StatsTab({
 
 function GameLogsTab({ gameLogs, position }: { gameLogs: GameLog[]; position: string }) {
   const statsToShow = getPositionStats(position).slice(0, 5);
+  
+  // Get unique seasons from game logs, sorted descending
+  const seasons = useMemo(() => {
+    const uniqueSeasons = Array.from(new Set(gameLogs.map(g => g.season).filter(Boolean)));
+    return uniqueSeasons.sort((a, b) => parseInt(b) - parseInt(a));
+  }, [gameLogs]);
+  
+  const [selectedSeason, setSelectedSeason] = useState<string>("");
+  
+  // Sync selectedSeason when seasons data loads
+  useEffect(() => {
+    if (seasons.length > 0 && !selectedSeason) {
+      setSelectedSeason(seasons[0]);
+    }
+  }, [seasons, selectedSeason]);
+  
+  // Filter game logs by selected season
+  const filteredGameLogs = useMemo(() => {
+    if (!selectedSeason) return gameLogs;
+    return gameLogs.filter(g => g.season === selectedSeason);
+  }, [gameLogs, selectedSeason]);
 
   if (gameLogs.length === 0) {
     return (
@@ -398,39 +422,63 @@ function GameLogsTab({ gameLogs, position }: { gameLogs: GameLog[]; position: st
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-10">Wk</TableHead>
-          <TableHead className="w-14">Opp</TableHead>
-          <TableHead className="w-10">Res</TableHead>
-          {statsToShow.map(stat => (
-            <TableHead key={stat} className="text-right text-xs">
-              {getStatLabel(position, stat).slice(0, 6)}
-            </TableHead>
+    <div className="space-y-3">
+      {seasons.length > 1 && (
+        <div className="flex flex-wrap gap-1" data-testid="season-selector">
+          {seasons.map(season => (
+            <Button
+              key={season}
+              variant={selectedSeason === season ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedSeason(season)}
+              data-testid={`season-btn-${season}`}
+            >
+              {season}
+            </Button>
           ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {gameLogs.map((game, i) => (
-          <TableRow key={i}>
-            <TableCell className="font-medium">{game.week}</TableCell>
-            <TableCell>
-              <span className="text-xs text-muted-foreground mr-0.5">
-                {game.homeAway === "away" ? "@" : ""}
-              </span>
-              {game.opponent}
-            </TableCell>
-            <TableCell className="text-xs">{game.result || game.score}</TableCell>
+        </div>
+      )}
+      
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-10">Wk</TableHead>
+            <TableHead className="w-14">Opp</TableHead>
+            <TableHead className="w-10">Res</TableHead>
             {statsToShow.map(stat => (
-              <TableCell key={stat} className="text-right text-xs">
-                {formatStatValue(game.stats[stat] ?? "-")}
-              </TableCell>
+              <TableHead key={stat} className="text-right text-xs">
+                {getStatLabel(position, stat).slice(0, 6)}
+              </TableHead>
             ))}
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {filteredGameLogs.map((game, i) => (
+            <TableRow key={i}>
+              <TableCell className="font-medium">{game.week}</TableCell>
+              <TableCell>
+                <span className="text-xs text-muted-foreground mr-0.5">
+                  {game.homeAway === "away" ? "@" : ""}
+                </span>
+                {game.opponent}
+              </TableCell>
+              <TableCell className="text-xs">{game.result || game.score}</TableCell>
+              {statsToShow.map(stat => (
+                <TableCell key={stat} className="text-right text-xs">
+                  {formatStatValue(game.stats[stat] ?? "-")}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      
+      {filteredGameLogs.length === 0 && selectedSeason && (
+        <div className="text-center text-muted-foreground py-4 text-sm">
+          No games found for {selectedSeason} season
+        </div>
+      )}
+    </div>
   );
 }
 

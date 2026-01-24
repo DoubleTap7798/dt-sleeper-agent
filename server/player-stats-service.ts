@@ -50,6 +50,7 @@ export interface GameLog {
   result: string;
   score: string;
   stats: Record<string, number | string>;
+  season: string;
 }
 
 export interface PlayerSplits {
@@ -192,8 +193,8 @@ async function fetchPlayerStats(espnId: string): Promise<{ career: CareerStats |
   }
 }
 
-// Fetch game logs from ESPN
-async function fetchGameLogs(espnId: string, season: string = "2024"): Promise<GameLog[]> {
+// Fetch game logs from ESPN for a specific season
+async function fetchGameLogsForSeason(espnId: string, season: string): Promise<GameLog[]> {
   try {
     const response = await fetch(`${ESPN_API_BASE}/players/${espnId}/gamelog?season=${season}`);
     if (!response.ok) return [];
@@ -215,14 +216,33 @@ async function fetchGameLogs(espnId: string, season: string = "2024"): Promise<G
         result: game.gameResult || "",
         score: game.score || "",
         stats: extractStats(stats),
+        season,
       });
     }
     
     return gameLogs;
   } catch (error) {
-    console.error("Error fetching game logs:", error);
+    console.error(`Error fetching game logs for season ${season}:`, error);
     return [];
   }
+}
+
+// Fetch game logs from multiple seasons (last 5 years)
+async function fetchGameLogs(espnId: string, season?: string): Promise<GameLog[]> {
+  if (season) {
+    return fetchGameLogsForSeason(espnId, season);
+  }
+  
+  // Fetch last 5 seasons in parallel
+  const currentYear = new Date().getFullYear();
+  const seasons = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4].map(String);
+  
+  const results = await Promise.all(
+    seasons.map(s => fetchGameLogsForSeason(espnId, s))
+  );
+  
+  // Flatten and return all game logs
+  return results.flat();
 }
 
 // Fetch splits data from ESPN
@@ -439,9 +459,9 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
   }
 }
 
-// Get just game logs for a player
+// Get just game logs for a player (fetches last 5 years if no season specified)
 export async function getPlayerGameLogs(sleeperPlayerId: string, playerName: string, season?: string): Promise<GameLog[]> {
-  const cacheKey = `gamelogs-${sleeperPlayerId}-${season || "current"}`;
+  const cacheKey = `gamelogs-${sleeperPlayerId}-${season || "all-5-years"}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
