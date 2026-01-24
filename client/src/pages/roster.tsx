@@ -180,7 +180,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Badge variant="outline" className={`${getPositionColor()} text-xs shrink-0`} data-testid={`badge-pos-${player.playerId}`}>
-              {player.position}
+              {player.isStarter ? player.slotPosition : player.position}
             </Badge>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
