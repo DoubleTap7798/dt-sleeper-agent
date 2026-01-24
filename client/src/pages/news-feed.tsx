@@ -133,6 +133,9 @@ export default function NewsFeedPage() {
     
     if (!matchesSearch) return false;
     
+    // Exclude waiver news from all tabs
+    if (item.category === "waiver") return false;
+    
     if (activeTab === "all") return true;
     if (activeTab === "news") {
       return item.category === "news" || item.category === "analysis";
