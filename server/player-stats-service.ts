@@ -84,10 +84,11 @@ async function searchESPNPlayer(playerName: string): Promise<string | null> {
     if (!response.ok) return null;
     
     const data = await response.json() as any;
-    const results = data.results || [];
     
-    if (results.length > 0 && results[0].contents?.length > 0) {
-      const player = results[0].contents[0];
+    // ESPN search API returns results in 'items' array
+    const items = data.items || [];
+    if (items.length > 0) {
+      const player = items[0];
       return player.id?.toString() || null;
     }
     
@@ -454,7 +455,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v2-${sleeperPlayerId}`;
+  const cacheKey = `profile-v3-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
