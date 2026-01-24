@@ -1265,6 +1265,16 @@ Provide realistic data based on what you know about this player. For stats, use 
       });
       const currentWeek = state?.week || 1;
       const currentSeason = state?.season || new Date().getFullYear().toString();
+      const seasonType = state?.season_type || "regular"; // Sleeper returns: "regular", "post", "pre", or "off"
+      
+      // Use Sleeper's season_type to determine phase
+      // Sleeper season_types: "pre" (preseason), "regular", "post" (playoffs), "off" (offseason)
+      let seasonPhase: "regular" | "playoffs" | "offseason" = "regular";
+      if (seasonType === "post") {
+        seasonPhase = "playoffs";
+      } else if (seasonType === "off" || seasonType === "pre") {
+        seasonPhase = "offseason";
+      }
       
       const position = player.position || player.fantasy_positions?.[0] || "N/A";
       const value = ktcValues.getPlayerValue(
@@ -1292,7 +1302,27 @@ Provide realistic data based on what you know about this player. For stats, use 
         newsSection = "No recent news articles found for this player.";
       }
       
-      const prompt = `Today is ${currentDate}. We are in Week ${currentWeek} of the ${currentSeason} NFL season.
+      // Build phase-appropriate prompt
+      let phaseContext = "";
+      let fantasyOutlookSection = "";
+      // For offseason, the "next" season is the current season shown in Sleeper
+      // During regular/post season, next season is current + 1
+      const nextSeason = seasonPhase === "offseason" 
+        ? currentSeason 
+        : (parseInt(currentSeason) + 1).toString();
+      
+      if (seasonPhase === "playoffs") {
+        phaseContext = `We are currently in the NFL Playoffs (Week ${currentWeek}). Teams are competing in the postseason with championship implications.`;
+        fantasyOutlookSection = `**Fantasy Outlook**: Current playoff performance and championship impact. If their team is still competing, discuss their role and recent production. If eliminated, note their season summary.`;
+      } else if (seasonPhase === "offseason") {
+        phaseContext = `It is the ${nextSeason} NFL offseason. The regular season has ended and teams are in free agency/draft preparation mode.`;
+        fantasyOutlookSection = `**${nextSeason} Outlook**: Next season projections including potential free agency moves, draft capital that could affect their role, offseason storylines, and early ${nextSeason} fantasy value expectations.`;
+      } else {
+        phaseContext = `We are in Week ${currentWeek} of the ${currentSeason} NFL regular season.`;
+        fantasyOutlookSection = `**Fantasy Outlook**: Week ${currentWeek} fantasy value, current role on team, and upcoming matchup expectations.`;
+      }
+      
+      const prompt = `Today is ${currentDate}. ${phaseContext}
 
 You are a fantasy football expert. Provide a brief analysis for ${playerName}, ${position} for the ${team}.
 
@@ -1305,7 +1335,7 @@ Player Info:
 
 Provide a concise response with these 2 sections (keep each section to 2-3 sentences max):
 
-**Fantasy Outlook**: Week ${currentWeek} fantasy value, current role on team, and matchup expectations.
+${fantasyOutlookSection}
 
 **Dynasty Analysis**: Long-term value, age curve considerations, and whether to buy/hold/sell.`;
 

@@ -129,16 +129,60 @@ export async function fetchAllSportsNews(): Promise<NewsItem[]> {
   );
 }
 
+// NFL team abbreviation to ESPN team ID mapping
+const teamToEspnId: Record<string, string> = {
+  'ARI': '22', 'ATL': '1', 'BAL': '33', 'BUF': '2', 'CAR': '29', 'CHI': '3', 
+  'CIN': '4', 'CLE': '5', 'DAL': '6', 'DEN': '7', 'DET': '8', 'GB': '9',
+  'HOU': '34', 'IND': '11', 'JAX': '30', 'KC': '12', 'LV': '13', 'LAC': '24',
+  'LAR': '14', 'MIA': '15', 'MIN': '16', 'NE': '17', 'NO': '18', 'NYG': '19',
+  'NYJ': '20', 'PHI': '21', 'PIT': '23', 'SF': '25', 'SEA': '26', 'TB': '27',
+  'TEN': '10', 'WAS': '28'
+};
+
+// Fetch news for a specific team from ESPN
+export async function fetchTeamNews(teamAbbrev: string): Promise<NewsItem[]> {
+  try {
+    const teamId = teamToEspnId[teamAbbrev.toUpperCase()];
+    if (!teamId) return [];
+    
+    const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${teamId}/news?limit=10`);
+    if (!response.ok) return [];
+    
+    const data = await response.json() as any;
+    const articles = data.articles || [];
+    
+    return articles.map((article: any) => ({
+      title: article.headline || "Team Update",
+      summary: article.description || "",
+      source: "ESPN",
+      url: article.links?.web?.href || "#",
+      publishedAt: article.published || new Date().toISOString(),
+      category: categorizeNews(article.headline || ""),
+      players: extractPlayerNames(article.headline + " " + (article.description || "")),
+    }));
+  } catch (error) {
+    console.error("Error fetching team news:", error);
+    return [];
+  }
+}
+
 // Fetch news specifically for a player by name
 export async function fetchPlayerNews(playerName: string, team?: string): Promise<NewsItem[]> {
   try {
-    // Fetch from multiple ESPN endpoints and filter for the player
-    const [nflNews, fantasyNews] = await Promise.all([
+    // Fetch from multiple ESPN endpoints including team-specific news
+    const fetchPromises = [
       fetchNFLNews(),
       fetchESPNFantasyNews(),
-    ]);
+    ];
     
-    const allNews = [...nflNews, ...fantasyNews];
+    // If team is provided, also fetch team-specific news (more likely to mention players)
+    if (team && team !== "Free Agent" && team !== "FA") {
+      fetchPromises.push(fetchTeamNews(team));
+    }
+    
+    const results = await Promise.all(fetchPromises);
+    const allNews = results.flat();
+    
     const playerLower = playerName.toLowerCase();
     const lastName = playerName.split(' ').pop()?.toLowerCase() || "";
     const firstName = playerName.split(' ')[0]?.toLowerCase() || "";
@@ -146,14 +190,23 @@ export async function fetchPlayerNews(playerName: string, team?: string): Promis
     // Filter for news mentioning this player
     const playerNews = allNews.filter(item => {
       const text = (item.title + " " + item.summary).toLowerCase();
-      // Match full name, or last name with team, or first + last name separately
+      // Match full name, or last name (if distinctive enough), or first + last name separately
       return text.includes(playerLower) || 
-             (lastName.length > 3 && text.includes(lastName) && (!team || text.includes(team.toLowerCase()))) ||
-             (text.includes(firstName) && text.includes(lastName));
+             (lastName.length > 4 && text.includes(lastName)) ||
+             (firstName.length >= 2 && lastName.length >= 3 && text.includes(firstName) && text.includes(lastName));
+    });
+    
+    // Deduplicate by title
+    const seen = new Set<string>();
+    const unique = playerNews.filter(item => {
+      const key = item.title.toLowerCase().substring(0, 50);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
     
     // Sort by date and limit to top 5 most recent
-    return playerNews
+    return unique
       .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
       .slice(0, 5);
   } catch (error) {
