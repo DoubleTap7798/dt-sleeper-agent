@@ -351,34 +351,36 @@ function StatsTab({
       {seasonStats.length > 0 ? (
         <Card className="p-4">
           <h4 className="font-semibold mb-3">Season History</h4>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-16">Year</TableHead>
-                <TableHead className="w-12">Tm</TableHead>
-                <TableHead className="w-10">G</TableHead>
-                {statsToShow.slice(0, 4).map(stat => (
-                  <TableHead key={stat} className="text-right">
-                    {getStatLabel(position, stat)}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {seasonStats.slice(0, 10).map((season, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">{season.season}</TableCell>
-                  <TableCell>{season.team}</TableCell>
-                  <TableCell>{season.games}</TableCell>
+          <div className="overflow-x-auto -mx-2 px-2">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-14 text-xs">Year</TableHead>
+                  <TableHead className="w-10 text-xs">Tm</TableHead>
+                  <TableHead className="w-8 text-xs">G</TableHead>
                   {statsToShow.slice(0, 4).map(stat => (
-                    <TableCell key={stat} className="text-right">
-                      {formatStatValue(season.stats[stat] ?? "-")}
-                    </TableCell>
+                    <TableHead key={stat} className="text-right text-xs whitespace-nowrap">
+                      {getStatLabel(position, stat)}
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {seasonStats.slice(0, 10).map((season, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="font-medium text-sm">{season.season}</TableCell>
+                    <TableCell className="text-sm">{season.team}</TableCell>
+                    <TableCell className="text-sm">{season.games}</TableCell>
+                    {statsToShow.slice(0, 4).map(stat => (
+                      <TableCell key={stat} className="text-right text-sm">
+                        {formatStatValue(season.stats[stat] ?? "-")}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       ) : !careerStats && (
         <div className="text-center text-muted-foreground py-8">
@@ -439,39 +441,41 @@ function GameLogsTab({ gameLogs, position }: { gameLogs: GameLog[]; position: st
         </div>
       )}
       
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10">Wk</TableHead>
-            <TableHead className="w-14">Opp</TableHead>
-            <TableHead className="w-10">Res</TableHead>
-            {statsToShow.map(stat => (
-              <TableHead key={stat} className="text-right text-xs">
-                {getStatLabel(position, stat).slice(0, 6)}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredGameLogs.map((game, i) => (
-            <TableRow key={i}>
-              <TableCell className="font-medium">{game.week}</TableCell>
-              <TableCell>
-                <span className="text-xs text-muted-foreground mr-0.5">
-                  {game.homeAway === "away" ? "@" : ""}
-                </span>
-                {game.opponent}
-              </TableCell>
-              <TableCell className="text-xs">{game.result || game.score}</TableCell>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-8 text-xs">Wk</TableHead>
+              <TableHead className="w-12 text-xs">Opp</TableHead>
+              <TableHead className="w-8 text-xs">Res</TableHead>
               {statsToShow.map(stat => (
-                <TableCell key={stat} className="text-right text-xs">
-                  {formatStatValue(game.stats[stat] ?? "-")}
-                </TableCell>
+                <TableHead key={stat} className="text-right text-xs whitespace-nowrap">
+                  {getStatLabel(position, stat).slice(0, 6)}
+                </TableHead>
               ))}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {filteredGameLogs.map((game, i) => (
+              <TableRow key={i}>
+                <TableCell className="font-medium text-sm">{game.week}</TableCell>
+                <TableCell className="text-sm">
+                  <span className="text-xs text-muted-foreground mr-0.5">
+                    {game.homeAway === "away" ? "@" : ""}
+                  </span>
+                  {game.opponent}
+                </TableCell>
+                <TableCell className="text-xs">{game.result || game.score}</TableCell>
+                {statsToShow.map(stat => (
+                  <TableCell key={stat} className="text-right text-xs">
+                    {formatStatValue(game.stats[stat] ?? "-")}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
       
       {filteredGameLogs.length === 0 && selectedSeason && (
         <div className="text-center text-muted-foreground py-4 text-sm">
@@ -511,30 +515,32 @@ function SplitsTab({ splits, position }: { splits: PlayerProfile["splits"]; posi
   return (
     <Card className="p-4">
       <h4 className="font-semibold mb-3">Performance Splits</h4>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Split</TableHead>
-            {statsToShow.map(stat => (
-              <TableHead key={stat} className="text-right">
-                {getStatLabel(position, stat)}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {splitCategories.map((split, i) => (
-            <TableRow key={i}>
-              <TableCell className="font-medium">{split.label}</TableCell>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs">Split</TableHead>
               {statsToShow.map(stat => (
-                <TableCell key={stat} className="text-right">
-                  {formatStatValue(split.data?.[stat] ?? "-")}
-                </TableCell>
+                <TableHead key={stat} className="text-right text-xs whitespace-nowrap">
+                  {getStatLabel(position, stat)}
+                </TableHead>
               ))}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {splitCategories.map((split, i) => (
+              <TableRow key={i}>
+                <TableCell className="font-medium text-sm">{split.label}</TableCell>
+                {statsToShow.map(stat => (
+                  <TableCell key={stat} className="text-right text-sm">
+                    {formatStatValue(split.data?.[stat] ?? "-")}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </Card>
   );
 }
