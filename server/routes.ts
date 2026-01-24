@@ -2466,9 +2466,8 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
       const currentSeason = state?.season || new Date().getFullYear().toString();
       
       let rosterPlayerNames: string[] = [];
-      let rosterPlayerData: any[] = [];
       
-      // If user has a selected league, get their roster
+      // If user has a selected league, get their roster player names for filtering news
       if (targetLeagueId && profile?.sleeperUserId) {
         const rosters = await sleeperApi.getLeagueRosters(targetLeagueId);
         const userRoster = rosters.find((r: any) => r.owner_id === profile.sleeperUserId);
@@ -2477,18 +2476,10 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
           const rosterIds = [...(userRoster.starters || []), ...(userRoster.players || [])];
           const uniqueRosterIds = Array.from(new Set(rosterIds));
           
-          rosterPlayerData = uniqueRosterIds
+          rosterPlayerNames = uniqueRosterIds
             .map(id => allPlayers[id])
             .filter(p => p && ["QB", "RB", "WR", "TE", "K", "DEF"].includes(p.position))
-            .map(p => ({
-              name: p.full_name || `${p.first_name} ${p.last_name}`,
-              position: p.position,
-              team: p.team || "FA",
-              injuryStatus: p.injury_status || null,
-              injuryNotes: p.injury_notes || null,
-            }));
-          
-          rosterPlayerNames = rosterPlayerData.map(p => p.name);
+            .map(p => p.full_name || `${p.first_name} ${p.last_name}`);
         }
       }
       
@@ -2519,21 +2510,6 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
         };
       }).filter(Boolean);
       
-      // Add Sleeper injury data for roster players
-      const injuredPlayers = rosterPlayerData.filter(p => p.injuryStatus);
-      const injuryNews = injuredPlayers.map((p, idx) => ({
-        id: `injury-${Date.now()}-${idx}`,
-        title: `${p.name} Listed as ${p.injuryStatus}`,
-        summary: p.injuryNotes 
-          ? `${p.name} (${p.position}, ${p.team}) is ${p.injuryStatus}. ${p.injuryNotes}`
-          : `${p.name} (${p.position}, ${p.team}) is currently listed as ${p.injuryStatus} on the injury report. Monitor practice reports for updates.`,
-        source: "Sleeper Injury Report",
-        url: "#",
-        publishedAt: new Date(Date.now() - idx * 3 * 60000).toISOString(),
-        category: "injury",
-        players: [p.name],
-      }));
-      
       // Format real news items
       const formattedRealNews = relevantNews.map((item, idx) => ({
         id: `real-${Date.now()}-${idx}`,
@@ -2546,9 +2522,8 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
         players: item.players,
       }));
       
-      // Combine all news: injury updates first, then real news, then trending
+      // Combine all news: real news first, then trending waiver adds
       const allNews = [
-        ...injuryNews,
         ...formattedRealNews,
         ...trendingNews,
       ].slice(0, 20);
