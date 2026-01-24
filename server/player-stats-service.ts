@@ -153,39 +153,107 @@ async function fetchPlayerBio(espnId: string): Promise<PlayerBio | null> {
   }
 }
 
-// Fetch player statistics from ESPN
+// Fetch player statistics from ESPN - using the web API that works
 async function fetchPlayerStats(espnId: string): Promise<{ career: CareerStats | null; seasons: SeasonStats[] }> {
   try {
-    const response = await fetch(`${ESPN_API_BASE}/players/${espnId}/statistics`);
-    if (!response.ok) return { career: null, seasons: [] };
+    // Use the same working web API endpoint format as game logs
+    const response = await fetch(
+      `https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/${espnId}/stats`
+    );
+    if (!response.ok) {
+      console.log(`ESPN stats API returned ${response.status} for player ${espnId}`);
+      return { career: null, seasons: [] };
+    }
     
     const data = await response.json() as any;
-    const statistics = data.statistics || [];
     
     const seasons: SeasonStats[] = [];
     let career: CareerStats | null = null;
     
-    for (const statGroup of statistics) {
-      const splits = statGroup.splits || [];
+    // ESPN structure: categories array, each with names, totals (career), and statistics (seasons)
+    const categories = data.categories || [];
+    
+    // Build career stats from all categories' totals
+    const careerStats: Record<string, number | string> = {};
+    let careerGames = 0;
+    
+    for (const category of categories) {
+      const names = category.names || [];
+      const totals = category.totals || [];
       
-      for (const split of splits) {
-        if (split.type === "career") {
-          career = {
-            games: parseInt(split.stats?.find((s: any) => s.name === "gamesPlayed")?.value || "0"),
-            gamesStarted: parseInt(split.stats?.find((s: any) => s.name === "gamesStarted")?.value || "0"),
-            stats: extractStats(split.stats || []),
-          };
-        } else if (split.type === "season" || split.season) {
-          seasons.push({
-            season: split.season?.year?.toString() || split.displayName || "",
-            team: split.team?.abbreviation || "",
-            games: parseInt(split.stats?.find((s: any) => s.name === "gamesPlayed")?.value || "0"),
-            gamesStarted: parseInt(split.stats?.find((s: any) => s.name === "gamesStarted")?.value || "0"),
-            stats: extractStats(split.stats || []),
-          });
+      // Map career totals
+      for (let i = 0; i < names.length && i < totals.length; i++) {
+        const name = names[i];
+        const val = totals[i];
+        if (val !== undefined && val !== null && val !== "-") {
+          // Remove commas from numbers like "66,274"
+          const cleanVal = typeof val === "string" ? val.replace(/,/g, "") : val;
+          const numVal = parseFloat(cleanVal);
+          careerStats[name] = isNaN(numVal) ? val : numVal;
+          
+          if (name === "gamesPlayed" && typeof numVal === "number") {
+            careerGames = numVal;
+          }
         }
       }
     }
+    
+    if (Object.keys(careerStats).length > 0) {
+      career = {
+        games: careerGames,
+        gamesStarted: typeof careerStats.gamesStarted === "number" ? careerStats.gamesStarted : 0,
+        stats: careerStats,
+      };
+    }
+    
+    // Build season stats from first category with statistics (they share the same season structure)
+    const seasonMap = new Map<string, { games: number; stats: Record<string, number | string> }>();
+    
+    for (const category of categories) {
+      const names = category.names || [];
+      const statistics = category.statistics || [];
+      
+      for (const stat of statistics) {
+        const seasonYear = stat.season?.year?.toString() || "";
+        if (!seasonYear) continue;
+        
+        if (!seasonMap.has(seasonYear)) {
+          seasonMap.set(seasonYear, { games: 0, stats: {} });
+        }
+        
+        const seasonData = seasonMap.get(seasonYear)!;
+        const statValues = stat.stats || [];
+        
+        for (let i = 0; i < names.length && i < statValues.length; i++) {
+          const name = names[i];
+          const val = statValues[i];
+          if (val !== undefined && val !== null && val !== "-") {
+            const cleanVal = typeof val === "string" ? val.replace(/,/g, "") : val;
+            const numVal = parseFloat(cleanVal);
+            seasonData.stats[name] = isNaN(numVal) ? val : numVal;
+            
+            if (name === "gamesPlayed" && typeof numVal === "number") {
+              seasonData.games = numVal;
+            }
+          }
+        }
+      }
+    }
+    
+    // Convert map to array sorted by season descending
+    Array.from(seasonMap.entries()).forEach(([seasonYear, seasonData]) => {
+      seasons.push({
+        season: seasonYear,
+        team: "",
+        games: seasonData.games,
+        gamesStarted: typeof seasonData.stats.gamesStarted === "number" ? seasonData.stats.gamesStarted : 0,
+        stats: seasonData.stats,
+      });
+    });
+    
+    seasons.sort((a, b) => parseInt(b.season) - parseInt(a.season));
+    
+    console.log(`ESPN stats for ${espnId}: ${Object.keys(careerStats).length} career stats, ${seasons.length} seasons`);
     
     return { career, seasons };
   } catch (error) {
@@ -287,14 +355,19 @@ async function fetchGameLogs(espnId: string, season?: string): Promise<GameLog[]
   return results.flat();
 }
 
-// Fetch splits data from ESPN
+// Fetch splits data from ESPN - using web API
 async function fetchSplits(espnId: string): Promise<PlayerSplits | null> {
   try {
-    const response = await fetch(`${ESPN_API_BASE}/players/${espnId}/splits`);
-    if (!response.ok) return null;
+    // Use the web API endpoint format
+    const response = await fetch(
+      `https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/${espnId}/splits`
+    );
+    if (!response.ok) {
+      console.log(`ESPN splits API returned ${response.status} for player ${espnId}`);
+      return null;
+    }
     
     const data = await response.json() as any;
-    const splits = data.splitCategories || [];
     
     const result: PlayerSplits = {
       home: {},
@@ -304,29 +377,53 @@ async function fetchSplits(espnId: string): Promise<PlayerSplits | null> {
       byMonth: {},
     };
     
-    for (const category of splits) {
-      const categoryName = category.name?.toLowerCase() || "";
-      const categoryStats = category.splits || [];
+    // ESPN splits structure: splitCategories array, each with splits array
+    // names array at top level maps to stats array in each split
+    const splitCategories = data.splitCategories || [];
+    const statNames = data.names || [];
+    
+    for (const category of splitCategories) {
+      const categoryName = (category.name || category.displayName || "").toLowerCase();
+      const splits = category.splits || [];
       
-      for (const split of categoryStats) {
-        const splitName = split.name?.toLowerCase() || "";
-        const stats = extractStats(split.stats || []);
+      for (const split of splits) {
+        const splitName = (split.name || split.displayName || "").toLowerCase();
         
-        if (splitName.includes("home")) {
+        // Build stats from values array
+        const stats: Record<string, number | string> = {};
+        const statValues = split.stats || [];
+        
+        for (let i = 0; i < statNames.length && i < statValues.length; i++) {
+          const val = statValues[i];
+          if (val !== undefined && val !== null && val !== "-") {
+            const cleanVal = typeof val === "string" ? val.replace(/,/g, "") : val;
+            const numVal = parseFloat(cleanVal);
+            stats[statNames[i]] = isNaN(numVal) ? val : numVal;
+          }
+        }
+        
+        if (splitName === "home") {
           result.home = stats;
-        } else if (splitName.includes("away") || splitName.includes("road")) {
+        } else if (splitName === "away") {
           result.away = stats;
         } else if (splitName.includes("win")) {
           result.wins = stats;
         } else if (splitName.includes("loss")) {
           result.losses = stats;
-        } else if (categoryName.includes("month")) {
-          result.byMonth[split.name || splitName] = stats;
+        } else if (categoryName === "month") {
+          result.byMonth[split.displayName || split.name || splitName] = stats;
         }
       }
     }
     
-    return result;
+    // Check if we got any meaningful data
+    const hasData = Object.keys(result.home).length > 0 || 
+                    Object.keys(result.away).length > 0 ||
+                    Object.keys(result.wins).length > 0;
+    
+    console.log(`ESPN splits for ${espnId}: home=${Object.keys(result.home).length}, away=${Object.keys(result.away).length}, wins=${Object.keys(result.wins).length}`);
+    
+    return hasData ? result : null;
   } catch (error) {
     console.error("Error fetching splits:", error);
     return null;
@@ -455,7 +552,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v4-${sleeperPlayerId}`;
+  const cacheKey = `profile-v6-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
