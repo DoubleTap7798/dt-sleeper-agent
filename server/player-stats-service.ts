@@ -196,29 +196,66 @@ async function fetchPlayerStats(espnId: string): Promise<{ career: CareerStats |
 // Fetch game logs from ESPN for a specific season
 async function fetchGameLogsForSeason(espnId: string, season: string): Promise<GameLog[]> {
   try {
-    const response = await fetch(`${ESPN_API_BASE}/players/${espnId}/gamelog?season=${season}`);
+    // Use the correct ESPN web API endpoint for game logs
+    const response = await fetch(
+      `https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/${espnId}/gamelog?season=${season}`
+    );
     if (!response.ok) return [];
     
     const data = await response.json() as any;
-    const events = data.events || data.seasonTypes?.[0]?.categories?.[0]?.events || [];
+    
+    // The events are in an object keyed by game ID
+    const eventsObj = data.events || {};
+    const events = Object.values(eventsObj) as any[];
+    
+    // Get stat names from labels for mapping
+    const statNames = data.names || [];
     
     const gameLogs: GameLog[] = [];
     
-    for (const event of events.slice(0, 17)) {
-      const game = event.event || event;
-      const stats = event.stats || event.statistics || [];
+    // Process season types (preseason, regular season, postseason)
+    const seasonTypes = data.seasonTypes || [];
+    
+    for (const seasonType of seasonTypes) {
+      const categories = seasonType.categories || [];
       
-      gameLogs.push({
-        week: event.week || gameLogs.length + 1,
-        date: game.date || event.gameDate || "",
-        opponent: game.opponent?.abbreviation || game.opponentTeam?.abbreviation || "OPP",
-        homeAway: game.homeAway === "home" ? "home" : "away",
-        result: game.gameResult || "",
-        score: game.score || "",
-        stats: extractStats(stats),
-        season,
-      });
+      for (const category of categories) {
+        const categoryEvents = category.events || [];
+        
+        for (const eventEntry of categoryEvents) {
+          const gameId = eventEntry.eventId;
+          const eventData = eventsObj[gameId];
+          
+          if (!eventData) continue;
+          
+          // Build stats object from the array values
+          const stats: Record<string, number | string> = {};
+          const statValues = eventEntry.stats || [];
+          
+          for (let i = 0; i < statNames.length && i < statValues.length; i++) {
+            const val = statValues[i];
+            if (val !== undefined && val !== null && val !== "-") {
+              const numVal = parseFloat(val);
+              stats[statNames[i]] = isNaN(numVal) ? val : numVal;
+            }
+          }
+          
+          gameLogs.push({
+            week: eventData.week || 0,
+            date: eventData.gameDate || "",
+            opponent: eventData.opponent?.abbreviation || "OPP",
+            homeAway: eventData.atVs === "@" ? "away" : "home",
+            result: eventData.gameResult || "",
+            score: eventData.score || "",
+            stats,
+            season,
+          });
+        }
+      }
     }
+    
+    // Sort by week descending
+    gameLogs.sort((a, b) => b.week - a.week);
     
     return gameLogs;
   } catch (error) {
