@@ -5,6 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 import * as sleeperApi from "./sleeper-api";
 import * as ktcValues from "./ktc-values";
 import * as newsService from "./news-service";
+import * as oddsService from "./odds-service";
 import OpenAI from "openai";
 import { z } from "zod";
 
@@ -2542,6 +2543,21 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
     } catch (error) {
       console.error("Error fetching fantasy news:", error);
       res.status(500).json({ message: "Failed to fetch news" });
+    }
+  });
+
+  // NFL Game Odds - Vegas lines and spreads
+  app.get("/api/fantasy/odds", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const odds = await oddsService.fetchNFLOdds();
+      
+      res.json({
+        games: odds,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error fetching NFL odds:", error);
+      res.status(500).json({ message: "Failed to fetch odds" });
     }
   });
 
