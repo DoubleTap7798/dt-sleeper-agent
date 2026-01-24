@@ -174,6 +174,123 @@ export async function registerRoutes(
     }
   });
 
+  // Get league info (settings and scoring)
+  app.get("/api/sleeper/league-info/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const league = await sleeperApi.getLeague(leagueId);
+      
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+
+      // Parse roster positions to count each slot type
+      const rosterPositions = league.roster_positions || [];
+      const positionCounts: Record<string, number> = {};
+      const starterPositions: string[] = [];
+      const benchCount = rosterPositions.filter(p => p === "BN").length;
+      
+      rosterPositions.forEach(pos => {
+        if (pos !== "BN") {
+          starterPositions.push(pos);
+        }
+        positionCounts[pos] = (positionCounts[pos] || 0) + 1;
+      });
+
+      // Format scoring settings into readable categories
+      const scoring = league.scoring_settings || {};
+      const scoringCategories = {
+        passing: {
+          passYards: scoring.pass_yd || 0,
+          passTd: scoring.pass_td || 0,
+          passInt: scoring.pass_int || 0,
+          pass2pt: scoring.pass_2pt || 0,
+        },
+        rushing: {
+          rushYards: scoring.rush_yd || 0,
+          rushTd: scoring.rush_td || 0,
+          rush2pt: scoring.rush_2pt || 0,
+        },
+        receiving: {
+          reception: scoring.rec || 0,
+          recYards: scoring.rec_yd || 0,
+          recTd: scoring.rec_td || 0,
+          rec2pt: scoring.rec_2pt || 0,
+        },
+        bonuses: {
+          bonus100RushYards: scoring.bonus_rush_yd_100 || 0,
+          bonus100RecYards: scoring.bonus_rec_yd_100 || 0,
+          bonus300PassYards: scoring.bonus_pass_yd_300 || 0,
+          bonus40RushTd: scoring.bonus_rush_td_40p || 0,
+          bonus40RecTd: scoring.bonus_rec_td_40p || 0,
+          bonus40PassTd: scoring.bonus_pass_td_40p || 0,
+        },
+        misc: {
+          fumble: scoring.fum || 0,
+          fumbleLost: scoring.fum_lost || 0,
+          firstDown: scoring.rush_fd || scoring.rec_fd || 0,
+        },
+        dst: {
+          sack: scoring.sack || 0,
+          interception: scoring.def_int || scoring.int || 0,
+          fumbleRecovery: scoring.fum_rec || 0,
+          td: scoring.def_td || 0,
+          safety: scoring.safe || 0,
+          blockedKick: scoring.blk_kick || 0,
+        },
+        kicking: {
+          fgMade: scoring.fgm || 0,
+          fgMissed: scoring.fgmiss || 0,
+          xpMade: scoring.xpm || 0,
+          xpMissed: scoring.xpmiss || 0,
+          fg40: scoring.fgm_40_49 || 0,
+          fg50: scoring.fgm_50p || 0,
+        },
+      };
+
+      // Determine league format (Redraft, Keeper, Dynasty)
+      const leagueType = league.settings?.type || 0;
+      let format = "Redraft";
+      if (leagueType === 1) format = "Keeper";
+      if (leagueType === 2) format = "Dynasty";
+
+      // Determine waiver type
+      const waiverType = league.settings?.waiver_type || 0;
+      let waiverSystem = "Normal";
+      if (waiverType === 1) waiverSystem = "Rolling";
+      if (waiverType === 2) waiverSystem = "FAAB";
+
+      res.json({
+        leagueId: league.league_id,
+        name: league.name,
+        season: league.season,
+        status: league.status,
+        avatar: league.avatar,
+        format,
+        totalTeams: league.total_rosters,
+        rosterSettings: {
+          starterPositions,
+          positionCounts,
+          benchCount,
+          totalStarters: starterPositions.length,
+          totalRoster: rosterPositions.length,
+        },
+        leagueSettings: {
+          playoffTeams: league.settings?.playoff_teams || 6,
+          playoffWeekStart: league.settings?.playoff_week_start || 15,
+          tradeDeadline: league.settings?.trade_deadline || 0,
+          waiverSystem,
+          waiverBudget: league.settings?.waiver_budget || 100,
+        },
+        scoringCategories,
+        rawScoring: scoring,
+      });
+    } catch (error) {
+      console.error("Error fetching league info:", error);
+      res.status(500).json({ message: "Failed to fetch league info" });
+    }
+  });
+
   // Get league standings
   app.get("/api/sleeper/standings/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {

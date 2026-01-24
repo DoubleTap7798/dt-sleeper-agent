@@ -28,6 +28,7 @@ import LineupAdvicePage from "@/pages/lineup-advice";
 import ProjectionsPage from "@/pages/projections";
 import HomePage from "@/pages/home";
 import RosterPage from "@/pages/roster";
+import LeagueInfoPage from "@/pages/league-info";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -86,6 +87,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <HomePage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/info">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <LeagueInfoPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

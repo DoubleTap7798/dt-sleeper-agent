@@ -18,6 +18,7 @@ import {
   GitCompare,
   Target,
   BarChart3,
+  Settings,
 } from "lucide-react";
 import {
   Sidebar,
@@ -57,6 +58,13 @@ const navigationItems = [
     icon: Home,
     description: "Dashboard overview & stats",
     requiresLeague: false,
+  },
+  {
+    title: "League Info",
+    url: "/league/info",
+    icon: Settings,
+    description: "League settings & scoring rules",
+    requiresLeague: true,
   },
   {
     title: "Standings",
