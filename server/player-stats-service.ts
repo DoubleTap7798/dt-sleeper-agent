@@ -455,7 +455,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v3-${sleeperPlayerId}`;
+  const cacheKey = `profile-v4-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
@@ -479,8 +479,20 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
       fetchSplits(espnId),
     ]);
     
+    // If ESPN bio fails, fall back to Sleeper data but keep any ESPN data we got
     if (!bio) {
-      return null;
+      const sleeperProfile = await createProfileFromSleeper(sleeperPlayerId, playerName);
+      // Merge any ESPN data we successfully fetched
+      const profile: PlayerProfile = {
+        bio: sleeperProfile.bio,
+        careerStats: statsData.career || sleeperProfile.careerStats,
+        seasonStats: statsData.seasons.length > 0 ? statsData.seasons : sleeperProfile.seasonStats,
+        recentGameLogs: gameLogs.length > 0 ? gameLogs : sleeperProfile.recentGameLogs,
+        splits: splits || sleeperProfile.splits,
+        espnId,
+      };
+      playerStatsCache.set(cacheKey, { data: profile, time: Date.now() });
+      return profile;
     }
     
     const profile: PlayerProfile = {
