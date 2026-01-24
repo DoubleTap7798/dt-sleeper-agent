@@ -96,30 +96,26 @@ export default function SchedulePage() {
 
   return (
     <div className="space-y-6" data-testid="schedule-page">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10" data-testid="avatar-user">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Avatar className="h-8 w-8 sm:h-10 sm:w-10 shrink-0" data-testid="avatar-user">
             <AvatarImage src={user.avatar || undefined} />
-            <AvatarFallback>{user.ownerName.charAt(0).toUpperCase()}</AvatarFallback>
+            <AvatarFallback className="text-xs sm:text-sm">{user.ownerName.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-schedule-title">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg sm:text-2xl font-bold truncate" data-testid="text-schedule-title">
               {user.ownerName}'s Schedule
             </h1>
-            <p className="text-sm text-muted-foreground" data-testid="text-league-info">
-              {leagueName} - {season} Season
+            <p className="text-xs sm:text-sm text-muted-foreground truncate" data-testid="text-league-info">
+              {leagueName} - {season}
             </p>
           </div>
-        </div>
-
-        <Card className="px-4 py-2" data-testid="card-record">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground" data-testid="text-record-label">Record:</span>
-            <span className="font-bold text-lg" data-testid="text-record">
+          <Badge variant="secondary" className="shrink-0 text-sm sm:text-base px-2 sm:px-3 py-1" data-testid="card-record">
+            <span className="font-bold" data-testid="text-record">
               {record.wins}-{record.losses}{record.ties > 0 ? `-${record.ties}` : ""}
             </span>
-          </div>
-        </Card>
+          </Badge>
+        </div>
       </div>
 
       <div className="grid gap-3" data-testid="schedule-list">
@@ -129,77 +125,68 @@ export default function SchedulePage() {
             className={game.isCurrentWeek ? "ring-2 ring-foreground/20" : ""}
             data-testid={`card-game-week-${game.week}`}
           >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="flex flex-col items-center justify-center w-12 shrink-0">
-                    <span className="text-xs text-muted-foreground">Week</span>
-                    <span className="font-bold text-lg" data-testid={`text-week-${game.week}`}>
+            <CardContent className="p-2 sm:p-4">
+              <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-center justify-center w-8 sm:w-12">
+                    <span className="text-[10px] sm:text-xs text-muted-foreground">Wk</span>
+                    <span className="font-bold text-sm sm:text-lg" data-testid={`text-week-${game.week}`}>
                       {game.week}
                     </span>
                     {game.isCurrentWeek && (
-                      <Badge variant="secondary" className="text-xs mt-1" data-testid={`badge-current-week-${game.week}`}>
+                      <Badge variant="secondary" className="text-[10px] sm:text-xs mt-0.5 px-1" data-testid={`badge-current-week-${game.week}`}>
                         Now
                       </Badge>
                     )}
                   </div>
+                  <div className="h-6 sm:h-8 w-px bg-border" />
+                </div>
 
-                  <div className="h-8 w-px bg-border shrink-0" />
-
+                <div className="min-w-0">
                   {game.result === "bye" ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground italic" data-testid={`text-bye-week-${game.week}`}>
-                        Bye Week
-                      </span>
-                    </div>
+                    <span className="text-muted-foreground italic text-xs sm:text-sm" data-testid={`text-bye-week-${game.week}`}>
+                      Bye
+                    </span>
                   ) : game.opponent ? (
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-muted-foreground text-sm shrink-0" data-testid={`text-vs-week-${game.week}`}>vs</span>
-                      <Avatar className="h-8 w-8 shrink-0" data-testid={`avatar-opponent-week-${game.week}`}>
+                    <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                      <span className="text-muted-foreground text-[10px] sm:text-xs" data-testid={`text-vs-week-${game.week}`}>vs</span>
+                      <Avatar className="h-5 w-5 sm:h-8 sm:w-8 shrink-0" data-testid={`avatar-opponent-week-${game.week}`}>
                         <AvatarImage src={game.opponent.avatar || undefined} />
-                        <AvatarFallback>{game.opponent.ownerName.charAt(0).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="text-[10px] sm:text-xs">{game.opponent.ownerName.charAt(0).toUpperCase()}</AvatarFallback>
                       </Avatar>
-                      <span className="font-medium truncate" data-testid={`text-opponent-name-week-${game.week}`}>
+                      <span className="font-medium text-xs sm:text-base truncate" data-testid={`text-opponent-name-week-${game.week}`}>
                         {game.opponent.ownerName}
                       </span>
                     </div>
                   ) : (
-                    <span className="text-muted-foreground" data-testid={`text-tbd-week-${game.week}`}>
+                    <span className="text-muted-foreground text-xs sm:text-sm" data-testid={`text-tbd-week-${game.week}`}>
                       TBD
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center gap-4 shrink-0">
-                  {game.isPastWeek || game.isCurrentWeek ? (
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <div className="flex items-center gap-2 justify-end">
-                          <span className="text-sm text-muted-foreground">You:</span>
-                          <span className="font-medium" data-testid={`text-user-points-week-${game.week}`}>
-                            {game.userPoints.toFixed(2)}
-                          </span>
-                        </div>
-                        {game.opponent && (
-                          <div className="flex items-center gap-2 justify-end">
-                            <span className="text-sm text-muted-foreground">Opp:</span>
-                            <span className="font-medium" data-testid={`text-opponent-points-week-${game.week}`}>
-                              {game.opponentPoints.toFixed(2)}
-                            </span>
-                          </div>
-                        )}
+                <div className="flex items-center gap-1 sm:gap-2">
+                  {(game.isPastWeek || game.isCurrentWeek) && game.result !== "bye" ? (
+                    <div className="text-right text-[10px] sm:text-sm leading-tight">
+                      <div data-testid={`text-user-points-week-${game.week}`}>
+                        {game.userPoints.toFixed(1)}
                       </div>
+                      {game.opponent && (
+                        <div className="text-muted-foreground" data-testid={`text-opponent-points-week-${game.week}`}>
+                          {game.opponentPoints.toFixed(1)}
+                        </div>
+                      )}
                     </div>
                   ) : null}
 
                   <Badge
                     variant="secondary"
-                    className="min-w-[50px] justify-center"
+                    className="justify-center px-1 sm:px-2"
                     data-testid={`badge-result-week-${game.week}`}
                   >
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-0.5 sm:gap-1">
                       {getResultIcon(game.result)}
-                      {getResultText(game.result)}
+                      <span className="hidden sm:inline">{getResultText(game.result)}</span>
                     </span>
                   </Badge>
                 </div>

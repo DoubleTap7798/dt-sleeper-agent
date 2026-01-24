@@ -48,32 +48,32 @@ function MatchupCard({ matchup, roundName, isChampionship }: { matchup: BracketM
   const TeamRow = ({ team, isWinner, isTop }: { team: Team | null; isWinner: boolean; isTop: boolean }) => {
     if (!team) {
       return (
-        <div className={`flex items-center gap-2 p-2 ${isTop ? "border-b border-border/50" : ""}`}>
-          <div className="h-6 w-6 rounded-full bg-muted" />
-          <span className="text-sm text-muted-foreground">TBD</span>
+        <div className={`flex items-center gap-1 p-1 sm:p-2 min-w-0 ${isTop ? "border-b border-border/50" : ""}`}>
+          <div className="h-4 w-4 sm:h-6 sm:w-6 rounded-full bg-muted shrink-0" />
+          <span className="text-[10px] sm:text-sm text-muted-foreground">TBD</span>
         </div>
       );
     }
 
     return (
       <div 
-        className={`flex items-center gap-2 p-2 ${isTop ? "border-b border-border/50" : ""} ${isWinner ? "bg-muted/30" : ""}`}
+        className={`flex items-center gap-1 p-1 sm:p-2 min-w-0 ${isTop ? "border-b border-border/50" : ""} ${isWinner ? "bg-muted/30" : ""}`}
         data-testid={`bracket-team-${team.rosterId}`}
       >
-        <Avatar className="h-6 w-6">
+        <Avatar className="h-4 w-4 sm:h-6 sm:w-6 shrink-0">
           <AvatarImage src={team.avatar || undefined} alt={team.ownerName} />
-          <AvatarFallback className="text-xs">
+          <AvatarFallback className="text-[8px] sm:text-xs">
             {team.ownerName.slice(0, 2).toUpperCase()}
           </AvatarFallback>
         </Avatar>
-        <span className={`text-sm flex-1 truncate ${isWinner ? "font-semibold" : ""}`}>
+        <span className={`text-[10px] sm:text-sm min-w-0 truncate ${isWinner ? "font-semibold" : ""}`}>
           {team.ownerName}
         </span>
         {isWinner && isChampionship && (
-          <Crown className="h-4 w-4 text-foreground" />
+          <Crown className="h-3 w-3 sm:h-4 sm:w-4 text-foreground shrink-0" />
         )}
         {isWinner && !isChampionship && (
-          <Badge variant="outline" className="text-xs px-1 py-0">W</Badge>
+          <span className="text-[8px] sm:text-xs text-muted-foreground shrink-0">W</span>
         )}
       </div>
     );
@@ -189,27 +189,27 @@ export default function PlayoffBracketPage() {
     : champion?.team2;
 
   return (
-    <div className="p-6 space-y-6" data-testid="page-playoff-bracket">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6" data-testid="page-playoff-bracket">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Trophy className="h-6 w-6" />
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Trophy className="h-5 w-5 sm:h-6 sm:w-6" />
             Playoff Bracket
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             {bracket.season} Season {bracket.isComplete ? "(Complete)" : bracket.isPlayoffsStarted ? "(In Progress)" : `(Starts Week ${bracket.playoffWeekStart})`}
           </p>
         </div>
         {championTeam && (
-          <Card className="p-3 flex items-center gap-3" data-testid="champion-card">
-            <Crown className="h-6 w-6 text-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Champion</p>
-              <p className="font-bold">{championTeam.ownerName}</p>
+          <Card className="p-2 flex items-center gap-2 min-w-0 max-w-[180px] sm:max-w-none" data-testid="champion-card">
+            <Crown className="h-4 w-4 sm:h-6 sm:w-6 text-foreground shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Champion</p>
+              <p className="font-bold text-xs sm:text-base truncate">{championTeam.ownerName}</p>
             </div>
-            <Avatar className="h-10 w-10">
+            <Avatar className="h-6 w-6 sm:h-10 sm:w-10 shrink-0">
               <AvatarImage src={championTeam.avatar || undefined} alt={championTeam.ownerName} />
-              <AvatarFallback>{championTeam.ownerName.slice(0, 2).toUpperCase()}</AvatarFallback>
+              <AvatarFallback className="text-[8px] sm:text-sm">{championTeam.ownerName.slice(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
           </Card>
         )}
@@ -227,24 +227,23 @@ export default function PlayoffBracketPage() {
       )}
 
       {byeTeams.length > 0 && (
-        <div className="flex items-center gap-4 p-3 bg-muted/30 rounded-md" data-testid="bye-teams-section">
-          <span className="text-sm text-muted-foreground font-medium">First Round Bye:</span>
-          <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-2 p-2 sm:p-3 bg-muted/30 rounded-md" data-testid="bye-teams-section">
+          <span className="text-[10px] sm:text-sm text-muted-foreground font-medium">Bye:</span>
+          <div className="flex flex-wrap gap-2 min-w-0">
             {byeTeams.map((team) => (
-              <div key={team.rosterId} className="flex items-center gap-2" data-testid={`bye-team-${team.rosterId}`}>
-                <Avatar className="h-6 w-6">
+              <div key={team.rosterId} className="flex items-center gap-1 min-w-0" data-testid={`bye-team-${team.rosterId}`}>
+                <Avatar className="h-4 w-4 sm:h-6 sm:w-6 shrink-0">
                   <AvatarImage src={team.avatar || undefined} alt={team.ownerName} />
-                  <AvatarFallback className="text-xs">{team.ownerName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback className="text-[8px] sm:text-xs">{team.ownerName.slice(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <span className="text-sm font-medium">{team.ownerName}</span>
-                <Badge variant="outline" className="text-xs">BYE</Badge>
+                <span className="text-[10px] sm:text-sm font-medium truncate max-w-[60px] sm:max-w-none">{team.ownerName}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div className="flex gap-6 overflow-x-auto pb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
         {rounds.map((round) => {
           const roundMatchups = bracket.rounds[round] || [];
           const roundName = getRoundName(round, bracket.numRounds, bracket.playoffTeams);
@@ -253,13 +252,13 @@ export default function PlayoffBracketPage() {
           return (
             <div 
               key={round} 
-              className="flex-shrink-0 min-w-[200px]"
+              className={`min-w-0 ${isChampionship ? "col-span-2 sm:col-span-1" : ""}`}
               data-testid={`bracket-round-${round}`}
             >
-              <h3 className="text-sm font-semibold text-muted-foreground mb-3 text-center">
+              <h3 className="text-[10px] sm:text-sm font-semibold text-muted-foreground mb-1 sm:mb-3 text-center truncate">
                 {roundName}
               </h3>
-              <div className="space-y-4 flex flex-col justify-around h-full">
+              <div className="space-y-2 sm:space-y-4 flex flex-col justify-around">
                 {roundMatchups.map((matchup) => (
                   <MatchupCard 
                     key={matchup.matchId} 
@@ -275,14 +274,14 @@ export default function PlayoffBracketPage() {
       </div>
 
       {bracket.consolationMatchups && bracket.consolationMatchups.length > 0 && (
-        <div className="mt-6 pt-6 border-t border-border" data-testid="consolation-section">
-          <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+        <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-border" data-testid="consolation-section">
+          <h3 className="text-xs sm:text-sm font-semibold text-muted-foreground mb-2 sm:mb-3">
             Consolation Games
           </h3>
-          <div className="flex flex-wrap gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
             {bracket.consolationMatchups.map((matchup) => (
-              <div key={matchup.matchId} className="min-w-[180px]">
-                <p className="text-xs text-muted-foreground mb-1">{matchup.placementLabel}</p>
+              <div key={matchup.matchId}>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mb-1">{matchup.placementLabel}</p>
                 <MatchupCard 
                   matchup={matchup} 
                   roundName={matchup.placementLabel}
