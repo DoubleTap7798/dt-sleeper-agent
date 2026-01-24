@@ -3604,10 +3604,16 @@ Return JSON: {"players": [{...}]}`;
         return res.status(400).json({ message: "League ID required" });
       }
 
-      const rosters = await sleeperApi.getLeagueRosters(leagueId as string);
+      const [rosters, allPlayers, league] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId as string),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeague(leagueId as string),
+      ]);
       const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
-      const allPlayers = await sleeperApi.getAllPlayers();
       const leagueSize = rosters.length;
+      
+      // Get roster positions from league settings (excluding BN = bench)
+      const rosterPositions = (league?.roster_positions || []).filter((pos: string) => pos !== "BN");
       
       if (!userRoster) {
         return res.json({ 
@@ -3671,14 +3677,10 @@ Return JSON: {"players": [{...}]}`;
         const isStarter = starters.includes(playerId);
         const starterIndex = starters.indexOf(playerId);
         
+        // Use league's roster_positions to determine slot position
         let slotPosition = "BN";
-        if (isStarter && starterIndex >= 0) {
-          if (starterIndex === 0) slotPosition = "QB";
-          else if (starterIndex <= 2) slotPosition = "RB";
-          else if (starterIndex <= 4) slotPosition = "WR";
-          else if (starterIndex === 5) slotPosition = "TE";
-          else if (starterIndex <= 7) slotPosition = "FLEX";
-          else slotPosition = "FLEX";
+        if (isStarter && starterIndex >= 0 && starterIndex < rosterPositions.length) {
+          slotPosition = rosterPositions[starterIndex];
         }
 
         return {
