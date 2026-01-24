@@ -3696,9 +3696,18 @@ Return JSON: {"players": [{...}]}`;
           projectedPoints: Math.round((ktcValue / 800) * 10 + Math.random() * 5),
           isStarter,
           slotPosition,
+          starterIndex: isStarter ? starterIndex : -1,
         };
       }).sort((a, b) => {
+        // Starters first, then bench
         if (a.isStarter !== b.isStarter) return a.isStarter ? -1 : 1;
+        // Starters: maintain Sleeper's lineup order (starterIndex)
+        if (a.isStarter && b.isStarter) return a.starterIndex - b.starterIndex;
+        // Bench: sort by position, then KTC value
+        const posOrder: Record<string, number> = { QB: 1, RB: 2, WR: 3, TE: 4, K: 5, DEF: 6, DL: 7, LB: 8, DB: 9 };
+        const posA = posOrder[a.position] || 10;
+        const posB = posOrder[b.position] || 10;
+        if (posA !== posB) return posA - posB;
         return b.ktcValue - a.ktcValue;
       });
 

@@ -22,6 +22,7 @@ interface RosterPlayer {
   projectedPoints: number;
   isStarter: boolean;
   slotPosition: string;
+  starterIndex: number;
 }
 
 interface PositionRanking {
@@ -126,12 +127,10 @@ function RosterContent({ leagueId }: { leagueId: string }) {
   };
 
   const filteredPlayers = (data?.players || [])
-    .filter(p => positionFilter === "all" || p.position === positionFilter)
-    .sort((a, b) => {
-      if (a.isStarter !== b.isStarter) return a.isStarter ? -1 : 1;
-      return (positionOrder[a.position] || 99) - (positionOrder[b.position] || 99);
-    });
+    .filter(p => positionFilter === "all" || p.position === positionFilter);
 
+  // Starters maintain Sleeper's lineup order (already sorted by starterIndex from server)
+  // Bench sorted by natural position (already sorted by position then KTC from server)
   const starters = filteredPlayers.filter(p => p.isStarter);
   const bench = filteredPlayers.filter(p => !p.isStarter);
 
