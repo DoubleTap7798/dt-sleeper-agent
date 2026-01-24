@@ -200,13 +200,15 @@ async function fetchGameLogsForSeason(espnId: string, season: string): Promise<G
     const response = await fetch(
       `https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/${espnId}/gamelog?season=${season}`
     );
-    if (!response.ok) return [];
+    if (!response.ok) {
+      console.log(`ESPN gamelog API returned ${response.status} for player ${espnId} season ${season}`);
+      return [];
+    }
     
     const data = await response.json() as any;
     
     // The events are in an object keyed by game ID
     const eventsObj = data.events || {};
-    const events = Object.values(eventsObj) as any[];
     
     // Get stat names from labels for mapping
     const statNames = data.names || [];
@@ -215,6 +217,8 @@ async function fetchGameLogsForSeason(espnId: string, season: string): Promise<G
     
     // Process season types (preseason, regular season, postseason)
     const seasonTypes = data.seasonTypes || [];
+    
+    console.log(`ESPN gamelog for ${espnId} season ${season}: ${seasonTypes.length} seasonTypes, ${Object.keys(eventsObj).length} events`);
     
     for (const seasonType of seasonTypes) {
       const categories = seasonType.categories || [];
@@ -450,7 +454,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-${sleeperPlayerId}`;
+  const cacheKey = `profile-v2-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
