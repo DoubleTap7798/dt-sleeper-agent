@@ -207,14 +207,14 @@ function MatchupCard({ matchup, isExpanded, onToggle, gamesInProgress }: Matchup
       <Card data-testid={`matchup-card-${matchup.matchupId}`}>
         <CollapsibleTrigger asChild data-testid={`button-toggle-matchup-${matchup.matchupId}`}>
           <CardContent className="py-4 cursor-pointer hover-elevate">
-            <div className="flex items-center justify-between gap-4">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <TeamDisplay
                 team={teamA}
                 isWinning={teamAWinning && !isTied}
               />
 
-              <div className="flex flex-col items-center gap-1 min-w-[80px]">
-                <div className="text-xl font-bold flex items-center gap-2" data-testid={`score-matchup-${matchup.matchupId}`}>
+              <div className="flex flex-col items-center gap-1">
+                <div className="text-base sm:text-xl font-bold flex items-center gap-1" data-testid={`score-matchup-${matchup.matchupId}`}>
                   <span className={teamAWinning ? "text-foreground" : "text-muted-foreground"} data-testid={`score-team-${teamA.rosterId}`}>
                     {teamA.totalPoints.toFixed(1)}
                   </span>
@@ -231,17 +231,18 @@ function MatchupCard({ matchup, isExpanded, onToggle, gamesInProgress }: Matchup
                 )}
               </div>
 
-              <TeamDisplay
-                team={teamB}
-                isWinning={teamBWinning && !isTied}
-                reverse
-              />
-
-              <ChevronDown
-                className={`h-5 w-5 text-muted-foreground transition-transform ${
-                  isExpanded ? "rotate-180" : ""
-                }`}
-              />
+              <div className="flex items-center gap-1 justify-end min-w-0">
+                <TeamDisplay
+                  team={teamB}
+                  isWinning={teamBWinning && !isTied}
+                  reverse
+                />
+                <ChevronDown
+                  className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${
+                    isExpanded ? "rotate-180" : ""
+                  }`}
+                />
+              </div>
             </div>
           </CardContent>
         </CollapsibleTrigger>
@@ -268,20 +269,18 @@ interface TeamDisplayProps {
 function TeamDisplay({ team, isWinning, reverse }: TeamDisplayProps) {
   return (
     <div
-      className={`flex items-center gap-2 flex-1 min-w-0 ${reverse ? "flex-row-reverse text-right" : ""}`}
+      className={`flex items-center gap-2 min-w-0 ${reverse ? "flex-row-reverse" : ""}`}
       data-testid={`team-display-${team.rosterId}`}
     >
-      <Avatar className="h-10 w-10 shrink-0">
+      <Avatar className="h-8 w-8 sm:h-10 sm:w-10 shrink-0">
         <AvatarImage src={team.avatar || undefined} alt={team.ownerName} />
-        <AvatarFallback>{team.ownerName.slice(0, 2).toUpperCase()}</AvatarFallback>
+        <AvatarFallback className="text-xs sm:text-sm">{team.ownerName.slice(0, 2).toUpperCase()}</AvatarFallback>
       </Avatar>
-      <div className="min-w-0 flex-1">
-        <p className={`font-medium truncate ${isWinning ? "font-bold" : ""}`} data-testid={`text-team-name-${team.rosterId}`}>
-          {team.ownerName}
-        </p>
-      </div>
+      <p className={`font-medium truncate text-sm sm:text-base min-w-0 ${isWinning ? "font-bold" : ""}`} data-testid={`text-team-name-${team.rosterId}`}>
+        {team.ownerName}
+      </p>
       {isWinning && (
-        <CheckCircle2 className="h-4 w-4 text-foreground shrink-0" data-testid={`icon-winning-${team.rosterId}`} />
+        <CheckCircle2 className="h-4 w-4 text-foreground shrink-0 hidden sm:block" data-testid={`icon-winning-${team.rosterId}`} />
       )}
     </div>
   );
