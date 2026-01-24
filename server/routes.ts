@@ -2444,9 +2444,16 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
     }
   });
 
-  // Fantasy News Feed
+  // Fantasy News Feed - Personalized to user's roster
   app.get("/api/fantasy/news", isAuthenticated, async (req: any, res: Response) => {
     try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.query;
+      const profile = await storage.getUserProfile(userId);
+      
+      const targetLeagueId = leagueId || profile?.selectedLeagueId;
+      
+      // Fetch all required data in parallel
       const [allPlayers, state] = await Promise.all([
         sleeperApi.getAllPlayers(),
         sleeperApi.getState(),
@@ -2462,47 +2469,137 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
       const currentWeek = state?.week || 1;
       const currentSeason = state?.season || new Date().getFullYear().toString();
       
-      // Get top trending players and generate news
-      const topPlayers = Object.entries(allPlayers)
-        .filter(([_, p]: [string, any]) => 
-          p && ["QB", "RB", "WR", "TE"].includes(p.position) && 
-          p.team && p.search_rank && p.search_rank < 200
-        )
-        .map(([id, p]: [string, any]) => ({ id, ...p }))
-        .slice(0, 50);
+      let rosterPlayerData: any[] = [];
+      let waiverPlayerData: any[] = [];
+      let matchupInfo = "";
+      
+      // If user has a selected league, get their roster and waiver wire
+      if (targetLeagueId && profile?.sleeperUserId) {
+        const [rosters, users, matchups, league] = await Promise.all([
+          sleeperApi.getLeagueRosters(targetLeagueId),
+          sleeperApi.getLeagueUsers(targetLeagueId),
+          sleeperApi.getMatchups(targetLeagueId, currentWeek),
+          sleeperApi.getLeague(targetLeagueId),
+        ]);
+        
+        // Find user's roster
+        const userRoster = rosters.find((r: any) => r.owner_id === profile.sleeperUserId);
+        
+        if (userRoster) {
+          // Get all rostered player IDs across the league
+          const allRosteredIds: string[] = rosters.flatMap((r: any) => r.players || []);
+          const rosteredIdSet = new Set(allRosteredIds);
+          
+          // Build roster player data with real injury status from Sleeper API
+          const rosterIds = [...(userRoster.starters || []), ...(userRoster.players || [])];
+          const uniqueRosterIds = Array.from(new Set(rosterIds));
+          
+          rosterPlayerData = uniqueRosterIds
+            .map(id => allPlayers[id])
+            .filter(p => p && ["QB", "RB", "WR", "TE", "K", "DEF"].includes(p.position))
+            .map(p => ({
+              name: p.full_name || `${p.first_name} ${p.last_name}`,
+              position: p.position,
+              team: p.team || "FA",
+              injuryStatus: p.injury_status || null, // Real injury data from Sleeper
+              injuryNotes: p.injury_notes || null,
+              age: p.age,
+              byeWeek: p.bye_week,
+            }));
+          
+          // Get waiver wire players (not rostered, with good search rank)
+          waiverPlayerData = Object.entries(allPlayers)
+            .filter(([id, p]: [string, any]) => 
+              p && ["QB", "RB", "WR", "TE"].includes(p.position) && 
+              p.team && 
+              !rosteredIdSet.has(id) &&
+              p.search_rank && p.search_rank < 300
+            )
+            .map(([id, p]: [string, any]) => ({
+              name: p.full_name,
+              position: p.position,
+              team: p.team,
+              searchRank: p.search_rank,
+              injuryStatus: p.injury_status || null,
+            }))
+            .sort((a, b) => a.searchRank - b.searchRank)
+            .slice(0, 20);
+          
+          // Find this week's matchup opponent
+          const userMatchup = matchups.find((m: any) => m.roster_id === userRoster.roster_id);
+          if (userMatchup) {
+            const opponentMatchup = matchups.find((m: any) => 
+              m.matchup_id === userMatchup.matchup_id && m.roster_id !== userRoster.roster_id
+            );
+            if (opponentMatchup) {
+              const opponentRoster = rosters.find((r: any) => r.roster_id === opponentMatchup.roster_id);
+              const opponentUser = users.find((u: any) => u.user_id === opponentRoster?.owner_id);
+              matchupInfo = `This week's opponent: ${opponentUser?.display_name || "Unknown"}`;
+            }
+          }
+        }
+      }
+      
+      // Build player info strings for the AI prompt
+      const injuredPlayers = rosterPlayerData.filter(p => p.injuryStatus);
+      const healthyStarters = rosterPlayerData.filter(p => !p.injuryStatus).slice(0, 10);
+      
+      const injurySection = injuredPlayers.length > 0
+        ? `ROSTER INJURY REPORT (REAL DATA FROM SLEEPER):\n${injuredPlayers.map(p => 
+            `- ${p.name} (${p.position}, ${p.team}): ${p.injuryStatus}${p.injuryNotes ? ` - ${p.injuryNotes}` : ''}`
+          ).join('\n')}`
+        : "No injured players on your roster.";
+      
+      const rosterSection = `YOUR ROSTER PLAYERS:\n${rosterPlayerData.slice(0, 15).map(p => 
+        `- ${p.name} (${p.position}, ${p.team})`
+      ).join('\n')}`;
+      
+      const waiverSection = waiverPlayerData.length > 0
+        ? `TOP AVAILABLE WAIVER PLAYERS:\n${waiverPlayerData.slice(0, 10).map(p => 
+            `- ${p.name} (${p.position}, ${p.team})${p.injuryStatus ? ` [${p.injuryStatus}]` : ''}`
+          ).join('\n')}`
+        : "";
 
-      const newsPrompt = `Today is ${currentDate}. Generate 15 realistic fantasy football news items for the ${currentSeason} NFL season, Week ${currentWeek}. 
+      const newsPrompt = `Today is ${currentDate}. We are in Week ${currentWeek} of the ${currentSeason} NFL season.
 
-The news should reflect events happening TODAY or within the last 24-48 hours. Include a mix of:
-- Injury updates (2-3 items) - practice reports, game status updates
-- Trade rumors or analysis (2-3 items) - deadline buzz, recent moves
-- Waiver wire recommendations (2-3 items) - who to add/drop this week
-- Player performance analysis (4-5 items) - recent games, Week ${currentWeek} matchups
-- General fantasy news (2-3 items) - coaching changes, weather impacts, etc.
+Generate 12 personalized fantasy football news items based on THIS USER'S ACTUAL ROSTER and real injury data from Sleeper API.
+
+${injurySection}
+
+${rosterSection}
+
+${waiverSection}
+
+${matchupInfo}
+
+Generate news in these categories:
+1. INJURY UPDATES (3-4 items): For each injured roster player listed above, provide a realistic update about their status. Use the ACTUAL injury status shown (Questionable, Doubtful, Out, IR, etc). Do NOT make up injuries for healthy players.
+
+2. PLAYER ANALYSIS (4-5 items): Week ${currentWeek} matchup analysis for the user's healthy roster players. Focus on their upcoming opponents and fantasy outlook.
+
+3. WAIVER RECOMMENDATIONS (3-4 items): Analyze which available waiver players would help this roster based on bye weeks, injuries, or matchups.
+
+IMPORTANT: Only mention players that are listed above. Do not invent player names or make up injury statuses.
 
 For each news item, provide:
-- title: headline (max 80 chars) - should feel like breaking news from today
-- summary: 1-2 sentence summary with current context
-- category: one of "injury", "trade", "waiver", "analysis", "news"
-- players: array of player names mentioned (1-3 players)
+- title: headline (max 80 chars)
+- summary: 1-2 sentence analysis with specific context
+- category: one of "injury", "analysis", "waiver"
+- players: array of player names mentioned
 
-Use real NFL player names from this list: ${topPlayers.slice(0, 30).map(p => p.full_name).join(", ")}
-
-Return as JSON array with this format:
-[{"title": "...", "summary": "...", "category": "...", "players": ["Player Name"]}]`;
+Return as JSON: {"news": [{...}]}`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: newsPrompt }],
         response_format: { type: "json_object" },
-        max_tokens: 2000,
+        max_tokens: 2500,
       });
 
       let newsItems: any[] = [];
       try {
         const content = response.choices[0]?.message?.content || "{}";
         const parsed = JSON.parse(content);
-        // Handle various response formats from OpenAI
         newsItems = parsed.news || parsed.items || parsed.newsItems || parsed.articles || 
                    (Array.isArray(parsed) ? parsed : Object.values(parsed).find(v => Array.isArray(v)) || []);
       } catch (e) {
@@ -2514,16 +2611,19 @@ Return as JSON array with this format:
         id: `news-${Date.now()}-${idx}`,
         title: item.title || "Fantasy Update",
         summary: item.summary || "",
-        source: ["ESPN", "Yahoo Sports", "FantasyPros", "Rotoworld", "Sleeper"][idx % 5],
+        source: item.category === "injury" ? "Sleeper Injury Report" : 
+                item.category === "waiver" ? "Waiver Analysis" : "Fantasy Analysis",
         url: "#",
-        publishedAt: new Date(Date.now() - idx * 15 * 60000).toISOString(),
-        category: item.category || "news",
+        publishedAt: new Date(Date.now() - idx * 5 * 60000).toISOString(),
+        category: item.category || "analysis",
         players: item.players || [],
       }));
 
       res.json({
         news,
         lastUpdated: new Date().toISOString(),
+        week: currentWeek,
+        season: currentSeason,
       });
     } catch (error) {
       console.error("Error fetching fantasy news:", error);
