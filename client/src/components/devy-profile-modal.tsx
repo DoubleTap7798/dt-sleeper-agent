@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   User,
   BarChart3,
@@ -130,17 +129,19 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               <DialogTitle className="text-xl" data-testid="text-player-name">
                 {player.name}
               </DialogTitle>
-              <DialogDescription className="flex items-center gap-2 mt-1 flex-wrap">
-                <Badge variant="secondary" data-testid="badge-position">
-                  {player.position}{player.positionRank}
-                </Badge>
-                <Badge variant="outline" data-testid="badge-college">
-                  <GraduationCap className="h-3 w-3 mr-1" />
-                  {player.college}
-                </Badge>
-                <Badge variant="outline" data-testid="badge-draft-year">
-                  {player.draftEligibleYear} Draft
-                </Badge>
+              <DialogDescription asChild>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <Badge variant="secondary" data-testid="badge-position">
+                    {player.position}{player.positionRank}
+                  </Badge>
+                  <Badge variant="outline" data-testid="badge-college">
+                    <GraduationCap className="h-3 w-3 mr-1" />
+                    {player.college}
+                  </Badge>
+                  <Badge variant="outline" data-testid="badge-draft-year">
+                    {player.draftEligibleYear} Draft
+                  </Badge>
+                </div>
               </DialogDescription>
             </div>
             <div className="text-right shrink-0">
@@ -185,8 +186,8 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
           </div>
         </DialogHeader>
 
-        <Tabs defaultValue="bio" className="flex flex-col h-full">
-          <TabsList className="w-full justify-start rounded-none border-b px-4 h-auto flex-wrap gap-1 py-2">
+        <Tabs defaultValue="bio" className="flex flex-col flex-1 min-h-0">
+          <TabsList className="w-full justify-start rounded-none border-b px-4 h-auto flex-wrap gap-1 py-2 shrink-0">
             <TabsTrigger value="bio" className="text-xs sm:text-sm" data-testid="tab-bio">
               <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
               Bio
@@ -205,7 +206,7 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 h-[calc(90vh-280px)]">
+          <div className="flex-1 min-h-0 overflow-hidden">
             {isLoading ? (
               <div className="p-4 space-y-4">
                 <Skeleton className="h-24 w-full" />
@@ -218,7 +219,8 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               </div>
             ) : data ? (
               <>
-                <TabsContent value="bio" className="p-4 m-0 space-y-4" data-testid="content-bio">
+                <TabsContent value="bio" className="m-0 h-full overflow-auto" data-testid="content-bio">
+                  <div className="p-4 space-y-4">
                   <Card>
                     <CardContent className="p-4">
                       <h3 className="font-semibold mb-3">Player Info</h3>
@@ -296,9 +298,11 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       </CardContent>
                     </Card>
                   )}
+                  </div>
                 </TabsContent>
 
-                <TabsContent value="stats" className="p-4 m-0 space-y-4" data-testid="content-stats">
+                <TabsContent value="stats" className="m-0 h-full overflow-auto" data-testid="content-stats">
+                  <div className="p-4 space-y-4">
                   {data.collegeStats?.careerTotals && Object.keys(data.collegeStats.careerTotals).length > 0 && (
                     <Card>
                       <CardContent className="p-4">
@@ -418,9 +422,11 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       </CardContent>
                     </Card>
                   )}
+                  </div>
                 </TabsContent>
 
-                <TabsContent value="games" className="p-4 m-0" data-testid="content-games">
+                <TabsContent value="games" className="m-0 h-full overflow-auto" data-testid="content-games">
+                  <div className="p-4">
                   {data.gameLogs?.length > 0 ? (
                     <Card>
                       <CardContent className="p-4">
@@ -454,9 +460,11 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       No game logs available
                     </div>
                   )}
+                  </div>
                 </TabsContent>
 
-                <TabsContent value="news" className="p-4 m-0" data-testid="content-news">
+                <TabsContent value="news" className="m-0 h-full overflow-auto" data-testid="content-news">
+                  <div className="p-4">
                   {data.news?.length > 0 ? (
                     <div className="space-y-3">
                       {data.news.map((item, idx) => (
@@ -474,10 +482,11 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       No recent news available
                     </div>
                   )}
+                  </div>
                 </TabsContent>
               </>
             ) : null}
-          </ScrollArea>
+          </div>
         </Tabs>
       </DialogContent>
     </Dialog>
