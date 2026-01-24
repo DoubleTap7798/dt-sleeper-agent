@@ -14,9 +14,10 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **Playoff Bracket**: Visual bracket display with matchups organized by round (Quarterfinals, Semifinals, Championship)
 - **Rivalries**: Head-to-head records between teams across all seasons
 - **Waiver Wire**: Available players and stats
-- **NFL Players**: Player rankings by fantasy points with snap %, position-specific stats (1st downs, targets, attempts)
+- **NFL Players**: Player rankings by fantasy points with snap %, position-specific stats (1st downs, targets, attempts), click to view full player profile
+- **Player Profile Modal**: Click any player to view comprehensive stats including bio (height, weight, college, draft info), career stats, season-by-season history, game logs, and performance splits (home/away, wins/losses)
 - **Player Trends**: Multi-season performance tracking with year-over-year analysis, career trajectory visualization, and historical PPG trends
-- **Player Comparison**: Side-by-side comparison tool for 2-4 players showing stats, KTC values, projections, and visual stat comparisons for trade evaluation
+- **Player Comparison**: Side-by-side comparison tool for 2-4 players showing stats, KTC values, projections, and visual stat comparisons for trade evaluation with full stats modal access
 - **ROS Projections**: Advanced rest-of-season projections with AI-generated outlooks, confidence ratings, upside/floor analysis, schedule strength, injury risk, and key factors
 - **Devy Rankings**: Top 50 college prospects from KTC with tier, value, trend, position ranks, and draft eligibility years (2026-2028)
 - **Trade Calculator**: Calculate trade values with KTC dynasty values and AI analysis
@@ -83,6 +84,7 @@ shared/           # Shared code between frontend/backend
 
 ### Third-Party APIs
 - **Sleeper API**: Fantasy football league data (`https://api.sleeper.app/v1`)
+- **ESPN API**: Player stats, game logs, career data, and splits (`https://site.api.espn.com`)
 - **OpenAI API**: AI-powered trade analysis via Replit AI Integrations
 - **Keep Trade Cut (KTC)**: Dynasty trade values (implemented as value service in `server/ktc-values.ts`)
 

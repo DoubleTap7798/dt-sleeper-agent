@@ -27,7 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Users, Search, TrendingUp, AlertCircle, Loader2 } from "lucide-react";
+import { Users, Search, TrendingUp, AlertCircle, Loader2, BarChart3 } from "lucide-react";
+import { PlayerProfileModal } from "@/components/player-profile-modal";
 
 interface Player {
   id: string;
@@ -111,6 +112,7 @@ export default function PlayersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
 
   const playersUrl = leagueId ? `/api/sleeper/players?leagueId=${leagueId}` : "/api/sleeper/players";
   const { data, isLoading, error } = useQuery<PlayersData>({
@@ -477,6 +479,16 @@ export default function PlayersPage() {
                 </div>
               )}
 
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setProfilePlayer(selectedPlayer)}
+                data-testid="button-view-full-stats"
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                View Full Stats & Game Logs
+              </Button>
+
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
@@ -505,6 +517,17 @@ export default function PlayersPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {profilePlayer && (
+        <PlayerProfileModal
+          open={!!profilePlayer}
+          onOpenChange={(open) => !open && setProfilePlayer(null)}
+          playerId={profilePlayer.id}
+          playerName={profilePlayer.fullName}
+          position={profilePlayer.position}
+          team={profilePlayer.team}
+        />
+      )}
     </div>
   );
 }

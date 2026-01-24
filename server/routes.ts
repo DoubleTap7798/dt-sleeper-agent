@@ -6,6 +6,7 @@ import * as sleeperApi from "./sleeper-api";
 import * as ktcValues from "./ktc-values";
 import * as newsService from "./news-service";
 import * as oddsService from "./odds-service";
+import * as playerStatsService from "./player-stats-service";
 import OpenAI from "openai";
 import { z } from "zod";
 
@@ -3247,6 +3248,88 @@ Return JSON: {"players": [{...}]}`;
     } catch (error) {
       console.error("Error fetching league summary:", error);
       res.status(500).json({ message: "Failed to fetch league summary" });
+    }
+  });
+
+  // Player Stats - Get comprehensive player profile with stats, game logs, splits
+  app.get("/api/player/:playerId/profile", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { playerId } = req.params;
+      const { playerName } = req.query;
+      
+      if (!playerName) {
+        return res.status(400).json({ message: "Player name required" });
+      }
+      
+      const profile = await playerStatsService.getPlayerProfile(playerId, playerName as string);
+      
+      if (!profile) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+      
+      res.json(profile);
+    } catch (error) {
+      console.error("Error fetching player profile:", error);
+      res.status(500).json({ message: "Failed to fetch player profile" });
+    }
+  });
+
+  // Player Game Logs
+  app.get("/api/player/:playerId/gamelogs", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { playerId } = req.params;
+      const { playerName, season } = req.query;
+      
+      if (!playerName) {
+        return res.status(400).json({ message: "Player name required" });
+      }
+      
+      const gameLogs = await playerStatsService.getPlayerGameLogs(
+        playerId, 
+        playerName as string, 
+        season as string | undefined
+      );
+      
+      res.json({ gameLogs });
+    } catch (error) {
+      console.error("Error fetching game logs:", error);
+      res.status(500).json({ message: "Failed to fetch game logs" });
+    }
+  });
+
+  // Player Career Stats
+  app.get("/api/player/:playerId/career", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { playerId } = req.params;
+      const { playerName } = req.query;
+      
+      if (!playerName) {
+        return res.status(400).json({ message: "Player name required" });
+      }
+      
+      const stats = await playerStatsService.getPlayerCareerStats(playerId, playerName as string);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching career stats:", error);
+      res.status(500).json({ message: "Failed to fetch career stats" });
+    }
+  });
+
+  // Player Splits
+  app.get("/api/player/:playerId/splits", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { playerId } = req.params;
+      const { playerName } = req.query;
+      
+      if (!playerName) {
+        return res.status(400).json({ message: "Player name required" });
+      }
+      
+      const splits = await playerStatsService.getPlayerSplits(playerId, playerName as string);
+      res.json({ splits });
+    } catch (error) {
+      console.error("Error fetching splits:", error);
+      res.status(500).json({ message: "Failed to fetch splits" });
     }
   });
 

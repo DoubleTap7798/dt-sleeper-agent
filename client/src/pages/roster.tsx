@@ -3,9 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, AlertCircle, User, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, AlertCircle, User, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
+import { PlayerProfileModal } from "@/components/player-profile-modal";
 
 interface RosterPlayer {
   playerId: string;
@@ -85,6 +87,7 @@ export default function RosterPage() {
 function RosterContent({ leagueId }: { leagueId: string }) {
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
   const [positionFilter, setPositionFilter] = useState<string>("all");
+  const [selectedPlayer, setSelectedPlayer] = useState<RosterPlayer | null>(null);
 
   const { data, isLoading, error } = useQuery<RosterResponse>({
     queryKey: ["/api/fantasy/roster", leagueId],
@@ -204,25 +207,40 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           </div>
         </div>
         {expandedPlayer === player.playerId && (
-          <div className="mt-3 pt-3 border-t border-border grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm" data-testid={`expanded-${player.playerId}`}>
-            <div>
-              <span className="text-muted-foreground block text-xs">Age</span>
-              <span className="font-medium" data-testid={`stat-age-${player.playerId}`}>{player.age}</span>
+          <div className="mt-3 pt-3 border-t border-border" data-testid={`expanded-${player.playerId}`}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <div>
+                <span className="text-muted-foreground block text-xs">Age</span>
+                <span className="font-medium" data-testid={`stat-age-${player.playerId}`}>{player.age}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-xs">Slot</span>
+                <span className="font-medium" data-testid={`stat-slot-${player.playerId}`}>{player.slotPosition}</span>
+              </div>
+              <div className="sm:hidden">
+                <span className="text-muted-foreground block text-xs">KTC Value</span>
+                <span className="font-medium">{player.ktcValue.toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-xs">Status</span>
+                <span className="font-medium capitalize" data-testid={`stat-status-${player.playerId}`}>
+                  {player.injuryStatus || "Healthy"}
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-muted-foreground block text-xs">Slot</span>
-              <span className="font-medium" data-testid={`stat-slot-${player.playerId}`}>{player.slotPosition}</span>
-            </div>
-            <div className="sm:hidden">
-              <span className="text-muted-foreground block text-xs">KTC Value</span>
-              <span className="font-medium">{player.ktcValue.toLocaleString()}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground block text-xs">Status</span>
-              <span className="font-medium capitalize" data-testid={`stat-status-${player.playerId}`}>
-                {player.injuryStatus || "Healthy"}
-              </span>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 w-full sm:w-auto"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedPlayer(player);
+              }}
+              data-testid={`button-view-stats-${player.playerId}`}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              View Full Stats
+            </Button>
           </div>
         )}
       </CardContent>
@@ -289,6 +307,17 @@ function RosterContent({ leagueId }: { leagueId: string }) {
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {selectedPlayer && (
+        <PlayerProfileModal
+          open={!!selectedPlayer}
+          onOpenChange={(open) => !open && setSelectedPlayer(null)}
+          playerId={selectedPlayer.playerId}
+          playerName={selectedPlayer.name}
+          position={selectedPlayer.position}
+          team={selectedPlayer.team}
+        />
       )}
     </div>
   );

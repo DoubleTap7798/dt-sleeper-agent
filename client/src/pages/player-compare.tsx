@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { GitCompare, Search, Plus, X, ArrowRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { GitCompare, Search, Plus, X, ArrowRight, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react";
+import { PlayerProfileModal } from "@/components/player-profile-modal";
 
 interface PlayerStats {
   games: number;
@@ -47,6 +48,7 @@ export default function PlayerComparePage() {
   const [selectedPlayers, setSelectedPlayers] = useState<ComparePlayer[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [profilePlayer, setProfilePlayer] = useState<ComparePlayer | null>(null);
 
   const { data, isLoading } = useQuery<PlayersResponse>({
     queryKey: [`/api/fantasy/compare/players${leagueId ? `?leagueId=${leagueId}` : ""}`],
@@ -219,6 +221,16 @@ export default function PlayerComparePage() {
                   </div>
                   <CardTitle className="text-lg" data-testid={`text-player-name-${player.playerId}`}>{player.name}</CardTitle>
                   <p className="text-sm text-muted-foreground" data-testid={`text-player-team-${player.playerId}`}>{player.team}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 w-full"
+                    onClick={() => setProfilePlayer(player)}
+                    data-testid={`button-view-stats-${player.playerId}`}
+                  >
+                    <BarChart3 className="h-3 w-3 mr-1" />
+                    Stats
+                  </Button>
                 </CardHeader>
               </Card>
             ))}
@@ -257,6 +269,17 @@ export default function PlayerComparePage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {profilePlayer && (
+        <PlayerProfileModal
+          open={!!profilePlayer}
+          onOpenChange={(open) => !open && setProfilePlayer(null)}
+          playerId={profilePlayer.playerId}
+          playerName={profilePlayer.name}
+          position={profilePlayer.position}
+          team={profilePlayer.team}
+        />
       )}
     </div>
   );
