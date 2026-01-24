@@ -54,16 +54,10 @@ export default function MatchupsPage() {
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [expandedMatchup, setExpandedMatchup] = useState<number | null>(null);
 
-  const matchupsUrl = selectedWeek 
-    ? `/api/sleeper/matchups/${leagueId}?week=${selectedWeek}`
-    : `/api/sleeper/matchups/${leagueId}`;
   const { data, isLoading, error } = useQuery<MatchupsData>({
-    queryKey: ["/api/sleeper/matchups", leagueId, selectedWeek],
-    queryFn: async () => {
-      const res = await fetch(matchupsUrl, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch matchups");
-      return res.json();
-    },
+    queryKey: selectedWeek 
+      ? [`/api/sleeper/matchups/${leagueId}?week=${selectedWeek}`]
+      : [`/api/sleeper/matchups/${leagueId}`],
     enabled: !!leagueId,
   });
 
@@ -274,20 +268,20 @@ interface TeamDisplayProps {
 function TeamDisplay({ team, isWinning, reverse }: TeamDisplayProps) {
   return (
     <div
-      className={`flex items-center gap-3 flex-1 ${reverse ? "flex-row-reverse text-right" : ""}`}
+      className={`flex items-center gap-2 flex-1 min-w-0 ${reverse ? "flex-row-reverse text-right" : ""}`}
       data-testid={`team-display-${team.rosterId}`}
     >
-      <Avatar className="h-10 w-10">
+      <Avatar className="h-10 w-10 shrink-0">
         <AvatarImage src={team.avatar || undefined} alt={team.ownerName} />
         <AvatarFallback>{team.ownerName.slice(0, 2).toUpperCase()}</AvatarFallback>
       </Avatar>
-      <div>
-        <p className={`font-medium ${isWinning ? "font-bold" : ""}`} data-testid={`text-team-name-${team.rosterId}`}>
+      <div className="min-w-0 flex-1">
+        <p className={`font-medium truncate ${isWinning ? "font-bold" : ""}`} data-testid={`text-team-name-${team.rosterId}`}>
           {team.ownerName}
         </p>
       </div>
       {isWinning && (
-        <CheckCircle2 className="h-4 w-4 text-foreground" data-testid={`icon-winning-${team.rosterId}`} />
+        <CheckCircle2 className="h-4 w-4 text-foreground shrink-0" data-testid={`icon-winning-${team.rosterId}`} />
       )}
     </div>
   );

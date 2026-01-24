@@ -129,6 +129,39 @@ export async function fetchAllSportsNews(): Promise<NewsItem[]> {
   );
 }
 
+// Fetch news specifically for a player by name
+export async function fetchPlayerNews(playerName: string, team?: string): Promise<NewsItem[]> {
+  try {
+    // Fetch from multiple ESPN endpoints and filter for the player
+    const [nflNews, fantasyNews] = await Promise.all([
+      fetchNFLNews(),
+      fetchESPNFantasyNews(),
+    ]);
+    
+    const allNews = [...nflNews, ...fantasyNews];
+    const playerLower = playerName.toLowerCase();
+    const lastName = playerName.split(' ').pop()?.toLowerCase() || "";
+    const firstName = playerName.split(' ')[0]?.toLowerCase() || "";
+    
+    // Filter for news mentioning this player
+    const playerNews = allNews.filter(item => {
+      const text = (item.title + " " + item.summary).toLowerCase();
+      // Match full name, or last name with team, or first + last name separately
+      return text.includes(playerLower) || 
+             (lastName.length > 3 && text.includes(lastName) && (!team || text.includes(team.toLowerCase()))) ||
+             (text.includes(firstName) && text.includes(lastName));
+    });
+    
+    // Sort by date and limit to top 5 most recent
+    return playerNews
+      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+      .slice(0, 5);
+  } catch (error) {
+    console.error("Error fetching player news:", error);
+    return [];
+  }
+}
+
 // Filter news relevant to specific players
 export function filterNewsForPlayers(news: NewsItem[], playerNames: string[]): NewsItem[] {
   if (!playerNames.length) return news;

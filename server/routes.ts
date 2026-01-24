@@ -986,7 +986,7 @@ Format your response with clear section headers using markdown. Be concise but i
     }
   });
 
-  // Get player insights with AI-generated news and stats
+  // Get player insights with real news from ESPN and AI-generated analysis
   app.get("/api/sleeper/players/:playerId/insights", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { playerId } = req.params;
@@ -1023,6 +1023,19 @@ Format your response with clear section headers using markdown. Be concise but i
       const age = player.age || "Unknown";
       const yearsExp = player.years_exp || 0;
       
+      // Fetch real news from ESPN for this player
+      const playerNews = await newsService.fetchPlayerNews(playerName, team);
+      
+      // Build news section from real articles
+      let newsSection = "";
+      if (playerNews.length > 0) {
+        newsSection = playerNews.map(article => 
+          `- ${article.title} (${article.source})`
+        ).join("\n");
+      } else {
+        newsSection = "No recent news articles found for this player.";
+      }
+      
       const prompt = `Today is ${currentDate}. We are in Week ${currentWeek} of the ${currentSeason} NFL season.
 
 You are a fantasy football expert. Provide a brief analysis for ${playerName}, ${position} for the ${team}.
@@ -1034,9 +1047,7 @@ Player Info:
 - College: ${player.college || 'Unknown'}
 - Dynasty Trade Value: ${value.toLocaleString()}
 
-Provide a concise response with these 3 sections (keep each section to 2-3 sentences max):
-
-**Latest News**: Recent developments from TODAY or this week affecting this player - practice reports, injury updates, coach comments.
+Provide a concise response with these 2 sections (keep each section to 2-3 sentences max):
 
 **Fantasy Outlook**: Week ${currentWeek} fantasy value, current role on team, and matchup expectations.
 
@@ -1045,11 +1056,14 @@ Provide a concise response with these 3 sections (keep each section to 2-3 sente
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 500,
+        max_tokens: 400,
         temperature: 0.7,
       });
 
-      const insights = response.choices[0]?.message?.content || "Unable to generate insights.";
+      const aiInsights = response.choices[0]?.message?.content || "Unable to generate insights.";
+      
+      // Combine real news with AI analysis
+      const insights = `**Latest News**:\n${newsSection}\n\n${aiInsights}`;
       
       res.json({
         player: {
@@ -1067,6 +1081,7 @@ Provide a concise response with these 3 sections (keep each section to 2-3 sente
           weight: player.weight,
         },
         insights,
+        news: playerNews, // Also include raw news articles for potential UI use
         generatedAt: new Date().toISOString(),
       });
     } catch (error) {
