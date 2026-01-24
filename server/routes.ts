@@ -948,28 +948,41 @@ Return a JSON object with this EXACT structure (no markdown, just valid JSON):
   "collegeStats": {
     "seasons": [
       {
-        "year": "2025",
-        "games": 12,
+        "year": "2024",
+        "games": 13,
         "stats": {
           "passYds": 0,
           "passTd": 0,
           "rushYds": 800,
           "rushTd": 10,
-          "recYds": 0,
-          "recTd": 0,
-          "receptions": 0
+          "recYds": 1200,
+          "recTd": 8,
+          "receptions": 75
+        }
+      },
+      {
+        "year": "2023",
+        "games": 12,
+        "stats": {
+          "passYds": 0,
+          "passTd": 0,
+          "rushYds": 400,
+          "rushTd": 5,
+          "recYds": 600,
+          "recTd": 4,
+          "receptions": 40
         }
       }
     ],
     "careerTotals": {
-      "games": 24,
+      "games": 25,
       "passYds": 0,
       "passTd": 0,
-      "rushYds": 1600,
-      "rushTd": 20,
-      "recYds": 0,
-      "recTd": 0,
-      "receptions": 0
+      "rushYds": 1200,
+      "rushTd": 15,
+      "recYds": 1800,
+      "recTd": 12,
+      "receptions": 115
     }
   },
   "gameLogs": [
@@ -977,7 +990,7 @@ Return a JSON object with this EXACT structure (no markdown, just valid JSON):
       "week": 1,
       "opponent": "Team Name",
       "result": "W 35-21",
-      "stats": "18 car, 120 yds, 2 TD"
+      "stats": "8 rec, 120 yds, 2 TD"
     }
   ],
   "news": [
@@ -1001,7 +1014,12 @@ Draft Eligible: ${player.draftEligibleYear}
 Position Rank: ${player.position}${player.positionRank}
 Overall Rank: #${player.rank}
 
-Provide realistic data based on what you know about this player. For stats, use realistic college production numbers appropriate for their position. Include 3-5 recent game logs and 2-3 news items. Return ONLY valid JSON, no other text.`;
+IMPORTANT: 
+- Include ALL college seasons the player has played (2022, 2023, 2024 as applicable based on their class year). Do NOT just include one season.
+- Include 8-10 recent game logs from their most recent season, covering most of the season.
+- Include 2-3 news items about the player.
+- Use realistic college production numbers appropriate for their position and actual performance.
+Return ONLY valid JSON, no other text.`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -1015,7 +1033,7 @@ Provide realistic data based on what you know about this player. For stats, use 
             content: prompt
           }
         ],
-        max_tokens: 1500,
+        max_tokens: 2500,
         temperature: 0.3,
         response_format: { type: "json_object" },
       });

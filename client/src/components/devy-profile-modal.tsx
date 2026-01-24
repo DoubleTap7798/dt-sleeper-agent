@@ -8,8 +8,10 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   User,
   BarChart3,
@@ -22,6 +24,7 @@ import {
   Ruler,
   Target,
   Star,
+  X,
 } from "lucide-react";
 
 interface DevyPlayer {
@@ -122,9 +125,9 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] p-0 overflow-hidden" data-testid="modal-devy-profile">
-        <DialogHeader className="p-4 pb-2 border-b">
-          <div className="flex items-start justify-between gap-2">
+      <DialogContent className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden [&>button]:hidden" data-testid="modal-devy-profile">
+        <DialogHeader className="p-4 pb-2 border-b shrink-0">
+          <div className="flex items-start justify-between gap-2 pr-8">
             <div>
               <DialogTitle className="text-xl" data-testid="text-player-name">
                 {player.name}
@@ -144,11 +147,23 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                 </div>
               </DialogDescription>
             </div>
-            <div className="text-right shrink-0">
-              <div className="text-lg font-bold" data-testid="text-rank">
-                #{player.rank}
+            <div className="flex items-start gap-3">
+              <div className="text-right shrink-0">
+                <div className="text-lg font-bold" data-testid="text-rank">
+                  #{player.rank}
+                </div>
+                <div className="text-xs text-muted-foreground">Overall</div>
               </div>
-              <div className="text-xs text-muted-foreground">Overall</div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => onOpenChange(false)}
+                data-testid="button-close-modal"
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
             </div>
           </div>
 
@@ -186,7 +201,7 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
           </div>
         </DialogHeader>
 
-        <Tabs defaultValue="bio" className="flex flex-col flex-1 min-h-0">
+        <Tabs defaultValue="bio" className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <TabsList className="w-full justify-start rounded-none border-b px-4 h-auto flex-wrap gap-1 py-2 shrink-0">
             <TabsTrigger value="bio" className="text-xs sm:text-sm" data-testid="tab-bio">
               <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
@@ -219,8 +234,9 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               </div>
             ) : data ? (
               <>
-                <TabsContent value="bio" className="m-0 h-full overflow-auto" data-testid="content-bio">
-                  <div className="p-4 space-y-4">
+                <TabsContent value="bio" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-bio">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
                   <Card>
                     <CardContent className="p-4">
                       <h3 className="font-semibold mb-3">Player Info</h3>
@@ -298,11 +314,13 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       </CardContent>
                     </Card>
                   )}
-                  </div>
+                    </div>
+                  </ScrollArea>
                 </TabsContent>
 
-                <TabsContent value="stats" className="m-0 h-full overflow-auto" data-testid="content-stats">
-                  <div className="p-4 space-y-4">
+                <TabsContent value="stats" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-stats">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
                   {data.collegeStats?.careerTotals && Object.keys(data.collegeStats.careerTotals).length > 0 && (
                     <Card>
                       <CardContent className="p-4">
@@ -422,11 +440,13 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       </CardContent>
                     </Card>
                   )}
-                  </div>
+                    </div>
+                  </ScrollArea>
                 </TabsContent>
 
-                <TabsContent value="games" className="m-0 h-full overflow-auto" data-testid="content-games">
-                  <div className="p-4">
+                <TabsContent value="games" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-games">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4">
                   {data.gameLogs?.length > 0 ? (
                     <Card>
                       <CardContent className="p-4">
@@ -460,11 +480,13 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       No game logs available
                     </div>
                   )}
-                  </div>
+                    </div>
+                  </ScrollArea>
                 </TabsContent>
 
-                <TabsContent value="news" className="m-0 h-full overflow-auto" data-testid="content-news">
-                  <div className="p-4">
+                <TabsContent value="news" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-news">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4">
                   {data.news?.length > 0 ? (
                     <div className="space-y-3">
                       {data.news.map((item, idx) => (
@@ -482,7 +504,8 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       No recent news available
                     </div>
                   )}
-                  </div>
+                    </div>
+                  </ScrollArea>
                 </TabsContent>
               </>
             ) : null}
