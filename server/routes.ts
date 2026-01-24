@@ -1017,6 +1017,7 @@ Provide realistic data based on what you know about this player. For stats, use 
         ],
         max_tokens: 1500,
         temperature: 0.3,
+        response_format: { type: "json_object" },
       });
 
       const content = response.choices[0]?.message?.content || "{}";
@@ -1025,10 +1026,13 @@ Provide realistic data based on what you know about this player. For stats, use 
       let profileData;
       try {
         // Remove any markdown code blocks if present
-        const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        let cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        // Fix common JSON issues: trailing commas, unescaped quotes
+        cleanContent = cleanContent.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
         profileData = JSON.parse(cleanContent);
       } catch (parseError) {
         console.error("Failed to parse devy profile JSON:", parseError);
+        console.error("Raw content:", content.substring(0, 500));
         profileData = {
           bio: { height: "N/A", weight: "N/A", hometown: "N/A", highSchoolRank: "N/A", class: "N/A", conference: "N/A" },
           collegeStats: { seasons: [], careerTotals: {} },
