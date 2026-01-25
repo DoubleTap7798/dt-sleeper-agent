@@ -11,14 +11,20 @@ export interface LeagueScoringSettings {
   passTd: number;
   passInt: number;
   pass2pt: number;
+  passFd: number; // Passing first down
   rushYds: number;
   rushTd: number;
   rush2pt: number;
+  rushFd: number; // Rushing first down
   rec: number; // PPR points
   recYds: number;
   recTd: number;
   rec2pt: number;
+  recFd: number; // Receiving first down
   fumLost: number;
+  bonusRecTe: number; // TE Premium
+  bonusRecRb: number; // RB Reception bonus
+  bonusRecWr: number; // WR Reception bonus
   bonus100RushYds?: number;
   bonus100RecYds?: number;
   bonus300PassYds?: number;
@@ -162,7 +168,8 @@ function calculateScarcityBonus(position: string, positionRank: number): number 
 
 function calculateFantasyPoints(
   projection: PlayerProjection["projections"],
-  scoring: LeagueScoringSettings
+  scoring: LeagueScoringSettings,
+  position?: string
 ): number {
   let points = 0;
   
@@ -171,14 +178,36 @@ function calculateFantasyPoints(
   points += (projection.passTd || 0) * (scoring.passTd || 4);
   points += (projection.passInt || 0) * (scoring.passInt || -2);
   
+  // Estimate passing first downs (~4% of pass attempts result in first downs not counting TDs)
+  const estPassFd = (projection.passYds || 0) / 15; // Rough estimate: 1 FD per 15 pass yards
+  points += estPassFd * (scoring.passFd || 0);
+  
   // Rushing
   points += (projection.rushYds || 0) * (scoring.rushYds || 0.1);
   points += (projection.rushTd || 0) * (scoring.rushTd || 6);
   
+  // Estimate rushing first downs (~1 per 10 yards)
+  const estRushFd = (projection.rushYds || 0) / 10;
+  points += estRushFd * (scoring.rushFd || 0);
+  
   // Receiving
-  points += (projection.receptions || 0) * (scoring.rec || 0);
+  const receptions = projection.receptions || 0;
+  points += receptions * (scoring.rec || 0);
   points += (projection.recYds || 0) * (scoring.recYds || 0.1);
   points += (projection.recTd || 0) * (scoring.recTd || 6);
+  
+  // Estimate receiving first downs (~40% of receptions are first downs)
+  const estRecFd = receptions * 0.4;
+  points += estRecFd * (scoring.recFd || 0);
+  
+  // Position-specific reception bonuses (TE Premium, RB/WR bonuses)
+  if (position === "TE" && scoring.bonusRecTe) {
+    points += receptions * scoring.bonusRecTe;
+  } else if (position === "RB" && scoring.bonusRecRb) {
+    points += receptions * scoring.bonusRecRb;
+  } else if (position === "WR" && scoring.bonusRecWr) {
+    points += receptions * scoring.bonusRecWr;
+  }
   
   return points;
 }
@@ -367,11 +396,11 @@ export async function calculateLeagueValues(
     TE: calculateReplacementLevel(rosterSettings, "TE"),
   };
   
-  // Calculate fantasy points for each player
+  // Calculate fantasy points for each player (including position-specific bonuses)
   const playerPoints: { player: PlayerProjection; points: number }[] = [];
   
   for (const proj of projections) {
-    const points = calculateFantasyPoints(proj.projections, scoringSettings);
+    const points = calculateFantasyPoints(proj.projections, scoringSettings, proj.position);
     playerPoints.push({ player: proj, points });
   }
   
@@ -537,14 +566,20 @@ export function parseLeagueScoringSettings(leagueSettings: any): LeagueScoringSe
     passTd: scoring.pass_td || 4,
     passInt: scoring.pass_int || -2,
     pass2pt: scoring.pass_2pt || 2,
+    passFd: scoring.pass_fd || 0, // Passing first down
     rushYds: scoring.rush_yd || 0.1,
     rushTd: scoring.rush_td || 6,
     rush2pt: scoring.rush_2pt || 2,
+    rushFd: scoring.rush_fd || 0, // Rushing first down
     rec: scoring.rec || 0, // PPR setting
     recYds: scoring.rec_yd || 0.1,
     recTd: scoring.rec_td || 6,
     rec2pt: scoring.rec_2pt || 2,
+    recFd: scoring.rec_fd || 0, // Receiving first down
     fumLost: scoring.fum_lost || -2,
+    bonusRecTe: scoring.bonus_rec_te || 0, // TE Premium
+    bonusRecRb: scoring.bonus_rec_rb || 0, // RB Reception bonus
+    bonusRecWr: scoring.bonus_rec_wr || 0, // WR Reception bonus
     bonus100RushYds: scoring.bonus_rush_yd_100 || 0,
     bonus100RecYds: scoring.bonus_rec_yd_100 || 0,
     bonus300PassYds: scoring.bonus_pass_yd_300 || 0,

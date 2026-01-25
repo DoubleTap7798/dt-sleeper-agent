@@ -199,56 +199,135 @@ export async function registerRoutes(
         positionCounts[pos] = (positionCounts[pos] || 0) + 1;
       });
 
-      // Format scoring settings into readable categories
+      // Format scoring settings into readable categories - comprehensive mapping
       const scoring = league.scoring_settings || {};
+      
+      // Track which keys we've mapped to identify custom/unmapped settings
+      const mappedKeys = new Set<string>();
+      const getValue = (key: string): number => {
+        mappedKeys.add(key);
+        return scoring[key] ?? 0;
+      };
+      
+      // Safe fallback that checks for undefined (not just falsy 0)
+      const getValueWithFallback = (primary: string, fallback: string): number => {
+        mappedKeys.add(primary);
+        mappedKeys.add(fallback);
+        if (scoring[primary] !== undefined) return scoring[primary];
+        if (scoring[fallback] !== undefined) return scoring[fallback];
+        return 0;
+      };
+      
       const scoringCategories = {
         passing: {
-          passYards: scoring.pass_yd || 0,
-          passTd: scoring.pass_td || 0,
-          passInt: scoring.pass_int || 0,
-          pass2pt: scoring.pass_2pt || 0,
+          passYards: getValue('pass_yd'),
+          passTd: getValue('pass_td'),
+          passInt: getValue('pass_int'),
+          pass2pt: getValue('pass_2pt'),
+          passFd: getValue('pass_fd'),
+          passAtt: getValue('pass_att'),
+          passCmp: getValue('pass_cmp'),
+          passInc: getValue('pass_inc'),
+          passSack: getValue('pass_sack'),
+          passCmp40p: getValue('pass_cmp_40p'),
+          passIntTd: getValue('pass_int_td'),
         },
         rushing: {
-          rushYards: scoring.rush_yd || 0,
-          rushTd: scoring.rush_td || 0,
-          rush2pt: scoring.rush_2pt || 0,
+          rushYards: getValue('rush_yd'),
+          rushTd: getValue('rush_td'),
+          rush2pt: getValue('rush_2pt'),
+          rushFd: getValue('rush_fd'),
+          rushAtt: getValue('rush_att'),
+          rush40p: getValue('rush_40p'),
         },
         receiving: {
-          reception: scoring.rec || 0,
-          recYards: scoring.rec_yd || 0,
-          recTd: scoring.rec_td || 0,
-          rec2pt: scoring.rec_2pt || 0,
+          reception: getValue('rec'),
+          recYards: getValue('rec_yd'),
+          recTd: getValue('rec_td'),
+          rec2pt: getValue('rec_2pt'),
+          recFd: getValue('rec_fd'),
+          rec40p: getValue('rec_40p'),
+          bonusRecTe: getValue('bonus_rec_te'),
+          bonusRecRb: getValue('bonus_rec_rb'),
+          bonusRecWr: getValue('bonus_rec_wr'),
         },
         bonuses: {
-          bonus100RushYards: scoring.bonus_rush_yd_100 || 0,
-          bonus100RecYards: scoring.bonus_rec_yd_100 || 0,
-          bonus300PassYards: scoring.bonus_pass_yd_300 || 0,
-          bonus40RushTd: scoring.bonus_rush_td_40p || 0,
-          bonus40RecTd: scoring.bonus_rec_td_40p || 0,
-          bonus40PassTd: scoring.bonus_pass_td_40p || 0,
+          bonus100RushYards: getValue('bonus_rush_yd_100'),
+          bonus200RushYards: getValue('bonus_rush_yd_200'),
+          bonus100RecYards: getValue('bonus_rec_yd_100'),
+          bonus200RecYards: getValue('bonus_rec_yd_200'),
+          bonus300PassYards: getValue('bonus_pass_yd_300'),
+          bonus400PassYards: getValue('bonus_pass_yd_400'),
+          bonus40RushTd: getValue('bonus_rush_td_40p'),
+          bonus50RushTd: getValue('bonus_rush_td_50p'),
+          bonus40RecTd: getValue('bonus_rec_td_40p'),
+          bonus50RecTd: getValue('bonus_rec_td_50p'),
+          bonus40PassTd: getValue('bonus_pass_td_40p'),
+          bonus50PassTd: getValue('bonus_pass_td_50p'),
         },
         misc: {
-          fumble: scoring.fum || 0,
-          fumbleLost: scoring.fum_lost || 0,
-          firstDown: scoring.rush_fd || scoring.rec_fd || 0,
+          fumble: getValue('fum'),
+          fumbleLost: getValue('fum_lost'),
+          fumbleRec: getValue('fum_rec'),
+          fumbleRecTd: getValue('fum_rec_td'),
         },
         dst: {
-          sack: scoring.sack || 0,
-          interception: scoring.def_int || scoring.int || 0,
-          fumbleRecovery: scoring.fum_rec || 0,
-          td: scoring.def_td || 0,
-          safety: scoring.safe || 0,
-          blockedKick: scoring.blk_kick || 0,
+          sack: getValueWithFallback('sack', 'def_sack'),
+          interception: getValueWithFallback('def_int', 'int'),
+          fumbleRecovery: getValueWithFallback('def_st_fum_rec', 'fum_rec'),
+          forcedFumble: getValueWithFallback('def_st_ff', 'ff'),
+          td: getValueWithFallback('def_td', 'def_st_td'),
+          safety: getValueWithFallback('safe', 'def_safe'),
+          blockedKick: getValueWithFallback('blk_kick', 'def_blk_kick'),
+          ptsAllow0: getValue('pts_allow_0'),
+          ptsAllow1_6: getValue('pts_allow_1_6'),
+          ptsAllow7_13: getValue('pts_allow_7_13'),
+          ptsAllow14_20: getValue('pts_allow_14_20'),
+          ptsAllow21_27: getValue('pts_allow_21_27'),
+          ptsAllow28_34: getValue('pts_allow_28_34'),
+          ptsAllow35p: getValue('pts_allow_35p'),
+        },
+        idp: {
+          idpTkl: getValueWithFallback('idp_tkl', 'tkl'),
+          idpTklSolo: getValueWithFallback('idp_tkl_solo', 'tkl_solo'),
+          idpTklAst: getValueWithFallback('idp_tkl_ast', 'tkl_ast'),
+          idpTklLoss: getValueWithFallback('idp_tkl_loss', 'tkl_loss'),
+          idpSack: getValue('idp_sack'),
+          idpQbHit: getValueWithFallback('idp_qb_hit', 'qb_hit'),
+          idpInt: getValue('idp_int'),
+          idpPassDef: getValueWithFallback('idp_pass_def', 'pass_def'),
+          idpFf: getValue('idp_ff'),
+          idpFumRec: getValue('idp_fum_rec'),
+          idpTd: getValueWithFallback('idp_def_td', 'def_td'),
+          idpSafe: getValue('idp_safe'),
         },
         kicking: {
-          fgMade: scoring.fgm || 0,
-          fgMissed: scoring.fgmiss || 0,
-          xpMade: scoring.xpm || 0,
-          xpMissed: scoring.xpmiss || 0,
-          fg40: scoring.fgm_40_49 || 0,
-          fg50: scoring.fgm_50p || 0,
+          fgMade: getValue('fgm'),
+          fgMissed: getValue('fgmiss'),
+          fgMade0_19: getValue('fgm_0_19'),
+          fgMade20_29: getValue('fgm_20_29'),
+          fgMade30_39: getValue('fgm_30_39'),
+          fgMade40_49: getValue('fgm_40_49'),
+          fgMade50p: getValue('fgm_50p'),
+          xpMade: getValue('xpm'),
+          xpMissed: getValue('xpmiss'),
+        },
+        specialTeams: {
+          krTd: getValue('kr_td'),
+          prTd: getValue('pr_td'),
+          stTd: getValue('st_td'),
+          stFf: getValue('st_ff'),
+          stFumRec: getValue('st_fum_rec'),
         },
       };
+      
+      // Find any unmapped scoring settings (custom league settings)
+      const unmappedScoring: Record<string, number> = {};
+      Object.entries(scoring).forEach(([key, value]) => {
+        if (!mappedKeys.has(key) && typeof value === 'number' && value !== 0) {
+          unmappedScoring[key] = value;
+        }
+      });
 
       // Determine league format (Redraft, Keeper, Dynasty)
       const leagueType = league.settings?.type || 0;
@@ -285,6 +364,7 @@ export async function registerRoutes(
           waiverBudget: league.settings?.waiver_budget || 100,
         },
         scoringCategories,
+        unmappedScoring,
         rawScoring: scoring,
       });
     } catch (error) {
