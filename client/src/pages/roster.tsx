@@ -20,7 +20,7 @@ interface RosterPlayer {
   number: string;
   status: string | null;
   injuryStatus: string | null;
-  ktcValue: number;
+  dynastyValue: number;
   projectedPoints: number;
   isStarter: boolean;
   slotPosition: string;
@@ -133,7 +133,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
     .filter(p => positionFilter === "all" || p.position === positionFilter);
 
   // Starters maintain Sleeper's lineup order (already sorted by starterIndex from server)
-  // Bench sorted by natural position (already sorted by position then KTC from server)
+  // Bench sorted by natural position (already sorted by position then dynasty value from server)
   const starters = filteredPlayers.filter(p => p.isStarter);
   const bench = filteredPlayers.filter(p => !p.isStarter);
 
@@ -217,7 +217,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <div className="text-right hidden sm:block">
               <span className="text-sm font-medium" data-testid={`stat-value-${player.playerId}`}>
-                {player.ktcValue.toFixed(1)}
+                {player.dynastyValue.toFixed(1)}
               </span>
               <span className="text-xs text-muted-foreground block">Dynasty Value</span>
             </div>
@@ -247,7 +247,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
               </div>
               <div className="sm:hidden">
                 <span className="text-muted-foreground block text-xs">Dynasty Value</span>
-                <span className="font-medium">{player.ktcValue.toFixed(1)}</span>
+                <span className="font-medium">{player.dynastyValue.toFixed(1)}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block text-xs">Status</span>

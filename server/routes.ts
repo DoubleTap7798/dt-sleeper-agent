@@ -815,7 +815,7 @@ export async function registerRoutes(
   // Get devy players with rankings and draft eligibility
   app.get("/api/sleeper/devy", isAuthenticated, async (req: any, res: Response) => {
     try {
-      // Use KTC devy data for rankings, but calculate values with dynasty engine
+      // Use devy player data for rankings, calculate values with dynasty engine
       const devyPlayers = ktcValues.getDevyPlayers();
       const currentYear = new Date().getFullYear();
 
@@ -865,7 +865,7 @@ export async function registerRoutes(
     try {
       const { playerId } = req.params;
       
-      // Get player from KTC data
+      // Get player from devy data
       const player = ktcValues.getDevyPlayerById(playerId);
       if (!player) {
         return res.status(404).json({ message: "Player not found" });
@@ -878,9 +878,9 @@ Player: ${player.name}
 Position: ${player.position}
 College: ${player.college}
 Draft Eligible: ${player.draftEligibleYear}
-KTC Ranking: #${player.rank} overall, ${player.position}${player.positionRank}
+Dynasty Ranking: #${player.rank} overall, ${player.position}${player.positionRank}
 Dynasty Value Tier: ${player.tier}
-KTC Value: ${player.value}
+Dynasty Value: ${player.value}
 30-Day Trend: ${player.trend30Day > 0 ? '+' + player.trend30Day : player.trend30Day}
 
 Please provide:
@@ -1053,7 +1053,7 @@ Return a JSON object with this EXACT structure (no markdown, just valid JSON):
   "conference": "string like SEC or Big Ten"
 }
 
-KTC Dynasty Value: ${player.value}
+Dynasty Value: ${player.value}
 Draft Eligible: ${player.draftEligibleYear}
 Position Rank: ${player.position}${player.positionRank}
 Overall Rank: #${player.rank}
@@ -3090,7 +3090,7 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
           p.team && p.search_rank && p.search_rank < 300
         )
         .map(([id, p]: [string, any]) => {
-          const ktcValue = dynastyEngine.getQuickPlayerValue(id, p.position, p.age, p.years_exp || 0, p.injury_status);
+          const dynastyValue = dynastyEngine.getQuickPlayerValue(id, p.position, p.age, p.years_exp || 0, p.injury_status);
           const playerStats = stats[id] || {};
           const games = playerStats.gp || 16;
           const points = playerStats.pts_ppr || 0;
@@ -3101,7 +3101,7 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
             position: p.position || "?",
             team: p.team || "FA",
             age: p.age || 25,
-            ktcValue,
+            dynastyValue,
             stats: {
               games,
               points,
@@ -3120,7 +3120,7 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
             floor: points * 0.8,
           };
         })
-        .sort((a, b) => b.ktcValue - a.ktcValue)
+        .sort((a, b) => b.dynastyValue - a.dynastyValue)
         .slice(0, 200);
 
       res.json({ players });
@@ -3872,7 +3872,7 @@ Return JSON: {"players": [{...}]}`;
 
       const players = playerIds.map(playerId => {
         const player = allPlayers[playerId];
-        const ktcValue = dynastyEngine.getQuickPlayerValue(playerId, player?.position || "?", player?.age || 25, player?.years_exp || 0, player?.injury_status);
+        const dynastyValue = dynastyEngine.getQuickPlayerValue(playerId, player?.position || "?", player?.age || 25, player?.years_exp || 0, player?.injury_status);
         const isStarter = starters.includes(playerId);
         const starterIndex = starters.indexOf(playerId);
         
@@ -3897,8 +3897,8 @@ Return JSON: {"players": [{...}]}`;
           number: player?.number || "",
           status: player?.status || null,
           injuryStatus: player?.injury_status || null,
-          ktcValue,
-          projectedPoints: Math.round((ktcValue / 800) * 10 + Math.random() * 5),
+          dynastyValue,
+          projectedPoints: Math.round((dynastyValue / 800) * 10 + Math.random() * 5),
           isStarter,
           slotPosition,
           starterIndex: isStarter ? starterIndex : -1,
@@ -3909,15 +3909,15 @@ Return JSON: {"players": [{...}]}`;
         if (a.isStarter !== b.isStarter) return a.isStarter ? -1 : 1;
         // Starters: maintain Sleeper's lineup order (starterIndex)
         if (a.isStarter && b.isStarter) return a.starterIndex - b.starterIndex;
-        // Bench: sort by position, then KTC value
+        // Bench: sort by position, then dynasty value
         const posOrder: Record<string, number> = { QB: 1, RB: 2, WR: 3, TE: 4, K: 5, DEF: 6, DL: 7, LB: 8, DB: 9 };
         const posA = posOrder[a.position] || 10;
         const posB = posOrder[b.position] || 10;
         if (posA !== posB) return posA - posB;
-        return b.ktcValue - a.ktcValue;
+        return b.dynastyValue - a.dynastyValue;
       });
 
-      const totalValue = players.reduce((sum, p) => sum + p.ktcValue, 0);
+      const totalValue = players.reduce((sum, p) => sum + p.dynastyValue, 0);
 
       res.json({
         players,

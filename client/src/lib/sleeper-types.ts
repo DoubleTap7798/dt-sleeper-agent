@@ -115,8 +115,8 @@ export interface SleeperPlayoffBracket {
   t2_from?: { w?: number; l?: number };
 }
 
-// KTC (Keep Trade Cut) Value Types
-export interface KTCPlayer {
+// Dynasty Value Types (Custom DT Dynasty Engine)
+export interface DynastyPlayer {
   playerId: string;
   playerName: string;
   position: string;
@@ -128,7 +128,7 @@ export interface KTCPlayer {
   isDevy?: boolean;
 }
 
-export interface KTCDraftPick {
+export interface DynastyDraftPick {
   season: string;
   round: number;
   value: number;

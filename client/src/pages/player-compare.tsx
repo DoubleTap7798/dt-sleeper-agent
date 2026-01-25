@@ -31,7 +31,7 @@ interface ComparePlayer {
   position: string;
   team: string;
   age: number;
-  ktcValue: number;
+  dynastyValue: number;
   stats: PlayerStats;
   projectedPoints: number;
   upside: number;
@@ -95,7 +95,7 @@ export default function PlayerComparePage() {
   ).filter(player => !selectedPlayers.find(p => p.playerId === player.playerId));
 
   const statRows = [
-    getStatComparison("Dynasty Value", p => p.ktcValue),
+    getStatComparison("Dynasty Value", p => p.dynastyValue),
     getStatComparison("Age", p => p.age),
     getStatComparison("Games", p => p.stats.games),
     getStatComparison("Total Points", p => p.stats.points),
@@ -177,7 +177,7 @@ export default function PlayerComparePage() {
                         <span className="font-medium" data-testid={`option-name-${player.playerId}`}>{player.name}</span>
                         <span className="text-xs text-muted-foreground" data-testid={`option-team-${player.playerId}`}>{player.team}</span>
                       </div>
-                      <span className="text-sm text-muted-foreground" data-testid={`option-value-${player.playerId}`}>{player.ktcValue}</span>
+                      <span className="text-sm text-muted-foreground" data-testid={`option-value-${player.playerId}`}>{player.dynastyValue.toFixed(1)}</span>
                     </div>
                   ))}
                 </div>
