@@ -102,12 +102,15 @@ When fetching user leagues, the app uses `league_season` to ensure newly rolled-
 
 ### Dynasty Value Engine
 The custom dynasty value engine (`server/dynasty-value-engine.ts`) calculates player values on a 0-100 scale with 2 decimal precision:
+- **Blended Values**: All endpoints display 50/50 average of league-specific value + KTC consensus value (from DynastyProcess)
+- **KTC Normalization**: Raw KTC values are normalized to 0-100 scale (rawValue × 0.01, capped at 99.5)
 - **Value Over Replacement (VOR)**: Position-based replacement levels calculated from roster settings
 - **Age Curves by Position**: QB peaks 25-32 (slow decay), RB peaks 22-26 (fast decay), WR peaks 24-28, TE peaks 25-29
 - **Injury Adjustments**: IR/Out = 0.90, Doubtful = 0.95, Questionable = 0.98 multipliers
 - **Draft Pick Values**: 1st = 80, 2nd = 55, 3rd = 35, 4th = 18 base values with ~10% year decay
 - **Devy Prospect Values**: Based on tier (1-5) and draft year proximity
 - **Normalization**: All values normalized to 0-100 scale for consistent display
+- **Consistent Display**: Dynasty values are now consistent across Trade Calculator, Roster, NFL Players, Trade History, and Player Comparison views
 
 ### Database
 - **PostgreSQL**: Primary database, connection via `DATABASE_URL` environment variable
