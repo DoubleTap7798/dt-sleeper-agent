@@ -29,6 +29,7 @@ import ProjectionsPage from "@/pages/projections";
 import HomePage from "@/pages/home";
 import RosterPage from "@/pages/roster";
 import LeagueInfoPage from "@/pages/league-info";
+import DepthChartPage from "@/pages/depth-chart";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -213,6 +214,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <ProjectionsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/depth-chart">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DepthChartPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

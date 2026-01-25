@@ -183,20 +183,11 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Avatar className="h-10 w-10 shrink-0" data-testid={`avatar-${player.playerId}`}>
               <AvatarImage 
-                src={player.headshot || getNFLTeamLogo(player.team) || undefined} 
-                alt={player.name}
-                onError={(e) => {
-                  // If headshot fails, try team logo
-                  const teamLogo = getNFLTeamLogo(player.team);
-                  if (teamLogo && e.currentTarget.src !== teamLogo) {
-                    e.currentTarget.src = teamLogo;
-                  } else {
-                    e.currentTarget.style.display = 'none';
-                  }
-                }}
+                src={getNFLTeamLogo(player.team) || undefined} 
+                alt={player.team}
               />
               <AvatarFallback className="text-xs bg-muted">
-                {player.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                {player.team.slice(0, 2)}
               </AvatarFallback>
             </Avatar>
             <Badge variant="outline" className={`${getPositionColor()} text-xs shrink-0`} data-testid={`badge-pos-${player.playerId}`}>

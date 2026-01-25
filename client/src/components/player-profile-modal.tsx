@@ -32,6 +32,7 @@ import {
   Scale,
   Activity,
 } from "lucide-react";
+import { getNFLTeamLogo } from "@/lib/team-logos";
 
 interface PlayerProfileModalProps {
   open: boolean;
@@ -198,9 +199,9 @@ export function PlayerProfileModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <Avatar className="h-12 w-12 shrink-0">
-              <AvatarImage src={bio?.headshot || undefined} alt={playerName} />
+              <AvatarImage src={getNFLTeamLogo(bio?.teamAbbr || team) || undefined} alt={bio?.teamAbbr || team} />
               <AvatarFallback className="text-lg">
-                {playerName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                {(bio?.teamAbbr || team || "??").slice(0, 2)}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">

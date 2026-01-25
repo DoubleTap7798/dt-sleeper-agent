@@ -19,6 +19,7 @@ import {
   Target,
   BarChart3,
   Settings,
+  Layers,
 } from "lucide-react";
 import {
   Sidebar,
@@ -155,6 +156,13 @@ const navigationItems = [
     url: "/league/devy",
     icon: GraduationCap,
     description: "College player rankings",
+    requiresLeague: false,
+  },
+  {
+    title: "Depth Charts",
+    url: "/league/depth-chart",
+    icon: Layers,
+    description: "NFL team depth charts",
     requiresLeague: false,
   },
   {

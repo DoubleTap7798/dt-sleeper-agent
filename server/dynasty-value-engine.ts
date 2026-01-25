@@ -91,6 +91,10 @@ const AGE_CURVES: Record<string, { peak: [number, number]; decay: number }> = {
   RB: { peak: [22, 26], decay: 0.08 }, // Fast decay
   WR: { peak: [24, 28], decay: 0.05 }, // Moderate decay
   TE: { peak: [25, 29], decay: 0.04 }, // Moderate-slow decay
+  // IDP positions
+  DL: { peak: [24, 30], decay: 0.05 }, // Defensive linemen peak mid-20s to 30
+  LB: { peak: [24, 29], decay: 0.05 }, // Linebackers similar to WRs
+  DB: { peak: [23, 28], decay: 0.06 }, // Defensive backs decline a bit faster (speed-dependent)
 };
 
 function calculateAgeMultiplier(position: string, age: number | null): number {
@@ -157,6 +161,21 @@ function calculateScarcityBonus(position: string, positionRank: number): number 
     if (positionRank <= 3) return 1.20;
     if (positionRank <= 6) return 1.12;
     if (positionRank <= 12) return 1.05;
+  } else if (position === "DL") {
+    // Edge rushers / sack specialists are valuable in IDP
+    if (positionRank <= 5) return 1.12;
+    if (positionRank <= 12) return 1.06;
+    if (positionRank <= 24) return 1.02;
+  } else if (position === "LB") {
+    // Tackle machine linebackers are very valuable
+    if (positionRank <= 5) return 1.15;
+    if (positionRank <= 12) return 1.08;
+    if (positionRank <= 24) return 1.03;
+  } else if (position === "DB") {
+    // Ball-hawking DBs have value
+    if (positionRank <= 5) return 1.10;
+    if (positionRank <= 12) return 1.05;
+    if (positionRank <= 24) return 1.02;
   }
   
   return 1.0;
@@ -695,6 +714,10 @@ export function getQuickPlayerValue(
     TE: 45,
     K: 5,
     DEF: 5,
+    // IDP positions - generally lower than offensive players
+    DL: 40, // Defensive linemen - sack specialists have more value
+    LB: 42, // Linebackers - tackle leaders are valuable
+    DB: 38, // Defensive backs - INT leaders have value
   };
   
   let value = positionBaseValues[position] || 30;

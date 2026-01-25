@@ -134,20 +134,11 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
             <div className="flex items-start gap-3">
               <Avatar className="h-14 w-14 shrink-0" data-testid="avatar-player">
                 <AvatarImage 
-                  src={data?.player?.headshot || data?.player?.teamLogo || undefined} 
-                  alt={player.name}
-                  onError={(e) => {
-                    // If headshot fails, try team logo
-                    const teamLogo = data?.player?.teamLogo;
-                    if (teamLogo && e.currentTarget.src !== teamLogo) {
-                      e.currentTarget.src = teamLogo;
-                    } else {
-                      e.currentTarget.style.display = 'none';
-                    }
-                  }}
+                  src={data?.player?.teamLogo || undefined} 
+                  alt={player.college}
                 />
                 <AvatarFallback className="text-lg bg-muted">
-                  {player.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  {player.college.slice(0, 2)}
                 </AvatarFallback>
               </Avatar>
               <div>

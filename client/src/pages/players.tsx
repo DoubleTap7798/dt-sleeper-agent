@@ -54,6 +54,7 @@ interface Player {
   weight: string | null;
   snapPct: number | null;
   headshot?: string | null;
+  isIDP?: boolean;
   stats: {
     passYd: number;
     passTd: number;
@@ -71,6 +72,20 @@ interface Player {
     recTgt: number;
     recFd: number;
   };
+  idpStats?: {
+    tackles: number;
+    soloTackles: number;
+    assistTackles: number;
+    tacklesForLoss: number;
+    sacks: number;
+    qbHits: number;
+    interceptions: number;
+    passesDefended: number;
+    forcedFumbles: number;
+    fumbleRecoveries: number;
+    tds: number;
+    safeties: number;
+  } | null;
 }
 
 interface PlayersData {
@@ -106,6 +121,9 @@ const positionStyles: Record<string, string> = {
   RB: "bg-muted text-foreground",
   WR: "bg-muted text-foreground",
   TE: "bg-muted text-foreground",
+  DL: "bg-muted text-foreground",
+  LB: "bg-muted text-foreground",
+  DB: "bg-muted text-foreground",
 };
 
 export default function PlayersPage() {
@@ -142,11 +160,25 @@ export default function PlayersPage() {
     );
   }
 
+  const offensePositions = ["QB", "RB", "WR", "TE"];
+  const idpPositions = ["DL", "LB", "DB"];
+  
   const filteredPlayers = data.players.filter((player) => {
     const matchesSearch = 
       player.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       player.team.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesPosition = positionFilter === "all" || player.position === positionFilter;
+    
+    let matchesPosition = false;
+    if (positionFilter === "all") {
+      matchesPosition = true;
+    } else if (positionFilter === "offense") {
+      matchesPosition = offensePositions.includes(player.position);
+    } else if (positionFilter === "idp") {
+      matchesPosition = idpPositions.includes(player.position);
+    } else {
+      matchesPosition = player.position === positionFilter;
+    }
+    
     return matchesSearch && matchesPosition;
   });
 
@@ -181,15 +213,20 @@ export default function PlayersPage() {
           />
         </div>
         <Select value={positionFilter} onValueChange={setPositionFilter}>
-          <SelectTrigger className="w-[120px]" data-testid="select-position-filter">
+          <SelectTrigger className="w-[140px]" data-testid="select-position-filter">
             <SelectValue placeholder="Position" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Positions</SelectItem>
+            <SelectItem value="offense">Offense</SelectItem>
+            <SelectItem value="idp">IDP</SelectItem>
             <SelectItem value="QB">QB</SelectItem>
             <SelectItem value="RB">RB</SelectItem>
             <SelectItem value="WR">WR</SelectItem>
             <SelectItem value="TE">TE</SelectItem>
+            <SelectItem value="DL">DL</SelectItem>
+            <SelectItem value="LB">LB</SelectItem>
+            <SelectItem value="DB">DB</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -224,20 +261,11 @@ export default function PlayersPage() {
                   <div className="flex items-center gap-2">
                     <Avatar className="h-8 w-8 shrink-0" data-testid={`avatar-${player.id}`}>
                       <AvatarImage 
-                        src={player.headshot || getNFLTeamLogo(player.team) || undefined} 
-                        alt={player.fullName}
-                        onError={(e) => {
-                          // If headshot fails, try team logo
-                          const teamLogo = getNFLTeamLogo(player.team);
-                          if (teamLogo && e.currentTarget.src !== teamLogo) {
-                            e.currentTarget.src = teamLogo;
-                          } else {
-                            e.currentTarget.style.display = 'none';
-                          }
-                        }}
+                        src={getNFLTeamLogo(player.team) || undefined} 
+                        alt={player.team}
                       />
                       <AvatarFallback className="text-[10px] bg-muted">
-                        {player.fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        {player.team.slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -441,6 +469,63 @@ export default function PlayersPage() {
                       <Card className="p-2">
                         <p className="text-xs text-muted-foreground">Snap %</p>
                         <p className="font-mono font-medium">{selectedPlayer.snapPct !== null ? `${selectedPlayer.snapPct}%` : "-"}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Games</p>
+                        <p className="font-mono font-medium">{selectedPlayer.gamesPlayed}</p>
+                      </Card>
+                    </div>
+                  </div>
+                ) : selectedPlayer.isIDP && selectedPlayer.idpStats ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Tackles</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.tackles}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Solo</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.soloTackles}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Assists</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.assistTackles}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">TFL</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.tacklesForLoss}</p>
+                      </Card>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">Sacks</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.sacks}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">QB Hits</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.qbHits}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">INTs</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.interceptions}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">PD</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.passesDefended}</p>
+                      </Card>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">FF</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.forcedFumbles}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">FR</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.fumbleRecoveries}</p>
+                      </Card>
+                      <Card className="p-2">
+                        <p className="text-xs text-muted-foreground">TDs</p>
+                        <p className="font-mono font-medium">{selectedPlayer.idpStats.tds}</p>
                       </Card>
                       <Card className="p-2">
                         <p className="text-xs text-muted-foreground">Games</p>

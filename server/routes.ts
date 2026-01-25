@@ -341,6 +341,10 @@ export async function registerRoutes(
       if (waiverType === 1) waiverSystem = "Rolling";
       if (waiverType === 2) waiverSystem = "FAAB";
 
+      // Detect if league has IDP positions
+      const idpPositionTypes = ["DL", "LB", "DB", "DE", "DT", "CB", "S", "IDP_FLEX", "ILB", "OLB", "MLB", "NT", "FS", "SS", "ED"];
+      const isIDPLeague = starterPositions.some(pos => idpPositionTypes.includes(pos));
+
       res.json({
         leagueId: league.league_id,
         name: league.name,
@@ -349,6 +353,7 @@ export async function registerRoutes(
         avatar: league.avatar,
         format,
         totalTeams: league.total_rosters,
+        isIDPLeague,
         rosterSettings: {
           starterPositions,
           positionCounts,
@@ -1334,15 +1339,28 @@ Return ONLY valid JSON, no other text.`;
       
       // Filter to active NFL players (exclude devy/college players)
       const nflPlayers: any[] = [];
-      const positions = ["QB", "RB", "WR", "TE"];
+      const offensePositions = ["QB", "RB", "WR", "TE"];
+      const idpPositions = ["DL", "LB", "DB", "DE", "DT", "CB", "S", "ILB", "OLB", "MLB", "NT", "FS", "SS"];
+      const allPositions = [...offensePositions, ...idpPositions];
+      
+      // Map detailed IDP positions to display groups
+      const idpPositionGroupMap: Record<string, string> = {
+        DE: "DL", DT: "DL", NT: "DL",
+        ILB: "LB", OLB: "LB", MLB: "LB",
+        CB: "DB", S: "DB", FS: "DB", SS: "DB"
+      };
       
       Object.entries(allPlayers).forEach(([playerId, player]: [string, any]) => {
         // Skip devy players
         if (devyPlayerIds.has(playerId)) return;
         
         // Only include active NFL players with valid positions
-        const position = player.position || player.fantasy_positions?.[0];
-        if (!positions.includes(position)) return;
+        const rawPosition = player.position || player.fantasy_positions?.[0];
+        if (!allPositions.includes(rawPosition)) return;
+        
+        // Map detailed IDP positions to display groups (DL, LB, DB)
+        const position = idpPositionGroupMap[rawPosition] || rawPosition;
+        const isIDP = idpPositions.includes(rawPosition);
         
         // Must be on an NFL team
         if (!player.team) return;
@@ -1351,23 +1369,70 @@ Return ONLY valid JSON, no other text.`;
         const playerStats = seasonStats[playerId];
         
         // Calculate fantasy points based on league scoring settings
-        let fantasyPoints = sleeperApi.calculateFantasyPoints(playerStats, scoringSettings);
+        let fantasyPoints: number;
         
-        // Apply position-specific reception bonuses
-        const receptions = playerStats?.rec || 0;
-        if (position === "TE" && tePremium > 0 && receptions > 0) {
-          fantasyPoints += receptions * tePremium;
-        }
-        if (position === "RB" && rbBonus > 0 && receptions > 0) {
-          fantasyPoints += receptions * rbBonus;
-        }
-        if (position === "WR" && wrBonus > 0 && receptions > 0) {
-          fantasyPoints += receptions * wrBonus;
+        if (isIDP) {
+          // Calculate IDP fantasy points
+          const idpSettings = {
+            idp_tkl: scoringSettings.idp_tkl || 1,
+            idp_tkl_solo: scoringSettings.idp_tkl_solo || 0,
+            idp_tkl_ast: scoringSettings.idp_tkl_ast || 0,
+            idp_tkl_loss: scoringSettings.idp_tkl_loss || 0,
+            idp_sack: scoringSettings.idp_sack || 2,
+            idp_qb_hit: scoringSettings.idp_qb_hit || 0,
+            idp_int: scoringSettings.idp_int || 3,
+            idp_pass_def: scoringSettings.idp_pass_def || 1,
+            idp_ff: scoringSettings.idp_ff || 1,
+            idp_fum_rec: scoringSettings.idp_fum_rec || 1,
+            idp_td: scoringSettings.idp_td || 6,
+            idp_safe: scoringSettings.idp_safe || 2,
+          };
+          
+          // Calculate IDP points
+          const tackles = (playerStats?.idp_tkl || 0) + (playerStats?.idp_tkl_solo || 0) + (playerStats?.idp_tkl_ast || 0);
+          const sacks = playerStats?.idp_sack || 0;
+          const interceptions = playerStats?.idp_int || 0;
+          const passesDefended = playerStats?.idp_pass_def || 0;
+          const forcedFumbles = playerStats?.idp_ff || 0;
+          const fumbleRecoveries = playerStats?.idp_fum_rec || 0;
+          const tds = playerStats?.idp_td || 0;
+          const qbHits = playerStats?.idp_qb_hit || 0;
+          const tackleLoss = playerStats?.idp_tkl_loss || 0;
+          const safeties = playerStats?.idp_safe || 0;
+          
+          fantasyPoints = (
+            tackles * idpSettings.idp_tkl +
+            sacks * idpSettings.idp_sack +
+            interceptions * idpSettings.idp_int +
+            passesDefended * idpSettings.idp_pass_def +
+            forcedFumbles * idpSettings.idp_ff +
+            fumbleRecoveries * idpSettings.idp_fum_rec +
+            tds * idpSettings.idp_td +
+            qbHits * idpSettings.idp_qb_hit +
+            tackleLoss * idpSettings.idp_tkl_loss +
+            safeties * idpSettings.idp_safe
+          );
+        } else {
+          // Offensive fantasy points
+          fantasyPoints = sleeperApi.calculateFantasyPoints(playerStats, scoringSettings);
+          
+          // Apply position-specific reception bonuses
+          const receptions = playerStats?.rec || 0;
+          if (position === "TE" && tePremium > 0 && receptions > 0) {
+            fantasyPoints += receptions * tePremium;
+          }
+          if (position === "RB" && rbBonus > 0 && receptions > 0) {
+            fantasyPoints += receptions * rbBonus;
+          }
+          if (position === "WR" && wrBonus > 0 && receptions > 0) {
+            fantasyPoints += receptions * wrBonus;
+          }
         }
         fantasyPoints = Math.round(fantasyPoints * 100) / 100;
         
-        // Only include players with actual production (minimum 10 points)
-        if (fantasyPoints < 10) return;
+        // Only include players with actual production (minimum 10 points for offense, 5 for IDP)
+        const minPoints = isIDP ? 5 : 10;
+        if (fantasyPoints < minPoints) return;
         
         // Get games played
         const gamesPlayed = playerStats?.gp || 0;
@@ -1407,9 +1472,14 @@ Return ONLY valid JSON, no other text.`;
           height: player.height,
           weight: player.weight,
           headshot,
-          snapPct: playerStats?.off_snp && playerStats?.tm_off_snp 
-            ? Math.round((playerStats.off_snp / playerStats.tm_off_snp) * 100 * 10) / 10
-            : null,
+          snapPct: isIDP 
+            ? (playerStats?.def_snp && playerStats?.tm_def_snp 
+              ? Math.round((playerStats.def_snp / playerStats.tm_def_snp) * 100 * 10) / 10
+              : null)
+            : (playerStats?.off_snp && playerStats?.tm_off_snp 
+              ? Math.round((playerStats.off_snp / playerStats.tm_off_snp) * 100 * 10) / 10
+              : null),
+          isIDP,
           stats: {
             passYd: playerStats?.pass_yd || 0,
             passTd: playerStats?.pass_td || 0,
@@ -1427,6 +1497,20 @@ Return ONLY valid JSON, no other text.`;
             recTgt: playerStats?.rec_tgt || 0,
             recFd: playerStats?.rec_fd || 0,
           },
+          idpStats: isIDP ? {
+            tackles: (playerStats?.idp_tkl || 0) + (playerStats?.idp_tkl_solo || 0) + (playerStats?.idp_tkl_ast || 0),
+            soloTackles: playerStats?.idp_tkl_solo || 0,
+            assistTackles: playerStats?.idp_tkl_ast || 0,
+            tacklesForLoss: playerStats?.idp_tkl_loss || 0,
+            sacks: playerStats?.idp_sack || 0,
+            qbHits: playerStats?.idp_qb_hit || 0,
+            interceptions: playerStats?.idp_int || 0,
+            passesDefended: playerStats?.idp_pass_def || 0,
+            forcedFumbles: playerStats?.idp_ff || 0,
+            fumbleRecoveries: playerStats?.idp_fum_rec || 0,
+            tds: playerStats?.idp_td || 0,
+            safeties: playerStats?.idp_safe || 0,
+          } : null,
         });
       });
       
@@ -1434,7 +1518,7 @@ Return ONLY valid JSON, no other text.`;
       nflPlayers.sort((a, b) => b.fantasyPoints - a.fantasyPoints);
       
       // Add overall rank and position rank
-      const positionRanks: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+      const positionRanks: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0, DL: 0, LB: 0, DB: 0 };
       
       nflPlayers.forEach((player, index) => {
         player.overallRank = index + 1;
@@ -1462,6 +1546,117 @@ Return ONLY valid JSON, no other text.`;
     } catch (error) {
       console.error("Error fetching NFL players:", error);
       res.status(500).json({ message: "Failed to fetch players" });
+    }
+  });
+
+  // Get NFL depth charts organized by team and position
+  app.get("/api/sleeper/depth-chart", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const allPlayers = await sleeperApi.getAllPlayers();
+      
+      // Define position mappings
+      const offensePositions = ["QB", "RB", "WR", "TE"];
+      const defensePositions = ["DL", "LB", "DB", "DE", "DT", "S", "CB"];
+      const allPositions = [...offensePositions, ...defensePositions];
+      
+      // Map detailed positions to groups
+      const positionGroupMap: Record<string, string> = {
+        QB: "QB", RB: "RB", WR: "WR", TE: "TE",
+        DE: "DL", DT: "DL", NT: "DL",
+        ILB: "LB", OLB: "LB", MLB: "LB",
+        CB: "DB", S: "DB", FS: "DB", SS: "DB"
+      };
+      
+      // NFL team full names
+      const teamNames: Record<string, string> = {
+        ARI: "Arizona Cardinals", ATL: "Atlanta Falcons", BAL: "Baltimore Ravens",
+        BUF: "Buffalo Bills", CAR: "Carolina Panthers", CHI: "Chicago Bears",
+        CIN: "Cincinnati Bengals", CLE: "Cleveland Browns", DAL: "Dallas Cowboys",
+        DEN: "Denver Broncos", DET: "Detroit Lions", GB: "Green Bay Packers",
+        HOU: "Houston Texans", IND: "Indianapolis Colts", JAX: "Jacksonville Jaguars",
+        KC: "Kansas City Chiefs", LAC: "Los Angeles Chargers", LAR: "Los Angeles Rams",
+        LV: "Las Vegas Raiders", MIA: "Miami Dolphins", MIN: "Minnesota Vikings",
+        NE: "New England Patriots", NO: "New Orleans Saints", NYG: "New York Giants",
+        NYJ: "New York Jets", PHI: "Philadelphia Eagles", PIT: "Pittsburgh Steelers",
+        SEA: "Seattle Seahawks", SF: "San Francisco 49ers", TB: "Tampa Bay Buccaneers",
+        TEN: "Tennessee Titans", WAS: "Washington Commanders"
+      };
+      
+      // Build depth charts for each team
+      const teamDepthCharts: Record<string, Record<string, any[]>> = {};
+      
+      Object.entries(allPlayers).forEach(([playerId, player]: [string, any]) => {
+        const team = player.team;
+        if (!team || !teamNames[team]) return;
+        
+        const position = player.position || player.fantasy_positions?.[0];
+        const positionGroup = positionGroupMap[position] || position;
+        
+        if (!allPositions.includes(positionGroup)) return;
+        
+        // Initialize team if not exists
+        if (!teamDepthCharts[team]) {
+          teamDepthCharts[team] = {};
+        }
+        if (!teamDepthCharts[team][positionGroup]) {
+          teamDepthCharts[team][positionGroup] = [];
+        }
+        
+        // Get dynasty value
+        const dynastyValue = dynastyEngine.getQuickPlayerValue(
+          playerId,
+          position,
+          player.age,
+          player.years_exp || 0,
+          player.injury_status
+        );
+        
+        // Get depth chart order (lower is better)
+        const depthOrder = player.depth_chart_order || 99;
+        
+        teamDepthCharts[team][positionGroup].push({
+          id: playerId,
+          name: `${player.first_name?.charAt(0) || ""}. ${player.last_name || ""}`.trim(),
+          fullName: `${player.first_name || ""} ${player.last_name || ""}`.trim(),
+          position: positionGroup,
+          team,
+          depthOrder,
+          age: player.age,
+          yearsExp: player.years_exp || 0,
+          injuryStatus: player.injury_status || null,
+          dynastyValue,
+        });
+      });
+      
+      // Sort players within each position by depth order and dynasty value
+      Object.keys(teamDepthCharts).forEach(team => {
+        Object.keys(teamDepthCharts[team]).forEach(pos => {
+          teamDepthCharts[team][pos].sort((a, b) => {
+            // First by depth order
+            if (a.depthOrder !== b.depthOrder) {
+              return a.depthOrder - b.depthOrder;
+            }
+            // Then by dynasty value (higher is better)
+            return b.dynastyValue - a.dynastyValue;
+          });
+        });
+      });
+      
+      // Convert to array format sorted by team
+      const sortedTeams = Object.keys(teamNames).sort();
+      const teams = sortedTeams.map(team => ({
+        team,
+        teamName: teamNames[team],
+        positions: teamDepthCharts[team] || {},
+      }));
+      
+      res.json({
+        teams,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error fetching depth charts:", error);
+      res.status(500).json({ message: "Failed to fetch depth charts" });
     }
   });
 
