@@ -19,7 +19,8 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **Player Trends**: Multi-season performance tracking with year-over-year analysis, career trajectory visualization, and historical PPG trends
 - **Player Comparison**: Side-by-side comparison tool for 2-4 players showing stats, KTC values, projections, and visual stat comparisons for trade evaluation with full stats modal access
 - **ROS Projections**: Advanced rest-of-season projections with AI-generated outlooks, confidence ratings, upside/floor analysis, schedule strength, injury risk, and key factors
-- **Devy Rankings**: Top 50 college prospects from KTC with tier, value, trend, position ranks, and draft eligibility years (2026-2028)
+- **Devy Rankings**: Top 50 college prospects from KTC with tier, value, trend, position ranks, draft eligibility years (2026-2028), and real ESPN college stats (bio, seasons, career totals, game logs) with AI scouting analysis
+- **Player Headshots**: ESPN CDN headshots displayed across all views (roster, players list, Devy profiles) with Avatar component fallback to initials when unavailable
 - **Trade Calculator**: Calculate trade values with KTC dynasty values and AI analysis
 - **Trade History**: Historical trades from ALL league years with AI insights
 - **Trophy Room**: Champions, all-time standings, season records
