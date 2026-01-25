@@ -932,67 +932,95 @@ Format your response with clear section headers using markdown. Be concise but i
         return res.status(404).json({ message: "Player not found" });
       }
 
-      // Generate comprehensive devy profile with AI
-      const prompt = `You are a college football expert providing dynasty fantasy football data for ${player.name} (${player.position}) from ${player.college}.
+      // Import college stats service
+      const { getCollegePlayerProfile, getCollegePlayerHeadshotUrl } = await import("./college-stats-service");
+      
+      // Fetch real ESPN college stats
+      const espnProfile = await getCollegePlayerProfile(player.name, player.college);
+      
+      // Format ESPN stats to our structure
+      let collegeStats = { seasons: [] as any[], careerTotals: {} as Record<string, any> };
+      let gameLogs: any[] = [];
+      let bio = {
+        height: "N/A",
+        weight: "N/A",
+        hometown: "N/A",
+        highSchoolRank: "N/A",
+        class: "N/A",
+        conference: "N/A"
+      };
+      let headshot: string | null = null;
+      
+      if (espnProfile) {
+        // Use real ESPN bio data
+        bio = {
+          height: espnProfile.bio.height || "N/A",
+          weight: espnProfile.bio.weight || "N/A",
+          hometown: espnProfile.bio.hometown || "N/A",
+          highSchoolRank: "N/A", // ESPN doesn't provide this
+          class: espnProfile.bio.class || "N/A",
+          conference: "N/A" // Will be extracted from team if needed
+        };
+        
+        headshot = espnProfile.bio.headshot || getCollegePlayerHeadshotUrl(espnProfile.espnId || "");
+        
+        // Format seasons from ESPN data
+        collegeStats.seasons = espnProfile.seasons.map(s => ({
+          year: s.year,
+          games: s.games,
+          stats: {
+            passYds: s.stats["YDS"] || s.stats["PYDS"] || s.stats["PassingYDS"] || 0,
+            passTd: s.stats["TD"] || s.stats["PTD"] || s.stats["PassingTD"] || 0,
+            passInt: s.stats["INT"] || 0,
+            completions: s.stats["CMP"] || s.stats["Completions"] || 0,
+            attempts: s.stats["ATT"] || s.stats["Attempts"] || 0,
+            rushYds: s.stats["RYDS"] || s.stats["RushingYDS"] || s.stats["YDS"] || 0,
+            rushTd: s.stats["RTD"] || s.stats["RushingTD"] || s.stats["TD"] || 0,
+            rushAtt: s.stats["CAR"] || s.stats["ATT"] || s.stats["Carries"] || 0,
+            rushAvg: s.stats["AVG"] || s.stats["YPC"] || 0,
+            rushLng: s.stats["LNG"] || s.stats["Long"] || 0,
+            recYds: s.stats["RECYDS"] || s.stats["ReceivingYDS"] || 0,
+            recTd: s.stats["RECTD"] || s.stats["ReceivingTD"] || 0,
+            receptions: s.stats["REC"] || s.stats["Receptions"] || 0,
+            targets: s.stats["TAR"] || s.stats["Targets"] || 0,
+            recAvg: s.stats["RECAVG"] || s.stats["YPR"] || 0,
+            recLng: s.stats["RECLNG"] || 0,
+            fumbles: s.stats["FUM"] || 0,
+            fumblesLost: s.stats["LOST"] || s.stats["FL"] || 0,
+            ...s.stats // Include all raw stats too
+          }
+        }));
+        
+        // Format career totals
+        collegeStats.careerTotals = {
+          games: espnProfile.careerTotals["GP"] || espnProfile.careerTotals["G"] || 0,
+          passYds: espnProfile.careerTotals["YDS"] || espnProfile.careerTotals["PYDS"] || 0,
+          passTd: espnProfile.careerTotals["TD"] || espnProfile.careerTotals["PTD"] || 0,
+          rushYds: espnProfile.careerTotals["RYDS"] || 0,
+          rushTd: espnProfile.careerTotals["RTD"] || 0,
+          rushAtt: espnProfile.careerTotals["CAR"] || 0,
+          recYds: espnProfile.careerTotals["RECYDS"] || 0,
+          recTd: espnProfile.careerTotals["RECTD"] || 0,
+          receptions: espnProfile.careerTotals["REC"] || 0,
+          ...espnProfile.careerTotals // Include all raw stats
+        };
+        
+        // Format game logs from ESPN
+        gameLogs = espnProfile.gameLogs.slice(0, 15).map(g => ({
+          week: g.week,
+          opponent: g.opponent,
+          result: g.result || `${g.homeAway === "home" ? "vs" : "@"} ${g.score}`,
+          stats: formatGameLogStats(g.stats, player.position),
+          date: g.date,
+          season: g.season
+        }));
+      }
+      
+      // Use AI only for scouting analysis (not stats)
+      const scoutingPrompt = `You are a dynasty fantasy football expert analyzing ${player.name} (${player.position}) from ${player.college}.
 
 Return a JSON object with this EXACT structure (no markdown, just valid JSON):
 {
-  "bio": {
-    "height": "string like 6'2\\"",
-    "weight": "string like 215",
-    "hometown": "string",
-    "highSchoolRank": "string like 5-star, #3 nationally",
-    "class": "string like Junior or Sophomore",
-    "conference": "string like SEC or Big Ten"
-  },
-  "collegeStats": {
-    "seasons": [
-      {
-        "year": "2024",
-        "games": 13,
-        "stats": {
-          "passYds": 0,
-          "passTd": 0,
-          "rushYds": 800,
-          "rushTd": 10,
-          "recYds": 1200,
-          "recTd": 8,
-          "receptions": 75
-        }
-      },
-      {
-        "year": "2023",
-        "games": 12,
-        "stats": {
-          "passYds": 0,
-          "passTd": 0,
-          "rushYds": 400,
-          "rushTd": 5,
-          "recYds": 600,
-          "recTd": 4,
-          "receptions": 40
-        }
-      }
-    ],
-    "careerTotals": {
-      "games": 25,
-      "passYds": 0,
-      "passTd": 0,
-      "rushYds": 1200,
-      "rushTd": 15,
-      "recYds": 1800,
-      "recTd": 12,
-      "receptions": 115
-    }
-  },
-  "gameLogs": [
-    {
-      "week": 1,
-      "opponent": "Team Name",
-      "result": "W 35-21",
-      "stats": "8 rec, 120 yds, 2 TD"
-    }
-  ],
   "analysisNotes": [
     {
       "title": "Dynasty Fantasy Analysis Note",
@@ -1006,7 +1034,9 @@ Return a JSON object with this EXACT structure (no markdown, just valid JSON):
     "nflComparison": "NFL player comparison",
     "draftProjection": "Round 1, top 15 pick",
     "fantasyOutlook": "Brief dynasty value outlook"
-  }
+  },
+  "highSchoolRank": "string like 5-star, #3 nationally or 4-star recruit",
+  "conference": "string like SEC or Big Ten"
 }
 
 KTC Dynasty Value: ${player.value}
@@ -1014,51 +1044,51 @@ Draft Eligible: ${player.draftEligibleYear}
 Position Rank: ${player.position}${player.positionRank}
 Overall Rank: #${player.rank}
 
-IMPORTANT: 
-- Include ALL college seasons the player has played (2022, 2023, 2024 as applicable based on their class year). Do NOT just include one season.
-- Include 8-10 recent game logs from their most recent season, covering most of the season.
-- Include 3-4 analysis notes with dynasty fantasy insights (scouting observations, production analysis, projection notes, or concerns). These should be analytical insights, NOT news stories.
-- Use realistic college production numbers appropriate for their position and actual performance.
+IMPORTANT:
+- Include 3-4 analysis notes with dynasty fantasy insights (scouting observations, production analysis, projection notes, or concerns)
+- Provide accurate high school recruiting ranking if known
+- Provide their college conference (SEC, Big Ten, ACC, etc.)
 Return ONLY valid JSON, no other text.`;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are a college football data API. Return ONLY valid JSON with no markdown formatting or extra text. Provide accurate player information based on your knowledge."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 2500,
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-      });
+      let scoutingData: any = {
+        analysisNotes: [],
+        scoutingReport: { strengths: [], weaknesses: [], nflComparison: "N/A", draftProjection: "N/A", fantasyOutlook: "N/A" },
+        highSchoolRank: "N/A",
+        conference: "N/A"
+      };
 
-      const content = response.choices[0]?.message?.content || "{}";
-      
-      // Parse the JSON response
-      let profileData;
       try {
-        // Remove any markdown code blocks if present
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are a dynasty fantasy football analyst. Return ONLY valid JSON with no markdown formatting."
+            },
+            {
+              role: "user",
+              content: scoutingPrompt
+            }
+          ],
+          max_tokens: 1500,
+          temperature: 0.3,
+          response_format: { type: "json_object" },
+        });
+
+        const content = response.choices[0]?.message?.content || "{}";
         let cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        // Fix common JSON issues: trailing commas, unescaped quotes
         cleanContent = cleanContent.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
-        profileData = JSON.parse(cleanContent);
-      } catch (parseError) {
-        console.error("Failed to parse devy profile JSON:", parseError);
-        console.error("Raw content:", content.substring(0, 500));
-        profileData = {
-          bio: { height: "N/A", weight: "N/A", hometown: "N/A", highSchoolRank: "N/A", class: "N/A", conference: "N/A" },
-          collegeStats: { seasons: [], careerTotals: {} },
-          gameLogs: [],
-          analysisNotes: [],
-          news: [], // Backward compatibility
-          scoutingReport: { strengths: [], weaknesses: [], nflComparison: "N/A", draftProjection: "N/A", fantasyOutlook: "N/A" }
-        };
+        scoutingData = JSON.parse(cleanContent);
+      } catch (aiError) {
+        console.error("Failed to get AI scouting data:", aiError);
+      }
+
+      // Merge AI scouting data with bio
+      if (scoutingData.highSchoolRank && scoutingData.highSchoolRank !== "N/A") {
+        bio.highSchoolRank = scoutingData.highSchoolRank;
+      }
+      if (scoutingData.conference && scoutingData.conference !== "N/A") {
+        bio.conference = scoutingData.conference;
       }
 
       res.json({
@@ -1073,10 +1103,15 @@ Return ONLY valid JSON, no other text.`;
           value: player.value,
           trend30Day: player.trend30Day,
           rank: player.rank,
+          headshot: headshot,
         },
-        ...profileData,
-        // Ensure backward compatibility: provide empty news array if only analysisNotes exists
-        news: profileData.news || [],
+        bio,
+        collegeStats,
+        gameLogs,
+        analysisNotes: scoutingData.analysisNotes || [],
+        scoutingReport: scoutingData.scoutingReport || { strengths: [], weaknesses: [], nflComparison: "N/A", draftProjection: "N/A", fantasyOutlook: "N/A" },
+        news: [], // Backward compatibility
+        espnId: espnProfile?.espnId || null,
         generatedAt: new Date().toISOString(),
       });
     } catch (error) {
@@ -1084,6 +1119,31 @@ Return ONLY valid JSON, no other text.`;
       res.status(500).json({ message: "Failed to fetch player profile" });
     }
   });
+
+  // Helper function to format game log stats based on position
+  function formatGameLogStats(stats: Record<string, any>, position: string): string {
+    const parts: string[] = [];
+    
+    if (position === "QB") {
+      if (stats["CMP"] || stats["ATT"]) parts.push(`${stats["CMP"] || 0}/${stats["ATT"] || 0}`);
+      if (stats["YDS"] || stats["PYDS"]) parts.push(`${stats["YDS"] || stats["PYDS"]} yds`);
+      if (stats["TD"] || stats["PTD"]) parts.push(`${stats["TD"] || stats["PTD"]} TD`);
+      if (stats["INT"]) parts.push(`${stats["INT"]} INT`);
+    } else if (position === "RB") {
+      if (stats["CAR"]) parts.push(`${stats["CAR"]} car`);
+      if (stats["YDS"] || stats["RYDS"]) parts.push(`${stats["YDS"] || stats["RYDS"]} yds`);
+      if (stats["TD"] || stats["RTD"]) parts.push(`${stats["TD"] || stats["RTD"]} TD`);
+      if (stats["REC"]) parts.push(`${stats["REC"]} rec`);
+      if (stats["RECYDS"]) parts.push(`${stats["RECYDS"]} rec yds`);
+    } else if (position === "WR" || position === "TE") {
+      if (stats["REC"]) parts.push(`${stats["REC"]} rec`);
+      if (stats["YDS"] || stats["RECYDS"]) parts.push(`${stats["YDS"] || stats["RECYDS"]} yds`);
+      if (stats["TD"] || stats["RECTD"]) parts.push(`${stats["TD"] || stats["RECTD"]} TD`);
+      if (stats["TAR"]) parts.push(`${stats["TAR"]} tar`);
+    }
+    
+    return parts.length > 0 ? parts.join(", ") : "No stats";
+  }
 
   // Get NFL players list (excluding devy players)
   app.get("/api/sleeper/players", isAuthenticated, async (req: any, res: Response) => {
@@ -1190,6 +1250,11 @@ Return ONLY valid JSON, no other text.`;
           player.years_exp || 0
         );
         
+        // ESPN headshot URL
+        const headshot = player.espn_id 
+          ? `https://a.espncdn.com/i/headshots/nfl/players/full/${player.espn_id}.png`
+          : null;
+        
         nflPlayers.push({
           id: playerId,
           name: player.position === "DEF" 
@@ -1209,6 +1274,7 @@ Return ONLY valid JSON, no other text.`;
           college: player.college,
           height: player.height,
           weight: player.weight,
+          headshot,
           snapPct: playerStats?.off_snp && playerStats?.tm_off_snp 
             ? Math.round((playerStats.off_snp / playerStats.tm_off_snp) * 100 * 10) / 10
             : null,
@@ -3789,6 +3855,12 @@ Return JSON: {"players": [{...}]}`;
         if (isStarter && starterIndex >= 0 && starterIndex < rosterPositions.length) {
           slotPosition = rosterPositions[starterIndex];
         }
+        
+        // ESPN headshot URL from Sleeper's ESPN ID mapping
+        let headshot: string | null = null;
+        if (player?.espn_id) {
+          headshot = `https://a.espncdn.com/i/headshots/nfl/players/full/${player.espn_id}.png`;
+        }
 
         return {
           playerId,
@@ -3804,6 +3876,7 @@ Return JSON: {"players": [{...}]}`;
           isStarter,
           slotPosition,
           starterIndex: isStarter ? starterIndex : -1,
+          headshot,
         };
       }).sort((a, b) => {
         // Starters first, then bench

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -51,6 +52,7 @@ interface Player {
   height: string | null;
   weight: string | null;
   snapPct: number | null;
+  headshot?: string | null;
   stats: {
     passYd: number;
     passTd: number;
@@ -218,13 +220,27 @@ export default function PlayersPage() {
                   {player.overallRank}
                 </TableCell>
                 <TableCell className="px-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-medium text-sm truncate max-w-[140px] sm:max-w-none">{player.fullName}</span>
-                    {player.injuryStatus && (
-                      <Badge variant="destructive" className="text-[10px] px-1">
-                        {player.injuryStatus}
-                      </Badge>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-8 w-8 shrink-0" data-testid={`avatar-${player.id}`}>
+                      <AvatarImage 
+                        src={player.headshot || undefined} 
+                        alt={player.fullName}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <AvatarFallback className="text-[10px] bg-muted">
+                        {player.fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-medium text-sm truncate max-w-[140px] sm:max-w-none">{player.fullName}</span>
+                      {player.injuryStatus && (
+                        <Badge variant="destructive" className="text-[10px] px-1">
+                          {player.injuryStatus}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell className="px-2">

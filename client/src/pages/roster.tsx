@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, AlertCircle, User, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
 
@@ -23,6 +24,7 @@ interface RosterPlayer {
   isStarter: boolean;
   slotPosition: string;
   starterIndex: number;
+  headshot?: string | null;
 }
 
 interface PositionRanking {
@@ -178,6 +180,18 @@ function RosterContent({ leagueId }: { leagueId: string }) {
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Avatar className="h-10 w-10 shrink-0" data-testid={`avatar-${player.playerId}`}>
+              <AvatarImage 
+                src={player.headshot || undefined} 
+                alt={player.name}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+              <AvatarFallback className="text-xs bg-muted">
+                {player.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              </AvatarFallback>
+            </Avatar>
             <Badge variant="outline" className={`${getPositionColor()} text-xs shrink-0`} data-testid={`badge-pos-${player.playerId}`}>
               {player.isStarter ? player.slotPosition : player.position}
             </Badge>

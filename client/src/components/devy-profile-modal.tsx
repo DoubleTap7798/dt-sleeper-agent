@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  User,
   BarChart3,
   Calendar,
   Newspaper,
@@ -24,6 +24,7 @@ import {
   Ruler,
   Target,
   Star,
+  User,
   X,
 } from "lucide-react";
 
@@ -38,6 +39,7 @@ interface DevyPlayer {
   value: number;
   trend30Day: number;
   rank: number;
+  headshot?: string | null;
 }
 
 interface Bio {
@@ -128,24 +130,38 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
       <DialogContent className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden [&>button]:hidden" data-testid="modal-devy-profile">
         <DialogHeader className="p-4 pb-2 border-b shrink-0">
           <div className="flex items-start justify-between gap-2 pr-8">
-            <div>
-              <DialogTitle className="text-xl" data-testid="text-player-name">
-                {player.name}
-              </DialogTitle>
-              <DialogDescription asChild>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <Badge variant="secondary" data-testid="badge-position">
-                    {player.position}{player.positionRank}
-                  </Badge>
-                  <Badge variant="outline" data-testid="badge-college">
-                    <GraduationCap className="h-3 w-3 mr-1" />
-                    {player.college}
-                  </Badge>
-                  <Badge variant="outline" data-testid="badge-draft-year">
-                    {player.draftEligibleYear} Draft
-                  </Badge>
-                </div>
-              </DialogDescription>
+            <div className="flex items-start gap-3">
+              <Avatar className="h-14 w-14 shrink-0" data-testid="avatar-player">
+                <AvatarImage 
+                  src={data?.player?.headshot || undefined} 
+                  alt={player.name}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                <AvatarFallback className="text-lg bg-muted">
+                  {player.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <DialogTitle className="text-xl" data-testid="text-player-name">
+                  {player.name}
+                </DialogTitle>
+                <DialogDescription asChild>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <Badge variant="secondary" data-testid="badge-position">
+                      {player.position}{player.positionRank}
+                    </Badge>
+                    <Badge variant="outline" data-testid="badge-college">
+                      <GraduationCap className="h-3 w-3 mr-1" />
+                      {player.college}
+                    </Badge>
+                    <Badge variant="outline" data-testid="badge-draft-year">
+                      {player.draftEligibleYear} Draft
+                    </Badge>
+                  </div>
+                </DialogDescription>
+              </div>
             </div>
             <div className="flex items-start gap-3">
               <div className="text-right shrink-0">
