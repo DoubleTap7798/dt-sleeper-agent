@@ -5,6 +5,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 import * as sleeperApi from "./sleeper-api";
 import * as ktcValues from "./ktc-values";
 import * as dynastyEngine from "./dynasty-value-engine";
+import { dynastyConsensusService } from "./dynasty-consensus-service";
 import * as newsService from "./news-service";
 import * as oddsService from "./odds-service";
 import * as playerStatsService from "./player-stats-service";
@@ -3410,6 +3411,15 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
         stats = {};
       }
       
+      // Fetch consensus values from DynastyProcess (cached for 24h)
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[Compare Players] Failed to fetch consensus values: ${e}`);
+      }
+      const consensusStats = dynastyConsensusService.getCacheStats();
+      console.log(`[Compare Players] Consensus values: ${consensusStats.size} players cached`);
+      
       // Get league-specific scoring settings if a league is selected
       let leagueScoring: dynastyEngine.LeagueScoringSettings | null = null;
       if (leagueId) {
@@ -3428,6 +3438,9 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
         console.log(`[Compare Players] No leagueId provided - using default scoring`);
       }
 
+      let matchedCount = 0;
+      let totalCount = 0;
+      
       const players = Object.entries(allPlayers)
         .filter(([_, p]: [string, any]) => 
           p && ["QB", "RB", "WR", "TE"].includes(p.position) && 
@@ -3439,26 +3452,40 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
           const points = playerStats.pts_ppr || 0;
           const ppg = games > 0 ? points / games : 0;
           const depthOrder = p.depth_chart_order || null;
+          const playerName = p.full_name || "Unknown";
           
-          // Pass actual stats, depth chart, and league scoring for accurate dynasty values
-          const dynastyValue = dynastyEngine.getQuickPlayerValue(
-            id, 
+          // Get consensus value from DynastyProcess
+          const consensusData = dynastyConsensusService.getConsensusValue(playerName, p.position);
+          const consensusValue = consensusData?.normalizedValue || null;
+          
+          totalCount++;
+          if (consensusValue !== null) matchedCount++;
+          
+          // Get blended value (60% league, 40% consensus)
+          const valueResult = dynastyEngine.getBlendedPlayerValue(
+            id,
+            playerName,
             p.position, 
             p.age, 
             p.years_exp || 0, 
             p.injury_status,
             { points, games, ppg },
             depthOrder,
-            leagueScoring
+            leagueScoring,
+            consensusValue,
+            0.6 // 60% league weight, 40% consensus
           );
           
           return {
             playerId: id,
-            name: p.full_name || "Unknown",
+            name: playerName,
             position: p.position || "?",
             team: p.team || "FA",
             age: p.age || 25,
-            dynastyValue,
+            dynastyValue: valueResult.value,
+            leagueValue: valueResult.leagueValue,
+            consensusValue: valueResult.consensusValue,
+            blended: valueResult.blended,
             stats: {
               games,
               points,
@@ -3479,6 +3506,9 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
         })
         .sort((a, b) => b.dynastyValue - a.dynastyValue)
         .slice(0, 200);
+      
+      const matchRate = totalCount > 0 ? Math.round((matchedCount / totalCount) * 100) : 0;
+      console.log(`[Compare Players] Consensus match rate: ${matchedCount}/${totalCount} (${matchRate}%)`);
 
       // Calculate sample delta to prove scoring affects values
       const sampleRbValue = dynastyEngine.getQuickPlayerValue("sample", "RB", 25, 3, null, { points: 200, games: 16, ppg: 12.5 }, 1, leagueScoring);
@@ -3498,11 +3528,17 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
         recFd: leagueScoring.recFd,
         leagueId: leagueId,
         scoringType: leagueScoring.rec >= 1.0 ? "Full PPR" : leagueScoring.rec >= 0.5 ? "Half PPR" : "Standard",
-        sampleRbDelta: valueDelta // Shows how much RB values differ vs standard
+        sampleRbDelta: valueDelta,
+        consensusPlayers: consensusStats.size,
+        consensusAvailable: consensusStats.available,
+        consensusMatchRate: matchRate
       } : {
         applied: false,
         scoringType: "Default (no league selected)",
-        sampleRbDelta: 0
+        sampleRbDelta: 0,
+        consensusPlayers: consensusStats.size,
+        consensusAvailable: consensusStats.available,
+        consensusMatchRate: matchRate
       };
       
       res.json({ players, scoringSettings: scoringInfo });

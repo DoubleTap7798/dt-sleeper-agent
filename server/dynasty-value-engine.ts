@@ -930,6 +930,13 @@ export function calculateTradeGrade(
 // These are baseline values that will be adjusted by league settings
 const DEFAULT_PLAYER_VALUES: Record<string, number> = {};
 
+export interface QuickPlayerValueResult {
+  value: number;
+  leagueValue: number;
+  consensusValue: number | null;
+  blended: boolean;
+}
+
 export function getQuickPlayerValue(
   playerId: string,
   position: string,
@@ -1076,6 +1083,54 @@ export function getQuickPlayerValue(
 }
 
 // ============================================================================
+// BLENDED VALUE CALCULATION (combines league-specific with consensus)
+// ============================================================================
+
+export function getBlendedPlayerValue(
+  playerId: string,
+  playerName: string,
+  position: string,
+  age: number | null,
+  yearsExp: number,
+  injuryStatus: string | null = null,
+  actualStats: { points?: number; games?: number; ppg?: number } = {},
+  depthChartOrder: number | null = null,
+  leagueScoring: LeagueScoringSettings | null = null,
+  consensusValue: number | null = null,
+  leagueWeight: number = 0.6
+): QuickPlayerValueResult {
+  const leagueValue = getQuickPlayerValue(
+    playerId,
+    position,
+    age,
+    yearsExp,
+    injuryStatus,
+    actualStats,
+    depthChartOrder,
+    leagueScoring
+  );
+  
+  if (consensusValue === null || consensusValue === undefined) {
+    return {
+      value: leagueValue,
+      leagueValue,
+      consensusValue: null,
+      blended: false
+    };
+  }
+  
+  const blendedValue = (leagueValue * leagueWeight) + (consensusValue * (1 - leagueWeight));
+  const roundedValue = Math.round(blendedValue * 10) / 10;
+  
+  return {
+    value: roundedValue,
+    leagueValue: Math.round(leagueValue * 10) / 10,
+    consensusValue: Math.round(consensusValue * 10) / 10,
+    blended: true
+  };
+}
+
+// ============================================================================
 // EXPORTS SUMMARY
 // ============================================================================
 // Main functions:
@@ -1085,3 +1140,4 @@ export function getQuickPlayerValue(
 // - calculateTradeGrade: Trade evaluation
 // - parseLeagueScoringSettings / parseLeagueRosterSettings: Parse Sleeper data
 // - getQuickPlayerValue: Quick fallback value calculation
+// - getBlendedPlayerValue: Blended league + consensus value calculation
