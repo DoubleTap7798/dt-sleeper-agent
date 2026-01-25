@@ -1308,8 +1308,9 @@ Return ONLY valid JSON, no other text.`;
         fum_lost: -2,
       };
       
-      // Detect if the selected league is an IDP league
+      // Detect if the selected league is an IDP league or Superflex
       let isIDPLeague = false;
+      let isSuperflex = false;
       
       if (leagueId) {
         const league = await sleeperApi.getLeague(leagueId);
@@ -1323,6 +1324,8 @@ Return ONLY valid JSON, no other text.`;
             pos !== "BN" && idpPositionTypes.includes(pos)
           );
         }
+        // Check if league is Superflex/2QB
+        isSuperflex = dynastyEngine.isLeagueSuperflex(league);
       }
 
       // Get current state to determine the right season for stats
@@ -1462,8 +1465,7 @@ Return ONLY valid JSON, no other text.`;
         
         // Get blended dynasty value (league + KTC consensus)
         const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
-        const consensusData = dynastyConsensusService.getConsensusValue(playerName, position);
-        const consensusValue = consensusData?.normalizedValue || null;
+        const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, position, isSuperflex);
         const valueResult = dynastyEngine.getBlendedPlayerValue(
           playerId,
           playerName,
@@ -1839,12 +1841,13 @@ ${fantasyOutlookSection}
     try {
       const { leagueId } = req.params;
 
-      const [rosters, users, allPlayers, draftPicks, stats] = await Promise.all([
+      const [rosters, users, allPlayers, draftPicks, stats, league] = await Promise.all([
         sleeperApi.getLeagueRosters(leagueId),
         sleeperApi.getLeagueUsers(leagueId),
         sleeperApi.getAllPlayers(),
         sleeperApi.getLeagueDraftPicks(leagueId),
         sleeperApi.getSeasonStats("2025", "regular"),
+        sleeperApi.getLeague(leagueId),
       ]);
 
       // Fetch consensus values for blended dynasty values
@@ -1853,6 +1856,9 @@ ${fantasyOutlookSection}
       } catch (e) {
         console.log(`[Trade Calculator] Failed to fetch consensus values: ${e}`);
       }
+
+      // Check if league is Superflex/2QB
+      const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
 
       if (!rosters || rosters.length === 0) {
         return res.json({ rosters: [] });
@@ -1878,9 +1884,8 @@ ${fantasyOutlookSection}
           const fantasyPoints = playerStats.pts_ppr || 0;
           const pointsPerGame = gamesPlayed > 0 ? fantasyPoints / gamesPlayed : 0;
           
-          // Get consensus value from DynastyProcess
-          const consensusData = dynastyConsensusService.getConsensusValue(playerName, position);
-          const consensusValue = consensusData?.normalizedValue || null;
+          // Get consensus value from DynastyProcess (1QB or 2QB based on league type)
+          const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, position, isSuperflex);
           
           // Use blended value (50/50 average of league + KTC)
           const valueResult = dynastyEngine.getBlendedPlayerValue(
@@ -1986,6 +1991,9 @@ ${fantasyOutlookSection}
         console.log(`[Team Roster] Failed to fetch consensus values: ${e}`);
       }
 
+      // Check if league is Superflex/2QB
+      const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+
       if (!rosters || rosters.length === 0) {
         return res.status(404).json({ message: "Rosters not found" });
       }
@@ -2013,8 +2021,7 @@ ${fantasyOutlookSection}
       // Helper for blended dynasty value (using player stats for consistency with NFL Players endpoint)
       const getBlendedValue = (playerId: string, player: any, position: string): number => {
         const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
-        const consensusData = dynastyConsensusService.getConsensusValue(playerName, position);
-        const consensusValue = consensusData?.normalizedValue || null;
+        const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, position, isSuperflex);
         
         // Get player stats for consistent value calculation
         const playerStats = stats?.[playerId] || {};
@@ -2277,11 +2284,12 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
     try {
       const { leagueId } = req.params;
 
-      const [historicalTransactions, rosters, users, allPlayers] = await Promise.all([
+      const [historicalTransactions, rosters, users, allPlayers, league] = await Promise.all([
         sleeperApi.getAllHistoricalTransactions(leagueId),
         sleeperApi.getLeagueRosters(leagueId),
         sleeperApi.getLeagueUsers(leagueId),
         sleeperApi.getAllPlayers(),
+        sleeperApi.getLeague(leagueId),
       ]);
 
       // Fetch consensus values for blended dynasty values
@@ -2290,6 +2298,9 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
       } catch (e) {
         console.log(`[Trade History] Failed to fetch consensus values: ${e}`);
       }
+
+      // Check if league is Superflex/2QB
+      const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
 
       if (!historicalTransactions || !rosters) {
         return res.json({ 
@@ -2324,8 +2335,7 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
           const age = player?.age || 25;
           const yearsExp = player?.years_exp || 0;
           const playerName = player?.full_name || asset.name;
-          const consensusData = dynastyConsensusService.getConsensusValue(playerName, position);
-          const consensusValue = consensusData?.normalizedValue || null;
+          const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, position, isSuperflex);
           const valueResult = dynastyEngine.getBlendedPlayerValue(
             asset.id,
             playerName,
@@ -2514,7 +2524,6 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
         })
       );
 
-      const league = await sleeperApi.getLeague(leagueId);
       const leagueHistory = await sleeperApi.getLeagueHistory(leagueId);
 
       res.json({
@@ -3526,12 +3535,14 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
       
       // Get league-specific scoring settings if a league is selected
       let leagueScoring: dynastyEngine.LeagueScoringSettings | null = null;
+      let isSuperflex = false;
       if (leagueId) {
         try {
           const league = await sleeperApi.getLeague(leagueId as string);
           if (league) {
             leagueScoring = dynastyEngine.parseLeagueScoringSettings(league);
-            console.log(`[Compare Players] League ${leagueId}: PPR=${leagueScoring.rec}, PassTD=${leagueScoring.passTd}, TEPrem=${leagueScoring.bonusRecTe}`);
+            isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+            console.log(`[Compare Players] League ${leagueId}: PPR=${leagueScoring.rec}, PassTD=${leagueScoring.passTd}, TEPrem=${leagueScoring.bonusRecTe}, SF=${isSuperflex}`);
           } else {
             console.log(`[Compare Players] League ${leagueId}: Failed to fetch league data`);
           }
@@ -3558,9 +3569,8 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
           const depthOrder = p.depth_chart_order || null;
           const playerName = p.full_name || "Unknown";
           
-          // Get consensus value from DynastyProcess
-          const consensusData = dynastyConsensusService.getConsensusValue(playerName, p.position);
-          const consensusValue = consensusData?.normalizedValue || null;
+          // Get consensus value from DynastyProcess (1QB or 2QB based on league type)
+          const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, p.position, isSuperflex);
           
           totalCount++;
           if (consensusValue !== null) matchedCount++;
@@ -4339,6 +4349,9 @@ Return JSON: {"players": [{...}]}`;
         console.log(`[Roster] Failed to fetch consensus values: ${e}`);
       }
       
+      // Check if league is Superflex/2QB
+      const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+      
       const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
       const leagueSize = rosters.length;
       
@@ -4365,8 +4378,7 @@ Return JSON: {"players": [{...}]}`;
         const fantasyPoints = playerStats.pts_ppr || 0;
         const pointsPerGame = gamesPlayed > 0 ? fantasyPoints / gamesPlayed : 0;
         
-        const consensusData = dynastyConsensusService.getConsensusValue(playerName, pos);
-        const consensusValue = consensusData?.normalizedValue || null;
+        const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, pos, isSuperflex);
         
         const valueResult = dynastyEngine.getBlendedPlayerValue(
           playerId,

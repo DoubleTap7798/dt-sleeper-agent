@@ -867,6 +867,11 @@ export function parseLeagueRosterSettings(league: any): LeagueRosterSettings {
   };
 }
 
+export function isLeagueSuperflex(league: any): boolean {
+  const settings = parseLeagueRosterSettings(league);
+  return settings.superflexSlots > 0;
+}
+
 // ============================================================================
 // TRADE GRADE CALCULATION (updated for 0-100 scale)
 // ============================================================================

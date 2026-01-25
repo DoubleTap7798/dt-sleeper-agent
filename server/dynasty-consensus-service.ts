@@ -20,8 +20,10 @@ interface ConsensusValue {
   position: string;
   team: string;
   age: number | null;
-  rawValue: number;
-  normalizedValue: number;
+  rawValue1QB: number;
+  rawValue2QB: number;
+  normalizedValue1QB: number;
+  normalizedValue2QB: number;
   fpId: string | null;
 }
 
@@ -61,12 +63,13 @@ class DynastyConsensusService {
       const teamIdx = header.indexOf('team');
       const ageIdx = header.indexOf('age');
       const value1qbIdx = header.indexOf('value_1qb');
+      const value2qbIdx = header.indexOf('value_2qb');
       const fpIdIdx = header.indexOf('fp_id');
 
       this.cache.clear();
       let maxVal = 0;
       let minVal = Infinity;
-      const rawPlayers: { name: string; pos: string; team: string; age: number | null; value: number; fpId: string | null }[] = [];
+      const rawPlayers: { name: string; pos: string; team: string; age: number | null; value1QB: number; value2QB: number; fpId: string | null }[] = [];
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -75,30 +78,33 @@ class DynastyConsensusService {
         const cols = this.parseCSVLine(line);
         const playerName = cols[playerIdx];
         const pos = cols[posIdx];
-        const rawValue = parseFloat(cols[value1qbIdx]);
+        const rawValue1QB = parseFloat(cols[value1qbIdx]);
+        const rawValue2QB = parseFloat(cols[value2qbIdx]) || rawValue1QB;
 
-        if (!playerName || pos === 'PICK' || isNaN(rawValue)) continue;
+        if (!playerName || pos === 'PICK' || isNaN(rawValue1QB)) continue;
 
         const age = cols[ageIdx] && cols[ageIdx] !== 'NA' ? parseFloat(cols[ageIdx]) : null;
         const team = cols[teamIdx] || '';
         const fpId = cols[fpIdIdx] && cols[fpIdIdx] !== 'NA' ? cols[fpIdIdx] : null;
 
-        rawPlayers.push({ name: playerName, pos, team, age, value: rawValue, fpId });
+        rawPlayers.push({ name: playerName, pos, team, age, value1QB: rawValue1QB, value2QB: rawValue2QB, fpId });
 
-        if (rawValue > maxVal) maxVal = rawValue;
-        if (rawValue < minVal && rawValue > 0) minVal = rawValue;
+        const maxOfBoth = Math.max(rawValue1QB, rawValue2QB);
+        if (maxOfBoth > maxVal) maxVal = maxOfBoth;
+        if (rawValue1QB < minVal && rawValue1QB > 0) minVal = rawValue1QB;
       }
 
       this.maxRawValue = maxVal;
       this.minRawValue = minVal;
 
-      rawPlayers.sort((a, b) => b.value - a.value);
+      rawPlayers.sort((a, b) => b.value1QB - a.value1QB);
       
       for (let i = 0; i < rawPlayers.length; i++) {
         const p = rawPlayers[i];
         // Simple normalization: raw value * 0.01 (e.g., 5532 → 55.32)
         // Cap at 99.5 to prevent exact 100 values
-        const normalizedValue = Math.min(99.5, Math.max(0, p.value * 0.01));
+        const normalizedValue1QB = Math.min(99.5, Math.max(0, p.value1QB * 0.01));
+        const normalizedValue2QB = Math.min(99.5, Math.max(0, p.value2QB * 0.01));
         const key = this.createPlayerKey(p.name, p.pos);
         
         this.cache.set(key, {
@@ -106,20 +112,27 @@ class DynastyConsensusService {
           position: p.pos,
           team: p.team,
           age: p.age,
-          rawValue: p.value,
-          normalizedValue,
+          rawValue1QB: p.value1QB,
+          rawValue2QB: p.value2QB,
+          normalizedValue1QB,
+          normalizedValue2QB,
           fpId: p.fpId
         });
-        this.rankPercentiles.set(key, normalizedValue);
+        this.rankPercentiles.set(key, normalizedValue1QB);
       }
 
       this.lastFetch = new Date();
       console.log(`[DynastyConsensus] Cached ${this.cache.size} players. Max raw: ${maxVal}, normalized to 0-100 scale`);
       
-      const topPlayers = Array.from(this.cache.values())
-        .sort((a, b) => b.normalizedValue - a.normalizedValue)
+      const topPlayers1QB = Array.from(this.cache.values())
+        .sort((a, b) => b.normalizedValue1QB - a.normalizedValue1QB)
         .slice(0, 5);
-      console.log(`[DynastyConsensus] Top 5: ${topPlayers.map(p => `${p.name}: ${p.normalizedValue.toFixed(1)}`).join(', ')}`);
+      console.log(`[DynastyConsensus] Top 5 (1QB): ${topPlayers1QB.map(p => `${p.name}: ${p.normalizedValue1QB.toFixed(1)}`).join(', ')}`);
+      
+      const topPlayers2QB = Array.from(this.cache.values())
+        .sort((a, b) => b.normalizedValue2QB - a.normalizedValue2QB)
+        .slice(0, 5);
+      console.log(`[DynastyConsensus] Top 5 (2QB/SF): ${topPlayers2QB.map(p => `${p.name}: ${p.normalizedValue2QB.toFixed(1)}`).join(', ')}`);
     } catch (error) {
       console.error(`[DynastyConsensus] Error fetching values:`, error);
       throw error;
@@ -193,6 +206,12 @@ class DynastyConsensusService {
     }
 
     return value || null;
+  }
+
+  getNormalizedValue(playerName: string, position: string, isSuperflex: boolean = false): number | null {
+    const consensus = this.getConsensusValue(playerName, position);
+    if (!consensus) return null;
+    return isSuperflex ? consensus.normalizedValue2QB : consensus.normalizedValue1QB;
   }
 
   blendValues(leagueValue: number, consensusValue: number | null, leagueWeight: number = 0.6): number {
