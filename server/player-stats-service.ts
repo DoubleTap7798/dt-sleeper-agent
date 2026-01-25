@@ -552,7 +552,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v8-${sleeperPlayerId}`;
+  const cacheKey = `profile-v9-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
@@ -599,13 +599,16 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
     let seasonStats = statsData.seasons;
     
     if (bio.position === "QB" && careerStats) {
-      const careerInts = careerStats.stats.interceptions;
+      const careerInts = Number(careerStats.stats.interceptions) || 0;
       // Check if career INTs is 0 but splits show interceptions
-      if ((careerInts === 0 || careerInts === undefined) && splits) {
+      if (careerInts === 0 && splits) {
         // Use splits data - home + away INTs are the correct passing INTs for QBs
-        const homeInts = typeof splits.home?.interceptions === 'number' ? splits.home.interceptions : 0;
-        const awayInts = typeof splits.away?.interceptions === 'number' ? splits.away.interceptions : 0;
+        // Note: Values may be strings or numbers, so use Number() to parse
+        const homeInts = Number(splits.home?.interceptions) || 0;
+        const awayInts = Number(splits.away?.interceptions) || 0;
         const totalInts = homeInts + awayInts;
+        
+        console.log(`[QB INT Fix] ${playerName}: careerInts=${careerInts}, homeInts=${homeInts}, awayInts=${awayInts}, totalInts=${totalInts}`);
         
         if (totalInts > 0) {
           careerStats = {
@@ -620,13 +623,12 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
       
       // Also fix season stats if they show 0 INTs - aggregate from that season's game logs
       seasonStats = seasonStats.map(season => {
-        if (season.stats.interceptions === 0 || season.stats.interceptions === undefined) {
+        const seasonIntsValue = Number(season.stats.interceptions) || 0;
+        if (seasonIntsValue === 0) {
           // Calculate from game logs for this specific season only
           const seasonGameLogs = gameLogs.filter(g => g.season === season.season);
           const seasonInts = seasonGameLogs.reduce((sum, game) => {
-            const gameInts = typeof game.stats.interceptions === 'number' 
-              ? game.stats.interceptions 
-              : 0;
+            const gameInts = Number(game.stats.interceptions) || 0;
             return sum + gameInts;
           }, 0);
           
