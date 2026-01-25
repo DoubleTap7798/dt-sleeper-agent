@@ -90,7 +90,7 @@ shared/           # Shared code between frontend/backend
 
 ### ESPN API Quirks
 - **QB Interceptions**: ESPN's career stats API "interceptions" field represents defensive INTs caught (for all positions), not QB passing INTs thrown. For QBs, passing interceptions are ALWAYS calculated by aggregating from game logs which contain correct per-game passing INT data. The player-stats-service.ts applies this fix automatically for all QB profiles.
-- **Player Profile Cache**: Currently at v13 - increment when fixing stat calculations to bust old cached data
+- **Player Profile Cache**: Currently at v14 - increment when fixing stat calculations to bust old cached data
 
 ### Season Handling
 The Sleeper API returns two different season values in `/state/nfl`:

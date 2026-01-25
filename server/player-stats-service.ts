@@ -552,7 +552,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v13-${sleeperPlayerId}`;
+  const cacheKey = `profile-v14-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
@@ -599,17 +599,36 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
     let seasonStats = statsData.seasons;
     
     if (bio.position === "QB") {
+      // Helper to get interceptions from game log stats (ESPN uses different field names)
+      const getIntsFromLog = (stats: Record<string, number | string>): number => {
+        // ESPN uses "INT" for interceptions in game logs, check multiple possible names
+        const possibleKeys = ["INT", "interceptions", "passingInterceptions", "int", "Interceptions"];
+        for (const key of possibleKeys) {
+          if (stats[key] !== undefined && stats[key] !== null && stats[key] !== "-") {
+            const val = Number(stats[key]);
+            if (!isNaN(val)) return val;
+          }
+        }
+        return 0;
+      };
+      
+      // Log first game's stat keys for debugging (only once per player)
+      if (gameLogs.length > 0) {
+        const sampleKeys = Object.keys(gameLogs[0].stats);
+        console.log(`[QB INT Debug] ${playerName}: game log stat keys = [${sampleKeys.join(", ")}]`);
+      }
+      
       // Build a map of season -> INTs from game logs (the ONLY reliable source)
       const seasonIntsMap = new Map<string, number>();
       for (const log of gameLogs) {
-        const gameInts = Number(log.stats.interceptions) || 0;
+        const gameInts = getIntsFromLog(log.stats);
         const current = seasonIntsMap.get(log.season) || 0;
         seasonIntsMap.set(log.season, current + gameInts);
       }
       
       // Calculate career INTs STRICTLY from game logs (not from ESPN season stats)
       const careerIntsFromLogs = gameLogs.reduce((sum, log) => {
-        return sum + (Number(log.stats.interceptions) || 0);
+        return sum + getIntsFromLog(log.stats);
       }, 0);
       
       // Apply game log INTs to season stats (only for seasons we have game logs for)
