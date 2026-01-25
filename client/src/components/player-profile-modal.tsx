@@ -105,7 +105,7 @@ const positionStatLabels: Record<string, Record<string, { full: string; short: s
     interceptions: { full: "INT", short: "INT" },
     completions: { full: "Comp", short: "Cmp" },
     passingAttempts: { full: "Att", short: "Att" },
-    QBRating: { full: "Rating", short: "Rtg" },
+    QBRating: { full: "QB Rating", short: "QBR" },
     rushingYards: { full: "Rush Yds", short: "RuY" },
     rushingTouchdowns: { full: "Rush TD", short: "RuT" },
   },
@@ -347,11 +347,7 @@ function StatsTab({
               <p className="text-xs text-muted-foreground">Games</p>
               <p className="text-lg font-bold">{careerStats.games}</p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Starts</p>
-              <p className="text-lg font-bold">{careerStats.gamesStarted}</p>
-            </div>
-            {statsToShow.slice(0, 6).map(stat => {
+            {statsToShow.slice(0, 7).map(stat => {
               const value = careerStats.stats[stat];
               if (value === undefined) return null;
               return (
