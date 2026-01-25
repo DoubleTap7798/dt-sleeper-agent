@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
@@ -7,7 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, prefetchLeagueData, prefetchPlayerData } from "@/lib/queryClient";
 import type { SleeperLeague } from "@/lib/sleeper-types";
 
 interface LeagueLayoutProps {
@@ -83,6 +83,32 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
       }
     }
   }, [authLoading, profileLoading, profile, leagues, leagueIdFromUrl, setLocation]);
+
+  // Prefetch common data when league is selected or on initial load
+  const prefetchedLeaguesRef = useRef<Set<string>>(new Set());
+  const hasPrefetchedPlayersRef = useRef(false);
+  
+  useEffect(() => {
+    // Prefetch player data once when app loads
+    if (!hasPrefetchedPlayersRef.current && leagues.length > 0) {
+      hasPrefetchedPlayersRef.current = true;
+      prefetchPlayerData();
+    }
+    
+    // Prefetch data for selected league
+    if (selectedLeague && !prefetchedLeaguesRef.current.has(selectedLeague.league_id)) {
+      prefetchedLeaguesRef.current.add(selectedLeague.league_id);
+      prefetchLeagueData(selectedLeague.league_id);
+    }
+    
+    // Also prefetch first 2 leagues for quick switching
+    leagues.slice(0, 2).forEach(league => {
+      if (!prefetchedLeaguesRef.current.has(league.league_id)) {
+        prefetchedLeaguesRef.current.add(league.league_id);
+        prefetchLeagueData(league.league_id);
+      }
+    });
+  }, [selectedLeague, leagues]);
 
   const handleLeagueChange = (league: SleeperLeague | null) => {
     if (league === null) {

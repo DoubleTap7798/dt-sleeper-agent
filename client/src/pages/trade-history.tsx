@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
+import { CACHE_TIMES } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -79,6 +80,7 @@ export default function TradeHistoryPage() {
   const { data, isLoading, error } = useQuery<TradeHistoryData>({
     queryKey: ["/api/sleeper/trades", leagueId],
     enabled: !!leagueId,
+    ...CACHE_TIMES.STABLE,
   });
 
   if (isLoading) {

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
+import { CACHE_TIMES } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ export default function RivalryPage() {
   const { data, isLoading } = useQuery<RivalryData>({
     queryKey: [`/api/sleeper/rivalries/${leagueId}`],
     enabled: !!leagueId,
+    ...CACHE_TIMES.STABLE,
   });
 
   if (isLoading) {

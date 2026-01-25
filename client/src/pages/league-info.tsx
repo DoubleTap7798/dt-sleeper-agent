@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
+import { CACHE_TIMES } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,6 +62,7 @@ export default function LeagueInfoPage() {
   const { data, isLoading, error } = useQuery<LeagueInfo>({
     queryKey: ["/api/sleeper/league-info", leagueId],
     enabled: !!leagueId && leagueId !== "all",
+    ...CACHE_TIMES.STABLE,
   });
 
   if (!leagueId || leagueId === "all") {

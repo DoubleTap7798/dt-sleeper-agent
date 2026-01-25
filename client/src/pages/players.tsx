@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
+import { CACHE_TIMES } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -117,6 +118,7 @@ export default function PlayersPage() {
   const playersUrl = leagueId ? `/api/sleeper/players?leagueId=${leagueId}` : "/api/sleeper/players";
   const { data, isLoading, error } = useQuery<PlayersData>({
     queryKey: [playersUrl],
+    ...CACHE_TIMES.STABLE,
   });
 
   const insightsUrl = selectedPlayer ? `/api/sleeper/players/${selectedPlayer.id}/insights` : null;
