@@ -954,31 +954,81 @@ export function getQuickPlayerValue(
     DB: 38,
   };
   
+  // Track scoring adjustments for debugging
+  let scoringAdjustments: string[] = [];
+  
   // Adjust base values based on league scoring settings
   if (leagueScoring) {
-    // PPR scoring boosts pass catchers
+    // PPR scoring boosts pass catchers - SIGNIFICANT adjustments
     const pprBonus = leagueScoring.rec || 0;
     if (pprBonus >= 1.0) {
-      // Full PPR - big boost to pass catchers
-      positionBaseValues.WR += 8;
-      positionBaseValues.RB += 3; // Pass-catching backs
-      positionBaseValues.TE += 10;
+      // Full PPR - major boost to pass catchers
+      positionBaseValues.WR += 12;
+      positionBaseValues.RB += 8; // Pass-catching backs benefit significantly
+      positionBaseValues.TE += 15;
+      scoringAdjustments.push(`FullPPR(WR+12,RB+8,TE+15)`);
     } else if (pprBonus >= 0.5) {
       // Half PPR
-      positionBaseValues.WR += 4;
-      positionBaseValues.RB += 2;
-      positionBaseValues.TE += 5;
+      positionBaseValues.WR += 6;
+      positionBaseValues.RB += 4;
+      positionBaseValues.TE += 8;
+      scoringAdjustments.push(`HalfPPR(WR+6,RB+4,TE+8)`);
+    } else {
+      scoringAdjustments.push(`Standard(no PPR bonus)`);
     }
     
-    // 6-pt passing TDs boost QBs
+    // 6-pt passing TDs boost QBs significantly
     if (leagueScoring.passTd >= 6) {
-      positionBaseValues.QB += 8;
+      positionBaseValues.QB += 12;
+      scoringAdjustments.push(`6ptPassTD(QB+12)`);
+    } else if (leagueScoring.passTd >= 5) {
+      positionBaseValues.QB += 6;
+      scoringAdjustments.push(`5ptPassTD(QB+6)`);
     }
     
-    // TE premium
+    // TE premium - significant boost
     if (leagueScoring.bonusRecTe && leagueScoring.bonusRecTe > 0) {
-      positionBaseValues.TE += Math.min(15, leagueScoring.bonusRecTe * 5);
+      const teBonus = Math.min(20, leagueScoring.bonusRecTe * 8);
+      positionBaseValues.TE += teBonus;
+      scoringAdjustments.push(`TEPremium(TE+${teBonus})`);
     }
+    
+    // Bonus yardage scoring - boosts workhorse players
+    if (leagueScoring.bonus100RushYds && leagueScoring.bonus100RushYds > 0) {
+      // 100-yard rushing bonus benefits bell-cow RBs
+      positionBaseValues.RB += Math.min(8, leagueScoring.bonus100RushYds * 2);
+      scoringAdjustments.push(`100YdRush(RB+${Math.min(8, leagueScoring.bonus100RushYds * 2)})`);
+    }
+    if (leagueScoring.bonus100RecYds && leagueScoring.bonus100RecYds > 0) {
+      // 100-yard receiving bonus benefits WR1s
+      positionBaseValues.WR += Math.min(6, leagueScoring.bonus100RecYds * 2);
+      positionBaseValues.TE += Math.min(4, leagueScoring.bonus100RecYds * 1.5);
+      scoringAdjustments.push(`100YdRec(WR+${Math.min(6, leagueScoring.bonus100RecYds * 2)})`);
+    }
+    if (leagueScoring.bonus300PassYds && leagueScoring.bonus300PassYds > 0) {
+      // 300-yard passing bonus benefits high-volume passers
+      positionBaseValues.QB += Math.min(8, leagueScoring.bonus300PassYds * 2);
+      scoringAdjustments.push(`300YdPass(QB+${Math.min(8, leagueScoring.bonus300PassYds * 2)})`);
+    }
+    
+    // First-down scoring - benefits possession receivers and grind-it-out RBs
+    if (leagueScoring.rushFd && leagueScoring.rushFd > 0) {
+      positionBaseValues.RB += Math.min(6, leagueScoring.rushFd * 4);
+      scoringAdjustments.push(`RushFD(RB+${Math.min(6, leagueScoring.rushFd * 4)})`);
+    }
+    if (leagueScoring.recFd && leagueScoring.recFd > 0) {
+      positionBaseValues.WR += Math.min(5, leagueScoring.recFd * 3);
+      positionBaseValues.TE += Math.min(5, leagueScoring.recFd * 3);
+      scoringAdjustments.push(`RecFD(WR/TE+${Math.min(5, leagueScoring.recFd * 3)})`);
+    }
+    if (leagueScoring.passFd && leagueScoring.passFd > 0) {
+      positionBaseValues.QB += Math.min(5, leagueScoring.passFd * 3);
+      scoringAdjustments.push(`PassFD(QB+${Math.min(5, leagueScoring.passFd * 3)})`);
+    }
+    
+  } else {
+    // No league scoring provided - log this for debugging
+    scoringAdjustments.push("NoLeagueScoring(using defaults)");
   }
   
   let value = positionBaseValues[position] || 30;

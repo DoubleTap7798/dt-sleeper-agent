@@ -3414,11 +3414,18 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
       let leagueScoring: dynastyEngine.LeagueScoringSettings | null = null;
       if (leagueId) {
         try {
-          const league = await sleeperApi.getLeague(leagueId);
-          leagueScoring = dynastyEngine.parseLeagueScoringSettings(league);
+          const league = await sleeperApi.getLeague(leagueId as string);
+          if (league) {
+            leagueScoring = dynastyEngine.parseLeagueScoringSettings(league);
+            console.log(`[Compare Players] League ${leagueId}: PPR=${leagueScoring.rec}, PassTD=${leagueScoring.passTd}, TEPrem=${leagueScoring.bonusRecTe}`);
+          } else {
+            console.log(`[Compare Players] League ${leagueId}: Failed to fetch league data`);
+          }
         } catch (e) {
-          // Use default scoring if league fetch fails
+          console.log(`[Compare Players] League ${leagueId}: Error fetching league - ${e}`);
         }
+      } else {
+        console.log(`[Compare Players] No leagueId provided - using default scoring`);
       }
 
       const players = Object.entries(allPlayers)
@@ -3473,7 +3480,32 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
         .sort((a, b) => b.dynastyValue - a.dynastyValue)
         .slice(0, 200);
 
-      res.json({ players });
+      // Calculate sample delta to prove scoring affects values
+      const sampleRbValue = dynastyEngine.getQuickPlayerValue("sample", "RB", 25, 3, null, { points: 200, games: 16, ppg: 12.5 }, 1, leagueScoring);
+      const baseRbValue = dynastyEngine.getQuickPlayerValue("sample", "RB", 25, 3, null, { points: 200, games: 16, ppg: 12.5 }, 1, null);
+      const valueDelta = Math.round((sampleRbValue - baseRbValue) * 10) / 10;
+      
+      // Include scoring settings in response for debugging/verification
+      const scoringInfo = leagueScoring ? {
+        applied: true,
+        ppr: leagueScoring.rec,
+        passTd: leagueScoring.passTd,
+        tePremium: leagueScoring.bonusRecTe,
+        bonus100Rush: leagueScoring.bonus100RushYds || 0,
+        bonus100Rec: leagueScoring.bonus100RecYds || 0,
+        bonus300Pass: leagueScoring.bonus300PassYds || 0,
+        rushFd: leagueScoring.rushFd,
+        recFd: leagueScoring.recFd,
+        leagueId: leagueId,
+        scoringType: leagueScoring.rec >= 1.0 ? "Full PPR" : leagueScoring.rec >= 0.5 ? "Half PPR" : "Standard",
+        sampleRbDelta: valueDelta // Shows how much RB values differ vs standard
+      } : {
+        applied: false,
+        scoringType: "Default (no league selected)",
+        sampleRbDelta: 0
+      };
+      
+      res.json({ players, scoringSettings: scoringInfo });
     } catch (error) {
       console.error("Error fetching compare players:", error);
       res.status(500).json({ message: "Failed to fetch players" });

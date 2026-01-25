@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { GitCompare, Search, Plus, X, ArrowRight, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
 
@@ -38,8 +39,24 @@ interface ComparePlayer {
   floor: number;
 }
 
+interface ScoringSettings {
+  applied: boolean;
+  ppr?: number;
+  passTd?: number;
+  tePremium?: number;
+  bonus100Rush?: number;
+  bonus100Rec?: number;
+  bonus300Pass?: number;
+  rushFd?: number;
+  recFd?: number;
+  leagueId?: string;
+  scoringType: string;
+  sampleRbDelta?: number;
+}
+
 interface PlayersResponse {
   players: ComparePlayer[];
+  scoringSettings?: ScoringSettings;
 }
 
 export default function PlayerComparePage() {
@@ -128,12 +145,54 @@ export default function PlayerComparePage() {
     );
   }
 
+  const scoringSettings = data?.scoringSettings;
+  
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <GitCompare className="h-6 w-6" />
           <h1 className="text-2xl font-bold" data-testid="text-page-title">Player Comparison</h1>
+          {scoringSettings && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge 
+                  variant="outline" 
+                  className="text-xs cursor-help"
+                  data-testid="badge-scoring-type"
+                >
+                  {scoringSettings.scoringType}
+                  {scoringSettings.applied && scoringSettings.tePremium && scoringSettings.tePremium > 0 && " + TEP"}
+                  {scoringSettings.sampleRbDelta !== undefined && scoringSettings.sampleRbDelta !== 0 && (
+                    <span className="ml-1 text-muted-foreground">
+                      ({scoringSettings.sampleRbDelta > 0 ? "+" : ""}{scoringSettings.sampleRbDelta})
+                    </span>
+                  )}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <div className="text-xs space-y-1">
+                  <p className="font-medium">League Scoring Settings</p>
+                  {scoringSettings.applied ? (
+                    <>
+                      <p>PPR: {scoringSettings.ppr ?? 0} pts/rec</p>
+                      <p>Pass TD: {scoringSettings.passTd ?? 4} pts</p>
+                      {scoringSettings.tePremium && scoringSettings.tePremium > 0 && (
+                        <p>TE Premium: +{scoringSettings.tePremium} pts/rec</p>
+                      )}
+                      {scoringSettings.sampleRbDelta !== undefined && scoringSettings.sampleRbDelta !== 0 && (
+                        <p className="text-muted-foreground mt-1">
+                          RB value delta vs standard: {scoringSettings.sampleRbDelta > 0 ? "+" : ""}{scoringSettings.sampleRbDelta}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground">No league selected - using default values</p>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
