@@ -869,7 +869,8 @@ export function parseLeagueRosterSettings(league: any): LeagueRosterSettings {
 
 export function isLeagueSuperflex(league: any): boolean {
   const settings = parseLeagueRosterSettings(league);
-  return settings.superflexSlots > 0;
+  // Detect both Superflex leagues (SUPER_FLEX position) and 2QB leagues (2+ QB slots)
+  return settings.superflexSlots > 0 || settings.qbSlots >= 2;
 }
 
 // ============================================================================
