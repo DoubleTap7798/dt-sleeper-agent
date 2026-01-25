@@ -1007,12 +1007,12 @@ Format your response with clear section headers using markdown. Be concise but i
           ...espnProfile.careerTotals // Include all raw stats
         };
         
-        // Format game logs from ESPN
+        // Format game logs from ESPN (g.stats is already a formatted string)
         gameLogs = espnProfile.gameLogs.slice(0, 15).map(g => ({
           week: g.week,
           opponent: g.opponent,
           result: g.result || `${g.homeAway === "home" ? "vs" : "@"} ${g.score}`,
-          stats: formatGameLogStats(g.stats, player.position),
+          stats: g.stats, // Already formatted as string from college-stats-service
           date: g.date,
           season: g.season
         }));
