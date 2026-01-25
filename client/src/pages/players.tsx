@@ -191,7 +191,7 @@ export default function PlayersPage() {
 
       <Card>
         <div className="overflow-x-auto">
-        <Table>
+        <Table className="min-w-[420px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-10 px-2">#</TableHead>
