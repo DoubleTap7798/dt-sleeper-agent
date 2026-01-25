@@ -2984,7 +2984,7 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
 
       let stats: Record<string, any> = {};
       try {
-        stats = await sleeperApi.getSeasonStats("2024", "regular");
+        stats = await sleeperApi.getSeasonStats("2025", "regular");
       } catch (e) {
         stats = {};
       }
