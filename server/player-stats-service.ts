@@ -600,7 +600,6 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
     
     if (bio.position === "QB" && careerStats) {
       const careerInts = Number(careerStats.stats.interceptions) || 0;
-      console.log(`[QB Profile] ${playerName}: position=${bio.position}, careerInts=${careerInts}, hasSplits=${!!splits}`);
       // Check if career INTs is 0 but splits show interceptions
       if (careerInts === 0 && splits) {
         // Use splits data - home + away INTs are the correct passing INTs for QBs
