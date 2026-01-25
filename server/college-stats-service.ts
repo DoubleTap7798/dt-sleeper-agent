@@ -124,7 +124,7 @@ export interface CollegeGameLog {
   homeAway: "home" | "away";
   result: string;
   score: string;
-  stats: Record<string, number | string>;
+  stats: string; // Formatted stats string for display
   season: string;
 }
 
@@ -320,6 +320,46 @@ async function fetchCollegePlayerBio(espnId: string): Promise<CollegePlayerBio |
   }
 }
 
+// Normalize ESPN stat names to our internal format
+function normalizeStatName(espnName: string): string {
+  const nameMap: Record<string, string> = {
+    // Receiving
+    "receptions": "receptions",
+    "receivingYards": "recYds",
+    "yardsPerReception": "recAvg",
+    "receivingTouchdowns": "recTd",
+    "longReception": "recLong",
+    // Rushing
+    "rushingAttempts": "rushAtt",
+    "rushingYards": "rushYds",
+    "yardsPerRushAttempt": "rushAvg",
+    "rushingTouchdowns": "rushTd",
+    "longRushing": "rushLong",
+    // Passing
+    "passingAttempts": "passAtt",
+    "completions": "passComp",
+    "passingYards": "passYds",
+    "passingTouchdowns": "passTd",
+    "interceptions": "passInt",
+    "longPassing": "passLong",
+    "completionPct": "passPct",
+    "passerRating": "passRtg",
+    "adjustedQBR": "qbr"
+  };
+  return nameMap[espnName] || espnName;
+}
+
+// Parse stat value, handling comma-formatted numbers
+function parseStatValue(value: any): number | string {
+  if (value === undefined || value === null || value === "" || value === "--") {
+    return 0;
+  }
+  // Remove commas from numbers like "1,243"
+  const cleanValue = String(value).replace(/,/g, "");
+  const num = Number(cleanValue);
+  return isNaN(num) ? value : num;
+}
+
 // Fetch college player stats from ESPN
 async function fetchCollegePlayerStats(espnId: string): Promise<{ seasons: CollegeSeasonStats[]; careerTotals: Record<string, number | string> }> {
   try {
@@ -346,10 +386,10 @@ async function fetchCollegePlayerStats(espnId: string): Promise<{ seasons: Colle
       const totals = category.totals || [];
       
       for (let i = 0; i < names.length && i < totals.length; i++) {
-        const statName = names[i];
-        const value = totals[i];
-        if (value !== undefined && value !== null && value !== "" && value !== "--") {
-          careerTotals[statName] = isNaN(Number(value)) ? value : Number(value);
+        const normalizedName = normalizeStatName(names[i]);
+        const value = parseStatValue(totals[i]);
+        if (value !== 0 || totals[i] === "0" || totals[i] === 0) {
+          careerTotals[normalizedName] = value;
         }
       }
       
@@ -371,17 +411,17 @@ async function fetchCollegePlayerStats(espnId: string): Promise<{ seasons: Colle
         
         const values = stat.stats || [];
         for (let i = 0; i < names.length && i < values.length; i++) {
-          const statName = names[i];
-          const value = values[i];
-          if (value !== undefined && value !== null && value !== "" && value !== "--") {
-            existingSeason.stats[statName] = isNaN(Number(value)) ? value : Number(value);
-          }
+          const normalizedName = normalizeStatName(names[i]);
+          const value = parseStatValue(values[i]);
+          existingSeason.stats[normalizedName] = value;
         }
         
-        // Extract games played
-        const gamesIdx = names.findIndex((n: string) => n.toLowerCase() === "gp" || n.toLowerCase() === "g");
+        // Extract games played - ESPN doesn't always include this, check multiple sources
+        const gamesIdx = names.findIndex((n: string) => 
+          n.toLowerCase() === "gp" || n.toLowerCase() === "g" || n.toLowerCase() === "games"
+        );
         if (gamesIdx >= 0 && values[gamesIdx]) {
-          existingSeason.games = Number(values[gamesIdx]) || 0;
+          existingSeason.games = Number(String(values[gamesIdx]).replace(/,/g, "")) || 0;
         }
       }
     }
@@ -408,67 +448,78 @@ async function fetchCollegeGameLogsForSeason(espnId: string, season: string): Pr
     const data = await response.json() as any;
     const gameLogs: CollegeGameLog[] = [];
     
-    // ESPN game log structure varies significantly - handle multiple formats
-    let events: any[] = [];
-    let statNames: string[] = [];
+    // Get stat names from the top-level names array
+    const statNames: string[] = data.names || [];
+    const statLabels: string[] = data.labels || [];
     
-    // Try different ESPN data structures
-    if (Array.isArray(data.events)) {
-      events = data.events;
-    } else if (data.seasonTypes && Array.isArray(data.seasonTypes)) {
-      for (const seasonType of data.seasonTypes) {
-        if (seasonType.categories && Array.isArray(seasonType.categories)) {
-          for (const cat of seasonType.categories) {
-            if (cat.events && Array.isArray(cat.events)) {
-              events.push(...cat.events);
-            }
-            if (!statNames.length && cat.names && Array.isArray(cat.names)) {
-              statNames = cat.names;
-            }
+    // Events object contains opponent info keyed by eventId
+    const eventsInfo: Record<string, any> = data.events || {};
+    
+    // Season types contain the actual game stats
+    const seasonTypes = data.seasonTypes || [];
+    
+    for (const seasonType of seasonTypes) {
+      const categories = seasonType.categories || [];
+      
+      for (const category of categories) {
+        const categoryEvents = category.events || [];
+        
+        for (const evt of categoryEvents) {
+          const eventId = evt.eventId;
+          const eventStats = evt.stats || [];
+          
+          // Get opponent info from the events object
+          const eventInfo = eventsInfo[eventId] || {};
+          const opponent = eventInfo.opponent?.displayName || 
+                          eventInfo.opponent?.abbreviation || 
+                          "Unknown";
+          const atVs = eventInfo.atVs || "vs";
+          const week = eventInfo.week || 0;
+          const gameDate = eventInfo.gameDate || "";
+          
+          // Build game stats object using normalized names
+          const gameStats: Record<string, number | string> = {};
+          for (let i = 0; i < statNames.length && i < eventStats.length; i++) {
+            const normalizedName = normalizeStatName(statNames[i]);
+            const value = parseStatValue(eventStats[i]);
+            gameStats[normalizedName] = value;
           }
+          
+          // Format stats string for display
+          let statsStr = "";
+          const rec = gameStats.receptions || 0;
+          const recYds = gameStats.recYds || 0;
+          const recTd = gameStats.recTd || 0;
+          const rushAtt = gameStats.rushAtt || 0;
+          const rushYds = gameStats.rushYds || 0;
+          const rushTd = gameStats.rushTd || 0;
+          
+          if (rec || recYds) {
+            statsStr += `${rec} rec, ${recYds} yds`;
+            if (recTd) statsStr += `, ${recTd} TD`;
+          }
+          if (rushAtt || rushYds) {
+            if (statsStr) statsStr += " | ";
+            statsStr += `${rushAtt} car, ${rushYds} yds`;
+            if (rushTd) statsStr += `, ${rushTd} TD`;
+          }
+          
+          gameLogs.push({
+            week: week,
+            date: gameDate,
+            opponent: opponent,
+            homeAway: atVs === "@" ? "away" : "home",
+            result: "",
+            score: "",
+            stats: statsStr || "No stats",
+            season: season
+          });
         }
       }
     }
     
-    // Get stat names from categories if not found above
-    const categories = data.categories || [];
-    if (!statNames.length && Array.isArray(categories) && categories.length > 0) {
-      statNames = categories[0]?.names || [];
-    }
-    
-    if (!Array.isArray(events) || events.length === 0) {
-      return [];
-    }
-    
-    for (const event of events) {
-      const gameStats: Record<string, number | string> = {};
-      
-      // Get stats from event
-      const eventStats = event.stats || [];
-      for (let i = 0; i < statNames.length && i < eventStats.length; i++) {
-        const value = eventStats[i];
-        if (value !== undefined && value !== null && value !== "" && value !== "--") {
-          gameStats[statNames[i]] = isNaN(Number(value)) ? value : Number(value);
-        }
-      }
-      
-      // Parse opponent and result from event
-      const opponent = event.opponent?.displayName || event.opponent?.abbreviation || "Unknown";
-      const homeAway = event.homeAway === "home" ? "home" : "away";
-      const result = event.gameResult || ""; 
-      const score = event.score || "";
-      
-      gameLogs.push({
-        week: event.week || 0,
-        date: event.gameDate || "",
-        opponent: opponent,
-        homeAway: homeAway,
-        result: result,
-        score: score,
-        stats: gameStats,
-        season: season
-      });
-    }
+    // Sort by week descending (most recent first)
+    gameLogs.sort((a, b) => b.week - a.week);
     
     return gameLogs;
   } catch (error) {
