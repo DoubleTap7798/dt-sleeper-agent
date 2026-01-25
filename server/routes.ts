@@ -1287,6 +1287,13 @@ Return ONLY valid JSON, no other text.`;
     try {
       const leagueId = req.query.leagueId as string | undefined;
       
+      // Fetch consensus values for blended dynasty values
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[NFL Players] Failed to fetch consensus values: ${e}`);
+      }
+      
       // Get league scoring settings if leagueId provided
       let scoringSettings: Record<string, number> = {
         // Default PPR scoring if no league specified
@@ -1449,14 +1456,23 @@ Return ONLY valid JSON, no other text.`;
         const gamesPlayed = playerStats?.gp || 0;
         const pointsPerGame = gamesPlayed > 0 ? Math.round((fantasyPoints / gamesPlayed) * 10) / 10 : 0;
         
-        // Get dynasty value using custom engine
-        const dynastyValue = dynastyEngine.getQuickPlayerValue(
+        // Get blended dynasty value (league + KTC consensus)
+        const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
+        const consensusData = dynastyConsensusService.getConsensusValue(playerName, position);
+        const consensusValue = consensusData?.normalizedValue || null;
+        const valueResult = dynastyEngine.getBlendedPlayerValue(
           playerId,
+          playerName,
           position,
           player.age,
           player.years_exp || 0,
-          player.injury_status
+          player.injury_status,
+          { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
+          null,
+          null,
+          consensusValue
         );
+        const dynastyValue = valueResult.value;
         
         // ESPN headshot URL
         const headshot = player.espn_id 
@@ -1826,6 +1842,13 @@ ${fantasyOutlookSection}
         sleeperApi.getLeagueDraftPicks(leagueId),
       ]);
 
+      // Fetch consensus values for blended dynasty values
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[Trade Calculator] Failed to fetch consensus values: ${e}`);
+      }
+
       if (!rosters || rosters.length === 0) {
         return res.json({ rosters: [] });
       }
@@ -1836,19 +1859,32 @@ ${fantasyOutlookSection}
       const rostersWithAssets = rosters.map((roster) => {
         const user = userMap.get(roster.owner_id);
         
-        // Get player assets with dynasty values
+        // Get player assets with blended dynasty values (league + KTC consensus)
         const players = (roster.players || []).map((playerId) => {
           const player = playerData[playerId];
           if (!player) return null;
           
           const position = player.fantasy_positions?.[0] || "?";
-          const value = dynastyEngine.getQuickPlayerValue(
+          const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
+          
+          // Get consensus value from DynastyProcess
+          const consensusData = dynastyConsensusService.getConsensusValue(playerName, position);
+          const consensusValue = consensusData?.normalizedValue || null;
+          
+          // Use blended value (50/50 average of league + KTC)
+          const valueResult = dynastyEngine.getBlendedPlayerValue(
             playerId,
+            playerName,
             position,
             player.age,
             player.years_exp || 0,
-            player.injury_status
+            player.injury_status,
+            {},  // No actual stats for quick lookup
+            null, // No depth chart order
+            null, // No league scoring settings
+            consensusValue
           );
+          const value = valueResult.value;
 
           return {
             id: playerId,
@@ -1931,6 +1967,13 @@ ${fantasyOutlookSection}
         sleeperApi.getLeague(leagueId),
       ]);
 
+      // Fetch consensus values for blended dynasty values
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[Team Roster] Failed to fetch consensus values: ${e}`);
+      }
+
       if (!rosters || rosters.length === 0) {
         return res.status(404).json({ message: "Rosters not found" });
       }
@@ -1953,6 +1996,26 @@ ${fantasyOutlookSection}
         const lastName = player.last_name || "";
         const firstInitial = firstName ? firstName.charAt(0) + "." : "";
         return `${firstInitial} ${lastName}`.trim();
+      };
+      
+      // Helper for blended dynasty value
+      const getBlendedValue = (playerId: string, player: any, position: string): number => {
+        const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
+        const consensusData = dynastyConsensusService.getConsensusValue(playerName, position);
+        const consensusValue = consensusData?.normalizedValue || null;
+        const valueResult = dynastyEngine.getBlendedPlayerValue(
+          playerId,
+          playerName,
+          position,
+          player.age,
+          player.years_exp || 0,
+          player.injury_status,
+          {},
+          null,
+          null,
+          consensusValue
+        );
+        return valueResult.value;
       };
 
       // Get roster slot positions from league settings (excluding BN = bench)
@@ -1985,7 +2048,7 @@ ${fantasyOutlookSection}
           slotPosition,
           team: player.team || "FA",
           age: player.age,
-          value: dynastyEngine.getQuickPlayerValue(playerId, position, player.age, player.years_exp || 0, player.injury_status),
+          value: getBlendedValue(playerId, player, position),
         });
       });
 
@@ -2004,7 +2067,7 @@ ${fantasyOutlookSection}
           position,
           team: player.team || "FA",
           age: player.age,
-          value: dynastyEngine.getQuickPlayerValue(playerId, position, player.age, player.years_exp || 0, player.injury_status),
+          value: getBlendedValue(playerId, player, position),
         };
 
         if (taxiIds.has(playerId)) {
@@ -2202,6 +2265,13 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
         sleeperApi.getAllPlayers(),
       ]);
 
+      // Fetch consensus values for blended dynasty values
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[Trade History] Failed to fetch consensus values: ${e}`);
+      }
+
       if (!historicalTransactions || !rosters) {
         return res.json({ 
           seasonTrades: [], 
@@ -2227,14 +2297,29 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
         return `${firstName.charAt(0)}. ${lastName}`;
       };
 
-      // Helper to get asset value using dynasty value engine
+      // Helper to get blended asset value (league + KTC consensus)
       const getAssetValue = (asset: { type: string; id: string; name: string; position?: string }): number => {
         if (asset.type === "player") {
           const player = playerData[asset.id];
           const position = asset.position || player?.fantasy_positions?.[0] || "WR";
           const age = player?.age || 25;
           const yearsExp = player?.years_exp || 0;
-          return dynastyEngine.getQuickPlayerValue(asset.id, position, age, yearsExp, player?.injury_status);
+          const playerName = player?.full_name || asset.name;
+          const consensusData = dynastyConsensusService.getConsensusValue(playerName, position);
+          const consensusValue = consensusData?.normalizedValue || null;
+          const valueResult = dynastyEngine.getBlendedPlayerValue(
+            asset.id,
+            playerName,
+            position,
+            age,
+            yearsExp,
+            player?.injury_status,
+            {},
+            null,
+            null,
+            consensusValue
+          );
+          return valueResult.value;
         } else if (asset.type === "pick") {
           const match = asset.name.match(/(\d{4}) Round (\d+)/);
           if (match) {
@@ -3461,7 +3546,7 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
           totalCount++;
           if (consensusValue !== null) matchedCount++;
           
-          // Get blended value (60% league, 40% consensus)
+          // Get blended value (50/50 average of league + KTC consensus)
           const valueResult = dynastyEngine.getBlendedPlayerValue(
             id,
             playerName,
@@ -3472,8 +3557,7 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
             { points, games, ppg },
             depthOrder,
             leagueScoring,
-            consensusValue,
-            0.6 // 60% league weight, 40% consensus
+            consensusValue
           );
           
           return {
