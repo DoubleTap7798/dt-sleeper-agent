@@ -4321,11 +4321,20 @@ Return JSON: {"players": [{...}]}`;
         return res.status(400).json({ message: "League ID required" });
       }
 
-      const [rosters, allPlayers, league] = await Promise.all([
+      const [rosters, allPlayers, league, stats] = await Promise.all([
         sleeperApi.getLeagueRosters(leagueId as string),
         sleeperApi.getAllPlayers(),
         sleeperApi.getLeague(leagueId as string),
+        sleeperApi.getSeasonStats("2025", "regular"),
       ]);
+      
+      // Fetch consensus values for blended dynasty values
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[Roster] Failed to fetch consensus values: ${e}`);
+      }
+      
       const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
       const leagueSize = rosters.length;
       
@@ -4342,6 +4351,33 @@ Return JSON: {"players": [{...}]}`;
           positionRankings: { QB: { rank: 0, total: leagueSize }, RB: { rank: 0, total: leagueSize }, WR: { rank: 0, total: leagueSize }, TE: { rank: 0, total: leagueSize } }
         });
       }
+      
+      // Helper function to get blended dynasty value consistently
+      const getBlendedValue = (playerId: string, player: any) => {
+        const pos = player?.position || "?";
+        const playerName = player?.full_name || `${player?.first_name} ${player?.last_name}`;
+        const playerStats = stats?.[playerId] || {};
+        const gamesPlayed = playerStats.gp || 0;
+        const fantasyPoints = playerStats.pts_ppr || 0;
+        const pointsPerGame = gamesPlayed > 0 ? fantasyPoints / gamesPlayed : 0;
+        
+        const consensusData = dynastyConsensusService.getConsensusValue(playerName, pos);
+        const consensusValue = consensusData?.normalizedValue || null;
+        
+        const valueResult = dynastyEngine.getBlendedPlayerValue(
+          playerId,
+          playerName,
+          pos,
+          player?.age || 25,
+          player?.years_exp || 0,
+          player?.injury_status,
+          { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
+          null,
+          null,
+          consensusValue
+        );
+        return valueResult.value;
+      };
 
       // Calculate position group values for ALL teams
       const teamPositionValues: Record<string, { QB: number; RB: number; WR: number; TE: number }> = {};
@@ -4358,7 +4394,7 @@ Return JSON: {"players": [{...}]}`;
           
           const pos = player.position as "QB" | "RB" | "WR" | "TE";
           if (pos in posValues) {
-            const value = dynastyEngine.getQuickPlayerValue(pid, pos, player.age || 25, player.years_exp || 0, player.injury_status);
+            const value = getBlendedValue(pid, player);
             posValues[pos] += value;
           }
         }
@@ -4390,7 +4426,7 @@ Return JSON: {"players": [{...}]}`;
 
       const players = playerIds.map(playerId => {
         const player = allPlayers[playerId];
-        const dynastyValue = dynastyEngine.getQuickPlayerValue(playerId, player?.position || "?", player?.age || 25, player?.years_exp || 0, player?.injury_status);
+        const dynastyValue = getBlendedValue(playerId, player);
         const isStarter = starters.includes(playerId);
         const starterIndex = starters.indexOf(playerId);
         
