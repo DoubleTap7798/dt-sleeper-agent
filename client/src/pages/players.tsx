@@ -191,67 +191,67 @@ export default function PlayersPage() {
 
       <Card>
         <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[60px]">Rank</TableHead>
-                <TableHead>Player</TableHead>
-                <TableHead className="w-[60px]">Pos</TableHead>
-                <TableHead className="w-[60px]">Team</TableHead>
-                <TableHead className="w-[80px] text-right">Pts</TableHead>
-                <TableHead className="w-[60px] text-right">PPG</TableHead>
-                <TableHead className="w-[40px] text-right">GP</TableHead>
-                <TableHead className="w-[60px] text-right">Snap%</TableHead>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10 px-2">#</TableHead>
+              <TableHead className="px-2">Player</TableHead>
+              <TableHead className="w-12 px-2">Pos</TableHead>
+              <TableHead className="w-12 px-2 hidden sm:table-cell">Tm</TableHead>
+              <TableHead className="w-14 text-right px-2">Pts</TableHead>
+              <TableHead className="w-12 text-right px-2">PPG</TableHead>
+              <TableHead className="w-10 text-right px-2 hidden md:table-cell">GP</TableHead>
+              <TableHead className="w-12 text-right px-2 hidden md:table-cell">Snap</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredPlayers.slice(0, 200).map((player) => (
+              <TableRow
+                key={player.id}
+                className="cursor-pointer hover-elevate"
+                onClick={() => setSelectedPlayer(player)}
+                data-testid={`player-row-${player.id}`}
+              >
+                <TableCell className="font-mono text-muted-foreground text-xs px-2">
+                  {player.overallRank}
+                </TableCell>
+                <TableCell className="px-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-sm truncate max-w-[140px] sm:max-w-none">{player.fullName}</span>
+                    {player.injuryStatus && (
+                      <Badge variant="destructive" className="text-[10px] px-1">
+                        {player.injuryStatus}
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="px-2">
+                  <Badge
+                    variant="outline"
+                    className={`text-xs ${positionStyles[player.position] || ""}`}
+                  >
+                    {player.position}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground text-xs px-2 hidden sm:table-cell">
+                  {player.team}
+                </TableCell>
+                <TableCell className="text-right font-mono font-medium text-sm px-2">
+                  {player.fantasyPoints.toFixed(1)}
+                </TableCell>
+                <TableCell className="text-right font-mono text-muted-foreground text-xs px-2">
+                  {player.pointsPerGame.toFixed(1)}
+                </TableCell>
+                <TableCell className="text-right font-mono text-muted-foreground text-xs px-2 hidden md:table-cell">
+                  {player.gamesPlayed}
+                </TableCell>
+                <TableCell className="text-right font-mono text-muted-foreground text-xs px-2 hidden md:table-cell">
+                  {player.snapPct !== null ? `${player.snapPct}%` : "-"}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredPlayers.slice(0, 200).map((player) => (
-                <TableRow
-                  key={player.id}
-                  className="cursor-pointer hover-elevate"
-                  onClick={() => setSelectedPlayer(player)}
-                  data-testid={`player-row-${player.id}`}
-                >
-                  <TableCell className="font-mono text-muted-foreground">
-                    {player.overallRank}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{player.fullName}</span>
-                      {player.injuryStatus && (
-                        <Badge variant="destructive" className="text-xs">
-                          {player.injuryStatus}
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${positionStyles[player.position] || ""}`}
-                    >
-                      {player.position}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {player.team}
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-medium">
-                    {player.fantasyPoints.toFixed(1)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-muted-foreground">
-                    {player.pointsPerGame.toFixed(1)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-muted-foreground">
-                    {player.gamesPlayed}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-muted-foreground">
-                    {player.snapPct !== null ? `${player.snapPct}%` : "-"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+            ))}
+          </TableBody>
+        </Table>
         </div>
         {filteredPlayers.length > 200 && (
           <div className="p-4 text-center text-sm text-muted-foreground border-t">

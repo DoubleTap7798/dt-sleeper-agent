@@ -98,40 +98,40 @@ interface PlayerProfile {
   espnId: string | null;
 }
 
-const positionStatLabels: Record<string, Record<string, string>> = {
+const positionStatLabels: Record<string, Record<string, { full: string; short: string }>> = {
   QB: {
-    passingYards: "Pass Yds",
-    passingTouchdowns: "Pass TD",
-    interceptions: "INT",
-    completions: "Comp",
-    passingAttempts: "Att",
-    QBRating: "Rating",
-    rushingYards: "Rush Yds",
-    rushingTouchdowns: "Rush TD",
+    passingYards: { full: "Pass Yds", short: "PaY" },
+    passingTouchdowns: { full: "Pass TD", short: "PaT" },
+    interceptions: { full: "INT", short: "INT" },
+    completions: { full: "Comp", short: "Cmp" },
+    passingAttempts: { full: "Att", short: "Att" },
+    QBRating: { full: "Rating", short: "Rtg" },
+    rushingYards: { full: "Rush Yds", short: "RuY" },
+    rushingTouchdowns: { full: "Rush TD", short: "RuT" },
   },
   RB: {
-    rushingYards: "Rush Yds",
-    rushingTouchdowns: "Rush TD",
-    rushingAttempts: "Att",
-    yardsPerRushAttempt: "YPC",
-    receivingYards: "Rec Yds",
-    receptions: "Rec",
-    receivingTouchdowns: "Rec TD",
+    rushingYards: { full: "Rush Yds", short: "RuY" },
+    rushingTouchdowns: { full: "Rush TD", short: "RuT" },
+    rushingAttempts: { full: "Att", short: "Att" },
+    yardsPerRushAttempt: { full: "YPC", short: "YPC" },
+    receivingYards: { full: "Rec Yds", short: "ReY" },
+    receptions: { full: "Rec", short: "Rec" },
+    receivingTouchdowns: { full: "Rec TD", short: "ReT" },
   },
   WR: {
-    receivingYards: "Rec Yds",
-    receptions: "Rec",
-    receivingTouchdowns: "Rec TD",
-    targets: "Tgt",
-    yardsPerReception: "YPR",
-    rushingYards: "Rush Yds",
+    receivingYards: { full: "Rec Yds", short: "ReY" },
+    receptions: { full: "Rec", short: "Rec" },
+    receivingTouchdowns: { full: "Rec TD", short: "ReT" },
+    targets: { full: "Tgt", short: "Tgt" },
+    yardsPerReception: { full: "YPR", short: "YPR" },
+    rushingYards: { full: "Rush Yds", short: "RuY" },
   },
   TE: {
-    receivingYards: "Rec Yds",
-    receptions: "Rec",
-    receivingTouchdowns: "Rec TD",
-    targets: "Tgt",
-    yardsPerReception: "YPR",
+    receivingYards: { full: "Rec Yds", short: "ReY" },
+    receptions: { full: "Rec", short: "Rec" },
+    receivingTouchdowns: { full: "Rec TD", short: "ReT" },
+    targets: { full: "Tgt", short: "Tgt" },
+    yardsPerReception: { full: "YPR", short: "YPR" },
   },
 };
 
@@ -140,9 +140,27 @@ function getPositionStats(position: string): string[] {
   return Object.keys(positionStatLabels[pos] || positionStatLabels.WR);
 }
 
-function getStatLabel(position: string, stat: string): string {
+function getStatLabel(position: string, stat: string, short = false): string {
   const pos = position?.toUpperCase() || "WR";
-  return positionStatLabels[pos]?.[stat] || positionStatLabels.WR?.[stat] || stat;
+  const labels = positionStatLabels[pos]?.[stat] || positionStatLabels.WR?.[stat];
+  if (labels) {
+    return short ? labels.short : labels.full;
+  }
+  return stat;
+}
+
+function StatLegend({ position, stats }: { position: string; stats: string[] }) {
+  return (
+    <div className="mt-2 text-[10px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5 px-2">
+      {stats.map(stat => (
+        <span key={stat}>
+          <span className="font-medium">{getStatLabel(position, stat, true)}</span>
+          <span className="mx-0.5">=</span>
+          <span>{getStatLabel(position, stat, false)}</span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function formatStatValue(value: number | string): string {
@@ -350,36 +368,35 @@ function StatsTab({
       {seasonStats.length > 0 ? (
         <Card className="p-3">
           <h4 className="font-semibold mb-2 text-sm">Season History</h4>
-          <div className="overflow-x-auto -mx-3">
-            <Table className="min-w-[500px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12 text-xs px-2">Year</TableHead>
-                  <TableHead className="w-10 text-xs px-2">Tm</TableHead>
-                  <TableHead className="w-8 text-xs px-2">G</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-11 text-xs px-1.5">Yr</TableHead>
+                <TableHead className="w-9 text-xs px-1.5">Tm</TableHead>
+                <TableHead className="w-7 text-xs px-1.5">G</TableHead>
+                {statsToShow.slice(0, 4).map(stat => (
+                  <TableHead key={stat} className="text-right text-xs px-1.5">
+                    {getStatLabel(position, stat, true)}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {seasonStats.slice(0, 10).map((season, i) => (
+                <TableRow key={i}>
+                  <TableCell className="font-medium text-xs px-1.5">{season.season}</TableCell>
+                  <TableCell className="text-xs px-1.5">{season.team}</TableCell>
+                  <TableCell className="text-xs px-1.5">{season.games}</TableCell>
                   {statsToShow.slice(0, 4).map(stat => (
-                    <TableHead key={stat} className="text-right text-xs whitespace-nowrap px-2">
-                      {getStatLabel(position, stat)}
-                    </TableHead>
+                    <TableCell key={stat} className="text-right text-xs px-1.5">
+                      {formatStatValue(season.stats[stat] ?? "-")}
+                    </TableCell>
                   ))}
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {seasonStats.slice(0, 10).map((season, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-medium text-xs px-2">{season.season}</TableCell>
-                    <TableCell className="text-xs px-2">{season.team}</TableCell>
-                    <TableCell className="text-xs px-2">{season.games}</TableCell>
-                    {statsToShow.slice(0, 4).map(stat => (
-                      <TableCell key={stat} className="text-right text-xs px-2">
-                        {formatStatValue(season.stats[stat] ?? "-")}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              ))}
+            </TableBody>
+          </Table>
+          <StatLegend position={position} stats={statsToShow.slice(0, 4)} />
         </Card>
       ) : !careerStats && (
         <div className="text-center text-muted-foreground py-8">
@@ -440,41 +457,40 @@ function GameLogsTab({ gameLogs, position }: { gameLogs: GameLog[]; position: st
         </div>
       )}
       
-      <div className="overflow-x-auto -mx-1">
-        <Table className="min-w-[480px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-8 text-xs px-2">Wk</TableHead>
-              <TableHead className="w-12 text-xs px-2">Opp</TableHead>
-              <TableHead className="w-8 text-xs px-2">Res</TableHead>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-7 text-xs px-1.5">Wk</TableHead>
+            <TableHead className="w-11 text-xs px-1.5">Opp</TableHead>
+            <TableHead className="w-6 text-xs px-1.5">W/L</TableHead>
+            {statsToShow.map(stat => (
+              <TableHead key={stat} className="text-right text-xs px-1.5">
+                {getStatLabel(position, stat, true)}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filteredGameLogs.map((game, i) => (
+            <TableRow key={i}>
+              <TableCell className="font-medium text-xs px-1.5">{game.week}</TableCell>
+              <TableCell className="text-xs px-1.5">
+                <span className="text-muted-foreground mr-0.5">
+                  {game.homeAway === "away" ? "@" : ""}
+                </span>
+                {game.opponent}
+              </TableCell>
+              <TableCell className="text-xs px-1.5">{game.result?.charAt(0) || "-"}</TableCell>
               {statsToShow.map(stat => (
-                <TableHead key={stat} className="text-right text-xs whitespace-nowrap px-2">
-                  {getStatLabel(position, stat).slice(0, 6)}
-                </TableHead>
+                <TableCell key={stat} className="text-right text-xs px-1.5">
+                  {formatStatValue(game.stats[stat] ?? "-")}
+                </TableCell>
               ))}
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredGameLogs.map((game, i) => (
-              <TableRow key={i}>
-                <TableCell className="font-medium text-xs px-2">{game.week}</TableCell>
-                <TableCell className="text-xs px-2">
-                  <span className="text-muted-foreground mr-0.5">
-                    {game.homeAway === "away" ? "@" : ""}
-                  </span>
-                  {game.opponent}
-                </TableCell>
-                <TableCell className="text-xs px-2">{game.result || game.score}</TableCell>
-                {statsToShow.map(stat => (
-                  <TableCell key={stat} className="text-right text-xs px-2">
-                    {formatStatValue(game.stats[stat] ?? "-")}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          ))}
+        </TableBody>
+      </Table>
+      <StatLegend position={position} stats={statsToShow} />
       
       {filteredGameLogs.length === 0 && selectedSeason && (
         <div className="text-center text-muted-foreground py-4 text-sm">
@@ -514,32 +530,31 @@ function SplitsTab({ splits, position }: { splits: PlayerProfile["splits"]; posi
   return (
     <Card className="p-3">
       <h4 className="font-semibold mb-2 text-sm">Performance Splits</h4>
-      <div className="overflow-x-auto -mx-3">
-        <Table className="min-w-[400px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs px-2">Split</TableHead>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-xs px-1.5">Split</TableHead>
+            {statsToShow.map(stat => (
+              <TableHead key={stat} className="text-right text-xs px-1.5">
+                {getStatLabel(position, stat, true)}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {splitCategories.map((split, i) => (
+            <TableRow key={i}>
+              <TableCell className="font-medium text-xs px-1.5">{split.label}</TableCell>
               {statsToShow.map(stat => (
-                <TableHead key={stat} className="text-right text-xs whitespace-nowrap px-2">
-                  {getStatLabel(position, stat)}
-                </TableHead>
+                <TableCell key={stat} className="text-right text-xs px-1.5">
+                  {formatStatValue(split.data?.[stat] ?? "-")}
+                </TableCell>
               ))}
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {splitCategories.map((split, i) => (
-              <TableRow key={i}>
-                <TableCell className="font-medium text-xs px-2">{split.label}</TableCell>
-                {statsToShow.map(stat => (
-                  <TableCell key={stat} className="text-right text-xs px-2">
-                    {formatStatValue(split.data?.[stat] ?? "-")}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          ))}
+        </TableBody>
+      </Table>
+      <StatLegend position={position} stats={statsToShow} />
     </Card>
   );
 }

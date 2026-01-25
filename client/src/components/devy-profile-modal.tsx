@@ -379,31 +379,30 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
 
                   {data.collegeStats?.seasons?.length > 0 && (
                     <Card>
-                      <CardContent className="p-4">
-                        <h3 className="font-semibold mb-3">Season History</h3>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
+                      <CardContent className="p-3">
+                        <h3 className="font-semibold mb-2 text-sm">Season History</h3>
+                          <table className="w-full text-xs">
                             <thead className="border-b">
                               <tr className="text-left text-muted-foreground">
-                                <th className="p-2">Year</th>
-                                <th className="p-2">G</th>
+                                <th className="px-1.5 py-1">Yr</th>
+                                <th className="px-1.5 py-1">G</th>
                                 {player.position === "QB" ? (
                                   <>
-                                    <th className="p-2">Pass Yds</th>
-                                    <th className="p-2">Pass TD</th>
-                                    <th className="p-2">Rush Yds</th>
+                                    <th className="px-1.5 py-1">PaY</th>
+                                    <th className="px-1.5 py-1">PaT</th>
+                                    <th className="px-1.5 py-1">RuY</th>
                                   </>
                                 ) : player.position === "RB" ? (
                                   <>
-                                    <th className="p-2">Rush Yds</th>
-                                    <th className="p-2">Rush TD</th>
-                                    <th className="p-2">Rec</th>
+                                    <th className="px-1.5 py-1">RuY</th>
+                                    <th className="px-1.5 py-1">RuT</th>
+                                    <th className="px-1.5 py-1">Rec</th>
                                   </>
                                 ) : (
                                   <>
-                                    <th className="p-2">Rec</th>
-                                    <th className="p-2">Rec Yds</th>
-                                    <th className="p-2">Rec TD</th>
+                                    <th className="px-1.5 py-1">Rec</th>
+                                    <th className="px-1.5 py-1">ReY</th>
+                                    <th className="px-1.5 py-1">ReT</th>
                                   </>
                                 )}
                               </tr>
@@ -411,32 +410,51 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                             <tbody>
                               {data.collegeStats.seasons.map((season, idx) => (
                                 <tr key={idx} className={idx % 2 === 0 ? "bg-muted/30" : ""}>
-                                  <td className="p-2 font-medium">{season.year}</td>
-                                  <td className="p-2">{season.games}</td>
+                                  <td className="px-1.5 py-1 font-medium">{season.year}</td>
+                                  <td className="px-1.5 py-1">{season.games}</td>
                                   {player.position === "QB" ? (
                                     <>
-                                      <td className="p-2">{season.stats.passYds?.toLocaleString() || 0}</td>
-                                      <td className="p-2">{season.stats.passTd || 0}</td>
-                                      <td className="p-2">{season.stats.rushYds?.toLocaleString() || 0}</td>
+                                      <td className="px-1.5 py-1">{season.stats.passYds?.toLocaleString() || 0}</td>
+                                      <td className="px-1.5 py-1">{season.stats.passTd || 0}</td>
+                                      <td className="px-1.5 py-1">{season.stats.rushYds?.toLocaleString() || 0}</td>
                                     </>
                                   ) : player.position === "RB" ? (
                                     <>
-                                      <td className="p-2">{season.stats.rushYds?.toLocaleString() || 0}</td>
-                                      <td className="p-2">{season.stats.rushTd || 0}</td>
-                                      <td className="p-2">{season.stats.receptions || 0}</td>
+                                      <td className="px-1.5 py-1">{season.stats.rushYds?.toLocaleString() || 0}</td>
+                                      <td className="px-1.5 py-1">{season.stats.rushTd || 0}</td>
+                                      <td className="px-1.5 py-1">{season.stats.receptions || 0}</td>
                                     </>
                                   ) : (
                                     <>
-                                      <td className="p-2">{season.stats.receptions || 0}</td>
-                                      <td className="p-2">{season.stats.recYds?.toLocaleString() || 0}</td>
-                                      <td className="p-2">{season.stats.recTd || 0}</td>
+                                      <td className="px-1.5 py-1">{season.stats.receptions || 0}</td>
+                                      <td className="px-1.5 py-1">{season.stats.recYds?.toLocaleString() || 0}</td>
+                                      <td className="px-1.5 py-1">{season.stats.recTd || 0}</td>
                                     </>
                                   )}
                                 </tr>
                               ))}
                             </tbody>
                           </table>
-                        </div>
+                          <div className="mt-2 text-[10px] text-muted-foreground flex flex-wrap gap-x-2">
+                            {player.position === "QB" ? (
+                              <>
+                                <span><span className="font-medium">PaY</span>=Pass Yds</span>
+                                <span><span className="font-medium">PaT</span>=Pass TD</span>
+                                <span><span className="font-medium">RuY</span>=Rush Yds</span>
+                              </>
+                            ) : player.position === "RB" ? (
+                              <>
+                                <span><span className="font-medium">RuY</span>=Rush Yds</span>
+                                <span><span className="font-medium">RuT</span>=Rush TD</span>
+                                <span><span className="font-medium">Rec</span>=Receptions</span>
+                              </>
+                            ) : (
+                              <>
+                                <span><span className="font-medium">ReY</span>=Rec Yds</span>
+                                <span><span className="font-medium">ReT</span>=Rec TD</span>
+                              </>
+                            )}
+                          </div>
                       </CardContent>
                     </Card>
                   )}
