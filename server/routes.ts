@@ -3416,10 +3416,20 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
           p.team && p.search_rank && p.search_rank < 300
         )
         .map(([id, p]: [string, any]) => {
-          const dynastyValue = dynastyEngine.getQuickPlayerValue(id, p.position, p.age, p.years_exp || 0, p.injury_status);
           const playerStats = stats[id] || {};
-          const games = playerStats.gp || 16;
+          const games = playerStats.gp || 0;
           const points = playerStats.pts_ppr || 0;
+          const ppg = games > 0 ? points / games : 0;
+          
+          // Pass actual stats to dynasty value calculation for accurate production-based values
+          const dynastyValue = dynastyEngine.getQuickPlayerValue(
+            id, 
+            p.position, 
+            p.age, 
+            p.years_exp || 0, 
+            p.injury_status,
+            { points, games, ppg }
+          );
           
           return {
             playerId: id,

@@ -91,6 +91,7 @@ export interface DynastyValue {
   ageMultiplier: number;
   injuryMultiplier: number;
   scarcityBonus: number;
+  productionMultiplier: number; // Bonus for elite performers
   tier: number;
 }
 
@@ -107,9 +108,9 @@ export interface DraftPickValue {
 
 const AGE_CURVES: Record<string, { peak: [number, number]; decay: number }> = {
   QB: { peak: [25, 32], decay: 0.03 }, // Slow decay
-  RB: { peak: [22, 26], decay: 0.08 }, // Fast decay
-  WR: { peak: [24, 28], decay: 0.05 }, // Moderate decay
-  TE: { peak: [25, 29], decay: 0.04 }, // Moderate-slow decay
+  RB: { peak: [22, 27], decay: 0.05 }, // Extended peak to 27, reduced decay from 0.08 to 0.05
+  WR: { peak: [24, 29], decay: 0.04 }, // Extended peak to 29, reduced decay
+  TE: { peak: [25, 30], decay: 0.04 }, // Extended peak to 30
   // IDP positions
   DL: { peak: [24, 30], decay: 0.05 }, // Defensive linemen peak mid-20s to 30
   LB: { peak: [24, 29], decay: 0.05 }, // Linebackers similar to WRs
@@ -198,6 +199,48 @@ function calculateScarcityBonus(position: string, positionRank: number): number 
   }
   
   return 1.0;
+}
+
+// ============================================================================
+// PRODUCTION MULTIPLIER - Rewards elite performers
+// ============================================================================
+
+function calculateProductionMultiplier(position: string, ppg: number, totalPoints: number): number {
+  // Base thresholds by position for "elite" production
+  const eliteThresholds: Record<string, { elitePPG: number; goodPPG: number; eliteTotal: number }> = {
+    QB: { elitePPG: 20, goodPPG: 15, eliteTotal: 300 },
+    RB: { elitePPG: 15, goodPPG: 10, eliteTotal: 200 },
+    WR: { elitePPG: 14, goodPPG: 10, eliteTotal: 200 },
+    TE: { elitePPG: 12, goodPPG: 8, eliteTotal: 150 },
+    DL: { elitePPG: 10, goodPPG: 6, eliteTotal: 120 },
+    LB: { elitePPG: 12, goodPPG: 8, eliteTotal: 150 },
+    DB: { elitePPG: 10, goodPPG: 6, eliteTotal: 120 },
+  };
+  
+  const thresholds = eliteThresholds[position];
+  if (!thresholds) return 1.0;
+  
+  let multiplier = 1.0;
+  
+  // PPG-based bonus (proven weekly production)
+  if (ppg >= thresholds.elitePPG) {
+    // Elite producer: 1.25-1.40x bonus based on how far above threshold
+    const excess = (ppg - thresholds.elitePPG) / thresholds.elitePPG;
+    multiplier += 0.25 + Math.min(0.15, excess * 0.3);
+  } else if (ppg >= thresholds.goodPPG) {
+    // Good producer: 1.10-1.25x bonus
+    const ratio = (ppg - thresholds.goodPPG) / (thresholds.elitePPG - thresholds.goodPPG);
+    multiplier += 0.10 + ratio * 0.15;
+  }
+  
+  // Total points bonus (volume/durability reward)
+  if (totalPoints >= thresholds.eliteTotal) {
+    // Additional 5-10% for high total points (played full season as starter)
+    const excess = (totalPoints - thresholds.eliteTotal) / thresholds.eliteTotal;
+    multiplier += 0.05 + Math.min(0.05, excess * 0.1);
+  }
+  
+  return Math.min(1.50, multiplier); // Cap at 50% bonus max
 }
 
 // ============================================================================
@@ -598,13 +641,17 @@ export async function calculateLeagueValues(
     const replPoints = replacementPoints[groupPos] || 0;
     const rawVOR = Math.max(0, points - replPoints);
     
+    // Calculate estimated PPG (assuming 17-game season for projections)
+    const estimatedPPG = points / 17;
+    
     // Apply dynasty adjustments (use group position for age curves)
     const ageMultiplier = calculateAgeMultiplier(groupPos, player.age);
     const injuryMultiplier = calculateInjuryMultiplier(player.injuryStatus);
     const scarcityBonus = calculateScarcityBonus(groupPos, positionRank);
+    const productionMultiplier = calculateProductionMultiplier(groupPos, estimatedPPG, points);
     
-    // Final adjusted VOR
-    const adjustedVOR = rawVOR * ageMultiplier * injuryMultiplier * scarcityBonus;
+    // Final adjusted VOR - production multiplier rewards elite performers
+    const adjustedVOR = rawVOR * ageMultiplier * injuryMultiplier * scarcityBonus * productionMultiplier;
     
     dynastyValues.push({
       playerId: player.playerId,
@@ -617,6 +664,7 @@ export async function calculateLeagueValues(
       ageMultiplier,
       injuryMultiplier,
       scarcityBonus,
+      productionMultiplier,
       tier: 0, // Will calculate later
     });
   }
@@ -858,7 +906,8 @@ export function getQuickPlayerValue(
   position: string,
   age: number | null,
   yearsExp: number,
-  injuryStatus: string | null = null
+  injuryStatus: string | null = null,
+  actualStats: { points?: number; games?: number; ppg?: number } = {}
 ): number {
   // Base values by position
   const positionBaseValues: Record<string, number> = {
@@ -887,13 +936,26 @@ export function getQuickPlayerValue(
   else if (yearsExp === 1) value *= 1.05;
   else if (yearsExp > 10) value *= 0.7;
   
-  // Add variance based on player ID (simulates different player values)
-  const hash = playerId.split("").reduce((a, b) => {
-    a = ((a << 5) - a) + b.charCodeAt(0);
-    return a & a;
-  }, 0);
-  const variance = 0.75 + (Math.abs(hash) % 50) / 100;
-  value *= variance;
+  // Apply production multiplier based on actual stats (most important for realistic values!)
+  if (actualStats.points !== undefined || actualStats.ppg !== undefined) {
+    const totalPoints = actualStats.points || 0;
+    const ppg = actualStats.ppg !== undefined 
+      ? actualStats.ppg 
+      : (actualStats.games && actualStats.games > 0 ? totalPoints / actualStats.games : 0);
+    
+    // Normalize position for IDP
+    const groupPos = getIDPPositionGroup(position) || position;
+    const productionMultiplier = calculateProductionMultiplier(groupPos, ppg, totalPoints);
+    value *= productionMultiplier;
+  } else {
+    // No actual stats - add small variance based on player ID
+    const hash = playerId.split("").reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    const variance = 0.85 + (Math.abs(hash) % 30) / 100;
+    value *= variance;
+  }
   
   // Cap and round
   value = Math.min(100, Math.max(0, value));
