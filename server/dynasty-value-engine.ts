@@ -244,6 +244,35 @@ function calculateProductionMultiplier(position: string, ppg: number, totalPoint
 }
 
 // ============================================================================
+// DEPTH CHART MULTIPLIER - Adjusts value based on starter/backup status
+// ============================================================================
+
+function calculateDepthChartMultiplier(position: string, depthOrder: number | null): number {
+  if (!depthOrder || depthOrder < 1) return 1.0; // Unknown depth - neutral
+  
+  // Position-specific depth multipliers
+  // Starters (depth 1) get full value, backups get progressively less
+  const depthMultipliers: Record<string, number[]> = {
+    // [depth1, depth2, depth3, depth4+]
+    QB: [1.0, 0.55, 0.30, 0.15], // QB2 has some value as handcuff
+    RB: [1.0, 0.65, 0.45, 0.25], // RB2 can be valuable in committees
+    WR: [1.0, 0.70, 0.50, 0.30], // WR depth matters less - more starters
+    TE: [1.0, 0.55, 0.35, 0.20], // TE2 rarely sees volume
+    // IDP positions - depth matters but less dramatically
+    DL: [1.0, 0.75, 0.55, 0.35],
+    LB: [1.0, 0.75, 0.55, 0.35],
+    DB: [1.0, 0.75, 0.55, 0.35],
+  };
+  
+  const multipliers = depthMultipliers[position];
+  if (!multipliers) return 1.0;
+  
+  // Clamp depth order to valid index
+  const index = Math.min(depthOrder - 1, multipliers.length - 1);
+  return multipliers[index];
+}
+
+// ============================================================================
 // FANTASY POINTS CALCULATION
 // ============================================================================
 
@@ -907,10 +936,12 @@ export function getQuickPlayerValue(
   age: number | null,
   yearsExp: number,
   injuryStatus: string | null = null,
-  actualStats: { points?: number; games?: number; ppg?: number } = {}
+  actualStats: { points?: number; games?: number; ppg?: number } = {},
+  depthChartOrder: number | null = null,
+  leagueScoring: LeagueScoringSettings | null = null
 ): number {
-  // Base values by position
-  const positionBaseValues: Record<string, number> = {
+  // Base values by position - adjusted based on league scoring type
+  let positionBaseValues: Record<string, number> = {
     QB: 65,
     RB: 55,
     WR: 60,
@@ -918,15 +949,47 @@ export function getQuickPlayerValue(
     K: 5,
     DEF: 5,
     // IDP positions - generally lower than offensive players
-    DL: 40, // Defensive linemen - sack specialists have more value
-    LB: 42, // Linebackers - tackle leaders are valuable
-    DB: 38, // Defensive backs - INT leaders have value
+    DL: 40,
+    LB: 42,
+    DB: 38,
   };
+  
+  // Adjust base values based on league scoring settings
+  if (leagueScoring) {
+    // PPR scoring boosts pass catchers
+    const pprBonus = leagueScoring.rec || 0;
+    if (pprBonus >= 1.0) {
+      // Full PPR - big boost to pass catchers
+      positionBaseValues.WR += 8;
+      positionBaseValues.RB += 3; // Pass-catching backs
+      positionBaseValues.TE += 10;
+    } else if (pprBonus >= 0.5) {
+      // Half PPR
+      positionBaseValues.WR += 4;
+      positionBaseValues.RB += 2;
+      positionBaseValues.TE += 5;
+    }
+    
+    // 6-pt passing TDs boost QBs
+    if (leagueScoring.passTd >= 6) {
+      positionBaseValues.QB += 8;
+    }
+    
+    // TE premium
+    if (leagueScoring.bonusRecTe && leagueScoring.bonusRecTe > 0) {
+      positionBaseValues.TE += Math.min(15, leagueScoring.bonusRecTe * 5);
+    }
+  }
   
   let value = positionBaseValues[position] || 30;
   
+  // Apply depth chart multiplier - this is critical for realistic values!
+  // Normalize position for IDP
+  const groupPos = getIDPPositionGroup(position) || position;
+  value *= calculateDepthChartMultiplier(groupPos, depthChartOrder);
+  
   // Apply age curve
-  value *= calculateAgeMultiplier(position, age);
+  value *= calculateAgeMultiplier(groupPos, age);
   
   // Apply injury adjustment
   value *= calculateInjuryMultiplier(injuryStatus);
@@ -943,12 +1006,10 @@ export function getQuickPlayerValue(
       ? actualStats.ppg 
       : (actualStats.games && actualStats.games > 0 ? totalPoints / actualStats.games : 0);
     
-    // Normalize position for IDP
-    const groupPos = getIDPPositionGroup(position) || position;
     const productionMultiplier = calculateProductionMultiplier(groupPos, ppg, totalPoints);
     value *= productionMultiplier;
-  } else {
-    // No actual stats - add small variance based on player ID
+  } else if (!depthChartOrder || depthChartOrder <= 0) {
+    // No actual stats AND no depth chart - add small variance based on player ID
     const hash = playerId.split("").reduce((a, b) => {
       a = ((a << 5) - a) + b.charCodeAt(0);
       return a & a;

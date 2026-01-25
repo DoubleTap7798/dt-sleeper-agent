@@ -3409,6 +3409,17 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
       } catch (e) {
         stats = {};
       }
+      
+      // Get league-specific scoring settings if a league is selected
+      let leagueScoring: dynastyEngine.LeagueScoringSettings | null = null;
+      if (leagueId) {
+        try {
+          const league = await sleeperApi.getLeague(leagueId);
+          leagueScoring = dynastyEngine.parseLeagueScoringSettings(league);
+        } catch (e) {
+          // Use default scoring if league fetch fails
+        }
+      }
 
       const players = Object.entries(allPlayers)
         .filter(([_, p]: [string, any]) => 
@@ -3420,15 +3431,18 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
           const games = playerStats.gp || 0;
           const points = playerStats.pts_ppr || 0;
           const ppg = games > 0 ? points / games : 0;
+          const depthOrder = p.depth_chart_order || null;
           
-          // Pass actual stats to dynasty value calculation for accurate production-based values
+          // Pass actual stats, depth chart, and league scoring for accurate dynasty values
           const dynastyValue = dynastyEngine.getQuickPlayerValue(
             id, 
             p.position, 
             p.age, 
             p.years_exp || 0, 
             p.injury_status,
-            { points, games, ppg }
+            { points, games, ppg },
+            depthOrder,
+            leagueScoring
           );
           
           return {
