@@ -1456,6 +1456,10 @@ Return ONLY valid JSON, no other text.`;
         const gamesPlayed = playerStats?.gp || 0;
         const pointsPerGame = gamesPlayed > 0 ? Math.round((fantasyPoints / gamesPlayed) * 10) / 10 : 0;
         
+        // Use standard PPR points for dynasty value calculation (for consistency with other endpoints)
+        const standardPprPoints = playerStats?.pts_ppr || 0;
+        const standardPpg = gamesPlayed > 0 ? standardPprPoints / gamesPlayed : 0;
+        
         // Get blended dynasty value (league + KTC consensus)
         const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
         const consensusData = dynastyConsensusService.getConsensusValue(playerName, position);
@@ -1467,7 +1471,7 @@ Return ONLY valid JSON, no other text.`;
           player.age,
           player.years_exp || 0,
           player.injury_status,
-          { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
+          { points: standardPprPoints, games: gamesPlayed, ppg: standardPpg },
           null,
           null,
           consensusValue

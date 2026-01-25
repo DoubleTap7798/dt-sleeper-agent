@@ -331,7 +331,7 @@ export default function PlayersPage() {
       </Card>
 
       <Sheet open={!!selectedPlayer} onOpenChange={(open) => !open && setSelectedPlayer(null)}>
-        <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+        <SheetContent className="w-full sm:w-[540px] max-w-full overflow-y-auto overflow-x-hidden">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-3">
               {selectedPlayer && (
@@ -380,214 +380,192 @@ export default function PlayersPage() {
               <div className="space-y-2">
                 <h4 className="text-sm font-medium text-muted-foreground">Season Stats</h4>
                 {selectedPlayer.position === "QB" ? (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Pass Att</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.passAtt}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Comp</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.passCmp}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Pass Yds</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.passYd.toLocaleString()}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Pass TDs</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.passTd}</p>
-                      </Card>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">INTs</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.passInt}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">1st Downs</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.passFd}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rush Att</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rushAtt}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rush Yds</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rushYd}</p>
-                      </Card>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rush TDs</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rushTd}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rush 1st</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rushFd}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Snap %</p>
-                        <p className="font-mono font-medium">{selectedPlayer.snapPct !== null ? `${selectedPlayer.snapPct}%` : "-"}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Games</p>
-                        <p className="font-mono font-medium">{selectedPlayer.gamesPlayed}</p>
-                      </Card>
-                    </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2 text-center">
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Pass Att</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.passAtt}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Comp</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.passCmp}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Pass Yds</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.passYd.toLocaleString()}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Pass TDs</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.passTd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">INTs</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.passInt}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">1st Downs</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.passFd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rush Att</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rushAtt}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rush Yds</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rushYd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rush TDs</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rushTd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rush 1st</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rushFd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Snap %</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.snapPct !== null ? `${selectedPlayer.snapPct}%` : "-"}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Games</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.gamesPlayed}</p>
+                    </Card>
                   </div>
                 ) : selectedPlayer.position === "RB" ? (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rush Att</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rushAtt}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rush Yds</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rushYd.toLocaleString()}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rush TDs</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rushTd}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rush 1st</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rushFd}</p>
-                      </Card>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Targets</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.recTgt}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rec</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rec}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rec Yds</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.recYd.toLocaleString()}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rec TDs</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.recTd}</p>
-                      </Card>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rec 1st</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.recFd}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Total 1st</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rushFd + selectedPlayer.stats.recFd}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Snap %</p>
-                        <p className="font-mono font-medium">{selectedPlayer.snapPct !== null ? `${selectedPlayer.snapPct}%` : "-"}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Games</p>
-                        <p className="font-mono font-medium">{selectedPlayer.gamesPlayed}</p>
-                      </Card>
-                    </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2 text-center">
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rush Att</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rushAtt}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rush Yds</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rushYd.toLocaleString()}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rush TDs</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rushTd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rush 1st</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rushFd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Targets</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.recTgt}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rec</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rec}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rec Yds</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.recYd.toLocaleString()}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rec TDs</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.recTd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rec 1st</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.recFd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Total 1st</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rushFd + selectedPlayer.stats.recFd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Snap %</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.snapPct !== null ? `${selectedPlayer.snapPct}%` : "-"}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Games</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.gamesPlayed}</p>
+                    </Card>
                   </div>
                 ) : selectedPlayer.isIDP && selectedPlayer.idpStats ? (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Tackles</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.tackles}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Solo</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.soloTackles}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Assists</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.assistTackles}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">TFL</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.tacklesForLoss}</p>
-                      </Card>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Sacks</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.sacks}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">QB Hits</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.qbHits}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">INTs</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.interceptions}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">PD</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.passesDefended}</p>
-                      </Card>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">FF</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.forcedFumbles}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">FR</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.fumbleRecoveries}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">TDs</p>
-                        <p className="font-mono font-medium">{selectedPlayer.idpStats.tds}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Games</p>
-                        <p className="font-mono font-medium">{selectedPlayer.gamesPlayed}</p>
-                      </Card>
-                    </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2 text-center">
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Tackles</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.tackles}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Solo</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.soloTackles}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Assists</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.assistTackles}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">TFL</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.tacklesForLoss}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Sacks</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.sacks}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">QB Hits</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.qbHits}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">INTs</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.interceptions}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">PD</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.passesDefended}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">FF</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.forcedFumbles}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">FR</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.fumbleRecoveries}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">TDs</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.idpStats.tds}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Games</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.gamesPlayed}</p>
+                    </Card>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Targets</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.recTgt}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rec</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rec}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rec Yds</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.recYd.toLocaleString()}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rec TDs</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.recTd}</p>
-                      </Card>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rec 1st</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.recFd}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Snap %</p>
-                        <p className="font-mono font-medium">{selectedPlayer.snapPct !== null ? `${selectedPlayer.snapPct}%` : "-"}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Games</p>
-                        <p className="font-mono font-medium">{selectedPlayer.gamesPlayed}</p>
-                      </Card>
-                      <Card className="p-2">
-                        <p className="text-xs text-muted-foreground">Rush Yds</p>
-                        <p className="font-mono font-medium">{selectedPlayer.stats.rushYd}</p>
-                      </Card>
-                    </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2 text-center">
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Targets</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.recTgt}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rec</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rec}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rec Yds</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.recYd.toLocaleString()}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rec TDs</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.recTd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rec 1st</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.recFd}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Snap %</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.snapPct !== null ? `${selectedPlayer.snapPct}%` : "-"}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Games</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.gamesPlayed}</p>
+                    </Card>
+                    <Card className="p-1.5 sm:p-2">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">Rush Yds</p>
+                      <p className="font-mono font-medium text-sm">{selectedPlayer.stats.rushYd}</p>
+                    </Card>
                   </div>
                 )}
               </div>
