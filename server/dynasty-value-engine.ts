@@ -1083,13 +1083,12 @@ export function getQuickPlayerValue(
 }
 
 // ============================================================================
-// DAMPENED VALUE CALCULATION (ceiling check with consensus)
+// AVERAGED VALUE CALCULATION (simple 50/50 blend with consensus)
 // ============================================================================
-// Option 2: Ceiling Check with Dampening
-// - If league value > consensus by more than 10 points, apply dampening
-// - Reduce the gap by 50%
-// - Example: Ferguson at 100 (ours) vs 85 (consensus) → 100 - ((100-85) × 0.5) = 92.5
-// - Preserves league-specific boosts but prevents runaway values
+// Approach: Simple average of league value and KTC consensus value
+// - KTC raw value × 0.01 = normalized (e.g., 5532 → 55.32)
+// - Average with league value: (leagueValue + ktcNormalized) / 2
+// - Just publish the final dynasty value
 
 export function getBlendedPlayerValue(
   playerId: string,
@@ -1102,7 +1101,7 @@ export function getBlendedPlayerValue(
   depthChartOrder: number | null = null,
   leagueScoring: LeagueScoringSettings | null = null,
   consensusValue: number | null = null,
-  _leagueWeight: number = 0.6 // Kept for API compatibility but not used in dampening
+  _leagueWeight: number = 0.5 // Not used - always 50/50
 ): QuickPlayerValueResult {
   const leagueValue = getQuickPlayerValue(
     playerId,
@@ -1118,8 +1117,8 @@ export function getBlendedPlayerValue(
   // If no consensus value, return pure league value
   if (consensusValue === null || consensusValue === undefined) {
     return {
-      value: leagueValue,
-      leagueValue,
+      value: Math.round(leagueValue * 10) / 10,
+      leagueValue: Math.round(leagueValue * 10) / 10,
       consensusValue: null,
       blended: false
     };
@@ -1128,27 +1127,15 @@ export function getBlendedPlayerValue(
   const roundedLeague = Math.round(leagueValue * 10) / 10;
   const roundedConsensus = Math.round(consensusValue * 10) / 10;
   
-  // Ceiling Check with Dampening:
-  // Only dampen if league value exceeds consensus by more than 10 points
-  const gap = roundedLeague - roundedConsensus;
-  const DAMPENING_THRESHOLD = 10;
-  const DAMPENING_FACTOR = 0.5; // Reduce gap by 50%
-  
-  let finalValue = roundedLeague;
-  let dampened = false;
-  
-  if (gap > DAMPENING_THRESHOLD) {
-    // Apply dampening: reduce the excess gap by 50%
-    const dampening = gap * DAMPENING_FACTOR;
-    finalValue = Math.round((roundedLeague - dampening) * 10) / 10;
-    dampened = true;
-  }
+  // Simple 50/50 average of league and consensus values
+  const averagedValue = (roundedLeague + roundedConsensus) / 2;
+  const finalValue = Math.round(averagedValue * 10) / 10;
   
   return {
     value: finalValue,
     leagueValue: roundedLeague,
     consensusValue: roundedConsensus,
-    blended: dampened // True if dampening was applied
+    blended: true // Always blended when consensus is available
   };
 }
 
@@ -1162,4 +1149,4 @@ export function getBlendedPlayerValue(
 // - calculateTradeGrade: Trade evaluation
 // - parseLeagueScoringSettings / parseLeagueRosterSettings: Parse Sleeper data
 // - getQuickPlayerValue: Quick fallback value calculation
-// - getBlendedPlayerValue: Dampened value (ceiling check when league > consensus by 10+)
+// - getBlendedPlayerValue: Average of league + KTC values (50/50)

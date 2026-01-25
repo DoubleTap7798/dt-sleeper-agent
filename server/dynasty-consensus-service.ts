@@ -93,12 +93,12 @@ class DynastyConsensusService {
       this.minRawValue = minVal;
 
       rawPlayers.sort((a, b) => b.value - a.value);
-      const totalPlayers = rawPlayers.length;
       
       for (let i = 0; i < rawPlayers.length; i++) {
         const p = rawPlayers[i];
-        const percentileRank = 100 - ((i / (totalPlayers - 1)) * 100);
-        const normalizedValue = Math.max(0, Math.min(99.5, percentileRank));
+        // Simple normalization: raw value * 0.01 (e.g., 5532 → 55.32)
+        // Cap at 99.5 to prevent exact 100 values
+        const normalizedValue = Math.min(99.5, Math.max(0, p.value * 0.01));
         const key = this.createPlayerKey(p.name, p.pos);
         
         this.cache.set(key, {
