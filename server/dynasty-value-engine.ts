@@ -28,6 +28,19 @@ export interface LeagueScoringSettings {
   bonus100RushYds?: number;
   bonus100RecYds?: number;
   bonus300PassYds?: number;
+  // IDP scoring settings
+  idpTkl: number; // Solo tackle
+  idpAst: number; // Assisted tackle
+  idpSack: number; // Sack
+  idpInt: number; // Interception
+  idpFF: number; // Forced fumble
+  idpFR: number; // Fumble recovery
+  idpPD: number; // Pass defended
+  idpTFL: number; // Tackle for loss
+  idpSafety: number; // Safety
+  idpTd: number; // Defensive touchdown
+  idpBlkKick: number; // Blocked kick
+  idpQBHit: number; // QB hit
 }
 
 export interface LeagueRosterSettings {
@@ -39,6 +52,12 @@ export interface LeagueRosterSettings {
   flexSlots: number; // RB/WR/TE flex
   superflexSlots: number; // QB/RB/WR/TE superflex
   benchSlots: number;
+  // IDP roster slots
+  dlSlots: number;
+  lbSlots: number;
+  dbSlots: number;
+  idpFlexSlots: number; // DL/LB/DB flex
+  isIDPLeague: boolean;
 }
 
 export interface PlayerProjection {
@@ -185,11 +204,74 @@ function calculateScarcityBonus(position: string, positionRank: number): number 
 // FANTASY POINTS CALCULATION
 // ============================================================================
 
+// IDP position group mapping
+const IDP_POSITIONS = new Set(["DL", "LB", "DB", "DE", "DT", "NT", "ED", "ILB", "OLB", "MLB", "CB", "S", "FS", "SS"]);
+
+function getIDPPositionGroup(position: string): "DL" | "LB" | "DB" | null {
+  switch (position) {
+    case "DL": case "DE": case "DT": case "NT": case "ED": return "DL";
+    case "LB": case "ILB": case "OLB": case "MLB": return "LB";
+    case "DB": case "CB": case "S": case "FS": case "SS": return "DB";
+    default: return null;
+  }
+}
+
+// Typical per-game stats by IDP position group (used for value calculation)
+// Based on historical averages for starting IDP players
+const IDP_POSITION_AVERAGES: Record<string, {
+  soloTkl: number;
+  astTkl: number;
+  sacks: number;
+  interceptions: number;
+  pd: number;
+  ff: number;
+  fr: number;
+  tfl: number;
+  qbHits: number;
+}> = {
+  DL: { soloTkl: 2.5, astTkl: 1.5, sacks: 0.35, interceptions: 0, pd: 0.1, ff: 0.05, fr: 0.02, tfl: 0.5, qbHits: 0.4 },
+  LB: { soloTkl: 5.0, astTkl: 3.0, sacks: 0.15, interceptions: 0.05, pd: 0.2, ff: 0.03, fr: 0.03, tfl: 0.4, qbHits: 0.1 },
+  DB: { soloTkl: 3.5, astTkl: 1.5, sacks: 0.02, interceptions: 0.12, pd: 0.5, ff: 0.02, fr: 0.01, tfl: 0.1, qbHits: 0 },
+};
+
+function calculateIDPFantasyPoints(
+  position: string,
+  scoring: LeagueScoringSettings,
+  gamesPlayed: number = 17
+): number {
+  const group = getIDPPositionGroup(position);
+  if (!group) return 0;
+  
+  const avg = IDP_POSITION_AVERAGES[group];
+  if (!avg) return 0;
+  
+  let ppg = 0;
+  
+  // Calculate points per game based on league scoring
+  ppg += avg.soloTkl * scoring.idpTkl;
+  ppg += avg.astTkl * scoring.idpAst;
+  ppg += avg.sacks * scoring.idpSack;
+  ppg += avg.interceptions * scoring.idpInt;
+  ppg += avg.pd * scoring.idpPD;
+  ppg += avg.ff * scoring.idpFF;
+  ppg += avg.fr * scoring.idpFR;
+  ppg += avg.tfl * scoring.idpTFL;
+  ppg += avg.qbHits * scoring.idpQBHit;
+  
+  // Season total
+  return ppg * gamesPlayed;
+}
+
 function calculateFantasyPoints(
   projection: PlayerProjection["projections"],
   scoring: LeagueScoringSettings,
   position?: string
 ): number {
+  // Check if this is an IDP position
+  if (position && IDP_POSITIONS.has(position)) {
+    return calculateIDPFantasyPoints(position, scoring);
+  }
+  
   let points = 0;
   
   // Passing
@@ -239,7 +321,8 @@ function calculateReplacementLevel(
   roster: LeagueRosterSettings,
   position: string
 ): number {
-  const { teamCount, qbSlots, rbSlots, wrSlots, teSlots, flexSlots, superflexSlots } = roster;
+  const { teamCount, qbSlots, rbSlots, wrSlots, teSlots, flexSlots, superflexSlots,
+          dlSlots, lbSlots, dbSlots, idpFlexSlots } = roster;
   
   // Estimate starters per position based on roster settings
   let startersNeeded: number;
@@ -260,6 +343,27 @@ function calculateReplacementLevel(
     case "TE":
       // TEs fill TE slots + small share of flex
       startersNeeded = teamCount * (teSlots + flexSlots * 0.15);
+      break;
+    // IDP positions
+    case "DL":
+    case "DE":
+    case "DT":
+    case "NT":
+    case "ED":
+      startersNeeded = teamCount * (dlSlots + idpFlexSlots * 0.33);
+      break;
+    case "LB":
+    case "ILB":
+    case "OLB":
+    case "MLB":
+      startersNeeded = teamCount * (lbSlots + idpFlexSlots * 0.40);
+      break;
+    case "DB":
+    case "CB":
+    case "S":
+    case "FS":
+    case "SS":
+      startersNeeded = teamCount * (dbSlots + idpFlexSlots * 0.27);
       break;
     default:
       startersNeeded = teamCount;
@@ -407,13 +511,20 @@ export async function calculateLeagueValues(
   // Get projections for all players
   const projections = await getPlayerProjections(players);
   
-  // Calculate replacement level for each position
+  // Calculate replacement level for each position (including IDP if applicable)
   const replacementLevels: Record<string, number> = {
     QB: calculateReplacementLevel(rosterSettings, "QB"),
     RB: calculateReplacementLevel(rosterSettings, "RB"),
     WR: calculateReplacementLevel(rosterSettings, "WR"),
     TE: calculateReplacementLevel(rosterSettings, "TE"),
   };
+  
+  // Add IDP replacement levels if this is an IDP league
+  if (rosterSettings.isIDPLeague) {
+    replacementLevels.DL = calculateReplacementLevel(rosterSettings, "DL");
+    replacementLevels.LB = calculateReplacementLevel(rosterSettings, "LB");
+    replacementLevels.DB = calculateReplacementLevel(rosterSettings, "DB");
+  }
   
   // Calculate fantasy points for each player (including position-specific bonuses)
   const playerPoints: { player: PlayerProjection; points: number }[] = [];
@@ -431,8 +542,20 @@ export async function calculateLeagueValues(
     TE: [],
   };
   
+  // Add IDP position groups if applicable
+  if (rosterSettings.isIDPLeague) {
+    positionGroups.DL = [];
+    positionGroups.LB = [];
+    positionGroups.DB = [];
+  }
+  
   for (const pp of playerPoints) {
-    const pos = pp.player.position;
+    let pos = pp.player.position;
+    // Normalize IDP positions to their group (DL, LB, DB)
+    const idpGroup = getIDPPositionGroup(pos);
+    if (idpGroup && positionGroups[idpGroup]) {
+      pos = idpGroup;
+    }
     if (positionGroups[pos]) {
       positionGroups[pos].push(pp);
     }
@@ -462,19 +585,23 @@ export async function calculateLeagueValues(
   
   for (const pp of playerPoints) {
     const { player, points } = pp;
-    const pos = player.position;
+    const originalPos = player.position;
+    
+    // Normalize IDP positions to their group for VOR calculation
+    const idpGroup = getIDPPositionGroup(originalPos);
+    const groupPos = (idpGroup && positionGroups[idpGroup]) ? idpGroup : originalPos;
     
     // Get position rank
-    const positionRank = positionGroups[pos]?.findIndex(p => p.player.playerId === player.playerId) + 1 || 999;
+    const positionRank = positionGroups[groupPos]?.findIndex(p => p.player.playerId === player.playerId) + 1 || 999;
     
     // Calculate raw VOR
-    const replPoints = replacementPoints[pos] || 0;
+    const replPoints = replacementPoints[groupPos] || 0;
     const rawVOR = Math.max(0, points - replPoints);
     
-    // Apply dynasty adjustments
-    const ageMultiplier = calculateAgeMultiplier(pos, player.age);
+    // Apply dynasty adjustments (use group position for age curves)
+    const ageMultiplier = calculateAgeMultiplier(groupPos, player.age);
     const injuryMultiplier = calculateInjuryMultiplier(player.injuryStatus);
-    const scarcityBonus = calculateScarcityBonus(pos, positionRank);
+    const scarcityBonus = calculateScarcityBonus(groupPos, positionRank);
     
     // Final adjusted VOR
     const adjustedVOR = rawVOR * ageMultiplier * injuryMultiplier * scarcityBonus;
@@ -482,7 +609,7 @@ export async function calculateLeagueValues(
     dynastyValues.push({
       playerId: player.playerId,
       name: player.name,
-      position: pos,
+      position: groupPos, // Use group position for display
       team: player.team,
       value: 0, // Will normalize later
       rawVOR: adjustedVOR,
@@ -602,6 +729,20 @@ export function parseLeagueScoringSettings(leagueSettings: any): LeagueScoringSe
     bonus100RushYds: scoring.bonus_rush_yd_100 || 0,
     bonus100RecYds: scoring.bonus_rec_yd_100 || 0,
     bonus300PassYds: scoring.bonus_pass_yd_300 || 0,
+    // IDP scoring - Sleeper uses idp_tkl_solo, idp_tkl_ast, etc.
+    // Note: idp_tkl is total tackles in some formats, we use solo tackle points
+    idpTkl: scoring.idp_tkl_solo || scoring.idp_tkl || 1,
+    idpAst: scoring.idp_tkl_ast || 0.5,
+    idpSack: scoring.idp_sack || 2,
+    idpInt: scoring.idp_int || 3,
+    idpFF: scoring.idp_ff || 2,
+    idpFR: scoring.idp_fum_rec || 2,
+    idpPD: scoring.idp_pass_def || 1,
+    idpTFL: scoring.idp_tkl_loss || 1,
+    idpSafety: scoring.idp_safe || 2,
+    idpTd: scoring.idp_td || scoring.def_td || 6,
+    idpBlkKick: scoring.idp_blk_kick || 2,
+    idpQBHit: scoring.idp_qb_hit || 0.5,
   };
 }
 
@@ -611,6 +752,7 @@ export function parseLeagueRosterSettings(league: any): LeagueRosterSettings {
   
   let qbSlots = 0, rbSlots = 0, wrSlots = 0, teSlots = 0;
   let flexSlots = 0, superflexSlots = 0, benchSlots = 0;
+  let dlSlots = 0, lbSlots = 0, dbSlots = 0, idpFlexSlots = 0;
   
   for (const pos of rosterPositions) {
     switch (pos) {
@@ -621,8 +763,15 @@ export function parseLeagueRosterSettings(league: any): LeagueRosterSettings {
       case "FLEX": flexSlots++; break;
       case "SUPER_FLEX": superflexSlots++; break;
       case "BN": benchSlots++; break;
+      // IDP positions
+      case "DL": case "DE": case "DT": case "NT": case "ED": dlSlots++; break;
+      case "LB": case "ILB": case "OLB": case "MLB": lbSlots++; break;
+      case "DB": case "CB": case "S": case "FS": case "SS": dbSlots++; break;
+      case "IDP_FLEX": idpFlexSlots++; break;
     }
   }
+  
+  const isIDPLeague = dlSlots > 0 || lbSlots > 0 || dbSlots > 0 || idpFlexSlots > 0;
   
   return {
     teamCount,
@@ -633,6 +782,11 @@ export function parseLeagueRosterSettings(league: any): LeagueRosterSettings {
     flexSlots,
     superflexSlots,
     benchSlots,
+    dlSlots,
+    lbSlots,
+    dbSlots,
+    idpFlexSlots,
+    isIDPLeague,
   };
 }
 

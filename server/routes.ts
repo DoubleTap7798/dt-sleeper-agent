@@ -1300,10 +1300,20 @@ Return ONLY valid JSON, no other text.`;
         fum_lost: -2,
       };
       
+      // Detect if the selected league is an IDP league
+      let isIDPLeague = false;
+      
       if (leagueId) {
         const league = await sleeperApi.getLeague(leagueId);
         if (league?.scoring_settings) {
           scoringSettings = league.scoring_settings;
+        }
+        // Check roster positions for IDP slots
+        if (league?.roster_positions) {
+          const idpPositionTypes = ["DL", "LB", "DB", "DE", "DT", "CB", "S", "IDP_FLEX", "ILB", "OLB", "MLB", "NT", "FS", "SS", "ED"];
+          isIDPLeague = league.roster_positions.some((pos: string) => 
+            pos !== "BN" && idpPositionTypes.includes(pos)
+          );
         }
       }
 
@@ -1514,13 +1524,20 @@ Return ONLY valid JSON, no other text.`;
         });
       });
       
+      // Filter out IDP players if league is not an IDP league (and a specific league is selected)
+      // When no leagueId is provided (All Leagues view), show all players including IDP
+      let playersToReturn = nflPlayers;
+      if (leagueId && !isIDPLeague) {
+        playersToReturn = nflPlayers.filter(p => !p.isIDP);
+      }
+      
       // Sort by fantasy points descending (actual production)
-      nflPlayers.sort((a, b) => b.fantasyPoints - a.fantasyPoints);
+      playersToReturn.sort((a, b) => b.fantasyPoints - a.fantasyPoints);
       
       // Add overall rank and position rank
       const positionRanks: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0, DL: 0, LB: 0, DB: 0 };
       
-      nflPlayers.forEach((player, index) => {
+      playersToReturn.forEach((player, index) => {
         player.overallRank = index + 1;
         positionRanks[player.position] = (positionRanks[player.position] || 0) + 1;
         player.positionRank = positionRanks[player.position];
@@ -1536,11 +1553,12 @@ Return ONLY valid JSON, no other text.`;
       const isCustomScoring = hasPositionBonuses || hasNonStandardTds;
       
       res.json({
-        players: nflPlayers,
-        totalCount: nflPlayers.length,
+        players: playersToReturn,
+        totalCount: playersToReturn.length,
         season: statsSeason,
         scoringType: isCustomScoring ? `${scoringLabel} (custom)` : scoringLabel,
         isCustomScoring,
+        isIDPLeague,
         lastUpdated: new Date().toISOString(),
       });
     } catch (error) {

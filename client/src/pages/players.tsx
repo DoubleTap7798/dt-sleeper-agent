@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { CACHE_TIMES } from "@/lib/queryClient";
@@ -94,6 +94,7 @@ interface PlayersData {
   season: string;
   scoringType: string;
   isCustomScoring?: boolean;
+  isIDPLeague?: boolean;
   lastUpdated: string;
 }
 
@@ -147,6 +148,16 @@ export default function PlayersPage() {
     queryKey: [insightsUrl],
     enabled: !!selectedPlayer && !!insightsUrl,
   });
+
+  // Reset position filter to "all" if IDP filter is selected but IDP is not available
+  const idpFilterOptions = ["idp", "DL", "LB", "DB"];
+  const showIDPOptions = data?.isIDPLeague || !leagueId;
+  
+  useEffect(() => {
+    if (!showIDPOptions && idpFilterOptions.includes(positionFilter)) {
+      setPositionFilter("all");
+    }
+  }, [showIDPOptions, positionFilter]);
 
   if (isLoading) {
     return <PlayersSkeleton />;
@@ -219,14 +230,20 @@ export default function PlayersPage() {
           <SelectContent>
             <SelectItem value="all">All Positions</SelectItem>
             <SelectItem value="offense">Offense</SelectItem>
-            <SelectItem value="idp">IDP</SelectItem>
+            {showIDPOptions && (
+              <SelectItem value="idp">IDP</SelectItem>
+            )}
             <SelectItem value="QB">QB</SelectItem>
             <SelectItem value="RB">RB</SelectItem>
             <SelectItem value="WR">WR</SelectItem>
             <SelectItem value="TE">TE</SelectItem>
-            <SelectItem value="DL">DL</SelectItem>
-            <SelectItem value="LB">LB</SelectItem>
-            <SelectItem value="DB">DB</SelectItem>
+            {showIDPOptions && (
+              <>
+                <SelectItem value="DL">DL</SelectItem>
+                <SelectItem value="LB">LB</SelectItem>
+                <SelectItem value="DB">DB</SelectItem>
+              </>
+            )}
           </SelectContent>
         </Select>
       </div>
