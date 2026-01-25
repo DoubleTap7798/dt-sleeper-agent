@@ -552,7 +552,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v14-${sleeperPlayerId}`;
+  const cacheKey = `profile-v15-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
