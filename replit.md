@@ -2,7 +2,7 @@
 
 ## Overview
 
-DT Sleeper Agent is a fantasy football companion application for Sleeper leagues. It provides league management tools including trade calculators with KTC (Keep Trade Cut) values, waiver wire analysis, playoff predictions, trade history tracking, rivalry head-to-head records, and a trophy room for league achievements. The application integrates with the Sleeper API to fetch real-time league data and uses AI (OpenAI) for trade analysis and recommendations.
+DT Sleeper Agent is a fantasy football companion application for Sleeper leagues. It provides league management tools including trade calculators with custom dynasty values, waiver wire analysis, playoff predictions, trade history tracking, rivalry head-to-head records, and a trophy room for league achievements. The application integrates with the Sleeper API to fetch real-time league data and uses AI (OpenAI) for trade analysis and recommendations.
 
 ## Features
 - **Career Stats (All Leagues)**: Default view showing aggregated statistics across ALL historical seasons - total W-L-T record, championships, runner-ups, playoff appearances, and season-by-season breakdown with navigation filtered to career-level pages
@@ -17,11 +17,11 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **NFL Players**: Player rankings by fantasy points with snap %, position-specific stats (1st downs, targets, attempts), click to view full player profile
 - **Player Profile Modal**: Click any player to view comprehensive stats including bio (height, weight, college, draft info), career stats, season-by-season history, game logs, and performance splits (home/away, wins/losses)
 - **Player Trends**: Multi-season performance tracking with year-over-year analysis, career trajectory visualization, and historical PPG trends
-- **Player Comparison**: Side-by-side comparison tool for 2-4 players showing stats, KTC values, projections, and visual stat comparisons for trade evaluation with full stats modal access
+- **Player Comparison**: Side-by-side comparison tool for 2-4 players showing stats, dynasty values, projections, and visual stat comparisons for trade evaluation with full stats modal access
 - **ROS Projections**: Advanced rest-of-season projections with AI-generated outlooks, confidence ratings, upside/floor analysis, schedule strength, injury risk, and key factors
-- **Devy Rankings**: Top 50 college prospects from KTC with tier, value, trend, position ranks, draft eligibility years (2026-2028), and real ESPN college stats (bio, seasons, career totals, game logs) with AI scouting analysis
+- **Devy Rankings**: Top 50 college prospects with tier, value, trend, position ranks, draft eligibility years (2026-2028), and real ESPN college stats (bio, seasons, career totals, game logs) with AI scouting analysis
 - **Player Headshots**: ESPN CDN headshots displayed across all views (roster, players list, Devy profiles) with Avatar component fallback to initials when unavailable
-- **Trade Calculator**: Calculate trade values with KTC dynasty values and AI analysis
+- **Trade Calculator**: Calculate trade values with custom dynasty values (0-100 scale) and AI analysis
 - **Trade History**: Historical trades from ALL league years with AI insights
 - **Trophy Room**: Champions, all-time standings, season records
 - **Real-Time Notifications**: Bell icon in header shows trades, waiver claims, and free agent pickups with auto-sync every 60 seconds
@@ -87,7 +87,15 @@ shared/           # Shared code between frontend/backend
 - **Sleeper API**: Fantasy football league data (`https://api.sleeper.app/v1`)
 - **ESPN API**: Player stats, game logs, career data, and splits (`https://site.api.espn.com`)
 - **OpenAI API**: AI-powered trade analysis via Replit AI Integrations
-- **Keep Trade Cut (KTC)**: Dynasty trade values (implemented as value service in `server/ktc-values.ts`)
+
+### Dynasty Value Engine
+The custom dynasty value engine (`server/dynasty-value-engine.ts`) calculates player values on a 0-100 scale with 2 decimal precision:
+- **Value Over Replacement (VOR)**: Position-based replacement levels calculated from roster settings
+- **Age Curves by Position**: QB peaks 25-32 (slow decay), RB peaks 22-26 (fast decay), WR peaks 24-28, TE peaks 25-29
+- **Injury Adjustments**: IR/Out = 0.90, Doubtful = 0.95, Questionable = 0.98 multipliers
+- **Draft Pick Values**: 1st = 80, 2nd = 55, 3rd = 35, 4th = 18 base values with ~10% year decay
+- **Devy Prospect Values**: Based on tier (1-5) and draft year proximity
+- **Normalization**: All values normalized to 0-100 scale for consistent display
 
 ### Database
 - **PostgreSQL**: Primary database, connection via `DATABASE_URL` environment variable

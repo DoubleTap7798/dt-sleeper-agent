@@ -200,17 +200,17 @@ export default function TradeCalculatorPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Trading Away:</span>
-                    <span className="font-mono text-muted-foreground">-{analysis.teamA.totalValue.toLocaleString()}</span>
+                    <span className="font-mono text-muted-foreground">-{analysis.teamA.totalValue.toFixed(1)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Receiving:</span>
-                    <span className="font-mono font-semibold">+{analysis.teamB.totalValue.toLocaleString()}</span>
+                    <span className="font-mono font-semibold">+{analysis.teamB.totalValue.toFixed(1)}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Net Value:</span>
                     <span className="font-mono font-bold">
-                      {analysis.teamB.totalValue - analysis.teamA.totalValue >= 0 ? '+' : ''}{(analysis.teamB.totalValue - analysis.teamA.totalValue).toLocaleString()}
+                      {analysis.teamB.totalValue - analysis.teamA.totalValue >= 0 ? '+' : ''}{(analysis.teamB.totalValue - analysis.teamA.totalValue).toFixed(1)}
                     </span>
                   </div>
                 </div>
@@ -223,17 +223,17 @@ export default function TradeCalculatorPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Trading Away:</span>
-                    <span className="font-mono text-muted-foreground">-{analysis.teamB.totalValue.toLocaleString()}</span>
+                    <span className="font-mono text-muted-foreground">-{analysis.teamB.totalValue.toFixed(1)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Receiving:</span>
-                    <span className="font-mono font-semibold">+{analysis.teamA.totalValue.toLocaleString()}</span>
+                    <span className="font-mono font-semibold">+{analysis.teamA.totalValue.toFixed(1)}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Net Value:</span>
                     <span className="font-mono font-bold">
-                      {analysis.teamA.totalValue - analysis.teamB.totalValue >= 0 ? '+' : ''}{(analysis.teamA.totalValue - analysis.teamB.totalValue).toLocaleString()}
+                      {analysis.teamA.totalValue - analysis.teamB.totalValue >= 0 ? '+' : ''}{(analysis.teamA.totalValue - analysis.teamB.totalValue).toFixed(1)}
                     </span>
                   </div>
                 </div>
@@ -251,7 +251,7 @@ export default function TradeCalculatorPage() {
                     </span>
                     <span className="text-muted-foreground"> gets the better deal by </span>
                     <span className="font-bold">
-                      +{Math.abs(analysis.difference).toLocaleString()} ({analysis.percentageDiff.toFixed(1)}%)
+                      +{Math.abs(analysis.difference).toFixed(1)} ({analysis.percentageDiff.toFixed(1)}%)
                     </span>
                   </>
                 )}

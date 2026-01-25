@@ -320,7 +320,7 @@ export default function PlayersPage() {
                 </Card>
                 <Card className="p-3">
                   <p className="text-xs text-muted-foreground">Dynasty Value</p>
-                  <p className="text-lg font-bold font-mono">{selectedPlayer.dynastyValue.toLocaleString()}</p>
+                  <p className="text-lg font-bold font-mono">{selectedPlayer.dynastyValue.toFixed(1)}</p>
                 </Card>
                 <Card className="p-3">
                   <p className="text-xs text-muted-foreground">Overall Rank</p>

@@ -364,7 +364,7 @@ export default function LeagueStandingsPage() {
                         <span className="text-sm" data-testid={`text-pick-name-${pick.id}`}>{pick.name}</span>
                       </div>
                       <Badge variant="secondary" className="font-mono text-xs" data-testid={`badge-pick-value-${pick.id}`}>
-                        {pick.value.toLocaleString()}
+                        {pick.value.toFixed(1)}
                       </Badge>
                     </div>
                   ))}
@@ -416,7 +416,7 @@ function PlayerRow({ player, showSlot = false }: { player: PlayerInfo; showSlot?
         </div>
       </div>
       <Badge variant="secondary" className="font-mono text-xs" data-testid={`badge-value-${player.id}`}>
-        {player.value.toLocaleString()}
+        {player.value.toFixed(1)}
       </Badge>
     </div>
   );
