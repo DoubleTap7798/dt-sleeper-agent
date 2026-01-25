@@ -196,8 +196,8 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               <div className="text-xs text-muted-foreground">Tier</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-value">
-              <div className="text-lg font-bold">{player.value.toLocaleString()}</div>
-              <div className="text-xs text-muted-foreground">KTC</div>
+              <div className="text-lg font-bold">{player.value.toFixed(1)}</div>
+              <div className="text-xs text-muted-foreground">Value</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-pos-rank">
               <div className="text-lg font-bold">{player.position}{player.positionRank}</div>

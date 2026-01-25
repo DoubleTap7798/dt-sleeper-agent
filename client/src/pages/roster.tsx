@@ -217,9 +217,9 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <div className="text-right hidden sm:block">
               <span className="text-sm font-medium" data-testid={`stat-value-${player.playerId}`}>
-                {player.ktcValue.toLocaleString()}
+                {player.ktcValue.toFixed(1)}
               </span>
-              <span className="text-xs text-muted-foreground block">KTC Value</span>
+              <span className="text-xs text-muted-foreground block">Dynasty Value</span>
             </div>
             <div className="text-right">
               <span className="text-sm font-medium" data-testid={`stat-projected-${player.playerId}`}>
@@ -246,8 +246,8 @@ function RosterContent({ leagueId }: { leagueId: string }) {
                 <span className="font-medium" data-testid={`stat-slot-${player.playerId}`}>{player.slotPosition}</span>
               </div>
               <div className="sm:hidden">
-                <span className="text-muted-foreground block text-xs">KTC Value</span>
-                <span className="font-medium">{player.ktcValue.toLocaleString()}</span>
+                <span className="text-muted-foreground block text-xs">Dynasty Value</span>
+                <span className="font-medium">{player.ktcValue.toFixed(1)}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block text-xs">Status</span>

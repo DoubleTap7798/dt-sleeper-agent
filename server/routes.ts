@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import * as sleeperApi from "./sleeper-api";
 import * as ktcValues from "./ktc-values";
+import * as dynastyEngine from "./dynasty-value-engine";
 import * as newsService from "./news-service";
 import * as oddsService from "./odds-service";
 import * as playerStatsService from "./player-stats-service";
@@ -811,25 +812,36 @@ export async function registerRoutes(
     }
   });
 
-  // Get devy players with rankings and draft eligibility from KTC
+  // Get devy players with rankings and draft eligibility
   app.get("/api/sleeper/devy", isAuthenticated, async (req: any, res: Response) => {
     try {
-      // Use KTC devy rankings instead of Sleeper data
+      // Use KTC devy data for rankings, but calculate values with dynasty engine
       const devyPlayers = ktcValues.getDevyPlayers();
+      const currentYear = new Date().getFullYear();
 
-      // Transform to match expected format
-      const rankedPlayers = devyPlayers.map((player, index) => ({
-        playerId: player.id,
-        name: player.name,
-        position: player.position,
-        positionRank: player.positionRank,
-        college: player.college,
-        draftEligibleYear: player.draftEligibleYear,
-        tier: player.tier,
-        trend30Day: player.trend30Day,
-        value: player.value,
-        rank: index + 1,
-      }));
+      // Transform to match expected format with dynasty engine values (0-100 scale)
+      const rankedPlayers = devyPlayers.map((player, index) => {
+        // Calculate dynasty value using the engine
+        const dynastyValue = dynastyEngine.calculateDevyValue(
+          player.tier,
+          player.draftEligibleYear,
+          1, // Assume 1st round projected for top prospects
+          currentYear
+        );
+        
+        return {
+          playerId: player.id,
+          name: player.name,
+          position: player.position,
+          positionRank: player.positionRank,
+          college: player.college,
+          draftEligibleYear: player.draftEligibleYear,
+          tier: player.tier,
+          trend30Day: player.trend30Day,
+          value: dynastyValue, // Now 0-100 scale
+          rank: index + 1,
+        };
+      });
 
       // Get unique positions and years for filters
       const positions = Array.from(new Set(rankedPlayers.map(p => p.position))).sort();
@@ -840,7 +852,7 @@ export async function registerRoutes(
         positions,
         years,
         totalCount: rankedPlayers.length,
-        source: "KTC",
+        source: "DT Dynasty",
       });
     } catch (error) {
       console.error("Error fetching devy players:", error);
@@ -1251,12 +1263,13 @@ Return ONLY valid JSON, no other text.`;
         const gamesPlayed = playerStats?.gp || 0;
         const pointsPerGame = gamesPlayed > 0 ? Math.round((fantasyPoints / gamesPlayed) * 10) / 10 : 0;
         
-        // Get KTC dynasty value for reference
-        const dynastyValue = ktcValues.getPlayerValue(
+        // Get dynasty value using custom engine
+        const dynastyValue = dynastyEngine.getQuickPlayerValue(
           playerId,
           position,
           player.age,
-          player.years_exp || 0
+          player.years_exp || 0,
+          player.injury_status
         );
         
         // ESPN headshot URL
@@ -1377,11 +1390,12 @@ Return ONLY valid JSON, no other text.`;
       }
       
       const position = player.position || player.fantasy_positions?.[0] || "N/A";
-      const value = ktcValues.getPlayerValue(
+      const value = dynastyEngine.getQuickPlayerValue(
         playerId,
         position,
         player.age,
-        player.years_exp || 0
+        player.years_exp || 0,
+        player.injury_status
       );
       
       const playerName = `${player.first_name || ""} ${player.last_name || ""}`.trim();
@@ -1498,17 +1512,18 @@ ${fantasyOutlookSection}
       const rostersWithAssets = rosters.map((roster) => {
         const user = userMap.get(roster.owner_id);
         
-        // Get player assets
+        // Get player assets with dynasty values
         const players = (roster.players || []).map((playerId) => {
           const player = playerData[playerId];
           if (!player) return null;
           
           const position = player.fantasy_positions?.[0] || "?";
-          const value = ktcValues.getPlayerValue(
+          const value = dynastyEngine.getQuickPlayerValue(
             playerId,
             position,
             player.age,
-            player.years_exp || 0
+            player.years_exp || 0,
+            player.injury_status
           );
 
           return {
@@ -1532,31 +1547,31 @@ ${fantasyOutlookSection}
               ? userMap.get(originalOwner.owner_id)
               : null;
 
+            const pickValue = dynastyEngine.getDraftPickValue(pick.season, pick.round);
+            const ownerSuffix = originalOwnerUser?.display_name || originalOwnerUser?.username;
             return {
               id: `${pick.season}-${pick.round}-${pick.roster_id}`,
-              name: ktcValues.getPickName(
-                pick.season,
-                pick.round,
-                originalOwnerUser?.display_name || originalOwnerUser?.username
-              ),
+              name: ownerSuffix ? `${pickValue.displayName} (${ownerSuffix})` : pickValue.displayName,
               type: "pick" as const,
-              value: ktcValues.getPickValue(pick.season, pick.round),
+              value: pickValue.value,
             };
           });
 
-        // Add standard future picks (2025-2027, rounds 1-4)
+        // Add standard future picks (2026-2028, rounds 1-4)
+        const currentYear = new Date().getFullYear();
         const currentPicks = new Set(picks.map((p) => p.id));
-        ["2025", "2026", "2027"].forEach((season) => {
+        [String(currentYear), String(currentYear + 1), String(currentYear + 2)].forEach((season) => {
           [1, 2, 3, 4].forEach((round) => {
             const id = `${season}-${round}-${roster.roster_id}`;
             if (!currentPicks.has(id) && !(draftPicks || []).find(
               (p) => p.season === season && p.round === round && p.previous_owner_id === roster.roster_id
             )) {
+              const pickValue = dynastyEngine.getDraftPickValue(season, round);
               picks.push({
                 id,
-                name: ktcValues.getPickName(season, round),
+                name: pickValue.displayName,
                 type: "pick" as const,
-                value: ktcValues.getPickValue(season, round),
+                value: pickValue.value,
               });
             }
           });
@@ -1646,7 +1661,7 @@ ${fantasyOutlookSection}
           slotPosition,
           team: player.team || "FA",
           age: player.age,
-          value: ktcValues.getPlayerValue(playerId, position, player.age, player.years_exp || 0),
+          value: dynastyEngine.getQuickPlayerValue(playerId, position, player.age, player.years_exp || 0, player.injury_status),
         });
       });
 
@@ -1665,7 +1680,7 @@ ${fantasyOutlookSection}
           position,
           team: player.team || "FA",
           age: player.age,
-          value: ktcValues.getPlayerValue(playerId, position, player.age, player.years_exp || 0),
+          value: dynastyEngine.getQuickPlayerValue(playerId, position, player.age, player.years_exp || 0, player.injury_status),
         };
 
         if (taxiIds.has(playerId)) {
@@ -1710,6 +1725,7 @@ ${fantasyOutlookSection}
             // Got a pick from another team
             const originalOwner = rosters.find((r) => r.roster_id === tradedIn.previous_owner_id);
             const originalUser = originalOwner ? userMap.get(originalOwner.owner_id) : null;
+            const tradedPickValue = dynastyEngine.getDraftPickValue(String(season), round);
             picks.push({
               id: `${season}-${round}-${tradedIn.previous_owner_id}`,
               name: `${season} Round ${round} (from ${originalUser?.display_name || "Unknown"})`,
@@ -1717,17 +1733,18 @@ ${fantasyOutlookSection}
               round,
               originalOwner: originalUser?.display_name || "Unknown",
               isOwn: false,
-              value: ktcValues.getPickValue(String(season), round),
+              value: tradedPickValue.value,
             });
           } else {
             // Own pick
+            const ownPickValue = dynastyEngine.getDraftPickValue(String(season), round);
             picks.push({
               id,
               name: `${season} Round ${round}`,
               season: String(season),
               round,
               isOwn: true,
-              value: ktcValues.getPickValue(String(season), round),
+              value: ownPickValue.value,
             });
           }
         }
@@ -1783,7 +1800,7 @@ ${fantasyOutlookSection}
       const teamAValue = teamAAssets.reduce((sum: number, a) => sum + a.value, 0);
       const teamBValue = teamBAssets.reduce((sum: number, a) => sum + a.value, 0);
 
-      const gradeResult = ktcValues.calculateTradeGrade(teamAValue, teamBValue);
+      const gradeResult = dynastyEngine.calculateTradeGrade(teamAValue, teamBValue);
 
       // Generate AI analysis
       let aiAnalysis = "";
@@ -1886,20 +1903,20 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
         return `${firstName.charAt(0)}. ${lastName}`;
       };
 
-      // Helper to get asset value using KTC values
+      // Helper to get asset value using dynasty value engine
       const getAssetValue = (asset: { type: string; id: string; name: string; position?: string }): number => {
         if (asset.type === "player") {
           const player = playerData[asset.id];
           const position = asset.position || player?.fantasy_positions?.[0] || "WR";
           const age = player?.age || 25;
           const yearsExp = player?.years_exp || 0;
-          return ktcValues.getPlayerValue(asset.id, position, age, yearsExp);
+          return dynastyEngine.getQuickPlayerValue(asset.id, position, age, yearsExp, player?.injury_status);
         } else if (asset.type === "pick") {
           const match = asset.name.match(/(\d{4}) Round (\d+)/);
           if (match) {
             const year = match[1];
             const round = parseInt(match[2]);
-            return ktcValues.getPickValue(year, round);
+            return dynastyEngine.getDraftPickValue(year, round).value;
           }
         }
         return 0;
@@ -3073,7 +3090,7 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
           p.team && p.search_rank && p.search_rank < 300
         )
         .map(([id, p]: [string, any]) => {
-          const ktcValue = ktcValues.getPlayerValue(id, p.position, p.age, p.years_exp || 0);
+          const ktcValue = dynastyEngine.getQuickPlayerValue(id, p.position, p.age, p.years_exp || 0, p.injury_status);
           const playerStats = stats[id] || {};
           const games = playerStats.gp || 16;
           const points = playerStats.pts_ppr || 0;
@@ -3823,7 +3840,7 @@ Return JSON: {"players": [{...}]}`;
           
           const pos = player.position as "QB" | "RB" | "WR" | "TE";
           if (pos in posValues) {
-            const value = ktcValues.getPlayerValue(pid, pos, player.age || 25, player.years_exp || 0);
+            const value = dynastyEngine.getQuickPlayerValue(pid, pos, player.age || 25, player.years_exp || 0, player.injury_status);
             posValues[pos] += value;
           }
         }
@@ -3855,7 +3872,7 @@ Return JSON: {"players": [{...}]}`;
 
       const players = playerIds.map(playerId => {
         const player = allPlayers[playerId];
-        const ktcValue = ktcValues.getPlayerValue(playerId, player?.position || "?", player?.age || 25, player?.years_exp || 0);
+        const ktcValue = dynastyEngine.getQuickPlayerValue(playerId, player?.position || "?", player?.age || 25, player?.years_exp || 0, player?.injury_status);
         const isStarter = starters.includes(playerId);
         const starterIndex = starters.indexOf(playerId);
         

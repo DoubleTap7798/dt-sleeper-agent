@@ -16,7 +16,7 @@ export default function LandingPage() {
     {
       icon: RefreshCw,
       title: "Trade Calculator",
-      description: "Calculate trade values using KTC rankings with AI analysis and grade recommendations.",
+      description: "Calculate trade values using dynasty rankings with AI analysis and grade recommendations.",
     },
     {
       icon: Users,

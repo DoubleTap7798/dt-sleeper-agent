@@ -337,7 +337,7 @@ function TradeSide({
                 >
                   <span>{asset.name}</span>
                   <span className="text-xs text-muted-foreground ml-1">
-                    ({asset.value.toLocaleString()})
+                    ({asset.value.toFixed(1)})
                   </span>
                   <Button
                     variant="ghost"
@@ -353,7 +353,7 @@ function TradeSide({
             </div>
             <div className="flex justify-between items-center pt-2 border-t">
               <span className="text-sm font-medium">Total Value:</span>
-              <span className="font-bold font-mono">{totalValue.toLocaleString()}</span>
+              <span className="font-bold font-mono">{totalValue.toFixed(1)}</span>
             </div>
           </div>
         )}
@@ -381,7 +381,7 @@ function TradeSide({
                           <span className="text-sm">{player.name}</span>
                         </div>
                         <span className="text-xs text-muted-foreground font-mono">
-                          {player.value.toLocaleString()}
+                          {player.value.toFixed(1)}
                         </span>
                       </button>
                     ))}
@@ -407,7 +407,7 @@ function TradeSide({
                           >
                             <span className="text-sm">{pick.name}</span>
                             <span className="text-xs text-muted-foreground font-mono">
-                              {pick.value.toLocaleString()}
+                              {pick.value.toFixed(1)}
                             </span>
                           </button>
                         ))}

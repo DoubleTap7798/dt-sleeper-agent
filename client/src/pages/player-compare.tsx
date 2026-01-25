@@ -95,7 +95,7 @@ export default function PlayerComparePage() {
   ).filter(player => !selectedPlayers.find(p => p.playerId === player.playerId));
 
   const statRows = [
-    getStatComparison("KTC Value", p => p.ktcValue),
+    getStatComparison("Dynasty Value", p => p.ktcValue),
     getStatComparison("Age", p => p.age),
     getStatComparison("Games", p => p.stats.games),
     getStatComparison("Total Points", p => p.stats.points),

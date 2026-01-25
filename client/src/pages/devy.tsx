@@ -184,7 +184,7 @@ export default function DevyPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Click a player for details</span>
               <Badge variant="outline" data-testid="badge-source">
-                Source: KTC
+                Source: DT Dynasty
               </Badge>
             </div>
           </div>
@@ -261,7 +261,7 @@ export default function DevyPage() {
                         {player.tier}
                       </td>
                       <td className="p-3 font-medium" data-testid={`text-value-${player.playerId}`}>
-                        {player.value.toLocaleString()}
+                        {player.value.toFixed(1)}
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-center gap-1" data-testid={`trend-${player.playerId}`}>
@@ -316,7 +316,7 @@ export default function DevyPage() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
-                        <div className="font-medium text-sm">{player.value.toLocaleString()}</div>
+                        <div className="font-medium text-sm">{player.value.toFixed(1)}</div>
                         <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
                           {player.trend30Day > 0 ? (
                             <>
