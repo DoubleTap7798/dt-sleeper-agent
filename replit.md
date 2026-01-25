@@ -88,6 +88,13 @@ shared/           # Shared code between frontend/backend
 - **ESPN API**: Player stats, game logs, career data, and splits (`https://site.api.espn.com`)
 - **OpenAI API**: AI-powered trade analysis via Replit AI Integrations
 
+### Season Handling
+The Sleeper API returns two different season values in `/state/nfl`:
+- **`season`**: The current NFL season (e.g., "2025" during playoffs)
+- **`league_season`**: The season dynasty leagues have rolled into (e.g., "2026" after offseason rollover)
+
+When fetching user leagues, the app uses `league_season` to ensure newly rolled-over dynasty leagues appear correctly. This is important during the NFL offseason when leagues transfer to the new year while the NFL season technically hasn't ended.
+
 ### Dynasty Value Engine
 The custom dynasty value engine (`server/dynasty-value-engine.ts`) calculates player values on a 0-100 scale with 2 decimal precision:
 - **Value Over Replacement (VOR)**: Position-based replacement levels calculated from roster settings

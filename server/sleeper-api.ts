@@ -115,7 +115,7 @@ export async function getSleeperUser(username: string): Promise<SleeperUser | nu
   return fetchFromSleeper<SleeperUser>(`/user/${username}`);
 }
 
-export async function getUserLeagues(userId: string, season: string = "2025"): Promise<SleeperLeague[]> {
+export async function getUserLeagues(userId: string, season: string = "2026"): Promise<SleeperLeague[]> {
   const leagues = await fetchFromSleeper<SleeperLeague[]>(`/user/${userId}/leagues/nfl/${season}`);
   return leagues || [];
 }
@@ -262,8 +262,8 @@ export async function getAllHistoricalRosters(leagueId: string): Promise<SeasonR
   return results.sort((a, b) => b.season.localeCompare(a.season));
 }
 
-export async function getState(): Promise<{ week: number; season: string; display_week: number; season_type: string } | null> {
-  return fetchFromSleeper<{ week: number; season: string; display_week: number; season_type: string }>("/state/nfl");
+export async function getState(): Promise<{ week: number; season: string; display_week: number; season_type: string; league_season: string } | null> {
+  return fetchFromSleeper<{ week: number; season: string; display_week: number; season_type: string; league_season: string }>("/state/nfl");
 }
 
 // Player stats types

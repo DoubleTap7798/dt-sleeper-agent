@@ -137,8 +137,9 @@ export async function registerRoutes(
       }
 
       const state = await sleeperApi.getState();
-      const season = state?.season || "2025";
-      const leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, season);
+      // Use league_season (2026) for dynasty leagues that have rolled over, not season (2025 NFL playoffs)
+      const leagueSeason = state?.league_season || state?.season || "2026";
+      const leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, leagueSeason);
 
       res.json(leagues);
     } catch (error) {
@@ -2603,7 +2604,10 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
       const profile = await storage.getUserProfile(userId);
       if (!profile?.sleeperUserId) return false;
       
-      const leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, new Date().getFullYear().toString());
+      // Use league_season for dynasty leagues that have rolled over
+      const state = await sleeperApi.getState();
+      const leagueSeason = state?.league_season || state?.season || "2026";
+      const leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, leagueSeason);
       return leagues?.some(l => l.league_id === leagueId) || false;
     } catch {
       return false;
