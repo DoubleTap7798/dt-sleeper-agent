@@ -88,6 +88,10 @@ shared/           # Shared code between frontend/backend
 - **ESPN API**: Player stats, game logs, career data, and splits (`https://site.api.espn.com`)
 - **OpenAI API**: AI-powered trade analysis via Replit AI Integrations
 
+### ESPN API Quirks
+- **QB Interceptions**: ESPN's career stats API "interceptions" field represents defensive INTs caught (for all positions), not QB passing INTs thrown. For QBs, passing interceptions must be derived from splits data (home + away) or game logs. The player-stats-service.ts applies a fix to aggregate QB INTs from splits when career stats show 0.
+- **Player Profile Cache**: Currently at v8 - increment when fixing stat calculations to bust old cached data
+
 ### Season Handling
 The Sleeper API returns two different season values in `/state/nfl`:
 - **`season`**: The current NFL season (e.g., "2025" during playoffs)

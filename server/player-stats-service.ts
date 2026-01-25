@@ -552,7 +552,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v6-${sleeperPlayerId}`;
+  const cacheKey = `profile-v8-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
@@ -592,10 +592,62 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
       return profile;
     }
     
+    // Fix QB interceptions: ESPN career stats may show 0 for passing INTs
+    // because "interceptions" in career stats refers to defensive INTs caught.
+    // Use splits data (home + away) which has correct QB passing INTs.
+    let careerStats = statsData.career;
+    let seasonStats = statsData.seasons;
+    
+    if (bio.position === "QB" && careerStats) {
+      const careerInts = careerStats.stats.interceptions;
+      // Check if career INTs is 0 but splits show interceptions
+      if ((careerInts === 0 || careerInts === undefined) && splits) {
+        // Use splits data - home + away INTs are the correct passing INTs for QBs
+        const homeInts = typeof splits.home?.interceptions === 'number' ? splits.home.interceptions : 0;
+        const awayInts = typeof splits.away?.interceptions === 'number' ? splits.away.interceptions : 0;
+        const totalInts = homeInts + awayInts;
+        
+        if (totalInts > 0) {
+          careerStats = {
+            ...careerStats,
+            stats: {
+              ...careerStats.stats,
+              interceptions: totalInts,
+            },
+          };
+        }
+      }
+      
+      // Also fix season stats if they show 0 INTs - aggregate from that season's game logs
+      seasonStats = seasonStats.map(season => {
+        if (season.stats.interceptions === 0 || season.stats.interceptions === undefined) {
+          // Calculate from game logs for this specific season only
+          const seasonGameLogs = gameLogs.filter(g => g.season === season.season);
+          const seasonInts = seasonGameLogs.reduce((sum, game) => {
+            const gameInts = typeof game.stats.interceptions === 'number' 
+              ? game.stats.interceptions 
+              : 0;
+            return sum + gameInts;
+          }, 0);
+          
+          if (seasonInts > 0) {
+            return {
+              ...season,
+              stats: {
+                ...season.stats,
+                interceptions: seasonInts,
+              },
+            };
+          }
+        }
+        return season;
+      });
+    }
+    
     const profile: PlayerProfile = {
       bio,
-      careerStats: statsData.career,
-      seasonStats: statsData.seasons,
+      careerStats,
+      seasonStats,
       recentGameLogs: gameLogs,
       splits,
       espnId,
