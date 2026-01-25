@@ -180,7 +180,8 @@ export default function PlayerComparePage() {
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-xs">
                 <div className="text-xs space-y-1">
-                  <p className="font-medium">Value Blending (60% League / 40% Consensus)</p>
+                  <p className="font-medium">Ceiling Check with Dampening</p>
+                  <p className="text-muted-foreground">If league value exceeds consensus by 10+, gap is reduced by 50%</p>
                   {scoringSettings.applied ? (
                     <>
                       <p>PPR: {scoringSettings.ppr ?? 0} pts/rec</p>
@@ -188,18 +189,13 @@ export default function PlayerComparePage() {
                       {scoringSettings.tePremium && scoringSettings.tePremium > 0 && (
                         <p>TE Premium: +{scoringSettings.tePremium} pts/rec</p>
                       )}
-                      {scoringSettings.sampleRbDelta !== undefined && scoringSettings.sampleRbDelta !== 0 && (
-                        <p className="text-muted-foreground mt-1">
-                          League scoring delta: {scoringSettings.sampleRbDelta > 0 ? "+" : ""}{scoringSettings.sampleRbDelta}
-                        </p>
-                      )}
                     </>
                   ) : (
                     <p className="text-muted-foreground">No league selected - using default values</p>
                   )}
                   {scoringSettings.consensusAvailable && scoringSettings.consensusPlayers && scoringSettings.consensusPlayers > 0 ? (
                     <div className="text-muted-foreground border-t pt-1 mt-1 space-y-0.5">
-                      <p>Consensus: {scoringSettings.consensusPlayers} players from DynastyProcess</p>
+                      <p>Consensus: {scoringSettings.consensusPlayers} players (DynastyProcess)</p>
                       {scoringSettings.consensusMatchRate !== undefined && (
                         <p>Match rate: {scoringSettings.consensusMatchRate}%{scoringSettings.consensusMatchRate < 50 && " (low coverage)"}</p>
                       )}

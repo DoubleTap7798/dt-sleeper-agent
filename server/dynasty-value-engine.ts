@@ -1083,8 +1083,13 @@ export function getQuickPlayerValue(
 }
 
 // ============================================================================
-// BLENDED VALUE CALCULATION (combines league-specific with consensus)
+// DAMPENED VALUE CALCULATION (ceiling check with consensus)
 // ============================================================================
+// Option 2: Ceiling Check with Dampening
+// - If league value > consensus by more than 10 points, apply dampening
+// - Reduce the gap by 50%
+// - Example: Ferguson at 100 (ours) vs 85 (consensus) → 100 - ((100-85) × 0.5) = 92.5
+// - Preserves league-specific boosts but prevents runaway values
 
 export function getBlendedPlayerValue(
   playerId: string,
@@ -1097,7 +1102,7 @@ export function getBlendedPlayerValue(
   depthChartOrder: number | null = null,
   leagueScoring: LeagueScoringSettings | null = null,
   consensusValue: number | null = null,
-  leagueWeight: number = 0.6
+  _leagueWeight: number = 0.6 // Kept for API compatibility but not used in dampening
 ): QuickPlayerValueResult {
   const leagueValue = getQuickPlayerValue(
     playerId,
@@ -1110,6 +1115,7 @@ export function getBlendedPlayerValue(
     leagueScoring
   );
   
+  // If no consensus value, return pure league value
   if (consensusValue === null || consensusValue === undefined) {
     return {
       value: leagueValue,
@@ -1119,14 +1125,30 @@ export function getBlendedPlayerValue(
     };
   }
   
-  const blendedValue = (leagueValue * leagueWeight) + (consensusValue * (1 - leagueWeight));
-  const roundedValue = Math.round(blendedValue * 10) / 10;
+  const roundedLeague = Math.round(leagueValue * 10) / 10;
+  const roundedConsensus = Math.round(consensusValue * 10) / 10;
+  
+  // Ceiling Check with Dampening:
+  // Only dampen if league value exceeds consensus by more than 10 points
+  const gap = roundedLeague - roundedConsensus;
+  const DAMPENING_THRESHOLD = 10;
+  const DAMPENING_FACTOR = 0.5; // Reduce gap by 50%
+  
+  let finalValue = roundedLeague;
+  let dampened = false;
+  
+  if (gap > DAMPENING_THRESHOLD) {
+    // Apply dampening: reduce the excess gap by 50%
+    const dampening = gap * DAMPENING_FACTOR;
+    finalValue = Math.round((roundedLeague - dampening) * 10) / 10;
+    dampened = true;
+  }
   
   return {
-    value: roundedValue,
-    leagueValue: Math.round(leagueValue * 10) / 10,
-    consensusValue: Math.round(consensusValue * 10) / 10,
-    blended: true
+    value: finalValue,
+    leagueValue: roundedLeague,
+    consensusValue: roundedConsensus,
+    blended: dampened // True if dampening was applied
   };
 }
 
@@ -1140,4 +1162,4 @@ export function getBlendedPlayerValue(
 // - calculateTradeGrade: Trade evaluation
 // - parseLeagueScoringSettings / parseLeagueRosterSettings: Parse Sleeper data
 // - getQuickPlayerValue: Quick fallback value calculation
-// - getBlendedPlayerValue: Blended league + consensus value calculation
+// - getBlendedPlayerValue: Dampened value (ceiling check when league > consensus by 10+)
