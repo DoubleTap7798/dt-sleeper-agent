@@ -89,8 +89,9 @@ shared/           # Shared code between frontend/backend
 - **OpenAI API**: AI-powered trade analysis via Replit AI Integrations
 
 ### ESPN API Quirks
-- **QB Interceptions**: ESPN's career stats API "interceptions" field represents defensive INTs caught (for all positions), not QB passing INTs thrown. For QBs, passing interceptions are ALWAYS calculated by aggregating from game logs which contain correct per-game passing INT data. The player-stats-service.ts applies this fix automatically for all QB profiles.
-- **Player Profile Cache**: Currently at v14 - increment when fixing stat calculations to bust old cached data
+- **QB Interceptions**: ESPN's career stats API "interceptions" field represents defensive INTs caught (for all positions), not QB passing INTs thrown. For QBs, passing interceptions are ALWAYS calculated by aggregating from game logs which contain correct per-game passing INT data. The `applyQbIntsFix()` helper function in player-stats-service.ts applies this fix in BOTH code paths (when ESPN bio succeeds AND when it fails and falls back to Sleeper data).
+- **ESPN Bio Fallback**: When ESPN bio fetch fails, the code falls back to Sleeper data for bio info but still uses ESPN game logs/stats. The QB INT fix must be applied in this fallback path as well.
+- **Player Profile Cache**: Currently at v16 - increment when fixing stat calculations to bust old cached data
 
 ### Season Handling
 The Sleeper API returns two different season values in `/state/nfl`:

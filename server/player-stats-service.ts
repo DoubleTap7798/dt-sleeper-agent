@@ -552,7 +552,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v15-${sleeperPlayerId}`;
+  const cacheKey = `profile-v16-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
@@ -576,32 +576,23 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
       fetchSplits(espnId),
     ]);
     
-    // If ESPN bio fails, fall back to Sleeper data but keep any ESPN data we got
-    if (!bio) {
-      const sleeperProfile = await createProfileFromSleeper(sleeperPlayerId, playerName);
-      // Merge any ESPN data we successfully fetched
-      const profile: PlayerProfile = {
-        bio: sleeperProfile.bio,
-        careerStats: statsData.career || sleeperProfile.careerStats,
-        seasonStats: statsData.seasons.length > 0 ? statsData.seasons : sleeperProfile.seasonStats,
-        recentGameLogs: gameLogs.length > 0 ? gameLogs : sleeperProfile.recentGameLogs,
-        splits: splits || sleeperProfile.splits,
-        espnId,
-      };
-      playerStatsCache.set(cacheKey, { data: profile, time: Date.now() });
-      return profile;
-    }
-    
-    // Fix QB interceptions: ESPN career stats "interceptions" field shows defensive INTs caught,
-    // not passing INTs thrown. For QBs, we calculate INTs STRICTLY from game logs (most accurate source).
-    // Note: Game logs only available for last 5 seasons; this is clearly documented in the UI.
-    let careerStats = statsData.career;
-    let seasonStats = statsData.seasons;
-    
-    if (bio.position === "QB") {
+    // Helper function to fix QB interceptions from game logs
+    // ESPN career stats "interceptions" field shows defensive INTs caught, not passing INTs thrown
+    const applyQbIntsFix = (
+      position: string,
+      playerNameForLog: string,
+      gameLogsData: GameLog[],
+      careerStatsInput: any,
+      seasonStatsInput: any[]
+    ): { careerStats: any; seasonStats: any[] } => {
+      if (position !== "QB") {
+        return { careerStats: careerStatsInput, seasonStats: seasonStatsInput };
+      }
+      
+      console.log(`[QB FIX] Applying interceptions fix for ${playerNameForLog}`);
+      
       // Helper to get interceptions from game log stats (ESPN uses different field names)
       const getIntsFromLog = (stats: Record<string, number | string>): number => {
-        // ESPN uses "INT" for interceptions in game logs, check multiple possible names
         const possibleKeys = ["INT", "interceptions", "passingInterceptions", "int", "Interceptions"];
         for (const key of possibleKeys) {
           if (stats[key] !== undefined && stats[key] !== null && stats[key] !== "-") {
@@ -612,55 +603,92 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
         return 0;
       };
       
-      // Log first game's stat keys for debugging (only once per player)
-      if (gameLogs.length > 0) {
-        const sampleKeys = Object.keys(gameLogs[0].stats);
-        console.log(`[QB INT Debug] ${playerName}: game log stat keys = [${sampleKeys.join(", ")}]`);
+      // Log first game's stat keys for debugging
+      if (gameLogsData.length > 0) {
+        const sampleKeys = Object.keys(gameLogsData[0].stats);
+        console.log(`[QB INT Debug] ${playerNameForLog}: game log stat keys = [${sampleKeys.join(", ")}]`);
       }
       
-      // Build a map of season -> INTs from game logs (the ONLY reliable source)
+      // Build a map of season -> INTs from game logs
       const seasonIntsMap = new Map<string, number>();
-      for (const log of gameLogs) {
+      for (const log of gameLogsData) {
         const gameInts = getIntsFromLog(log.stats);
         const current = seasonIntsMap.get(log.season) || 0;
         seasonIntsMap.set(log.season, current + gameInts);
       }
       
-      // Calculate career INTs STRICTLY from game logs (not from ESPN season stats)
-      const careerIntsFromLogs = gameLogs.reduce((sum, log) => {
-        return sum + getIntsFromLog(log.stats);
-      }, 0);
+      // Calculate career INTs from game logs
+      const careerIntsFromLogs = gameLogsData.reduce((sum, log) => sum + getIntsFromLog(log.stats), 0);
       
-      // Apply game log INTs to season stats (only for seasons we have game logs for)
-      seasonStats = seasonStats.map(season => {
+      // Apply game log INTs to season stats
+      const fixedSeasonStats = seasonStatsInput.map(season => {
         const seasonIntsFromLogs = seasonIntsMap.get(season.season);
         if (seasonIntsFromLogs !== undefined) {
-          // Use game log data - this is the accurate source
           return {
             ...season,
-            stats: {
-              ...season.stats,
-              interceptions: seasonIntsFromLogs,
-            },
+            stats: { ...season.stats, interceptions: seasonIntsFromLogs },
           };
         }
-        // For seasons without game logs, keep original (may be inaccurate for older seasons)
         return season;
       });
       
-      console.log(`[QB INT] ${playerName}: careerIntsFromLogs=${careerIntsFromLogs}, seasonsWithData=${seasonIntsMap.size}, gameLogsAnalyzed=${gameLogs.length}`);
+      console.log(`[QB INT] ${playerNameForLog}: careerIntsFromLogs=${careerIntsFromLogs}, seasonsWithData=${seasonIntsMap.size}, gameLogsAnalyzed=${gameLogsData.length}`);
       
-      // Update career stats with game log INT total (if we have any game logs)
-      if (careerStats && gameLogs.length > 0) {
-        careerStats = {
-          ...careerStats,
-          stats: {
-            ...careerStats.stats,
-            interceptions: careerIntsFromLogs,
-          },
+      // Update career stats with game log INT total
+      let fixedCareerStats = careerStatsInput;
+      if (careerStatsInput && gameLogsData.length > 0) {
+        fixedCareerStats = {
+          ...careerStatsInput,
+          stats: { ...careerStatsInput.stats, interceptions: careerIntsFromLogs },
         };
       }
+      
+      return { careerStats: fixedCareerStats, seasonStats: fixedSeasonStats };
+    };
+    
+    // If ESPN bio fails, fall back to Sleeper data but keep any ESPN data we got
+    if (!bio) {
+      const sleeperProfile = await createProfileFromSleeper(sleeperPlayerId, playerName);
+      console.log(`[PROFILE DEBUG] ${playerName}: ESPN bio null, using Sleeper bio. position=${sleeperProfile.bio.position}`);
+      
+      // Determine what career/season stats to use
+      let mergedCareerStats = statsData.career || sleeperProfile.careerStats;
+      let mergedSeasonStats = statsData.seasons.length > 0 ? statsData.seasons : sleeperProfile.seasonStats;
+      const mergedGameLogs = gameLogs.length > 0 ? gameLogs : sleeperProfile.recentGameLogs;
+      
+      // Apply QB fix if position is QB (using Sleeper position)
+      const fixedStats = applyQbIntsFix(
+        sleeperProfile.bio.position,
+        playerName,
+        mergedGameLogs,
+        mergedCareerStats,
+        mergedSeasonStats
+      );
+      
+      const profile: PlayerProfile = {
+        bio: sleeperProfile.bio,
+        careerStats: fixedStats.careerStats,
+        seasonStats: fixedStats.seasonStats,
+        recentGameLogs: mergedGameLogs,
+        splits: splits || sleeperProfile.splits,
+        espnId,
+      };
+      playerStatsCache.set(cacheKey, { data: profile, time: Date.now() });
+      return profile;
     }
+    
+    console.log(`[PROFILE DEBUG] ${playerName}: bio.position=${bio.position}, gameLogs.length=${gameLogs.length}`);
+    
+    // Apply QB interceptions fix
+    const fixedStats = applyQbIntsFix(
+      bio.position,
+      playerName,
+      gameLogs,
+      statsData.career,
+      statsData.seasons
+    );
+    let careerStats = fixedStats.careerStats;
+    let seasonStats = fixedStats.seasonStats;
     
     const profile: PlayerProfile = {
       bio,
