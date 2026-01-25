@@ -7,6 +7,94 @@ const ESPN_CFB_API_BASE = "https://site.api.espn.com/apis/site/v2/sports/footbal
 const collegeStatsCache: Map<string, { data: any; time: number }> = new Map();
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour (college stats change less frequently)
 
+// College team ESPN ID mapping for logo fallbacks
+// ESPN team logo URL: https://a.espncdn.com/i/teamlogos/ncaa/500/{teamId}.png
+const COLLEGE_TEAM_IDS: Record<string, string> = {
+  "ohio state": "194",
+  "ohio st": "194",
+  "osu": "194",
+  "alabama": "333",
+  "bama": "333",
+  "georgia": "61",
+  "uga": "61",
+  "texas": "251",
+  "michigan": "130",
+  "penn state": "213",
+  "penn st": "213",
+  "lsu": "99",
+  "notre dame": "87",
+  "oregon": "2483",
+  "usc": "30",
+  "florida": "57",
+  "clemson": "228",
+  "oklahoma": "201",
+  "tennessee": "2633",
+  "texas a&m": "245",
+  "miami": "2390",
+  "colorado": "38",
+  "auburn": "2",
+  "florida state": "52",
+  "florida st": "52",
+  "wisconsin": "275",
+  "ole miss": "145",
+  "mississippi": "145",
+  "south carolina": "2579",
+  "missouri": "142",
+  "iowa": "2294",
+  "kentucky": "96",
+  "virginia tech": "259",
+  "arizona state": "9",
+  "arizona": "12",
+  "utah": "254",
+  "washington": "264",
+  "ucla": "26",
+  "byu": "252",
+  "kansas state": "2306",
+  "kansas st": "2306",
+  "nebraska": "158",
+  "north carolina": "153",
+  "unc": "153",
+  "oklahoma state": "197",
+  "oklahoma st": "197",
+  "arkansas": "8",
+  "louisville": "97",
+  "pittsburgh": "221",
+  "pitt": "221",
+  "iowa state": "66",
+  "iowa st": "66",
+  "baylor": "239",
+  "cal": "25",
+  "california": "25",
+  "texas tech": "2641",
+  "stanford": "24",
+  "indiana": "84",
+  "maryland": "120",
+  "illinois": "356",
+  "minnesota": "135",
+  "purdue": "2509",
+  "northwestern": "77",
+  "rutgers": "164",
+  "michigan state": "127",
+  "michigan st": "127"
+};
+
+// Get team logo URL from school name
+export function getCollegeTeamLogo(schoolName: string): string | null {
+  if (!schoolName) return null;
+  const normalizedName = schoolName.toLowerCase().trim();
+  const teamId = COLLEGE_TEAM_IDS[normalizedName];
+  if (teamId) {
+    return `https://a.espncdn.com/i/teamlogos/ncaa/500/${teamId}.png`;
+  }
+  // Try partial match
+  for (const [key, id] of Object.entries(COLLEGE_TEAM_IDS)) {
+    if (normalizedName.includes(key) || key.includes(normalizedName)) {
+      return `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png`;
+    }
+  }
+  return null;
+}
+
 export interface CollegePlayerBio {
   name: string;
   fullName: string;
@@ -19,6 +107,7 @@ export interface CollegePlayerBio {
   hometown: string | null;
   class: string | null;
   headshot: string | null;
+  teamLogo: string | null;
   espnId: string;
 }
 
@@ -47,38 +136,107 @@ export interface CollegePlayerProfile {
   espnId: string | null;
 }
 
-// Search for a college player on ESPN by name
+// Search for a college player on ESPN by name - tries multiple strategies
 async function searchCollegePlayer(playerName: string, school?: string): Promise<string | null> {
+  // Strategy 1: Direct search API
   try {
     const encodedName = encodeURIComponent(playerName);
     const response = await fetch(
       `https://site.web.api.espn.com/apis/common/v3/search?query=${encodedName}&limit=10&type=player&sport=football&league=college-football`
     );
     
-    if (!response.ok) return null;
-    
-    const data = await response.json() as any;
-    
-    const items = data.items || [];
-    if (items.length > 0) {
-      // If school provided, try to match it
-      if (school) {
-        const schoolLower = school.toLowerCase();
-        const match = items.find((item: any) => {
-          const itemSchool = (item.team?.displayName || item.teamName || "").toLowerCase();
-          return itemSchool.includes(schoolLower) || schoolLower.includes(itemSchool);
-        });
-        if (match) return match.id?.toString() || null;
+    if (response.ok) {
+      const data = await response.json() as any;
+      const items = data.items || [];
+      if (items.length > 0) {
+        if (school) {
+          const schoolLower = school.toLowerCase();
+          const match = items.find((item: any) => {
+            const itemSchool = (item.team?.displayName || item.teamName || "").toLowerCase();
+            return itemSchool.includes(schoolLower) || schoolLower.includes(itemSchool);
+          });
+          if (match) return match.id?.toString() || null;
+        }
+        return items[0].id?.toString() || null;
       }
-      // Return first result if no school match
-      return items[0].id?.toString() || null;
     }
-    
-    return null;
   } catch (error) {
-    console.error("Error searching college player:", error);
-    return null;
+    console.error("Search strategy 1 failed:", error);
   }
+  
+  // Strategy 2: Search team roster if we have a school
+  if (school) {
+    const teamId = getTeamIdFromSchool(school);
+    if (teamId) {
+      try {
+        const response = await fetch(`${ESPN_CFB_API_BASE}/teams/${teamId}/roster`);
+        if (response.ok) {
+          const data = await response.json() as any;
+          const athletes = data.athletes || [];
+          const nameLower = playerName.toLowerCase();
+          
+          for (const group of athletes) {
+            const items = group.items || [];
+            for (const athlete of items) {
+              const athleteName = (athlete.fullName || athlete.displayName || "").toLowerCase();
+              if (athleteName === nameLower || athleteName.includes(nameLower) || nameLower.includes(athleteName)) {
+                return athlete.id?.toString() || null;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Search strategy 2 (roster) failed:", error);
+      }
+    }
+  }
+  
+  // Strategy 3: Alternative search with just last name
+  try {
+    const lastName = playerName.split(' ').pop() || playerName;
+    const encodedLastName = encodeURIComponent(lastName);
+    const response = await fetch(
+      `https://site.web.api.espn.com/apis/common/v3/search?query=${encodedLastName}&limit=20&type=player&sport=football&league=college-football`
+    );
+    
+    if (response.ok) {
+      const data = await response.json() as any;
+      const items = data.items || [];
+      const nameLower = playerName.toLowerCase();
+      
+      for (const item of items) {
+        const itemName = (item.displayName || item.name || "").toLowerCase();
+        if (itemName === nameLower) {
+          if (school) {
+            const itemSchool = (item.team?.displayName || "").toLowerCase();
+            if (itemSchool.includes(school.toLowerCase())) {
+              return item.id?.toString() || null;
+            }
+          } else {
+            return item.id?.toString() || null;
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Search strategy 3 failed:", error);
+  }
+  
+  return null;
+}
+
+// Helper to get team ID from school name
+function getTeamIdFromSchool(school: string): string | null {
+  const normalizedSchool = school.toLowerCase().trim();
+  if (COLLEGE_TEAM_IDS[normalizedSchool]) {
+    return COLLEGE_TEAM_IDS[normalizedSchool];
+  }
+  for (const [key, id] of Object.entries(COLLEGE_TEAM_IDS)) {
+    if (normalizedSchool.includes(key) || key.includes(normalizedSchool)) {
+      return id;
+    }
+  }
+  return null;
 }
 
 // Fetch player bio from ESPN
@@ -101,11 +259,14 @@ async function fetchCollegePlayerBio(espnId: string): Promise<CollegePlayerBio |
       5: "5th Year Senior"
     };
     
+    const teamName = player.team?.displayName || "";
+    const teamLogo = player.team?.logo || getCollegeTeamLogo(teamName);
+    
     return {
       name: player.displayName || player.fullName || "",
       fullName: player.fullName || player.displayName || "",
       position: player.position?.abbreviation || "",
-      team: player.team?.displayName || "",
+      team: teamName,
       teamAbbr: player.team?.abbreviation || "",
       jersey: player.jersey || "",
       height: player.displayHeight || "",
@@ -113,6 +274,7 @@ async function fetchCollegePlayerBio(espnId: string): Promise<CollegePlayerBio |
       hometown: player.birthPlace?.city ? `${player.birthPlace.city}, ${player.birthPlace.state || player.birthPlace.country || ""}` : null,
       class: classMap[player.experience?.years] || player.experience?.displayValue || null,
       headshot: player.headshot?.href || `https://a.espncdn.com/i/headshots/college-football/players/full/${espnId}.png`,
+      teamLogo: teamLogo,
       espnId: espnId
     };
   } catch (error) {

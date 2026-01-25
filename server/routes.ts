@@ -950,6 +950,7 @@ Format your response with clear section headers using markdown. Be concise but i
         conference: "N/A"
       };
       let headshot: string | null = null;
+      let teamLogo: string | null = null;
       
       if (espnProfile) {
         // Use real ESPN bio data
@@ -963,6 +964,7 @@ Format your response with clear section headers using markdown. Be concise but i
         };
         
         headshot = espnProfile.bio.headshot || getCollegePlayerHeadshotUrl(espnProfile.espnId || "");
+        teamLogo = espnProfile.bio.teamLogo || null;
         
         // Format seasons from ESPN data
         collegeStats.seasons = espnProfile.seasons.map(s => ({
@@ -1091,6 +1093,12 @@ Return ONLY valid JSON, no other text.`;
         bio.conference = scoutingData.conference;
       }
 
+      // If no headshot or ESPN lookup failed, get team logo as fallback
+      const { getCollegeTeamLogo } = await import("./college-stats-service");
+      if (!teamLogo) {
+        teamLogo = getCollegeTeamLogo(player.college);
+      }
+
       res.json({
         player: {
           id: player.id,
@@ -1104,6 +1112,7 @@ Return ONLY valid JSON, no other text.`;
           trend30Day: player.trend30Day,
           rank: player.rank,
           headshot: headshot,
+          teamLogo: teamLogo,
         },
         bio,
         collegeStats,

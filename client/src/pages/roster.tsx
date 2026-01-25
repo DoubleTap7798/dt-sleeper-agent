@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, AlertCircle, User, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
+import { getNFLTeamLogo } from "@/lib/team-logos";
 
 interface RosterPlayer {
   playerId: string;
@@ -182,10 +183,16 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Avatar className="h-10 w-10 shrink-0" data-testid={`avatar-${player.playerId}`}>
               <AvatarImage 
-                src={player.headshot || undefined} 
+                src={player.headshot || getNFLTeamLogo(player.team) || undefined} 
                 alt={player.name}
                 onError={(e) => {
-                  e.currentTarget.style.display = 'none';
+                  // If headshot fails, try team logo
+                  const teamLogo = getNFLTeamLogo(player.team);
+                  if (teamLogo && e.currentTarget.src !== teamLogo) {
+                    e.currentTarget.src = teamLogo;
+                  } else {
+                    e.currentTarget.style.display = 'none';
+                  }
                 }}
               />
               <AvatarFallback className="text-xs bg-muted">

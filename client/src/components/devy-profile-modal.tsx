@@ -40,6 +40,7 @@ interface DevyPlayer {
   trend30Day: number;
   rank: number;
   headshot?: string | null;
+  teamLogo?: string | null;
 }
 
 interface Bio {
@@ -133,10 +134,16 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
             <div className="flex items-start gap-3">
               <Avatar className="h-14 w-14 shrink-0" data-testid="avatar-player">
                 <AvatarImage 
-                  src={data?.player?.headshot || undefined} 
+                  src={data?.player?.headshot || data?.player?.teamLogo || undefined} 
                   alt={player.name}
                   onError={(e) => {
-                    e.currentTarget.style.display = 'none';
+                    // If headshot fails, try team logo
+                    const teamLogo = data?.player?.teamLogo;
+                    if (teamLogo && e.currentTarget.src !== teamLogo) {
+                      e.currentTarget.src = teamLogo;
+                    } else {
+                      e.currentTarget.style.display = 'none';
+                    }
                   }}
                 />
                 <AvatarFallback className="text-lg bg-muted">
@@ -337,6 +344,18 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                 <TabsContent value="stats" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-stats">
                   <ScrollArea className="flex-1">
                     <div className="p-4 space-y-4">
+                  {(!data.collegeStats?.seasons?.length && (!data.collegeStats?.careerTotals || Object.keys(data.collegeStats.careerTotals).length === 0)) ? (
+                    <Card>
+                      <CardContent className="p-6 text-center">
+                        <BarChart3 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                        <h3 className="font-semibold mb-2">Stats Not Available</h3>
+                        <p className="text-sm text-muted-foreground">
+                          College statistics for {player.name} are not yet available from ESPN. 
+                          This may be because the player is an incoming freshman or ESPN hasn't updated their data.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : null}
                   {data.collegeStats?.careerTotals && Object.keys(data.collegeStats.careerTotals).length > 0 && (
                     <Card>
                       <CardContent className="p-4">
@@ -510,9 +529,16 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       </CardContent>
                     </Card>
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No game logs available
-                    </div>
+                    <Card>
+                      <CardContent className="p-6 text-center">
+                        <Calendar className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                        <h3 className="font-semibold mb-2">Game Logs Not Available</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Game-by-game statistics for {player.name} are not yet available from ESPN.
+                          This may be because the player is an incoming freshman or ESPN hasn't updated their data.
+                        </p>
+                      </CardContent>
+                    </Card>
                   )}
                     </div>
                   </ScrollArea>

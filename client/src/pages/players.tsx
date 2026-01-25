@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { Users, Search, TrendingUp, AlertCircle, Loader2, BarChart3 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
+import { getNFLTeamLogo } from "@/lib/team-logos";
 
 interface Player {
   id: string;
@@ -223,10 +224,16 @@ export default function PlayersPage() {
                   <div className="flex items-center gap-2">
                     <Avatar className="h-8 w-8 shrink-0" data-testid={`avatar-${player.id}`}>
                       <AvatarImage 
-                        src={player.headshot || undefined} 
+                        src={player.headshot || getNFLTeamLogo(player.team) || undefined} 
                         alt={player.fullName}
                         onError={(e) => {
-                          e.currentTarget.style.display = 'none';
+                          // If headshot fails, try team logo
+                          const teamLogo = getNFLTeamLogo(player.team);
+                          if (teamLogo && e.currentTarget.src !== teamLogo) {
+                            e.currentTarget.src = teamLogo;
+                          } else {
+                            e.currentTarget.style.display = 'none';
+                          }
                         }}
                       />
                       <AvatarFallback className="text-[10px] bg-muted">
