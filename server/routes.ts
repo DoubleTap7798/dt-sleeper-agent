@@ -1670,6 +1670,8 @@ ${fantasyOutlookSection}
           losses: roster.settings.losses || 0,
           ties: roster.settings.ties || 0,
           pointsFor: (roster.settings.fpts || 0) + (roster.settings.fpts_decimal || 0) / 100,
+          pointsAgainst: (roster.settings.fpts_against || 0) + (roster.settings.fpts_against_decimal || 0) / 100,
+          maxPoints: (roster.settings.ppts || 0) + (roster.settings.ppts_decimal || 0) / 100,
         },
         starters,
         bench,

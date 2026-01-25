@@ -60,6 +60,8 @@ interface TeamDetail {
     losses: number;
     ties: number;
     pointsFor: number;
+    pointsAgainst: number;
+    maxPoints: number;
   };
   starters: PlayerInfo[];
   bench: PlayerInfo[];
@@ -131,9 +133,7 @@ export default function LeagueStandingsPage() {
                   <TableRow>
                     <TableHead className="w-12">Rank</TableHead>
                     <TableHead>Team</TableHead>
-                    <TableHead className="text-center">Record</TableHead>
-                    <TableHead className="text-right">PF</TableHead>
-                    <TableHead className="text-right hidden md:table-cell">Win %</TableHead>
+                    <TableHead className="text-right">Record</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -156,29 +156,21 @@ export default function LeagueStandingsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
                             <Avatar className="h-8 w-8">
                               <AvatarImage src={team.avatar || undefined} />
                               <AvatarFallback className="text-xs">
                                 {team.ownerName?.slice(0, 2).toUpperCase() || "??"}
                               </AvatarFallback>
                             </Avatar>
-                            <div>
-                              <p className="font-medium truncate max-w-[120px] md:max-w-none">
-                                {team.ownerName}
-                              </p>
-                            </div>
+                            <p className="font-medium truncate max-w-[140px] sm:max-w-none">
+                              {team.ownerName}
+                            </p>
                           </div>
                         </TableCell>
-                        <TableCell className="text-center font-mono">
+                        <TableCell className="text-right font-mono">
                           {team.wins}-{team.losses}
                           {team.ties > 0 && `-${team.ties}`}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {team.pointsFor.toFixed(1)}
-                        </TableCell>
-                        <TableCell className="text-right hidden md:table-cell font-mono">
-                          {(team.winPercentage * 100).toFixed(0)}%
                         </TableCell>
                         <TableCell>
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -293,17 +285,17 @@ export default function LeagueStandingsPage() {
           ) : teamDetail ? (
             <div className="mt-6 space-y-6">
               <div className="grid grid-cols-3 gap-3">
-                <Card className="p-3 text-center" data-testid="card-player-value">
-                  <p className="text-xs text-muted-foreground">Player Value</p>
-                  <p className="text-lg font-bold font-mono" data-testid="text-player-value">{teamDetail.totalPlayerValue.toLocaleString()}</p>
+                <Card className="p-3 text-center" data-testid="card-points-for">
+                  <p className="text-xs text-muted-foreground">Points For</p>
+                  <p className="text-lg font-bold font-mono" data-testid="text-points-for">{teamDetail.record.pointsFor.toFixed(1)}</p>
                 </Card>
-                <Card className="p-3 text-center" data-testid="card-pick-value">
-                  <p className="text-xs text-muted-foreground">Pick Value</p>
-                  <p className="text-lg font-bold font-mono" data-testid="text-pick-value">{teamDetail.totalPickValue.toLocaleString()}</p>
+                <Card className="p-3 text-center" data-testid="card-points-against">
+                  <p className="text-xs text-muted-foreground">Pts Against</p>
+                  <p className="text-lg font-bold font-mono" data-testid="text-points-against">{teamDetail.record.pointsAgainst.toFixed(1)}</p>
                 </Card>
-                <Card className="p-3 text-center" data-testid="card-total-value">
-                  <p className="text-xs text-muted-foreground">Total Value</p>
-                  <p className="text-lg font-bold font-mono" data-testid="text-total-value">{teamDetail.totalValue.toLocaleString()}</p>
+                <Card className="p-3 text-center" data-testid="card-max-points">
+                  <p className="text-xs text-muted-foreground">Max Points</p>
+                  <p className="text-lg font-bold font-mono" data-testid="text-max-points">{teamDetail.record.maxPoints.toFixed(1)}</p>
                 </Card>
               </div>
 
