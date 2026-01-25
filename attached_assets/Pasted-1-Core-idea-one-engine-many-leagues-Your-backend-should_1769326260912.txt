@@ -1,0 +1,326 @@
+1. Core idea: one engine, many leagues
+ 
+
+ 
+
+ 
+Your backend should do this whenever a user selects a league:
+ 
+
+ 
+1. Pull that league’s settings:
+ 
+
+ 
+  • Scoring (PPR/half/standard, pass TD = 4 or 6, bonuses, etc.)
+ 
+
+ 
+  • Roster requirements (QB/RB/WR/TE/Flex/Superflex, number of teams)
+ 
+
+ 
+
+ 
+
+ 
+2. Compute per-player values specific to that league using a single, generic algorithm.
+ 
+
+ 
+3. Expose those values to your trade calculator UI so it can:
+ 
+
+ 
+  • Sum values for side A and side B of the trade
+ 
+
+ 
+  • Show a “who wins” indication and margin
+ 
+
+ 
+
+ 
+
+ 
+
+The heavy lift is in steps 2 and 3: defining a clean, reusable value algorithm.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+ 
+
+ 
+
+ 
+1. Data you need globally (shared across leagues)
+ 
+
+ 
+
+ 
+You can keep this league-agnostic:
+ 
+
+ 
+• A unified player list with:
+ 
+
+ 
+  • Player ID
+ 
+
+ 
+  • Name, team, position
+ 
+
+ 
+
+ 
+
+ 
+• Season or rest-of-season stat projections for each player:
+ 
+
+ 
+  • For QBs: pass yards, pass TD, INT, rush yards, rush TD
+ 
+
+ 
+  • For RB/WR/TE: rush yards/TD, receptions, rec yards/TD
+ 
+
+ 
+  • DEF, K if you support them
+ 
+
+ 
+
+ 
+
+ 
+• Optional: risk/age metadata if you want simple adjustments later
+ 
+
+ 
+
+This is your global projection layer; every league just uses these projections plus its own scoring rules.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+ 
+
+ 
+
+ 
+1. For each league, convert projections → fantasy points
+ 
+
+ 
+
+ 
+When a user selects League X:
+ 
+
+ 
+1. Load League X scoring:
+ 
+
+ 
+  • Example:  
+ 
+
+ 
+    • Pass: 1 pt / 25 yards, 4 per TD, −2 per INT  
+ 
+
+ 
+    • Rush: 1 pt / 10 yards, 6 per TD  
+ 
+
+ 
+    • Rec: 1 PPR, 1 pt / 10 yards, 6 per TD  
+ 
+
+ 
+    • Bonuses, etc.
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+2. For each player, compute FantasyPoints_leagueX:
+ 
+
+ 
+
+ 
+
+
+   Pseudocode:
+
+   ```text
+   FP(p, league) =
+       PassYds(p) * league.PassYdsPtsPerYd
+     + PassTD(p)  * league.PassTDPts
+     + INT(p)     * league.IntPts
+     + RushYds(p) * league.RushYdsPtsPerYd
+     + RushTD(p)  * league.RushTDPts
+     + Rec(p)     * league.PPRPts
+     + RecYds(p)  * league.RecYdsPtsPerYd
+     + RecTD(p)   * league.RecTDPts
+     + (any bonuses/other categories)
+   ```
+
+
+ 
+Because you’re using the league’s scoring, you automatically get “this-player-in-this-league” points.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+ 
+
+ 
+
+ 
+1. Make values positional & league-specific: replacement level
+ 
+
+ 
+
+ 
+Next, evaluate how valuable those points are in that league’s structure.
+ 
+Step 4.1: Determine baselines per position
+ 
+Using League X’s roster + team count:
+ 
+
+ 
+• Example: 12 teams, start:
+ 
+
+ 
+  • 1 QB, 2 RB, 3 WR, 1 TE, 1 FLEX (RB/WR/TE), 1 Superflex (QB/RB/WR/TE)
+ 
+
+ 
+
+ 
+
+ 
+
+A simple way:
+ 
+
+ 
+1. Compute “expected starters” per position:
+ 
+
+ 
+  • QB: 1 QB + a % from superflex
+ 
+
+ 
+    • Rough estimate: assume 70–90% of superflex are QBs →  
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+       `QB_starters ≈ teams * (1 + 0.8)` → 12 * 1.8 ≈ 22
+   - RB: 2 RB + share from flex → maybe 2.5 per team → 30
+   - WR: 3 WR + share from flex → maybe 3.3 per team → 40
+   - TE: 1 TE per team → 12
+
+   You can keep this rough; it doesn’t have to be perfect to be useful.
+
+
+ 
+
+ 
+
+ 
+1. Sort players by FP(p, league) within each position.
+ 
+
+ 
+2. Take the FP of the “replacement-level” player for that position:
+ 
+
+ 
+  • QB: FP of QB22
+ 
+
+ 
+  • RB: FP of RB30
+ 
+
+ 
+  • WR: FP of WR40
+ 
+
+ 
+  • TE: FP of TE12
+ 
+
+ 
+
+ 
+
+ 
+
+Call these:
+
+ 
+RP_QB, RP_RB, RP_WR, RP_TE
+ 
+
+These numbers are per league, so superflex, deep rosters, etc. are automatically baked in.
+ 
+Step 4.2: Value Over Replacement (VOR) per player
+ 
+For each player p:
+
+ 
+VOR(p) = max( FP(p, league) − RP_pos(p), 0 )
+ 
+
+Where RP_pos(p) is RPQB if p is a QB, etc.
+Now you have position-, scoring-, and league-specific raw value in points.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+ 
+
+ 
+
+ 
+1. Normalize VOR into a simple “trade value” scale
+ 
+
+ 
+
+ 
+Users like simple scales like 0–100 or 0–1000.
+Per league:
+ 
+
+ 
+1. Find MaxVOR = max_p VOR(p) among all players in that league’s scoring context.
+ 
+
+ 
+2. Choose a max score: say 100.
+ 
+
+ 
+3. Compute:
