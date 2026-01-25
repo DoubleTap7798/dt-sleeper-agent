@@ -993,11 +993,11 @@ Return a JSON object with this EXACT structure (no markdown, just valid JSON):
       "stats": "8 rec, 120 yds, 2 TD"
     }
   ],
-  "news": [
+  "analysisNotes": [
     {
-      "headline": "News headline",
-      "summary": "Brief summary of news",
-      "date": "2025-01-15"
+      "title": "Dynasty Fantasy Analysis Note",
+      "insight": "Detailed insight about player's value, production, or projection",
+      "category": "scouting|production|projection|concern"
     }
   ],
   "scoutingReport": {
@@ -1017,7 +1017,7 @@ Overall Rank: #${player.rank}
 IMPORTANT: 
 - Include ALL college seasons the player has played (2022, 2023, 2024 as applicable based on their class year). Do NOT just include one season.
 - Include 8-10 recent game logs from their most recent season, covering most of the season.
-- Include 2-3 news items about the player.
+- Include 3-4 analysis notes with dynasty fantasy insights (scouting observations, production analysis, projection notes, or concerns). These should be analytical insights, NOT news stories.
 - Use realistic college production numbers appropriate for their position and actual performance.
 Return ONLY valid JSON, no other text.`;
 
@@ -1055,7 +1055,8 @@ Return ONLY valid JSON, no other text.`;
           bio: { height: "N/A", weight: "N/A", hometown: "N/A", highSchoolRank: "N/A", class: "N/A", conference: "N/A" },
           collegeStats: { seasons: [], careerTotals: {} },
           gameLogs: [],
-          news: [],
+          analysisNotes: [],
+          news: [], // Backward compatibility
           scoutingReport: { strengths: [], weaknesses: [], nflComparison: "N/A", draftProjection: "N/A", fantasyOutlook: "N/A" }
         };
       }
@@ -1074,6 +1075,8 @@ Return ONLY valid JSON, no other text.`;
           rank: player.rank,
         },
         ...profileData,
+        // Ensure backward compatibility: provide empty news array if only analysisNotes exists
+        news: profileData.news || [],
         generatedAt: new Date().toISOString(),
       });
     } catch (error) {
@@ -3277,6 +3280,10 @@ Return JSON: {"players": [{...}]}`;
   });
 
   // League Summary - Overall stats across leagues including ALL historical seasons
+  // Cache for career summary data (keyed by sleeper user ID)
+  const careerSummaryCache = new Map<string, { data: any; timestamp: number }>();
+  const CAREER_CACHE_TTL = 1000 * 60 * 15; // 15 minutes
+
   app.get("/api/fantasy/summary", isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
@@ -3297,123 +3304,164 @@ Return JSON: {"players": [{...}]}`;
         });
       }
 
+      // Check cache first
+      const cacheKey = userProfile.sleeperUserId;
+      const cached = careerSummaryCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CAREER_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+
       const currentLeagues = await sleeperApi.getUserLeagues(userProfile.sleeperUserId);
       
+      const processedLeagueIds = new Set<string>();
+      // Cache league data to avoid duplicate API calls
+      const leagueDataCache = new Map<string, any>();
+
+      // Collect all league IDs and cache league data in a single pass
+      const leagueIdsToProcess: { leagueId: string; leagueName: string }[] = [];
+      
+      // First pass: collect all league IDs by tracing back histories (and cache league data)
+      const collectLeagueIds = async (startLeagueId: string, leagueName: string): Promise<string[]> => {
+        const ids: string[] = [];
+        let currentId: string | null = startLeagueId;
+        
+        while (currentId && currentId !== "0") {
+          if (processedLeagueIds.has(currentId)) break;
+          processedLeagueIds.add(currentId);
+          ids.push(currentId);
+          
+          try {
+            const league = await sleeperApi.getLeague(currentId);
+            if (!league) break;
+            // Cache for reuse in processing phase
+            leagueDataCache.set(currentId, league);
+            currentId = league.previous_league_id;
+          } catch {
+            break;
+          }
+        }
+        return ids;
+      };
+
+      // Collect all league IDs from all current leagues in parallel
+      const leagueIdResults = await Promise.all(
+        currentLeagues.map(league => 
+          collectLeagueIds(league.league_id, league.name).then(ids => 
+            ids.map(id => ({ leagueId: id, leagueName: league.name }))
+          )
+        )
+      );
+      
+      leagueIdResults.forEach(ids => leagueIdsToProcess.push(...ids));
+
+      // Process all league seasons in parallel (use cached league data, fetch rosters + bracket)
+      const processLeagueSeason = async (leagueId: string, leagueName: string) => {
+        try {
+          // Get league from cache (already fetched), only need rosters and bracket
+          const league = leagueDataCache.get(leagueId);
+          if (!league) return null;
+          
+          // Fetch rosters and bracket in parallel
+          const [rosters, bracket] = await Promise.all([
+            sleeperApi.getLeagueRosters(leagueId),
+            sleeperApi.getPlayoffBracket(leagueId).catch(() => [])
+          ]);
+          
+          if (!rosters) return null;
+          
+          const userRoster = rosters.find(r => r.owner_id === userProfile!.sleeperUserId);
+          if (!userRoster) return null;
+          
+          const wins = userRoster.settings?.wins || 0;
+          const losses = userRoster.settings?.losses || 0;
+          const ties = userRoster.settings?.ties || 0;
+          
+          // Calculate rank
+          const sortedRosters = [...rosters].sort((a, b) => {
+            const winsA = a.settings?.wins || 0;
+            const winsB = b.settings?.wins || 0;
+            if (winsB !== winsA) return winsB - winsA;
+            const fptsA = (a.settings?.fpts || 0) + (a.settings?.fpts_decimal || 0) / 100;
+            const fptsB = (b.settings?.fpts || 0) + (b.settings?.fpts_decimal || 0) / 100;
+            return fptsB - fptsA;
+          });
+          const rank = sortedRosters.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
+          
+          const playoffTeams = league.settings?.playoff_teams || 6;
+          const isPlayoffs = rank <= playoffTeams;
+          
+          // Determine championship status
+          let isChampion = false;
+          let isRunnerUp = false;
+          
+          if (bracket && bracket.length > 0) {
+            const champMatch = bracket.reduce((max, match) => 
+              (match.r > (max?.r || 0)) ? match : max, bracket[0]);
+            
+            if (champMatch && champMatch.w === userRoster.roster_id) {
+              isChampion = true;
+            } else if (champMatch && champMatch.l === userRoster.roster_id) {
+              isRunnerUp = true;
+            }
+          } else if (league.status === "complete") {
+            if (rank === 1) isChampion = true;
+            else if (rank === 2) isRunnerUp = true;
+          }
+          
+          return {
+            leagueId,
+            leagueName,
+            season: league.season,
+            wins,
+            losses,
+            ties,
+            rank,
+            totalTeams: rosters.length,
+            isChampion,
+            isPlayoffs,
+            isRunnerUp,
+          };
+        } catch (e) {
+          console.error(`Error processing league ${leagueId}:`, e);
+          return null;
+        }
+      };
+
+      // Process all leagues in parallel with concurrency limit
+      const BATCH_SIZE = 10;
+      const allResults: any[] = [];
+      
+      for (let i = 0; i < leagueIdsToProcess.length; i += BATCH_SIZE) {
+        const batch = leagueIdsToProcess.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(({ leagueId, leagueName }) => processLeagueSeason(leagueId, leagueName))
+        );
+        allResults.push(...batchResults.filter(Boolean));
+      }
+
+      // Aggregate stats
       let totalWins = 0;
       let totalLosses = 0;
       let totalTies = 0;
       let championships = 0;
       let runnerUps = 0;
       let playoffAppearances = 0;
-      const leagueStats: any[] = [];
-      const processedLeagueIds = new Set<string>();
-
-      // Helper function to trace back through league history
-      const processLeagueHistory = async (leagueId: string, leagueName: string) => {
-        let currentLeagueId: string | null = leagueId;
-        
-        while (currentLeagueId && currentLeagueId !== "0" && !processedLeagueIds.has(currentLeagueId)) {
-          processedLeagueIds.add(currentLeagueId);
-          
-          try {
-            const league = await sleeperApi.getLeague(currentLeagueId);
-            if (!league) break;
-            
-            const rosters = await sleeperApi.getLeagueRosters(currentLeagueId);
-            
-            // Find user's roster in this season
-            const userRoster = rosters.find(r => r.owner_id === userProfile!.sleeperUserId);
-            if (userRoster) {
-              const wins = userRoster.settings?.wins || 0;
-              const losses = userRoster.settings?.losses || 0;
-              const ties = userRoster.settings?.ties || 0;
-              
-              totalWins += wins;
-              totalLosses += losses;
-              totalTies += ties;
-              
-              // Calculate rank based on wins, then points for tie-breaking
-              const sortedRosters = [...rosters].sort((a, b) => {
-                const winsA = a.settings?.wins || 0;
-                const winsB = b.settings?.wins || 0;
-                if (winsB !== winsA) return winsB - winsA;
-                // Tie-break by fantasy points
-                const fptsA = (a.settings?.fpts || 0) + (a.settings?.fpts_decimal || 0) / 100;
-                const fptsB = (b.settings?.fpts || 0) + (b.settings?.fpts_decimal || 0) / 100;
-                return fptsB - fptsA;
-              });
-              const rank = sortedRosters.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
-              
-              // Check for playoff appearance
-              const playoffTeams = league.settings?.playoff_teams || 6;
-              const isPlayoffs = rank <= playoffTeams;
-              if (isPlayoffs) playoffAppearances++;
-              
-              // Check for championship by looking at bracket data
-              let isChampion = false;
-              let isRunnerUp = false;
-              
-              try {
-                const bracket = await sleeperApi.getPlayoffBracket(currentLeagueId);
-                if (bracket && bracket.length > 0) {
-                  // Find the championship match (usually the last match or highest round)
-                  const champMatch = bracket.reduce((max, match) => 
-                    (match.r > (max?.r || 0)) ? match : max, bracket[0]);
-                  
-                  if (champMatch && champMatch.w === userRoster.roster_id) {
-                    isChampion = true;
-                    championships++;
-                  } else if (champMatch && champMatch.l === userRoster.roster_id) {
-                    isRunnerUp = true;
-                    runnerUps++;
-                  }
-                }
-              } catch (bracketError) {
-                // If bracket fails, fall back to rank-based determination for completed seasons
-                if (league.status === "complete" && rank === 1) {
-                  isChampion = true;
-                  championships++;
-                } else if (league.status === "complete" && rank === 2) {
-                  isRunnerUp = true;
-                  runnerUps++;
-                }
-              }
-              
-              leagueStats.push({
-                leagueId: currentLeagueId,
-                leagueName: leagueName,
-                season: league.season,
-                wins,
-                losses,
-                ties,
-                rank,
-                totalTeams: rosters.length,
-                isChampion,
-                isPlayoffs,
-                isRunnerUp,
-              });
-            }
-            
-            // Move to previous season
-            currentLeagueId = league.previous_league_id;
-          } catch (e) {
-            console.error(`Error processing league ${currentLeagueId}:`, e);
-            break;
-          }
-        }
-      }
-
-      // Process ALL current leagues and trace back their history
-      for (const league of currentLeagues) {
-        await processLeagueHistory(league.league_id, league.name);
+      
+      for (const stat of allResults) {
+        totalWins += stat.wins;
+        totalLosses += stat.losses;
+        totalTies += stat.ties;
+        if (stat.isChampion) championships++;
+        if (stat.isRunnerUp) runnerUps++;
+        if (stat.isPlayoffs) playoffAppearances++;
       }
 
       // Sort league stats by season descending
-      leagueStats.sort((a, b) => b.season.localeCompare(a.season));
+      allResults.sort((a, b) => b.season.localeCompare(a.season));
 
-      res.json({
+      const result = {
         totalLeagues: currentLeagues.length,
-        totalSeasons: leagueStats.length,
+        totalSeasons: allResults.length,
         totalWins,
         totalLosses,
         totalTies,
@@ -3422,8 +3470,13 @@ Return JSON: {"players": [{...}]}`;
         playoffAppearances,
         bestFinish: championships > 0 ? "Champion" : runnerUps > 0 ? "Runner-up" : playoffAppearances > 0 ? "Playoffs" : "N/A",
         currentSeason: new Date().getFullYear().toString(),
-        leagueStats,
-      });
+        leagueStats: allResults,
+      };
+
+      // Cache the result
+      careerSummaryCache.set(cacheKey, { data: result, timestamp: Date.now() });
+
+      res.json(result);
     } catch (error) {
       console.error("Error fetching summary:", error);
       res.status(500).json({ message: "Failed to fetch summary" });

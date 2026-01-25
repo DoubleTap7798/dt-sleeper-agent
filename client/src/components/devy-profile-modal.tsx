@@ -70,10 +70,10 @@ interface GameLog {
   stats: string;
 }
 
-interface NewsItem {
-  headline: string;
-  summary: string;
-  date: string;
+interface AnalysisNote {
+  title: string;
+  insight: string;
+  category: string;
 }
 
 interface ScoutingReport {
@@ -92,7 +92,7 @@ interface DevyProfileData {
     careerTotals: Record<string, number>;
   };
   gameLogs: GameLog[];
-  news: NewsItem[];
+  analysisNotes: AnalysisNote[];
   scoutingReport: ScoutingReport;
   generatedAt: string;
 }
@@ -215,9 +215,9 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
               Games
             </TabsTrigger>
-            <TabsTrigger value="news" className="text-xs sm:text-sm" data-testid="tab-news">
+            <TabsTrigger value="analysis" className="text-xs sm:text-sm" data-testid="tab-analysis">
               <Newspaper className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-              News
+              Analysis
             </TabsTrigger>
           </TabsList>
 
@@ -502,24 +502,28 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                   </ScrollArea>
                 </TabsContent>
 
-                <TabsContent value="news" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-news">
+                <TabsContent value="analysis" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-analysis">
                   <ScrollArea className="flex-1">
                     <div className="p-4">
-                  {data.news?.length > 0 ? (
+                  {data.analysisNotes?.length > 0 ? (
                     <div className="space-y-3">
-                      {data.news.map((item, idx) => (
+                      {data.analysisNotes.map((note, idx) => (
                         <Card key={idx}>
                           <CardContent className="p-4">
-                            <h4 className="font-semibold mb-1">{item.headline}</h4>
-                            <p className="text-sm text-muted-foreground mb-2">{item.summary}</p>
-                            <span className="text-xs text-muted-foreground">{item.date}</span>
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold">{note.title}</h4>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-muted capitalize">
+                                {note.category}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{note.insight}</p>
                           </CardContent>
                         </Card>
                       ))}
                     </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
-                      No recent news available
+                      No analysis notes available
                     </div>
                   )}
                     </div>
