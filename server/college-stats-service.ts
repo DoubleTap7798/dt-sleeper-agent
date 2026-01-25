@@ -138,16 +138,19 @@ export interface CollegePlayerProfile {
 
 // Search for a college player on ESPN by name - tries multiple strategies
 async function searchCollegePlayer(playerName: string, school?: string): Promise<string | null> {
+  console.log(`[College Search] Searching for: "${playerName}" at "${school || 'unknown school'}"`);
+  
   // Strategy 1: Direct search API
   try {
     const encodedName = encodeURIComponent(playerName);
-    const response = await fetch(
-      `https://site.web.api.espn.com/apis/common/v3/search?query=${encodedName}&limit=10&type=player&sport=football&league=college-football`
-    );
+    const searchUrl = `https://site.web.api.espn.com/apis/common/v3/search?query=${encodedName}&limit=10&type=player&sport=football&league=college-football`;
+    console.log(`[College Search] Strategy 1 - Direct search URL: ${searchUrl}`);
+    const response = await fetch(searchUrl);
     
     if (response.ok) {
       const data = await response.json() as any;
       const items = data.items || [];
+      console.log(`[College Search] Strategy 1 - Found ${items.length} items`);
       if (items.length > 0) {
         if (school) {
           const schoolLower = school.toLowerCase();
@@ -155,40 +158,56 @@ async function searchCollegePlayer(playerName: string, school?: string): Promise
             const itemSchool = (item.team?.displayName || item.teamName || "").toLowerCase();
             return itemSchool.includes(schoolLower) || schoolLower.includes(itemSchool);
           });
-          if (match) return match.id?.toString() || null;
+          if (match) {
+            console.log(`[College Search] Strategy 1 - Found match: ${match.id}`);
+            return match.id?.toString() || null;
+          }
         }
+        console.log(`[College Search] Strategy 1 - Using first result: ${items[0].id}`);
         return items[0].id?.toString() || null;
       }
+    } else {
+      console.log(`[College Search] Strategy 1 - Failed with status: ${response.status}`);
     }
   } catch (error) {
-    console.error("Search strategy 1 failed:", error);
+    console.error("[College Search] Strategy 1 failed:", error);
   }
   
   // Strategy 2: Search team roster if we have a school
   if (school) {
     const teamId = getTeamIdFromSchool(school);
+    console.log(`[College Search] Strategy 2 - Team ID for "${school}": ${teamId || 'not found'}`);
     if (teamId) {
       try {
-        const response = await fetch(`${ESPN_CFB_API_BASE}/teams/${teamId}/roster`);
+        const rosterUrl = `${ESPN_CFB_API_BASE}/teams/${teamId}/roster`;
+        console.log(`[College Search] Strategy 2 - Fetching roster: ${rosterUrl}`);
+        const response = await fetch(rosterUrl);
         if (response.ok) {
           const data = await response.json() as any;
           const athletes = data.athletes || [];
           const nameLower = playerName.toLowerCase();
+          console.log(`[College Search] Strategy 2 - Found ${athletes.length} position groups`);
           
           for (const group of athletes) {
             const items = group.items || [];
             for (const athlete of items) {
               const athleteName = (athlete.fullName || athlete.displayName || "").toLowerCase();
               if (athleteName === nameLower || athleteName.includes(nameLower) || nameLower.includes(athleteName)) {
+                console.log(`[College Search] Strategy 2 - Found player: ${athlete.id} (${athlete.fullName})`);
                 return athlete.id?.toString() || null;
               }
             }
           }
+          console.log(`[College Search] Strategy 2 - Player "${playerName}" not found in roster`);
+        } else {
+          console.log(`[College Search] Strategy 2 - Roster fetch failed with status: ${response.status}`);
         }
       } catch (error) {
-        console.error("Search strategy 2 (roster) failed:", error);
+        console.error("[College Search] Strategy 2 (roster) failed:", error);
       }
     }
+  } else {
+    console.log(`[College Search] Strategy 2 - Skipped (no school provided)`);
   }
   
   // Strategy 3: Alternative search with just last name
@@ -242,13 +261,20 @@ function getTeamIdFromSchool(school: string): string | null {
 // Fetch player bio from ESPN
 async function fetchCollegePlayerBio(espnId: string): Promise<CollegePlayerBio | null> {
   try {
-    const response = await fetch(`${ESPN_CFB_API_BASE}/players/${espnId}`);
-    if (!response.ok) return null;
+    // Use the common v3 API endpoint which works reliably
+    const response = await fetch(`https://site.web.api.espn.com/apis/common/v3/sports/football/college-football/athletes/${espnId}`);
+    if (!response.ok) {
+      console.log(`[College Bio] Failed to fetch bio for ${espnId}: ${response.status}`);
+      return null;
+    }
     
     const data = await response.json() as any;
-    const player = data.player || data;
+    const player = data.athlete || data;
     
-    if (!player) return null;
+    if (!player) {
+      console.log(`[College Bio] No athlete data in response for ${espnId}`);
+      return null;
+    }
     
     // Class year mapping
     const classMap: Record<number, string> = {
@@ -259,18 +285,29 @@ async function fetchCollegePlayerBio(espnId: string): Promise<CollegePlayerBio |
       5: "5th Year Senior"
     };
     
-    const teamName = player.team?.displayName || "";
-    const teamLogo = player.team?.logo || getCollegeTeamLogo(teamName);
+    // Get team info from college field
+    const teamName = player.college?.name || player.team?.displayName || "";
+    const teamAbbr = player.college?.abbrev || player.team?.abbreviation || "";
+    const teamLogo = player.college?.id ? 
+      `https://a.espncdn.com/i/teamlogos/ncaa/500/${player.college.id}.png` : 
+      getCollegeTeamLogo(teamName);
+    
+    // Format height if available
+    const height = player.displayHeight || 
+      (player.height ? `${Math.floor(player.height / 12)}' ${player.height % 12}"` : "");
+    
+    // Format weight if available  
+    const weight = player.displayWeight || (player.weight ? `${player.weight} lbs` : "");
     
     return {
       name: player.displayName || player.fullName || "",
       fullName: player.fullName || player.displayName || "",
-      position: player.position?.abbreviation || "",
+      position: player.position?.abbreviation || player.position?.name || "",
       team: teamName,
-      teamAbbr: player.team?.abbreviation || "",
+      teamAbbr: teamAbbr,
       jersey: player.jersey || "",
-      height: player.displayHeight || "",
-      weight: player.displayWeight || "",
+      height: height,
+      weight: weight,
       hometown: player.birthPlace?.city ? `${player.birthPlace.city}, ${player.birthPlace.state || player.birthPlace.country || ""}` : null,
       class: classMap[player.experience?.years] || player.experience?.displayValue || null,
       headshot: player.headshot?.href || `https://a.espncdn.com/i/headshots/college-football/players/full/${espnId}.png`,
@@ -278,7 +315,7 @@ async function fetchCollegePlayerBio(espnId: string): Promise<CollegePlayerBio |
       espnId: espnId
     };
   } catch (error) {
-    console.error("Error fetching college player bio:", error);
+    console.error("[College Bio] Error fetching college player bio:", error);
     return null;
   }
 }
