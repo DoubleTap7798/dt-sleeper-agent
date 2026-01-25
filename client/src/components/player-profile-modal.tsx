@@ -134,16 +134,65 @@ const positionStatLabels: Record<string, Record<string, { full: string; short: s
     targets: { full: "Tgt", short: "Tgt" },
     yardsPerReception: { full: "YPR", short: "YPR" },
   },
+  DL: {
+    TOT: { full: "Tackles", short: "Tkl" },
+    SOLO: { full: "Solo", short: "Solo" },
+    SACK: { full: "Sacks", short: "Sck" },
+    TFL: { full: "TFL", short: "TFL" },
+    "QB HUR": { full: "QB Hurries", short: "QBH" },
+    FF: { full: "FF", short: "FF" },
+    FR: { full: "FR", short: "FR" },
+    PD: { full: "PD", short: "PD" },
+  },
+  LB: {
+    TOT: { full: "Tackles", short: "Tkl" },
+    SOLO: { full: "Solo", short: "Solo" },
+    SACK: { full: "Sacks", short: "Sck" },
+    TFL: { full: "TFL", short: "TFL" },
+    INT: { full: "INT", short: "INT" },
+    PD: { full: "PD", short: "PD" },
+    FF: { full: "FF", short: "FF" },
+    FR: { full: "FR", short: "FR" },
+  },
+  DB: {
+    TOT: { full: "Tackles", short: "Tkl" },
+    SOLO: { full: "Solo", short: "Solo" },
+    INT: { full: "INT", short: "INT" },
+    PD: { full: "PD", short: "PD" },
+    SACK: { full: "Sacks", short: "Sck" },
+    FF: { full: "FF", short: "FF" },
+    FR: { full: "FR", short: "FR" },
+    TFL: { full: "TFL", short: "TFL" },
+  },
 };
+
+const IDP_POSITIONS = ["DL", "LB", "DB", "DE", "DT", "CB", "S", "ILB", "OLB", "MLB", "NT", "FS", "SS", "ED"];
+
+function isIDPPosition(position: string): boolean {
+  return IDP_POSITIONS.includes(position?.toUpperCase() || "");
+}
+
+function getIDPDisplayGroup(position: string): string {
+  const pos = position?.toUpperCase() || "";
+  if (["DE", "DT", "NT", "ED"].includes(pos)) return "DL";
+  if (["ILB", "OLB", "MLB"].includes(pos)) return "LB";
+  if (["CB", "S", "FS", "SS"].includes(pos)) return "DB";
+  return pos;
+}
 
 function getPositionStats(position: string): string[] {
   const pos = position?.toUpperCase() || "WR";
+  if (isIDPPosition(pos)) {
+    const displayGroup = getIDPDisplayGroup(pos);
+    return Object.keys(positionStatLabels[displayGroup] || positionStatLabels.DL);
+  }
   return Object.keys(positionStatLabels[pos] || positionStatLabels.WR);
 }
 
 function getStatLabel(position: string, stat: string, short = false): string {
   const pos = position?.toUpperCase() || "WR";
-  const labels = positionStatLabels[pos]?.[stat] || positionStatLabels.WR?.[stat];
+  const displayGroup = isIDPPosition(pos) ? getIDPDisplayGroup(pos) : pos;
+  const labels = positionStatLabels[displayGroup]?.[stat] || positionStatLabels.WR?.[stat];
   if (labels) {
     return short ? labels.short : labels.full;
   }
