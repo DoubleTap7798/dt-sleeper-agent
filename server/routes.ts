@@ -894,14 +894,43 @@ export async function registerRoutes(
   });
 
   // Get devy players with rankings and draft eligibility
+  // Devy = college players NOT yet drafted or rostered on an NFL team
   app.get("/api/sleeper/devy", isAuthenticated, async (req: any, res: Response) => {
     try {
       // Use devy player data for rankings, calculate values with dynasty engine
       const devyPlayers = ktcValues.getDevyPlayers();
       const currentYear = new Date().getFullYear();
 
+      // Fetch all Sleeper NFL players to filter out any who have been drafted/signed
+      const allNflPlayers = await sleeperApi.getAllPlayers();
+      
+      // Build a name-based lookup for NFL players (lowercase for case-insensitive matching)
+      const nflPlayersByName = new Map<string, any>();
+      Object.values(allNflPlayers).forEach((player: any) => {
+        if (player?.full_name) {
+          const nameKey = player.full_name.toLowerCase().trim();
+          nflPlayersByName.set(nameKey, player);
+        }
+      });
+
+      // Filter to only include TRUE devy players (college players not in NFL)
+      const trueDevyPlayers = devyPlayers.filter(player => {
+        // Look up by name (KTC IDs may not match Sleeper IDs)
+        const nameKey = player.name.toLowerCase().trim();
+        const nflPlayer = nflPlayersByName.get(nameKey);
+        
+        if (nflPlayer) {
+          // Check if they have an NFL team or have experience
+          if (nflPlayer.team || nflPlayer.years_exp > 0) {
+            console.log(`[Devy Filter] Excluding ${player.name} - now in NFL (team: ${nflPlayer.team}, exp: ${nflPlayer.years_exp})`);
+            return false;
+          }
+        }
+        return true;
+      });
+
       // Transform to match expected format with dynasty engine values (0-100 scale)
-      const rankedPlayers = devyPlayers.map((player, index) => {
+      const rankedPlayers = trueDevyPlayers.map((player, index) => {
         // Calculate dynasty value using the engine
         const dynastyValue = dynastyEngine.calculateDevyValue(
           player.tier,

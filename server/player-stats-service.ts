@@ -552,7 +552,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v12-${sleeperPlayerId}`;
+  const cacheKey = `profile-v13-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
@@ -593,13 +593,13 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
     }
     
     // Fix QB interceptions: ESPN career stats "interceptions" field shows defensive INTs caught,
-    // not passing INTs thrown. For QBs, we calculate INTs from game logs (most accurate source).
-    // Note: Game logs only available for last 5 seasons; career totals for veteran QBs may be incomplete.
+    // not passing INTs thrown. For QBs, we calculate INTs STRICTLY from game logs (most accurate source).
+    // Note: Game logs only available for last 5 seasons; this is clearly documented in the UI.
     let careerStats = statsData.career;
     let seasonStats = statsData.seasons;
     
     if (bio.position === "QB") {
-      // First, fix season stats - aggregate from game logs for each season where we have data
+      // Build a map of season -> INTs from game logs (the ONLY reliable source)
       const seasonIntsMap = new Map<string, number>();
       for (const log of gameLogs) {
         const gameInts = Number(log.stats.interceptions) || 0;
@@ -607,10 +607,16 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
         seasonIntsMap.set(log.season, current + gameInts);
       }
       
-      // Apply game log INTs to season stats
+      // Calculate career INTs STRICTLY from game logs (not from ESPN season stats)
+      const careerIntsFromLogs = gameLogs.reduce((sum, log) => {
+        return sum + (Number(log.stats.interceptions) || 0);
+      }, 0);
+      
+      // Apply game log INTs to season stats (only for seasons we have game logs for)
       seasonStats = seasonStats.map(season => {
         const seasonIntsFromLogs = seasonIntsMap.get(season.season);
-        if (seasonIntsFromLogs !== undefined && seasonIntsFromLogs > 0) {
+        if (seasonIntsFromLogs !== undefined) {
+          // Use game log data - this is the accurate source
           return {
             ...season,
             stats: {
@@ -619,24 +625,19 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
             },
           };
         }
+        // For seasons without game logs, keep original (may be inaccurate for older seasons)
         return season;
       });
       
-      // Now calculate career INTs by summing corrected season stats
-      // This ensures we use game log data where available, and original data for older seasons
-      const careerIntsTotal = seasonStats.reduce((sum, season) => {
-        return sum + (Number(season.stats.interceptions) || 0);
-      }, 0);
+      console.log(`[QB INT] ${playerName}: careerIntsFromLogs=${careerIntsFromLogs}, seasonsWithData=${seasonIntsMap.size}, gameLogsAnalyzed=${gameLogs.length}`);
       
-      console.log(`[QB INT] ${playerName}: careerInts=${careerIntsTotal}, seasonsWithData=${seasonStats.length}, gameLogsAnalyzed=${gameLogs.length}`);
-      
-      // Update career stats with corrected INT total
-      if (careerStats && careerIntsTotal > 0) {
+      // Update career stats with game log INT total (if we have any game logs)
+      if (careerStats && gameLogs.length > 0) {
         careerStats = {
           ...careerStats,
           stats: {
             ...careerStats.stats,
-            interceptions: careerIntsTotal,
+            interceptions: careerIntsFromLogs,
           },
         };
       }

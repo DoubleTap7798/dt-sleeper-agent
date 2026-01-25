@@ -19,7 +19,7 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **Player Trends**: Multi-season performance tracking with year-over-year analysis, career trajectory visualization, and historical PPG trends
 - **Player Comparison**: Side-by-side comparison tool for 2-4 players showing stats, dynasty values, projections, and visual stat comparisons for trade evaluation with full stats modal access
 - **ROS Projections**: Advanced rest-of-season projections with AI-generated outlooks, confidence ratings, upside/floor analysis, schedule strength, injury risk, and key factors
-- **Devy Rankings**: Top 50 college prospects with tier, value, trend, position ranks, draft eligibility years (2026-2028), and real ESPN college stats (bio, seasons, career totals, game logs) with AI scouting analysis
+- **Devy Rankings**: College prospects NOT yet drafted or rostered on an NFL team. Shows tier, value, trend, position ranks, draft eligibility years (2026-2028), and real ESPN college stats (bio, seasons, career totals, game logs) with AI scouting analysis. Dynamically filters out players who have since been drafted to the NFL.
 - **Player Headshots**: ESPN CDN headshots displayed across all views (roster, players list, Devy profiles) with Avatar component fallback to initials when unavailable
 - **Trade Calculator**: Calculate trade values with custom dynasty values (0-100 scale) and AI analysis
 - **Trade History**: Historical trades from ALL league years with AI insights
@@ -90,7 +90,7 @@ shared/           # Shared code between frontend/backend
 
 ### ESPN API Quirks
 - **QB Interceptions**: ESPN's career stats API "interceptions" field represents defensive INTs caught (for all positions), not QB passing INTs thrown. For QBs, passing interceptions are ALWAYS calculated by aggregating from game logs which contain correct per-game passing INT data. The player-stats-service.ts applies this fix automatically for all QB profiles.
-- **Player Profile Cache**: Currently at v12 - increment when fixing stat calculations to bust old cached data
+- **Player Profile Cache**: Currently at v13 - increment when fixing stat calculations to bust old cached data
 
 ### Season Handling
 The Sleeper API returns two different season values in `/state/nfl`:
