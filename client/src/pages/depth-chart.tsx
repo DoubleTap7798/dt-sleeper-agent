@@ -77,8 +77,16 @@ export default function DepthChartPage() {
   const [positionGroup, setPositionGroup] = useState<string>("offense");
   const [selectedPlayer, setSelectedPlayer] = useState<DepthChartPlayer | null>(null);
 
+  const depthChartUrl = leagueId 
+    ? `/api/sleeper/depth-chart?leagueId=${leagueId}` 
+    : "/api/sleeper/depth-chart";
   const { data, isLoading, error } = useQuery<DepthChartData>({
-    queryKey: ["/api/sleeper/depth-chart"],
+    queryKey: ["/api/sleeper/depth-chart", leagueId],
+    queryFn: async () => {
+      const res = await fetch(depthChartUrl, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load depth chart");
+      return res.json();
+    },
     ...CACHE_TIMES.STABLE,
   });
 
@@ -212,11 +220,13 @@ export default function DepthChartPage() {
                                   Age {player.age || "?"} | {player.yearsExp}yr
                                 </div>
                               </div>
-                              <div className="text-right shrink-0">
-                                <div className="text-xs font-mono">
-                                  {player.dynastyValue.toFixed(1)}
+                              {leagueId && (
+                                <div className="text-right shrink-0">
+                                  <div className="text-xs font-mono">
+                                    {player.dynastyValue.toFixed(1)}
+                                  </div>
                                 </div>
-                              </div>
+                              )}
                             </div>
                           ))
                         ) : (

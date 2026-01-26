@@ -119,14 +119,16 @@ export default function PlayerComparePage() {
   ).filter(player => !selectedPlayers.find(p => p.playerId === player.playerId));
 
   const statRows = [
-    getStatComparison("Dynasty Value", p => p.dynastyValue),
+    // Only show dynasty value when a league is selected
+    leagueId ? getStatComparison("Dynasty Value", p => p.dynastyValue) : null,
     getStatComparison("Age", p => p.age),
     getStatComparison("Games", p => p.stats.games),
-    getStatComparison("Total Points", p => p.stats.points),
-    getStatComparison("PPG", p => p.stats.ppg),
-    getStatComparison("Projected Pts", p => p.projectedPoints),
-    getStatComparison("Upside", p => p.upside),
-    getStatComparison("Floor", p => p.floor),
+    // Only show fantasy points when a league is selected
+    leagueId ? getStatComparison("Total Points", p => p.stats.points) : null,
+    leagueId ? getStatComparison("PPG", p => p.stats.ppg) : null,
+    leagueId ? getStatComparison("Projected Pts", p => p.projectedPoints) : null,
+    leagueId ? getStatComparison("Upside", p => p.upside) : null,
+    leagueId ? getStatComparison("Floor", p => p.floor) : null,
     getStatComparison("Pass Yards", p => p.stats.passYds),
     getStatComparison("Pass TDs", p => p.stats.passTds),
     getStatComparison("Rush Yards", p => p.stats.rushYds),
@@ -241,7 +243,9 @@ export default function PlayerComparePage() {
                         </span>
                         <span className="text-xs text-muted-foreground" data-testid={`option-team-${player.playerId}`}>{player.team}</span>
                       </div>
-                      <span className="text-sm text-muted-foreground" data-testid={`option-value-${player.playerId}`}>{player.dynastyValue.toFixed(1)}</span>
+                      {leagueId && (
+                        <span className="text-sm text-muted-foreground" data-testid={`option-value-${player.playerId}`}>{player.dynastyValue.toFixed(1)}</span>
+                      )}
                     </div>
                   ))}
                 </div>

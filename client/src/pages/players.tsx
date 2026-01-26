@@ -258,8 +258,17 @@ export default function PlayersPage() {
               <TableHead className="px-2">Player</TableHead>
               <TableHead className="w-12 px-2">Pos</TableHead>
               <TableHead className="w-12 px-2 hidden sm:table-cell">Tm</TableHead>
-              <TableHead className="w-14 text-right px-2">Pts</TableHead>
-              <TableHead className="w-12 text-right px-2">PPG</TableHead>
+              {leagueId ? (
+                <>
+                  <TableHead className="w-14 text-right px-2">Pts</TableHead>
+                  <TableHead className="w-12 text-right px-2">PPG</TableHead>
+                </>
+              ) : (
+                <>
+                  <TableHead className="w-14 text-right px-2 hidden sm:table-cell">Yds</TableHead>
+                  <TableHead className="w-12 text-right px-2">TDs</TableHead>
+                </>
+              )}
               <TableHead className="w-10 text-right px-2 hidden md:table-cell">GP</TableHead>
               <TableHead className="w-12 text-right px-2 hidden md:table-cell">Snap</TableHead>
             </TableRow>
@@ -310,12 +319,29 @@ export default function PlayersPage() {
                 <TableCell className="text-muted-foreground text-xs px-2 hidden sm:table-cell">
                   {player.team}
                 </TableCell>
-                <TableCell className="text-right font-mono font-medium text-sm px-2">
-                  {player.fantasyPoints.toFixed(1)}
-                </TableCell>
-                <TableCell className="text-right font-mono text-muted-foreground text-xs px-2">
-                  {player.pointsPerGame.toFixed(1)}
-                </TableCell>
+                {leagueId ? (
+                  <>
+                    <TableCell className="text-right font-mono font-medium text-sm px-2">
+                      {player.fantasyPoints.toFixed(1)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-muted-foreground text-xs px-2">
+                      {player.pointsPerGame.toFixed(1)}
+                    </TableCell>
+                  </>
+                ) : (
+                  <>
+                    <TableCell className="text-right font-mono text-muted-foreground text-xs px-2 hidden sm:table-cell">
+                      {player.isIDP 
+                        ? (player.idpStats?.tackles || 0).toLocaleString()
+                        : (player.stats.passYd + player.stats.rushYd + player.stats.recYd).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono font-medium text-sm px-2">
+                      {player.isIDP
+                        ? (player.idpStats?.sacks || 0) + (player.idpStats?.interceptions || 0)
+                        : player.stats.passTd + player.stats.rushTd + player.stats.recTd}
+                    </TableCell>
+                  </>
+                )}
                 <TableCell className="text-right font-mono text-muted-foreground text-xs px-2 hidden md:table-cell">
                   {player.gamesPlayed}
                 </TableCell>
@@ -355,30 +381,65 @@ export default function PlayersPage() {
           {selectedPlayer && (
             <div className="mt-6 space-y-6">
               <div className="grid grid-cols-2 gap-3">
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Total Points</p>
-                  <p className="text-lg font-bold font-mono">{selectedPlayer.fantasyPoints.toFixed(1)}</p>
-                </Card>
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Points/Game</p>
-                  <p className="text-lg font-bold font-mono">{selectedPlayer.pointsPerGame.toFixed(1)}</p>
-                </Card>
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Games Played</p>
-                  <p className="text-lg font-bold">{selectedPlayer.gamesPlayed}</p>
-                </Card>
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Dynasty Value</p>
-                  <p className="text-lg font-bold font-mono">{selectedPlayer.dynastyValue.toFixed(1)}</p>
-                </Card>
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Overall Rank</p>
-                  <p className="text-lg font-bold">#{selectedPlayer.overallRank}</p>
-                </Card>
-                <Card className="p-3">
-                  <p className="text-xs text-muted-foreground">Position Rank</p>
-                  <p className="text-lg font-bold">{selectedPlayer.position}{selectedPlayer.positionRank}</p>
-                </Card>
+                {leagueId ? (
+                  <>
+                    <Card className="p-3">
+                      <p className="text-xs text-muted-foreground">Total Points</p>
+                      <p className="text-lg font-bold font-mono">{selectedPlayer.fantasyPoints.toFixed(1)}</p>
+                    </Card>
+                    <Card className="p-3">
+                      <p className="text-xs text-muted-foreground">Points/Game</p>
+                      <p className="text-lg font-bold font-mono">{selectedPlayer.pointsPerGame.toFixed(1)}</p>
+                    </Card>
+                    <Card className="p-3">
+                      <p className="text-xs text-muted-foreground">Games Played</p>
+                      <p className="text-lg font-bold">{selectedPlayer.gamesPlayed}</p>
+                    </Card>
+                    <Card className="p-3">
+                      <p className="text-xs text-muted-foreground">Dynasty Value</p>
+                      <p className="text-lg font-bold font-mono">{selectedPlayer.dynastyValue.toFixed(1)}</p>
+                    </Card>
+                    <Card className="p-3">
+                      <p className="text-xs text-muted-foreground">Overall Rank</p>
+                      <p className="text-lg font-bold">#{selectedPlayer.overallRank}</p>
+                    </Card>
+                    <Card className="p-3">
+                      <p className="text-xs text-muted-foreground">Position Rank</p>
+                      <p className="text-lg font-bold">{selectedPlayer.position}{selectedPlayer.positionRank}</p>
+                    </Card>
+                  </>
+                ) : (
+                  <>
+                    <Card className="p-3">
+                      <p className="text-xs text-muted-foreground">Games Played</p>
+                      <p className="text-lg font-bold">{selectedPlayer.gamesPlayed}</p>
+                    </Card>
+                    <Card className="p-3">
+                      <p className="text-xs text-muted-foreground">
+                        {selectedPlayer.isIDP ? "Tackles" : "Total Yards"}
+                      </p>
+                      <p className="text-lg font-bold font-mono">
+                        {selectedPlayer.isIDP 
+                          ? (selectedPlayer.idpStats?.tackles || 0).toLocaleString()
+                          : (selectedPlayer.stats.passYd + selectedPlayer.stats.rushYd + selectedPlayer.stats.recYd).toLocaleString()}
+                      </p>
+                    </Card>
+                    <Card className="p-3">
+                      <p className="text-xs text-muted-foreground">
+                        {selectedPlayer.isIDP ? "Sacks" : "Touchdowns"}
+                      </p>
+                      <p className="text-lg font-bold font-mono">
+                        {selectedPlayer.isIDP
+                          ? selectedPlayer.idpStats?.sacks || 0
+                          : selectedPlayer.stats.passTd + selectedPlayer.stats.rushTd + selectedPlayer.stats.recTd}
+                      </p>
+                    </Card>
+                    <Card className="p-3">
+                      <p className="text-xs text-muted-foreground">Position Rank</p>
+                      <p className="text-lg font-bold">{selectedPlayer.position}{selectedPlayer.positionRank}</p>
+                    </Card>
+                  </>
+                )}
               </div>
 
               <div className="space-y-2">

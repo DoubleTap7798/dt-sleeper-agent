@@ -1593,6 +1593,22 @@ Return ONLY valid JSON, no other text.`;
   // Get NFL depth charts organized by team and position
   app.get("/api/sleeper/depth-chart", isAuthenticated, async (req: any, res: Response) => {
     try {
+      const leagueId = req.query.leagueId as string | undefined;
+      
+      // Fetch consensus values for proper dynasty value calculation
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[Depth Chart] Failed to fetch consensus values: ${e}`);
+      }
+      
+      // Determine if league is superflex for proper value calculation
+      let isSuperflex = false;
+      if (leagueId) {
+        const league = await sleeperApi.getLeague(leagueId);
+        isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+      }
+      
       const allPlayers = await sleeperApi.getAllPlayers();
       
       // Define position mappings
@@ -1643,14 +1659,22 @@ Return ONLY valid JSON, no other text.`;
           teamDepthCharts[team][positionGroup] = [];
         }
         
-        // Get dynasty value
-        const dynastyValue = dynastyEngine.getQuickPlayerValue(
+        // Get dynasty value using blended calculation with consensus data
+        const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
+        const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, positionGroup, isSuperflex);
+        const valueResult = dynastyEngine.getBlendedPlayerValue(
           playerId,
-          position,
+          playerName,
+          positionGroup,
           player.age,
           player.years_exp || 0,
-          player.injury_status
+          player.injury_status,
+          { points: 0, games: 0, ppg: 0 },
+          null,
+          null,
+          consensusValue
         );
+        const dynastyValue = valueResult.value;
         
         // Get depth chart order (lower is better)
         const depthOrder = player.depth_chart_order || 99;
