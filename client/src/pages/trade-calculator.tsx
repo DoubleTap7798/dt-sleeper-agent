@@ -17,7 +17,12 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ArrowLeftRight, Plus, X, Loader2, Sparkles, Scale } from "lucide-react";
+import { ArrowLeftRight, Plus, X, Loader2, Sparkles, Scale, Info, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import type { TradeAsset, TradeAnalysisResult } from "@/lib/sleeper-types";
 
 interface RosterWithOwner {
@@ -44,6 +49,7 @@ export default function TradeCalculatorPage() {
   const [teamAAssets, setTeamAAssets] = useState<TradeAsset[]>([]);
   const [teamBAssets, setTeamBAssets] = useState<TradeAsset[]>([]);
   const [analysis, setAnalysis] = useState<TradeAnalysisResult | null>(null);
+  const [showValueInfo, setShowValueInfo] = useState(false);
 
   const { data, isLoading: dataLoading } = useQuery<TradeData>({
     queryKey: ["/api/sleeper/rosters", leagueId],
@@ -124,13 +130,49 @@ export default function TradeCalculatorPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight" data-testid="text-trade-title">
-          Trade Calculator
-        </h2>
-        <p className="text-muted-foreground">
-          Calculate trade values using dynasty rankings
-        </p>
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight" data-testid="text-trade-title">
+            Trade Calculator
+          </h2>
+          <p className="text-muted-foreground">
+            Calculate trade values using dynasty rankings
+          </p>
+        </div>
+
+        <Collapsible open={showValueInfo} onOpenChange={setShowValueInfo}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" data-testid="button-toggle-value-info">
+              <Info className="h-4 w-4" />
+              <span>How are values calculated?</span>
+              {showValueInfo ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <Card className="mt-2 bg-muted/50" data-testid="card-value-explanation">
+              <CardContent className="pt-4 text-sm space-y-3">
+                <p>
+                  <strong>Dynasty values are on a 0-100 scale</strong> — the higher the number, the more valuable the player or pick.
+                </p>
+                <p>
+                  Each value combines <strong>two sources</strong>: your league's specific settings (roster size, scoring, QB slots) and industry-wide consensus rankings from dynasty experts.
+                </p>
+                <p>
+                  <strong>What affects a player's value:</strong>
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <li>Position — QBs are worth more in Superflex/2QB leagues</li>
+                  <li>Age — younger players at their peak have higher long-term value</li>
+                  <li>Recent performance — points scored and consistency</li>
+                  <li>Injury status — injured players have temporarily reduced values</li>
+                </ul>
+                <p>
+                  <strong>Draft picks</strong> start with base values (1st round = 80, 2nd = 55, 3rd = 35, 4th = 18) and decrease slightly for future years since there's more uncertainty.
+                </p>
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
