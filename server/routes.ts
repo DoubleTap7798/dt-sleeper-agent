@@ -2237,6 +2237,9 @@ ${fantasyOutlookSection}
       const teamAValue = teamAAssets.reduce((sum: number, a) => sum + a.value, 0);
       const teamBValue = teamBAssets.reduce((sum: number, a) => sum + a.value, 0);
 
+      // Calculate KTC-style adjusted values (stud premium)
+      const adjustmentResult = dynastyEngine.calculateTradeAdjustment(teamAAssets, teamBAssets);
+
       const gradeResult = dynastyEngine.calculateTradeGrade(teamAValue, teamBValue);
 
       // Generate AI analysis
@@ -2248,15 +2251,15 @@ ${fantasyOutlookSection}
         const prompt = `Analyze this fantasy football dynasty trade:
 
 TRADE DETAILS:
-- ${teamADisplayName} SENDS: ${teamAPlayerNames || "Nothing"} (value: ${teamAValue})
-- ${teamADisplayName} RECEIVES: ${teamBPlayerNames || "Nothing"} (value: ${teamBValue})
+- ${teamADisplayName} SENDS: ${teamAPlayerNames || "Nothing"} (raw value: ${teamAValue.toFixed(1)}, adjusted: ${adjustmentResult.teamA.adjustedTotal.toFixed(1)})
+- ${teamADisplayName} RECEIVES: ${teamBPlayerNames || "Nothing"} (raw value: ${teamBValue.toFixed(1)}, adjusted: ${adjustmentResult.teamB.adjustedTotal.toFixed(1)})
 
-- ${teamBDisplayName} SENDS: ${teamBPlayerNames || "Nothing"} (value: ${teamBValue})
-- ${teamBDisplayName} RECEIVES: ${teamAPlayerNames || "Nothing"} (value: ${teamAValue})
+- ${teamBDisplayName} SENDS: ${teamBPlayerNames || "Nothing"} (raw value: ${teamBValue.toFixed(1)}, adjusted: ${adjustmentResult.teamB.adjustedTotal.toFixed(1)})
+- ${teamBDisplayName} RECEIVES: ${teamAPlayerNames || "Nothing"} (raw value: ${teamAValue.toFixed(1)}, adjusted: ${adjustmentResult.teamA.adjustedTotal.toFixed(1)})
 
 Trade grade: ${gradeResult.grade}
-Value difference: ${Math.abs(gradeResult.difference)} points (${gradeResult.percentageDiff.toFixed(1)}%)
-${gradeResult.winner === "A" ? `${teamADisplayName} receives more value.` : gradeResult.winner === "B" ? `${teamBDisplayName} receives more value.` : "Trade is even."}
+Fairness: ${adjustmentResult.isFair ? "Fair trade (within 5%)" : `${adjustmentResult.winner === "A" ? teamADisplayName : teamBDisplayName} wins by ${Math.abs(adjustmentResult.fairnessPercent).toFixed(1)}%`}
+${adjustmentResult.winner === "A" ? `${teamADisplayName} receives more value.` : adjustmentResult.winner === "B" ? `${teamBDisplayName} receives more value.` : "Trade is even."}
 
 Provide a brief 2-3 sentence analysis. Be specific about who wins and what they're getting. Use the owner names ${teamADisplayName} and ${teamBDisplayName}, never "Team A" or "Team B".`;
 
@@ -2284,17 +2287,21 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
           teamName: teamADisplayName,
           assets: teamAAssets,
           totalValue: teamAValue,
+          adjustedTotal: adjustmentResult.teamA.adjustedTotal,
         },
         teamB: {
           teamId: teamBId,
           teamName: teamBDisplayName,
           assets: teamBAssets,
           totalValue: teamBValue,
+          adjustedTotal: adjustmentResult.teamB.adjustedTotal,
         },
         difference: gradeResult.difference,
         percentageDiff: gradeResult.percentageDiff,
         grade: gradeResult.grade,
-        winner: gradeResult.winner,
+        winner: adjustmentResult.winner, // Use adjustment-based winner
+        fairnessPercent: adjustmentResult.fairnessPercent,
+        isFair: adjustmentResult.isFair,
         aiAnalysis,
       });
     } catch (error) {

@@ -242,18 +242,22 @@ export default function TradeCalculatorPage() {
                 </p>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Trading Away:</span>
+                    <span className="text-sm text-muted-foreground">Trading Away (Raw):</span>
                     <span className="font-mono text-muted-foreground">-{analysis.teamA.totalValue.toFixed(1)}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Receiving:</span>
-                    <span className="font-mono font-semibold">+{analysis.teamB.totalValue.toFixed(1)}</span>
+                    <span className="text-sm text-muted-foreground">Trading Away (Adj):</span>
+                    <span className="font-mono text-muted-foreground">-{(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue).toFixed(1)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Receiving (Adj):</span>
+                    <span className="font-mono font-semibold">+{(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue).toFixed(1)}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Net Value:</span>
+                    <span className="text-sm font-medium">Net Adjusted:</span>
                     <span className="font-mono font-bold">
-                      {analysis.teamB.totalValue - analysis.teamA.totalValue >= 0 ? '+' : ''}{(analysis.teamB.totalValue - analysis.teamA.totalValue).toFixed(1)}
+                      {(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) - (analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) >= 0 ? '+' : ''}{((analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) - (analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue)).toFixed(1)}
                     </span>
                   </div>
                 </div>
@@ -265,27 +269,76 @@ export default function TradeCalculatorPage() {
                 </p>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Trading Away:</span>
+                    <span className="text-sm text-muted-foreground">Trading Away (Raw):</span>
                     <span className="font-mono text-muted-foreground">-{analysis.teamB.totalValue.toFixed(1)}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Receiving:</span>
-                    <span className="font-mono font-semibold">+{analysis.teamA.totalValue.toFixed(1)}</span>
+                    <span className="text-sm text-muted-foreground">Trading Away (Adj):</span>
+                    <span className="font-mono text-muted-foreground">-{(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue).toFixed(1)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Receiving (Adj):</span>
+                    <span className="font-mono font-semibold">+{(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue).toFixed(1)}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Net Value:</span>
+                    <span className="text-sm font-medium">Net Adjusted:</span>
                     <span className="font-mono font-bold">
-                      {analysis.teamA.totalValue - analysis.teamB.totalValue >= 0 ? '+' : ''}{(analysis.teamA.totalValue - analysis.teamB.totalValue).toFixed(1)}
+                      {(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) - (analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) >= 0 ? '+' : ''}{((analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) - (analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue)).toFixed(1)}
                     </span>
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* Fairness Bar */}
+            <div className="space-y-3" data-testid="container-fairness-bar">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium" data-testid="text-fairness-team-a">{teamA?.ownerName || "Team A"}</span>
+                <span className="text-muted-foreground">Fairness</span>
+                <span className="font-medium" data-testid="text-fairness-team-b">{teamB?.ownerName || "Team B"}</span>
+              </div>
+              
+              {/* Visual Fairness Bar */}
+              <div className="relative h-8 bg-muted rounded-md overflow-hidden" data-testid="bar-fairness-track">
+                {/* Fair zone indicator (5% each side = 10% total in center) */}
+                <div className="absolute inset-y-0 left-[45%] right-[45%] bg-muted-foreground/20" />
+                
+                {/* Center line */}
+                <div className="absolute inset-y-0 left-1/2 w-0.5 bg-muted-foreground/40 -translate-x-0.5" />
+                
+                {/* Fairness indicator */}
+                {(() => {
+                  const fairnessPercent = analysis.fairnessPercent ?? 0;
+                  // Clamp to -50 to +50 for display, map to 0-100% position
+                  const clampedPercent = Math.max(-50, Math.min(50, fairnessPercent));
+                  // Positive = Team B wins (slider goes right), Negative = Team A wins (slider goes left)
+                  // Center is 50%, each 1% of fairness = 1% position change
+                  const position = 50 + clampedPercent;
+                  const isFair = analysis.isFair ?? Math.abs(fairnessPercent) <= 5;
+                  
+                  return (
+                    <div 
+                      className={`absolute top-1 bottom-1 w-3 rounded-sm transition-all duration-300 ${
+                        isFair ? "bg-muted-foreground" : "bg-muted-foreground/80"
+                      }`}
+                      style={{ left: `calc(${position}% - 6px)` }}
+                    />
+                  );
+                })()}
+              </div>
+              
+              {/* Fairness labels */}
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span data-testid="text-favors-team-a">← Favors {teamA?.ownerName?.split(' ')[0] || "A"}</span>
+                <span className="px-2 py-0.5 rounded bg-muted-foreground/10" data-testid="badge-fair-zone">±5% Fair Zone</span>
+                <span data-testid="text-favors-team-b">Favors {teamB?.ownerName?.split(' ')[0] || "B"} →</span>
+              </div>
+            </div>
+
             <div className="text-center p-4 rounded-lg bg-muted/30 border">
               <p className="text-lg">
-                {analysis.winner === "even" ? (
+                {analysis.isFair || analysis.winner === "even" ? (
                   <span className="text-muted-foreground">This trade is fairly even!</span>
                 ) : (
                   <>
@@ -294,7 +347,7 @@ export default function TradeCalculatorPage() {
                     </span>
                     <span className="text-muted-foreground"> gets the better deal by </span>
                     <span className="font-bold">
-                      +{Math.abs(analysis.difference).toFixed(1)} ({analysis.percentageDiff.toFixed(1)}%)
+                      {Math.abs(analysis.fairnessPercent ?? analysis.percentageDiff).toFixed(1)}%
                     </span>
                   </>
                 )}

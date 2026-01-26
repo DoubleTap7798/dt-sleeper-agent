@@ -874,6 +874,146 @@ export function isLeagueSuperflex(league: any): boolean {
 }
 
 // ============================================================================
+// KTC-STYLE VALUE ADJUSTMENT (Stud Premium)
+// ============================================================================
+
+/**
+ * Calculate the "adjustment multiplier" for a player based on their value tier.
+ * Elite players contribute more of their value in trades (stud premium).
+ * Lower-value players contribute less (prevents quantity-for-quality trades).
+ * 
+ * Tiers based on 0-100 dynasty value scale:
+ * - Elite (80+): 38-40% multiplier
+ * - Star (65-79): 30-35% multiplier
+ * - Starter (50-64): 22-28% multiplier
+ * - Bench (35-49): 15-20% multiplier
+ * - Depth (20-34): 12-15% multiplier
+ * - Lottery (<20): 10% multiplier
+ */
+export function getAdjustmentMultiplier(value: number): number {
+  if (value >= 80) {
+    // Elite tier: 38-40% (scales with value)
+    return 0.38 + ((value - 80) / 20) * 0.02;
+  } else if (value >= 65) {
+    // Star tier: 30-35%
+    return 0.30 + ((value - 65) / 15) * 0.05;
+  } else if (value >= 50) {
+    // Starter tier: 22-28%
+    return 0.22 + ((value - 50) / 15) * 0.06;
+  } else if (value >= 35) {
+    // Bench tier: 15-20%
+    return 0.15 + ((value - 35) / 15) * 0.05;
+  } else if (value >= 20) {
+    // Depth tier: 12-15%
+    return 0.12 + ((value - 20) / 15) * 0.03;
+  } else {
+    // Lottery tier: 10%
+    return 0.10;
+  }
+}
+
+/**
+ * Calculate the adjusted value for a single asset.
+ * Adjusted value = raw value * adjustment multiplier
+ */
+export function getAdjustedValue(rawValue: number): number {
+  const multiplier = getAdjustmentMultiplier(rawValue);
+  return rawValue * multiplier;
+}
+
+/**
+ * Calculate adjusted values for a trade.
+ * Returns both raw totals and adjusted totals for each side,
+ * plus the fairness metrics.
+ */
+export interface TradeAdjustmentResult {
+  teamA: {
+    rawTotal: number;
+    adjustedTotal: number;
+    assets: Array<{ id: string; name: string; rawValue: number; adjustedValue: number; multiplier: number }>;
+  };
+  teamB: {
+    rawTotal: number;
+    adjustedTotal: number;
+    assets: Array<{ id: string; name: string; rawValue: number; adjustedValue: number; multiplier: number }>;
+  };
+  fairnessPercent: number; // -100 to +100, negative = Team A wins, positive = Team B wins
+  isFair: boolean; // Within 5% tolerance
+  adjustmentNeeded: number; // Value Team B needs to add to make it fair (negative = Team A needs to add)
+  winner: "A" | "B" | "even";
+}
+
+export function calculateTradeAdjustment(
+  teamAAssets: Array<{ id: string; name: string; value: number }>,
+  teamBAssets: Array<{ id: string; name: string; value: number }>
+): TradeAdjustmentResult {
+  // Calculate adjusted values for each asset
+  const teamAWithAdjustments = teamAAssets.map(asset => ({
+    id: asset.id,
+    name: asset.name,
+    rawValue: asset.value,
+    adjustedValue: getAdjustedValue(asset.value),
+    multiplier: getAdjustmentMultiplier(asset.value),
+  }));
+
+  const teamBWithAdjustments = teamBAssets.map(asset => ({
+    id: asset.id,
+    name: asset.name,
+    rawValue: asset.value,
+    adjustedValue: getAdjustedValue(asset.value),
+    multiplier: getAdjustmentMultiplier(asset.value),
+  }));
+
+  // Sum totals
+  const teamARawTotal = teamAWithAdjustments.reduce((sum, a) => sum + a.rawValue, 0);
+  const teamAAdjustedTotal = teamAWithAdjustments.reduce((sum, a) => sum + a.adjustedValue, 0);
+  const teamBRawTotal = teamBWithAdjustments.reduce((sum, a) => sum + a.rawValue, 0);
+  const teamBAdjustedTotal = teamBWithAdjustments.reduce((sum, a) => sum + a.adjustedValue, 0);
+
+  // Calculate fairness based on adjusted values
+  const totalAdjusted = teamAAdjustedTotal + teamBAdjustedTotal;
+  let fairnessPercent = 0;
+  
+  if (totalAdjusted > 0) {
+    // Positive = Team B wins (receives more adjusted value)
+    // Negative = Team A wins (receives more adjusted value)
+    const diff = teamAAdjustedTotal - teamBAdjustedTotal;
+    fairnessPercent = (diff / totalAdjusted) * 100;
+  }
+
+  // Within 5% tolerance is considered fair
+  const isFair = Math.abs(fairnessPercent) <= 5;
+
+  // Determine winner: Team receives what the other sends
+  // Team A receives teamB's assets, Team B receives teamA's assets
+  let winner: "A" | "B" | "even" = "even";
+  if (!isFair) {
+    // If teamA is sending more adjusted value, Team B wins
+    winner = teamAAdjustedTotal > teamBAdjustedTotal ? "B" : "A";
+  }
+
+  // Calculate adjustment needed (in raw value terms)
+  const adjustmentNeeded = teamAAdjustedTotal - teamBAdjustedTotal;
+
+  return {
+    teamA: {
+      rawTotal: teamARawTotal,
+      adjustedTotal: teamAAdjustedTotal,
+      assets: teamAWithAdjustments,
+    },
+    teamB: {
+      rawTotal: teamBRawTotal,
+      adjustedTotal: teamBAdjustedTotal,
+      assets: teamBWithAdjustments,
+    },
+    fairnessPercent,
+    isFair,
+    adjustmentNeeded,
+    winner,
+  };
+}
+
+// ============================================================================
 // TRADE GRADE CALCULATION (updated for 0-100 scale)
 // ============================================================================
 

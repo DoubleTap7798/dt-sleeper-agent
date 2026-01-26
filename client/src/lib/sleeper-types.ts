@@ -149,6 +149,7 @@ export interface TradeSide {
   teamName: string;
   assets: TradeAsset[];
   totalValue: number;
+  adjustedTotal?: number;
 }
 
 export interface TradeAnalysisResult {
@@ -158,6 +159,8 @@ export interface TradeAnalysisResult {
   percentageDiff: number;
   grade: 'A+' | 'A' | 'A-' | 'B+' | 'B' | 'B-' | 'C+' | 'C' | 'C-' | 'D+' | 'D' | 'D-' | 'F';
   winner: 'A' | 'B' | 'even';
+  fairnessPercent?: number;
+  isFair?: boolean;
   aiAnalysis?: string;
 }
 
