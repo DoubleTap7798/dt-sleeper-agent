@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
+import { abbreviateName } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -196,7 +197,8 @@ function RosterContent({ leagueId }: { leagueId: string }) {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-sm sm:text-base truncate" data-testid={`text-name-${player.playerId}`}>
-                  {player.name}
+                  <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                  <span className="hidden sm:inline">{player.name}</span>
                 </span>
                 {player.injuryStatus && getInjuryBadge(player.injuryStatus)}
               </div>

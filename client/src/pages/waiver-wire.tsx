@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
+import { abbreviateName } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -163,7 +164,10 @@ export default function WaiverWirePage() {
                     <TableRow key={player.playerId} data-testid={`row-player-${player.playerId}`}>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium">{player.name}</span>
+                          <span className="font-medium">
+                            <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                            <span className="hidden sm:inline">{player.name}</span>
+                          </span>
                           {player.injuryStatus && (
                             <Badge variant="destructive" className="w-fit text-xs mt-0.5">
                               {player.injuryStatus}

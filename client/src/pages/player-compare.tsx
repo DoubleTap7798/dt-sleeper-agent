@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
+import { abbreviateName } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -234,7 +235,10 @@ export default function PlayerComparePage() {
                         <Badge variant="outline" className={getPositionColor()} data-testid={`badge-pos-${player.playerId}`}>
                           {player.position}
                         </Badge>
-                        <span className="font-medium" data-testid={`option-name-${player.playerId}`}>{player.name}</span>
+                        <span className="font-medium" data-testid={`option-name-${player.playerId}`}>
+                          <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                          <span className="hidden sm:inline">{player.name}</span>
+                        </span>
                         <span className="text-xs text-muted-foreground" data-testid={`option-team-${player.playerId}`}>{player.team}</span>
                       </div>
                       <span className="text-sm text-muted-foreground" data-testid={`option-value-${player.playerId}`}>{player.dynastyValue.toFixed(1)}</span>
@@ -279,7 +283,10 @@ export default function PlayerComparePage() {
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  <CardTitle className="text-lg" data-testid={`text-player-name-${player.playerId}`}>{player.name}</CardTitle>
+                  <CardTitle className="text-lg" data-testid={`text-player-name-${player.playerId}`}>
+                    <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                    <span className="hidden sm:inline">{player.name}</span>
+                  </CardTitle>
                   <p className="text-sm text-muted-foreground" data-testid={`text-player-team-${player.playerId}`}>{player.team}</p>
                   <Button
                     variant="outline"

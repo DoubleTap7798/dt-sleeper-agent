@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearch } from "wouter";
+import { abbreviateName } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -378,7 +379,10 @@ function TradeSide({
                           <Badge variant="outline" className={`text-xs ${getPositionColor(player.position)}`}>
                             {player.position}
                           </Badge>
-                          <span className="text-sm">{player.name}</span>
+                          <span className="text-sm">
+                            <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                            <span className="hidden sm:inline">{player.name}</span>
+                          </span>
                         </div>
                         <span className="text-xs text-muted-foreground font-mono">
                           {player.value.toFixed(1)}

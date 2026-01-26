@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { CACHE_TIMES } from "@/lib/queryClient";
+import { abbreviateName } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -306,7 +307,8 @@ function TradeTeamColumn({ team }: { team: TradeTeam }) {
                 className="text-sm leading-tight" 
                 title={asset.name}
               >
-                {asset.displayName || asset.name}
+                <span className="sm:hidden">{abbreviateName(asset.displayName || asset.name)}</span>
+                <span className="hidden sm:inline">{asset.displayName || asset.name}</span>
               </span>
             </div>
           ))}

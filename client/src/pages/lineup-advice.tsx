@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
+import { abbreviateName } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -109,7 +110,10 @@ export default function LineupAdvicePage() {
               <Badge variant="outline" className={getPositionColor()} data-testid={`badge-position-${player.playerId}`}>
                 {player.position}
               </Badge>
-              <span className="font-semibold" data-testid={`text-player-name-${player.playerId}`}>{player.name}</span>
+              <span className="font-semibold" data-testid={`text-player-name-${player.playerId}`}>
+                <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                <span className="hidden sm:inline">{player.name}</span>
+              </span>
               <span className="text-sm text-muted-foreground" data-testid={`text-player-team-${player.playerId}`}>{player.team}</span>
             </div>
             {getRecommendationBadge(player.recommendation, player.confidence, player.playerId)}

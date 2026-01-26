@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CACHE_TIMES } from "@/lib/queryClient";
+import { abbreviateName } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -241,7 +242,8 @@ export default function DevyPage() {
                       </td>
                       <td className="p-3">
                         <span className="font-medium" data-testid={`text-name-${player.playerId}`}>
-                          {player.name}
+                          <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                          <span className="hidden sm:inline">{player.name}</span>
                         </span>
                       </td>
                       <td className="p-3">
@@ -305,7 +307,10 @@ export default function DevyPage() {
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-lg font-bold shrink-0 w-8">#{player.rank}</span>
                       <div className="min-w-0">
-                        <div className="font-semibold truncate">{player.name}</div>
+                        <div className="font-semibold truncate">
+                          <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                          <span className="hidden sm:inline">{player.name}</span>
+                        </div>
                         <div className="flex items-center gap-1 flex-wrap mt-1">
                           <Badge variant="secondary" className="text-xs">
                             {player.position}{player.positionRank}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
+import { abbreviateName } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -353,7 +354,10 @@ function PlayerRow({ player, isBench }: PlayerRowProps) {
         <Badge variant="secondary" className="text-xs w-8 justify-center" data-testid={`badge-slot-${player.playerId}`}>
           {displaySlot}
         </Badge>
-        <span className="text-sm truncate max-w-[100px]" data-testid={`text-player-name-${player.playerId}`}>{player.name}</span>
+        <span className="text-sm truncate max-w-[100px]" data-testid={`text-player-name-${player.playerId}`}>
+          <span className="sm:hidden">{abbreviateName(player.name)}</span>
+          <span className="hidden sm:inline">{player.name}</span>
+        </span>
         <span className="text-xs text-muted-foreground" data-testid={`text-player-position-${player.playerId}`}>
           {player.position}
         </span>

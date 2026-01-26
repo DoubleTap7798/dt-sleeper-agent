@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { CACHE_TIMES } from "@/lib/queryClient";
+import { abbreviateName } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -286,7 +287,10 @@ export default function PlayersPage() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-medium text-sm truncate max-w-[140px] sm:max-w-none">{player.fullName}</span>
+                      <span className="font-medium text-sm truncate max-w-[140px] sm:max-w-none">
+                        <span className="sm:hidden">{abbreviateName(player.fullName)}</span>
+                        <span className="hidden sm:inline">{player.fullName}</span>
+                      </span>
                       {player.injuryStatus && (
                         <Badge variant="destructive" className="text-[10px] px-1">
                           {player.injuryStatus}
