@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearch } from "wouter";
-import { abbreviateName } from "@/lib/utils";
+import { abbreviateName, getPositionColorClass } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -396,9 +396,6 @@ function TradeSide({
   const availableRosters = rosters.filter((r) => r.ownerId !== otherTeamId);
   const totalValue = selectedAssets.reduce((sum, a) => sum + a.value, 0);
 
-  const getPositionColor = (position?: string) => {
-    return "bg-muted text-muted-foreground border-border";
-  };
 
   return (
     <Card data-testid={`card-trade-side-${side.toLowerCase()}`}>
@@ -471,7 +468,7 @@ function TradeSide({
                         data-testid={`button-add-player-${player.id}`}
                       >
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={`text-xs ${getPositionColor(player.position)}`}>
+                          <Badge variant="outline" className={`text-xs ${getPositionColorClass(player.position)}`}>
                             {player.position}
                           </Badge>
                           <span className="text-sm">

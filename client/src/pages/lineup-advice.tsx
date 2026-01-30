@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
-import { abbreviateName } from "@/lib/utils";
+import { abbreviateName, getPositionColorClass } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,10 +90,6 @@ export default function LineupAdvicePage() {
     }
   };
 
-  const getPositionColor = () => {
-    return "bg-muted text-muted-foreground border-border";
-  };
-
   const getMatchupLabel = (rank: number) => {
     if (rank <= 8) return "Great";
     if (rank <= 16) return "Good";
@@ -107,7 +103,7 @@ export default function LineupAdvicePage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className={getPositionColor()} data-testid={`badge-position-${player.playerId}`}>
+              <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid={`badge-position-${player.playerId}`}>
                 {player.position}
               </Badge>
               <span className="font-semibold" data-testid={`text-player-name-${player.playerId}`}>

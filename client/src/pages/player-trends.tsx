@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
+import { getPositionColorClass } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,18 +58,6 @@ interface TrendingResponse {
 }
 
 type TabType = "added" | "dropped" | "career";
-
-const POSITION_COLORS: Record<string, string> = {
-  QB: "bg-muted text-foreground",
-  RB: "bg-muted text-foreground",
-  WR: "bg-muted text-foreground",
-  TE: "bg-muted text-foreground",
-  K: "bg-muted text-foreground",
-  DEF: "bg-muted text-foreground",
-  DL: "bg-muted text-foreground",
-  LB: "bg-muted text-foreground",
-  DB: "bg-muted text-foreground",
-};
 
 function getInitials(name: string): string {
   return name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -238,7 +227,7 @@ export default function PlayerTrendsPage() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="bg-muted text-muted-foreground" data-testid={`badge-position-${player.playerId}`}>
+                      <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid={`badge-position-${player.playerId}`}>
                         {player.position}
                       </Badge>
                       <span className="text-xs text-muted-foreground" data-testid={`text-team-${player.playerId}`}>{player.team}</span>
@@ -337,7 +326,7 @@ export default function PlayerTrendsPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline" className={POSITION_COLORS[player.position] || "bg-muted"}>
+                        <Badge variant="outline" className={getPositionColorClass(player.position)}>
                           {player.position}
                         </Badge>
                         <span>{player.team}</span>

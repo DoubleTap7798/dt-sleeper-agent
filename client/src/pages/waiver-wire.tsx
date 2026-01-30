@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
-import { abbreviateName } from "@/lib/utils";
+import { abbreviateName, getPositionColorClass } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -81,9 +81,6 @@ export default function WaiverWirePage() {
     );
   }
 
-  const getPositionColor = (position: string) => {
-    return "bg-muted text-muted-foreground border-border";
-  };
 
   return (
     <div className="space-y-6">
@@ -176,7 +173,7 @@ export default function WaiverWirePage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="outline" className={getPositionColor(player.position)}>
+                        <Badge variant="outline" className={getPositionColorClass(player.position)}>
                           {player.position}
                         </Badge>
                       </TableCell>

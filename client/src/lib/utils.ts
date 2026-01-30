@@ -13,3 +13,40 @@ export function abbreviateName(fullName: string): string {
   const lastName = parts.slice(1).join(" ");
   return `${firstName.charAt(0)}. ${lastName}`;
 }
+
+export function getPositionColorClass(position?: string): string {
+  if (!position) return "";
+  const pos = position.toUpperCase();
+  
+  switch (pos) {
+    case "QB":
+      return "position-qb";
+    case "RB":
+    case "FB":
+      return "position-rb";
+    case "WR":
+      return "position-wr";
+    case "TE":
+      return "position-te";
+    case "K":
+    case "PK":
+      return "position-k";
+    case "DEF":
+    case "DL":
+    case "DE":
+    case "DT":
+    case "LB":
+    case "ILB":
+    case "OLB":
+    case "DB":
+    case "CB":
+    case "S":
+    case "FS":
+    case "SS":
+      return "position-def";
+    case "PICK":
+      return "position-pick";
+    default:
+      return "";
+  }
+}

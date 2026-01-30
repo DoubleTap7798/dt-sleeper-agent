@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
-import { abbreviateName } from "@/lib/utils";
+import { abbreviateName, getPositionColorClass } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -117,9 +117,6 @@ function RosterContent({ leagueId }: { leagueId: string }) {
     enabled: !!leagueId,
   });
 
-  const getPositionColor = () => {
-    return "bg-muted text-muted-foreground border-border";
-  };
 
   const getInjuryBadge = (status: string | null) => {
     if (!status) return null;
@@ -191,7 +188,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
                 {player.team.slice(0, 2)}
               </AvatarFallback>
             </Avatar>
-            <Badge variant="outline" className={`${getPositionColor()} text-xs shrink-0`} data-testid={`badge-pos-${player.playerId}`}>
+            <Badge variant="outline" className={`${getPositionColorClass(player.position)} text-xs shrink-0`} data-testid={`badge-pos-${player.playerId}`}>
               {player.isStarter ? player.slotPosition : player.position}
             </Badge>
             <div className="min-w-0">

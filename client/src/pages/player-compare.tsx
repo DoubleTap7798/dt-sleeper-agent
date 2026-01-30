@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
-import { abbreviateName } from "@/lib/utils";
+import { abbreviateName, getPositionColorClass } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,10 +77,6 @@ export default function PlayerComparePage() {
   const { data, isLoading } = useQuery<PlayersResponse>({
     queryKey: [`/api/fantasy/compare/players${leagueId ? `?leagueId=${leagueId}` : ""}`],
   });
-
-  const getPositionColor = () => {
-    return "bg-muted text-muted-foreground border-border";
-  };
 
   const addPlayer = (player: ComparePlayer) => {
     if (selectedPlayers.length < 4 && !selectedPlayers.find(p => p.playerId === player.playerId)) {
@@ -234,7 +230,7 @@ export default function PlayerComparePage() {
                       data-testid={`player-option-${player.playerId}`}
                     >
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={getPositionColor()} data-testid={`badge-pos-${player.playerId}`}>
+                        <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid={`badge-pos-${player.playerId}`}>
                           {player.position}
                         </Badge>
                         <span className="font-medium" data-testid={`option-name-${player.playerId}`}>
@@ -275,7 +271,7 @@ export default function PlayerComparePage() {
               <Card key={player.playerId} data-testid={`compare-card-${player.playerId}`}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className={getPositionColor()}>
+                    <Badge variant="outline" className={getPositionColorClass(player.position)}>
                       {player.position}
                     </Badge>
                     <Button 

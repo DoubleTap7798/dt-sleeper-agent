@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { getPositionColorClass } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -147,7 +148,7 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                 </DialogTitle>
                 <DialogDescription asChild>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <Badge variant="secondary" data-testid="badge-position">
+                    <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid="badge-position">
                       {player.position}{player.positionRank}
                     </Badge>
                     <Badge variant="outline" data-testid="badge-college">

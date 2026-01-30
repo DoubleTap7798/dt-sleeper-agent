@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CACHE_TIMES } from "@/lib/queryClient";
-import { abbreviateName } from "@/lib/utils";
+import { abbreviateName, getPositionColorClass } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -247,7 +247,7 @@ export default function DevyPage() {
                         </span>
                       </td>
                       <td className="p-3">
-                        <Badge variant="secondary" data-testid={`badge-position-${player.playerId}`}>
+                        <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid={`badge-position-${player.playerId}`}>
                           {player.position}{player.positionRank}
                         </Badge>
                       </td>

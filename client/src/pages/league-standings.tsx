@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
+import { getPositionColorClass } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -415,22 +416,8 @@ export default function LeagueStandingsPage() {
   );
 }
 
-const positionColors: Record<string, string> = {
-  QB: "bg-muted text-muted-foreground border-border",
-  RB: "bg-muted text-muted-foreground border-border",
-  WR: "bg-muted text-muted-foreground border-border",
-  TE: "bg-muted text-muted-foreground border-border",
-  K: "bg-muted text-muted-foreground border-border",
-  DEF: "bg-muted text-muted-foreground border-border",
-  FLEX: "bg-muted text-muted-foreground border-border",
-  SUPER_FLEX: "bg-muted text-muted-foreground border-border",
-  REC_FLEX: "bg-muted text-muted-foreground border-border",
-  IDP_FLEX: "bg-muted text-muted-foreground border-border",
-};
-
 function PlayerRow({ player, showSlot = false }: { player: PlayerInfo; showSlot?: boolean }) {
   const displayPosition = showSlot && player.slotPosition ? player.slotPosition : player.position;
-  const colorKey = player.slotPosition?.includes("FLEX") ? player.slotPosition : player.position;
 
   return (
     <div 
@@ -440,7 +427,7 @@ function PlayerRow({ player, showSlot = false }: { player: PlayerInfo; showSlot?
       <div className="flex items-center gap-2">
         <Badge 
           variant="outline" 
-          className={`text-xs min-w-[3rem] justify-center ${positionColors[colorKey] || ""}`}
+          className={`text-xs min-w-[3rem] justify-center ${getPositionColorClass(player.position)}`}
           data-testid={`badge-position-${player.id}`}
         >
           {displayPosition}
