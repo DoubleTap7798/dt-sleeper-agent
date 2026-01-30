@@ -471,6 +471,17 @@ export async function getAllPlayers(): Promise<Record<string, any>> {
   return playersCache || {};
 }
 
+// Trending players - most added/dropped across all Sleeper leagues
+export interface TrendingPlayer {
+  player_id: string;
+  count: number;
+}
+
+export async function getTrendingPlayers(type: "add" | "drop", limit: number = 25): Promise<TrendingPlayer[]> {
+  const result = await fetchFromSleeper<TrendingPlayer[]>(`/players/nfl/trending/${type}?limit=${limit}`);
+  return result || [];
+}
+
 export async function getPlayerById(playerId: string): Promise<any | null> {
   const players = await getAllPlayers();
   return players[playerId] || null;

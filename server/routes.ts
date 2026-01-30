@@ -3545,6 +3545,51 @@ Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, c
     }
   });
 
+  // Trending players - most added/dropped across Sleeper
+  app.get("/api/sleeper/trending", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const type = (req.query.type as string) || "add";
+      const limit = parseInt(req.query.limit as string) || 25;
+      
+      if (type !== "add" && type !== "drop") {
+        return res.status(400).json({ message: "Invalid type. Must be 'add' or 'drop'" });
+      }
+      
+      const [trendingPlayers, allPlayers] = await Promise.all([
+        sleeperApi.getTrendingPlayers(type, limit),
+        sleeperApi.getAllPlayers(),
+      ]);
+      
+      // Enrich trending data with player info
+      const enrichedPlayers = trendingPlayers.map((trending, index) => {
+        const player = allPlayers[trending.player_id];
+        if (!player) return null;
+        
+        return {
+          id: trending.player_id,
+          name: player.full_name || player.first_name + " " + player.last_name,
+          position: player.position || "?",
+          team: player.team || "FA",
+          age: player.age || null,
+          yearsExp: player.years_exp || 0,
+          count: trending.count,
+          rank: index + 1,
+          number: player.number || null,
+          headshot: player.espn_id ? `https://a.espncdn.com/i/headshots/nfl/players/full/${player.espn_id}.png` : null,
+        };
+      }).filter(Boolean);
+      
+      res.json({ 
+        players: enrichedPlayers,
+        type,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error fetching trending players:", error);
+      res.status(500).json({ message: "Failed to fetch trending players" });
+    }
+  });
+
   // Player Comparison - Get players for comparison
   app.get("/api/fantasy/compare/players", isAuthenticated, async (req: any, res: Response) => {
     try {
