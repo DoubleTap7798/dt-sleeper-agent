@@ -233,12 +233,7 @@ export default function PlayersPage() {
     ? `/api/sleeper/players?leagueId=${leagueId}&year=${selectedYear}` 
     : `/api/sleeper/players?year=${selectedYear}`;
   const { data, isLoading, error } = useQuery<PlayersData>({
-    queryKey: ["/api/sleeper/players", leagueId, selectedYear],
-    queryFn: async () => {
-      const response = await fetch(playersUrl, { credentials: "include" });
-      if (!response.ok) throw new Error("Failed to fetch players");
-      return response.json();
-    },
+    queryKey: [playersUrl],
     ...CACHE_TIMES.STABLE,
   });
 
@@ -298,7 +293,7 @@ export default function PlayersPage() {
             NFL Players
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {data.scoringType} Scoring
+            {data.season} Season • {data.scoringType} Scoring
             {data.isCustomScoring && " (approximate)"}
           </p>
         </div>
