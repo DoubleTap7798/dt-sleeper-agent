@@ -449,7 +449,7 @@ function TradeSide({
             </div>
             <div className="flex justify-between items-center pt-2 border-t">
               <span className="text-sm font-medium">Total Value:</span>
-              <span className="font-bold font-mono">{totalValue.toFixed(1)}</span>
+              <span className="font-bold font-mono text-primary">{totalValue.toFixed(1)}</span>
             </div>
           </div>
         )}
@@ -479,7 +479,7 @@ function TradeSide({
                             <span className="hidden sm:inline">{player.name}</span>
                           </span>
                         </div>
-                        <span className="text-xs text-muted-foreground font-mono">
+                        <span className="text-xs font-mono text-primary">
                           {player.value.toFixed(1)}
                         </span>
                       </button>
@@ -505,7 +505,7 @@ function TradeSide({
                             data-testid={`button-add-pick-${pick.id}`}
                           >
                             <span className="text-sm">{pick.name}</span>
-                            <span className="text-xs text-muted-foreground font-mono">
+                            <span className="text-xs font-mono text-primary">
                               {pick.value.toFixed(1)}
                             </span>
                           </button>

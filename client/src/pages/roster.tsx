@@ -209,7 +209,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           </div>
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <div className="text-right hidden sm:block">
-              <span className="text-sm font-medium" data-testid={`stat-value-${player.playerId}`}>
+              <span className="text-sm font-semibold text-primary" data-testid={`stat-value-${player.playerId}`}>
                 {player.dynastyValue.toFixed(1)}
               </span>
               <span className="text-xs text-muted-foreground block">Dynasty Value</span>
@@ -240,7 +240,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
               </div>
               <div className="sm:hidden">
                 <span className="text-muted-foreground block text-xs">Dynasty Value</span>
-                <span className="font-medium">{player.dynastyValue.toFixed(1)}</span>
+                <span className="font-semibold text-primary">{player.dynastyValue.toFixed(1)}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block text-xs">Status</span>

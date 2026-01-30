@@ -222,7 +222,7 @@ export default function DepthChartPage() {
                               </div>
                               {leagueId && (
                                 <div className="text-right shrink-0">
-                                  <div className="text-xs font-mono">
+                                  <div className="text-xs font-mono font-semibold text-primary">
                                     {player.dynastyValue.toFixed(1)}
                                   </div>
                                 </div>
