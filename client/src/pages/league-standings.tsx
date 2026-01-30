@@ -157,22 +157,23 @@ export default function LeagueStandingsPage() {
           
           {standings.map((team, index) => {
             const isPlayoffSpot = index < playoffTeams;
+            const isLastPlayoffSpot = index === playoffTeams - 1;
             const isTopTeam = index === 0;
             const isCurrentUser = currentUserSleeperId && team.ownerId === currentUserSleeperId;
             
             return (
-              <div
-                key={team.rosterId}
-                className={`flex items-center px-2 py-3 cursor-pointer transition-colors hover-elevate rounded-md ${
-                  isCurrentUser 
-                    ? "bg-primary/20 border border-primary/30" 
-                    : isPlayoffSpot 
-                      ? "bg-muted/30" 
-                      : ""
-                }`}
-                onClick={() => setSelectedTeam({ rosterId: team.rosterId, ownerName: team.ownerName })}
-                data-testid={`row-standings-${team.rosterId}`}
-              >
+              <div key={team.rosterId}>
+                <div
+                  className={`flex items-center px-2 py-3 cursor-pointer transition-colors hover-elevate rounded-md ${
+                    isCurrentUser 
+                      ? "bg-primary/20 border border-primary/30" 
+                      : isPlayoffSpot 
+                        ? "bg-primary/15 border-l-2 border-l-primary" 
+                        : ""
+                  }`}
+                  onClick={() => setSelectedTeam({ rosterId: team.rosterId, ownerName: team.ownerName })}
+                  data-testid={`row-standings-${team.rosterId}`}
+                >
                 <div className="w-8 text-center">
                   <div className="flex items-center justify-center gap-0.5">
                     <span className="font-medium text-sm">{index + 1}</span>
@@ -216,6 +217,10 @@ export default function LeagueStandingsPage() {
                 <div className="w-6">
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </div>
+                </div>
+                {isLastPlayoffSpot && playoffTeams > 0 && (
+                  <div className="my-2 border-b-2 border-primary shadow-[0_2px_8px_rgba(0,212,255,0.4)]" />
+                )}
               </div>
             );
           })}
