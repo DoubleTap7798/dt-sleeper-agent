@@ -2,6 +2,7 @@ import { users, type User, type UpsertUser } from "@shared/models/auth";
 import { userProfiles, userNotificationStatus } from "@shared/schema";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
+import { sendNewUserNotification, sendWelcomeEmail } from "../../email-service";
 
 // Interface for auth storage operations
 // (IMPORTANT) These user operations are mandatory for Replit Auth.
@@ -74,6 +75,15 @@ class AuthStorage implements IAuthStorage {
       }
     }
 
+    // Check if this is a new user (not an update)
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userData.id!))
+      .then(r => r[0]);
+    
+    const isNewUser = !existingUser;
+
     // Standard upsert by ID (no email conflict)
     const [user] = await db
       .insert(users)
@@ -86,6 +96,27 @@ class AuthStorage implements IAuthStorage {
         },
       })
       .returning();
+    
+    // Send notifications for new users (async, don't block auth flow)
+    if (isNewUser) {
+      const userName = [userData.firstName, userData.lastName].filter(Boolean).join(' ') || 'New User';
+      
+      // Send admin notification
+      sendNewUserNotification({
+        userId: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        createdAt: user.createdAt || new Date()
+      }).catch(err => console.error('[Auth] Failed to send admin notification:', err));
+      
+      // Send welcome email to user if they have an email
+      if (user.email) {
+        sendWelcomeEmail(user.email, userName)
+          .catch(err => console.error('[Auth] Failed to send welcome email:', err));
+      }
+    }
+    
     return user;
   }
 }
