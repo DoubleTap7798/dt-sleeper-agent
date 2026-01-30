@@ -1,7 +1,7 @@
 import dtLogo from "@assets/1768235453036_1769043440542.jpeg";
 
 interface LogoProps {
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl";
   showText?: boolean;
   className?: string;
 }
@@ -11,6 +11,7 @@ const sizeClasses = {
   md: "w-16 h-16",
   lg: "w-28 h-28",
   xl: "w-48 h-48",
+  "2xl": "w-64 h-64",
 };
 
 const textSizeClasses = {
@@ -18,6 +19,7 @@ const textSizeClasses = {
   md: "text-xl",
   lg: "text-3xl",
   xl: "text-5xl",
+  "2xl": "text-6xl",
 };
 
 export function Logo({ size = "md", showText = true, className = "" }: LogoProps) {
@@ -34,7 +36,7 @@ export function Logo({ size = "md", showText = true, className = "" }: LogoProps
           <h1 className={`font-bold tracking-tight ${textSizeClasses[size]}`} data-testid="logo-text">
             DT Sleeper Agent
           </h1>
-          {size === "xl" && (
+          {(size === "xl" || size === "2xl") && (
             <p className="text-muted-foreground text-sm mt-1">
               Fantasy Football Companion
             </p>
