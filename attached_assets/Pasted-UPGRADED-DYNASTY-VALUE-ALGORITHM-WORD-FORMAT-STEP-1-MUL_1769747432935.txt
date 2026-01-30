@@ -1,0 +1,173 @@
+UPGRADED DYNASTY VALUE ALGORITHM (WORD FORMAT)
+
+⸻
+
+STEP 1 — MULTI-YEAR VALUE OVER REPLACEMENT (VOR)
+
+For each player, calculate Value Over Replacement for the next 3 seasons based on the selected league setup.
+
+Weight each season:
+
+• Year 1 VOR = 50%
+• Year 2 VOR = 30% and discounted by 8%
+• Year 3 VOR = 20% and discounted by 15%
+
+Add them together to create a Weighted VOR score.
+
+⸻
+
+STEP 2 — BASE DYNASTY VALUE
+
+Normalize each player’s Weighted VOR onto a 0–100 scale relative to the top player in the league format.
+
+This becomes the Base Value.
+
+⸻
+
+MULTIPLIERS (APPLIED TO BASE VALUE)
+
+Multiply the Base Value by each of the following:
+
+⸻
+
+1. AGE MULTIPLIER (BY POSITION)
+
+Use position peak ranges and yearly decay:
+
+QB peak: 25–32 years, decay 3% per year after peak
+RB peak: 22–27 years, decay 5% per year after peak
+WR peak: 24–29 years, decay 4% per year after peak
+TE peak: 25–30 years, decay 4% per year after peak
+
+Players younger than peak can receive up to a 15% bonus.
+
+Minimum age multiplier: 0.65
+Maximum age multiplier: 1.15
+
+⸻
+
+2. ROLE SECURITY MULTIPLIER
+
+Based on snap share, depth chart, and opportunity:
+
+Elite locked-in starter: 1.10 to 1.15
+Solid starter: 1.00 to 1.08
+Committee player: 0.90 to 0.98
+Backup: 0.75 to 0.88
+
+⸻
+
+3. INJURY RISK MULTIPLIER
+
+Combine current injury status and historical durability.
+
+Current status:
+
+• IR or Out: 0.90
+• Doubtful: 0.95
+• Questionable: 0.98
+• Healthy: 1.00
+
+Historical injury risk:
+
+• Durable: 1.00
+• Moderate history: 0.97
+• Frequent injuries: 0.93
+
+Multiply both together.
+
+⸻
+
+4. PRODUCTION CEILING MULTIPLIER
+
+Based on weekly fantasy points per game percentile:
+
+Top 5% at position: 1.40 to 1.50
+Top 15%: 1.20 to 1.30
+Top 30%: 1.05 to 1.15
+All others: 1.00
+
+⸻
+
+5. VOLATILITY MULTIPLIER
+
+Based on weekly consistency:
+
+Consistent producers: 1.03 to 1.08
+Average volatility: 1.00
+Boom/bust players: 0.90 to 0.97
+
+⸻
+
+6. DRAFT CAPITAL MULTIPLIER (FOR PLAYERS UNDER 4 YEARS IN LEAGUE)
+
+NFL Draft round:
+
+Round 1: 1.15
+Round 2: 1.08
+Round 3: 1.02
+Day 3: 0.90
+Undrafted: 0.85
+
+Reduce this bonus by about 3% for each season played.
+
+Once player is established, floor at 1.00.
+
+⸻
+
+7. TEAM CONTEXT MULTIPLIER
+
+Based on offensive strength:
+
+Top 5 offense: 1.05 to 1.08
+Top 15 offense: 1.02 to 1.04
+Bottom 10 offense: 0.95 to 0.98
+
+⸻
+
+STEP 3 — APPLY SMALL SCARCITY BONUS (OPTIONAL)
+
+Since VOR already accounts for scarcity, only apply light bonuses for elite tiers:
+
+Superflex leagues:
+
+• Top 1–3 QBs: 8% to 12% boost
+
+All leagues:
+
+• Top 1–3 TEs: 10% to 15% boost
+• Top 1–5 RBs in deep leagues: 5% to 10% boost
+
+⸻
+
+STEP 4 — DRAFT PICK VALUES
+
+Base values:
+
+1st round pick: 80
+2nd round pick: 55
+3rd round pick: 35
+4th round pick: 18
+
+Apply time decay:
+
+Reduce value by about 10% for each year in the future.
+
+Optionally boost early picks slightly in Superflex or TE premium leagues.
+
+⸻
+
+STEP 5 — MARKET CALIBRATION
+
+Displayed dynasty value equals:
+
+50% your calculated value
+50% KTC consensus value
+
+(You can shift to 60/40 later if desired)
+
+⸻
+
+STEP 6 — FINAL SCALING
+
+Clamp all final values between 1 and 100.
