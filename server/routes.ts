@@ -1286,6 +1286,7 @@ Return ONLY valid JSON, no other text.`;
   app.get("/api/sleeper/players", isAuthenticated, async (req: any, res: Response) => {
     try {
       const leagueId = req.query.leagueId as string | undefined;
+      const yearParam = req.query.year as string | undefined;
       
       // Fetch consensus values for blended dynasty values
       try {
@@ -1328,22 +1329,24 @@ Return ONLY valid JSON, no other text.`;
         isSuperflex = dynastyEngine.isLeagueSuperflex(league);
       }
 
-      // Get current state to determine the right season for stats
-      const state = await sleeperApi.getState();
-      
       // Determine the correct season for stats:
-      // The NFL season runs Sep-Feb, so in Jan-Aug we should use the previous year's completed season
+      // If year parameter provided, use it; otherwise auto-detect
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth(); // 0-indexed (0 = Jan, 7 = Aug)
       const currentYear = currentDate.getFullYear();
       
-      // Before September, use the previous year's season (which has complete stats)
-      // After September, use the current year's season
       let statsSeason: string;
-      if (currentMonth < 8) { // Before September
-        statsSeason = String(currentYear - 1);
+      if (yearParam) {
+        // Use the provided year parameter
+        statsSeason = yearParam;
       } else {
-        statsSeason = String(currentYear);
+        // Auto-detect: Before September, use the previous year's season (which has complete stats)
+        // After September, use the current year's season
+        if (currentMonth < 8) { // Before September
+          statsSeason = String(currentYear - 1);
+        } else {
+          statsSeason = String(currentYear);
+        }
       }
       
       // Position-specific reception bonuses

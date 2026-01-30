@@ -15,6 +15,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Users, Search, TrendingUp, AlertCircle, Loader2, BarChart3 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
 import { getNFLTeamLogo } from "@/lib/team-logos";
@@ -209,6 +216,8 @@ function getPositionStats(player: Player, leagueId: string | null) {
   }
 }
 
+const AVAILABLE_YEARS = ["2025", "2024", "2023", "2022"];
+
 export default function PlayersPage() {
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
@@ -216,12 +225,20 @@ export default function PlayersPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [positionFilter, setPositionFilter] = useState<string>("ALL");
+  const [selectedYear, setSelectedYear] = useState<string>("2025");
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
 
-  const playersUrl = leagueId ? `/api/sleeper/players?leagueId=${leagueId}` : "/api/sleeper/players";
+  const playersUrl = leagueId 
+    ? `/api/sleeper/players?leagueId=${leagueId}&year=${selectedYear}` 
+    : `/api/sleeper/players?year=${selectedYear}`;
   const { data, isLoading, error } = useQuery<PlayersData>({
-    queryKey: [playersUrl],
+    queryKey: ["/api/sleeper/players", leagueId, selectedYear],
+    queryFn: async () => {
+      const response = await fetch(playersUrl, { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch players");
+      return response.json();
+    },
     ...CACHE_TIMES.STABLE,
   });
 
@@ -274,15 +291,29 @@ export default function PlayersPage() {
 
   return (
     <div className="space-y-4" data-testid="page-players">
-      <div>
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          NFL Players
-        </h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {data.season} Season • {data.scoringType} Scoring
-          {data.isCustomScoring && " (approximate)"}
-        </p>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            NFL Players
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {data.scoringType} Scoring
+            {data.isCustomScoring && " (approximate)"}
+          </p>
+        </div>
+        <Select value={selectedYear} onValueChange={setSelectedYear}>
+          <SelectTrigger className="w-[90px]" data-testid="select-year">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {AVAILABLE_YEARS.map((year) => (
+              <SelectItem key={year} value={year} data-testid={`option-year-${year}`}>
+                {year}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="relative">
