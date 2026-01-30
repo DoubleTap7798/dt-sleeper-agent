@@ -10,26 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Users, Search, TrendingUp, AlertCircle, Loader2, BarChart3 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
 import { getNFLTeamLogo } from "@/lib/team-logos";
@@ -128,13 +113,109 @@ const positionStyles: Record<string, string> = {
   DB: "bg-muted text-foreground",
 };
 
+const POSITION_TABS = ["ALL", "QB", "RB", "WR", "TE"];
+const IDP_POSITION_TABS = ["IDP", "DL", "LB", "DB"];
+
+function getPositionStats(player: Player, leagueId: string | null) {
+  if (player.isIDP && player.idpStats) {
+    return [
+      { label: "TKL", value: player.idpStats.tackles },
+      { label: "SOLO", value: player.idpStats.soloTackles },
+      { label: "SACK", value: player.idpStats.sacks },
+      { label: "INT", value: player.idpStats.interceptions },
+      { label: "PD", value: player.idpStats.passesDefended },
+      { label: "FF", value: player.idpStats.forcedFumbles },
+    ];
+  }
+
+  switch (player.position) {
+    case "QB":
+      return leagueId ? [
+        { label: "SNP %", value: player.snapPct !== null ? player.snapPct : "-" },
+        { label: "PASS YD", value: player.stats.passYd.toLocaleString() },
+        { label: "RUSH YD", value: player.stats.rushYd },
+        { label: "PASS TD", value: player.stats.passTd },
+        { label: "RUSH TD", value: player.stats.rushTd },
+        { label: "PASS ATT", value: player.stats.passAtt },
+        { label: "INT", value: player.stats.passInt },
+      ] : [
+        { label: "PASS YD", value: player.stats.passYd.toLocaleString() },
+        { label: "PASS TD", value: player.stats.passTd },
+        { label: "RUSH YD", value: player.stats.rushYd },
+        { label: "RUSH TD", value: player.stats.rushTd },
+        { label: "INT", value: player.stats.passInt },
+        { label: "CMP", value: player.stats.passCmp },
+      ];
+    case "RB":
+      return leagueId ? [
+        { label: "SNP %", value: player.snapPct !== null ? player.snapPct : "-" },
+        { label: "RUSH YD", value: player.stats.rushYd.toLocaleString() },
+        { label: "REC YD", value: player.stats.recYd },
+        { label: "RUSH TD", value: player.stats.rushTd },
+        { label: "REC TD", value: player.stats.recTd },
+        { label: "RUSH", value: player.stats.rushAtt },
+        { label: "REC", value: player.stats.rec },
+      ] : [
+        { label: "RUSH YD", value: player.stats.rushYd.toLocaleString() },
+        { label: "RUSH TD", value: player.stats.rushTd },
+        { label: "REC YD", value: player.stats.recYd },
+        { label: "REC TD", value: player.stats.recTd },
+        { label: "RUSH", value: player.stats.rushAtt },
+        { label: "REC", value: player.stats.rec },
+      ];
+    case "WR":
+      return leagueId ? [
+        { label: "SNP %", value: player.snapPct !== null ? player.snapPct : "-" },
+        { label: "REC", value: player.stats.rec },
+        { label: "REC YD", value: player.stats.recYd.toLocaleString() },
+        { label: "REC TD", value: player.stats.recTd },
+        { label: "TAR", value: player.stats.recTgt },
+        { label: "YD/REC", value: player.stats.rec > 0 ? (player.stats.recYd / player.stats.rec).toFixed(1) : "0" },
+        { label: "YD/TAR", value: player.stats.recTgt > 0 ? (player.stats.recYd / player.stats.recTgt).toFixed(1) : "0" },
+      ] : [
+        { label: "REC YD", value: player.stats.recYd.toLocaleString() },
+        { label: "REC TD", value: player.stats.recTd },
+        { label: "REC", value: player.stats.rec },
+        { label: "TAR", value: player.stats.recTgt },
+        { label: "RUSH YD", value: player.stats.rushYd },
+        { label: "RUSH TD", value: player.stats.rushTd },
+      ];
+    case "TE":
+      return leagueId ? [
+        { label: "SNP %", value: player.snapPct !== null ? player.snapPct : "-" },
+        { label: "REC", value: player.stats.rec },
+        { label: "REC YD", value: player.stats.recYd.toLocaleString() },
+        { label: "REC TD", value: player.stats.recTd },
+        { label: "TAR", value: player.stats.recTgt },
+        { label: "YD/REC", value: player.stats.rec > 0 ? (player.stats.recYd / player.stats.rec).toFixed(1) : "0" },
+      ] : [
+        { label: "REC YD", value: player.stats.recYd.toLocaleString() },
+        { label: "REC TD", value: player.stats.recTd },
+        { label: "REC", value: player.stats.rec },
+        { label: "TAR", value: player.stats.recTgt },
+      ];
+    default:
+      return leagueId ? [
+        { label: "SNP %", value: player.snapPct !== null ? player.snapPct : "-" },
+        { label: "REC YD", value: player.stats.recYd.toLocaleString() },
+        { label: "REC TD", value: player.stats.recTd },
+        { label: "RUSH YD", value: player.stats.rushYd },
+      ] : [
+        { label: "REC YD", value: player.stats.recYd.toLocaleString() },
+        { label: "REC TD", value: player.stats.recTd },
+        { label: "RUSH YD", value: player.stats.rushYd },
+        { label: "RUSH TD", value: player.stats.rushTd },
+      ];
+  }
+}
+
 export default function PlayersPage() {
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
   const leagueId = urlParams.get("id");
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [positionFilter, setPositionFilter] = useState<string>("all");
+  const [positionFilter, setPositionFilter] = useState<string>("ALL");
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
 
@@ -150,13 +231,11 @@ export default function PlayersPage() {
     enabled: !!selectedPlayer && !!insightsUrl,
   });
 
-  // Reset position filter to "all" if IDP filter is selected but IDP is not available
-  const idpFilterOptions = ["idp", "DL", "LB", "DB"];
   const showIDPOptions = data?.isIDPLeague || !leagueId;
   
   useEffect(() => {
-    if (!showIDPOptions && idpFilterOptions.includes(positionFilter)) {
-      setPositionFilter("all");
+    if (!showIDPOptions && IDP_POSITION_TABS.includes(positionFilter)) {
+      setPositionFilter("ALL");
     }
   }, [showIDPOptions, positionFilter]);
 
@@ -172,7 +251,6 @@ export default function PlayersPage() {
     );
   }
 
-  const offensePositions = ["QB", "RB", "WR", "TE"];
   const idpPositions = ["DL", "LB", "DB"];
   
   const filteredPlayers = data.players.filter((player) => {
@@ -181,11 +259,9 @@ export default function PlayersPage() {
       player.team.toLowerCase().includes(searchTerm.toLowerCase());
     
     let matchesPosition = false;
-    if (positionFilter === "all") {
+    if (positionFilter === "ALL") {
       matchesPosition = true;
-    } else if (positionFilter === "offense") {
-      matchesPosition = offensePositions.includes(player.position);
-    } else if (positionFilter === "idp") {
+    } else if (positionFilter === "IDP") {
       matchesPosition = idpPositions.includes(player.position);
     } else {
       matchesPosition = player.position === positionFilter;
@@ -194,171 +270,126 @@ export default function PlayersPage() {
     return matchesSearch && matchesPosition;
   });
 
+  const allTabs = showIDPOptions ? [...POSITION_TABS, ...IDP_POSITION_TABS] : POSITION_TABS;
+
   return (
-    <div className="p-6 space-y-6" data-testid="page-players">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            NFL Players
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {data.totalCount.toLocaleString()} players ranked by {data.season} fantasy production ({data.scoringType})
-            {data.isCustomScoring && (
-              <span className="ml-2 text-xs" title="Your league has custom scoring settings. Rankings are approximate.">
-                (approximate)
-              </span>
-            )}
-          </p>
-        </div>
+    <div className="space-y-4" data-testid="page-players">
+      <div>
+        <h1 className="text-xl font-bold flex items-center gap-2">
+          <Users className="h-5 w-5" />
+          NFL Players
+        </h1>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {data.season} Season • {data.scoringType} Scoring
+          {data.isCustomScoring && " (approximate)"}
+        </p>
       </div>
 
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search players or teams..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-            data-testid="input-search-players"
-          />
-        </div>
-        <Select value={positionFilter} onValueChange={setPositionFilter}>
-          <SelectTrigger className="w-[140px]" data-testid="select-position-filter">
-            <SelectValue placeholder="Position" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Positions</SelectItem>
-            <SelectItem value="offense">Offense</SelectItem>
-            {showIDPOptions && (
-              <SelectItem value="idp">IDP</SelectItem>
-            )}
-            <SelectItem value="QB">QB</SelectItem>
-            <SelectItem value="RB">RB</SelectItem>
-            <SelectItem value="WR">WR</SelectItem>
-            <SelectItem value="TE">TE</SelectItem>
-            {showIDPOptions && (
-              <>
-                <SelectItem value="DL">DL</SelectItem>
-                <SelectItem value="LB">LB</SelectItem>
-                <SelectItem value="DB">DB</SelectItem>
-              </>
-            )}
-          </SelectContent>
-        </Select>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search for a player..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+          data-testid="input-search-players"
+        />
       </div>
 
-      <Card>
-        <div className="overflow-x-auto">
-        <Table className="min-w-[420px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10 px-2">#</TableHead>
-              <TableHead className="px-2">Player</TableHead>
-              <TableHead className="w-12 px-2">Pos</TableHead>
-              <TableHead className="w-12 px-2 hidden sm:table-cell">Tm</TableHead>
-              {leagueId ? (
-                <>
-                  <TableHead className="w-14 text-right px-2">Pts</TableHead>
-                  <TableHead className="w-12 text-right px-2">PPG</TableHead>
-                </>
-              ) : (
-                <>
-                  <TableHead className="w-14 text-right px-2 hidden sm:table-cell">Yds</TableHead>
-                  <TableHead className="w-12 text-right px-2">TDs</TableHead>
-                </>
-              )}
-              <TableHead className="w-10 text-right px-2 hidden md:table-cell">GP</TableHead>
-              <TableHead className="w-12 text-right px-2 hidden md:table-cell">Snap</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredPlayers.slice(0, 200).map((player) => (
-              <TableRow
-                key={player.id}
-                className="cursor-pointer hover-elevate"
-                onClick={() => setSelectedPlayer(player)}
-                data-testid={`player-row-${player.id}`}
-              >
-                <TableCell className="font-mono text-muted-foreground text-xs px-2">
-                  {player.overallRank}
-                </TableCell>
-                <TableCell className="px-2">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8 shrink-0" data-testid={`avatar-${player.id}`}>
-                      <AvatarImage 
-                        src={getNFLTeamLogo(player.team) || undefined} 
-                        alt={player.team}
-                      />
-                      <AvatarFallback className="text-[10px] bg-muted">
-                        {player.team.slice(0, 2)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-medium text-sm truncate max-w-[140px] sm:max-w-none">
-                        <span className="sm:hidden">{abbreviateName(player.fullName)}</span>
-                        <span className="hidden sm:inline">{player.fullName}</span>
-                      </span>
-                      {player.injuryStatus && (
-                        <Badge variant="destructive" className="text-[10px] px-1">
-                          {player.injuryStatus}
-                        </Badge>
-                      )}
-                    </div>
+      <div className="flex items-center gap-1 overflow-x-auto pb-1">
+        {allTabs.map((tab) => (
+          <Button
+            key={tab}
+            variant={positionFilter === tab ? "default" : "outline"}
+            size="sm"
+            onClick={() => setPositionFilter(tab)}
+            className="shrink-0"
+            data-testid={`tab-position-${tab.toLowerCase()}`}
+          >
+            {tab}
+          </Button>
+        ))}
+      </div>
+
+      <div className="text-xs text-muted-foreground flex items-center justify-between">
+        <span>Leaders</span>
+        <span>{leagueId ? "SEASON STATS" : "NFL STATS"}</span>
+      </div>
+
+      <div className="space-y-2">
+        {filteredPlayers.slice(0, 200).map((player) => {
+          const stats = getPositionStats(player, leagueId);
+          
+          return (
+            <Card
+              key={player.id}
+              className="cursor-pointer hover-elevate p-3"
+              onClick={() => setSelectedPlayer(player)}
+              data-testid={`player-card-${player.id}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-lg font-bold text-muted-foreground w-6 text-center">
+                    {player.overallRank}
+                  </span>
+                  <Avatar className="h-10 w-10" data-testid={`avatar-${player.id}`}>
+                    <AvatarImage 
+                      src={player.headshot || getNFLTeamLogo(player.team) || undefined} 
+                      alt={player.fullName}
+                    />
+                    <AvatarFallback className="text-xs bg-muted">
+                      {player.fullName.split(" ").map(n => n[0]).join("")}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-semibold text-sm truncate">
+                      <span className="sm:hidden">{abbreviateName(player.fullName)}</span>
+                      <span className="hidden sm:inline">{player.fullName}</span>
+                    </span>
+                    {player.injuryStatus && (
+                      <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                        {player.injuryStatus}
+                      </Badge>
+                    )}
                   </div>
-                </TableCell>
-                <TableCell className="px-2">
-                  <Badge
-                    variant="outline"
-                    className={`text-xs ${positionStyles[player.position] || ""}`}
-                  >
-                    {player.position}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground text-xs px-2 hidden sm:table-cell">
-                  {player.team}
-                </TableCell>
-                {leagueId ? (
-                  <>
-                    <TableCell className="text-right font-mono font-medium text-sm px-2">
-                      {player.fantasyPoints.toFixed(1)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-muted-foreground text-xs px-2">
-                      {player.pointsPerGame.toFixed(1)}
-                    </TableCell>
-                  </>
-                ) : (
-                  <>
-                    <TableCell className="text-right font-mono text-muted-foreground text-xs px-2 hidden sm:table-cell">
-                      {player.isIDP 
-                        ? (player.idpStats?.tackles || 0).toLocaleString()
-                        : (player.stats.passYd + player.stats.rushYd + player.stats.recYd).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right font-mono font-medium text-sm px-2">
-                      {player.isIDP
-                        ? (player.idpStats?.sacks || 0) + (player.idpStats?.interceptions || 0)
-                        : player.stats.passTd + player.stats.rushTd + player.stats.recTd}
-                    </TableCell>
-                  </>
-                )}
-                <TableCell className="text-right font-mono text-muted-foreground text-xs px-2 hidden md:table-cell">
-                  {player.gamesPlayed}
-                </TableCell>
-                <TableCell className="text-right font-mono text-muted-foreground text-xs px-2 hidden md:table-cell">
-                  {player.snapPct !== null ? `${player.snapPct}%` : "-"}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className={positionStyles[player.position] ? "font-medium" : ""}>
+                      {player.position}
+                    </span>
+                    <span>•</span>
+                    <span>{player.team}</span>
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <div className="text-xs text-muted-foreground">FPTS</div>
+                  <div className="text-lg font-bold font-mono">
+                    {leagueId ? player.fantasyPoints.toFixed(1) : (player.stats.passTd * 4 + player.stats.rushTd * 6 + player.stats.recTd * 6 + Math.floor(player.stats.passYd / 25) + Math.floor((player.stats.rushYd + player.stats.recYd) / 10)).toFixed(0)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-2 flex items-center gap-2 sm:gap-4 overflow-x-auto text-xs">
+                {stats.slice(0, 7).map((stat, idx) => (
+                  <div key={idx} className="shrink-0 text-center min-w-[40px]">
+                    <div className="text-[10px] text-muted-foreground">{stat.label}</div>
+                    <div className="font-mono font-medium">{stat.value}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {filteredPlayers.length > 200 && (
+        <div className="p-4 text-center text-sm text-muted-foreground">
+          Showing first 200 of {filteredPlayers.length} players. Use search to find specific players.
         </div>
-        {filteredPlayers.length > 200 && (
-          <div className="p-4 text-center text-sm text-muted-foreground border-t">
-            Showing first 200 of {filteredPlayers.length} players. Use search to find specific players.
-          </div>
-        )}
-      </Card>
+      )}
 
       <Sheet open={!!selectedPlayer} onOpenChange={(open) => !open && setSelectedPlayer(null)}>
         <SheetContent className="w-full sm:w-[540px] max-w-full overflow-y-auto overflow-x-hidden">
@@ -704,19 +735,22 @@ export default function PlayersPage() {
 
 function PlayersSkeleton() {
   return (
-    <div className="p-6 space-y-6">
-      <Skeleton className="h-8 w-48" />
-      <div className="flex gap-4">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-10 w-32" />
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-9 w-24" />
       </div>
-      <Card>
-        <div className="p-4 space-y-3">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      </Card>
+      <Skeleton className="h-10 w-full" />
+      <div className="flex gap-1">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-8 w-12" />
+        ))}
+      </div>
+      <div className="space-y-2">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full" />
+        ))}
+      </div>
     </div>
   );
 }
