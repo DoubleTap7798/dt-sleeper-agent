@@ -2,6 +2,7 @@ import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
+import { PwaInstallButton } from "@/components/pwa-install-button";
 import { ArrowRight, TrendingUp, Users, Trophy, RefreshCw, BarChart3, History } from "lucide-react";
 
 export default function LandingPage() {
@@ -46,6 +47,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Logo size="sm" showText={false} />
           <div className="flex items-center gap-4">
+            <PwaInstallButton />
             <Button
               variant="ghost"
               onClick={() => (window.location.href = "/api/login")}

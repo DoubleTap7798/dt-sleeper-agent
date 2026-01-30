@@ -5,6 +5,7 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { PwaInstallButton } from "@/components/pwa-install-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, prefetchLeagueData, prefetchPlayerData } from "@/lib/queryClient";
@@ -162,6 +163,7 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
             </div>
             <div className="flex items-center gap-2">
               {!isAllLeagues && <NotificationBell leagueId={selectedLeague?.league_id} />}
+              <PwaInstallButton />
               <ThemeToggle />
             </div>
           </header>
