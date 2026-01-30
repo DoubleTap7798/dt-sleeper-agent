@@ -178,6 +178,8 @@ export interface StandingsTeam {
   maxPoints: number;
   winPercentage: number;
   playoffOdds?: number;
+  waiverBudget?: number;
+  waiverPosition?: number;
 }
 
 // Trophy Room Types

@@ -54,6 +54,8 @@ export interface SleeperRoster {
     ppts: number;
     ppts_decimal: number;
     division?: number;
+    waiver_budget_used?: number;
+    waiver_position?: number;
   };
   metadata?: Record<string, string>;
 }

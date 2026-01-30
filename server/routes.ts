@@ -411,6 +411,11 @@ export async function registerRoutes(
           const maxPts = (roster.settings.ppts || 0) + (roster.settings.ppts_decimal || 0) / 100;
           const totalGames = (roster.settings.wins || 0) + (roster.settings.losses || 0) + (roster.settings.ties || 0);
 
+          // Calculate waiver budget remaining (FAAB)
+          const totalBudget = league.settings?.waiver_budget || 100;
+          const budgetUsed = roster.settings?.waiver_budget_used || 0;
+          const waiverBudget = totalBudget - budgetUsed;
+
           return {
             rosterId: roster.roster_id,
             ownerId: roster.owner_id,
@@ -424,6 +429,8 @@ export async function registerRoutes(
             maxPoints: maxPts,
             winPercentage: totalGames > 0 ? (roster.settings.wins || 0) / totalGames : 0,
             playoffOdds: playoffOdds.get(roster.roster_id) || 50,
+            waiverBudget,
+            waiverPosition: roster.settings?.waiver_position || 0,
           };
         })
         .sort((a, b) => {

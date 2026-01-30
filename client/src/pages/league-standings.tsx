@@ -6,27 +6,24 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Trophy, TrendingUp, Users, ChevronRight, Star, Zap } from "lucide-react";
+import { Trophy, TrendingUp, Users, ChevronRight, Star, Zap, BarChart3, Crown } from "lucide-react";
 import type { StandingsTeam } from "@/lib/sleeper-types";
 
 interface StandingsData {
   standings: StandingsTeam[];
   playoffTeams: number;
   currentWeek: number;
+}
+
+interface UserProfile {
+  sleeperUserId: string | null;
 }
 
 interface PlayerInfo {
@@ -79,6 +76,11 @@ export default function LeagueStandingsPage() {
   const leagueId = urlParams.get("id");
 
   const [selectedTeam, setSelectedTeam] = useState<{ rosterId: number; ownerName: string } | null>(null);
+  const [viewMode, setViewMode] = useState<"standings" | "playoff">("standings");
+
+  const { data: profile } = useQuery<UserProfile>({
+    queryKey: ["/api/user/profile"],
+  });
 
   const { data, isLoading, error } = useQuery<StandingsData>({
     queryKey: ["/api/sleeper/standings", leagueId],
@@ -104,89 +106,124 @@ export default function LeagueStandingsPage() {
   }
 
   const { standings, playoffTeams } = data;
+  const currentUserSleeperId = profile?.sleeperUserId;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight" data-testid="text-standings-title">
-            League Standings
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold" data-testid="text-standings-title">
+            Standings
           </h2>
-          <p className="text-muted-foreground">
-            Click a team to view their roster and picks
-          </p>
+          <span className="text-muted-foreground text-sm cursor-pointer hover:underline" data-testid="link-details">
+            Details &gt;
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === "standings" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("standings")}
+            className="glass"
+            data-testid="button-standings-view"
+          >
+            <BarChart3 className="h-4 w-4 mr-1.5" />
+            STANDINGS
+          </Button>
+          <Button
+            variant={viewMode === "playoff" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("playoff")}
+            className="glass"
+            data-testid="button-playoff-view"
+          >
+            <Crown className="h-4 w-4 mr-1.5" />
+            PLAYOFF
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Current Standings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">Rank</TableHead>
-                    <TableHead>Team</TableHead>
-                    <TableHead className="text-right">Record</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {standings.map((team, index) => {
-                    const isPlayoffSpot = index < playoffTeams;
-                    return (
-                      <TableRow
-                        key={team.rosterId}
-                        className={`cursor-pointer transition-colors hover-elevate ${isPlayoffSpot ? "bg-muted/30" : ""}`}
-                        onClick={() => setSelectedTeam({ rosterId: team.rosterId, ownerName: team.ownerName })}
-                        data-testid={`row-standings-${team.rosterId}`}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-1">
-                            {index + 1}
-                            {index === 0 && (
-                              <Trophy className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={team.avatar || undefined} />
-                              <AvatarFallback className="text-xs">
-                                {team.ownerName?.slice(0, 2).toUpperCase() || "??"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <p className="font-medium truncate max-w-[140px] sm:max-w-none">
-                              {team.ownerName}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {team.wins}-{team.losses}
-                          {team.ties > 0 && `-${team.ties}`}
-                        </TableCell>
-                        <TableCell>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              {playoffTeams > 0 && (
-                <p className="text-xs text-muted-foreground mt-4 px-2">
-                  Top {playoffTeams} teams make the playoffs (highlighted)
-                </p>
-              )}
-            </CardContent>
-          </Card>
+        <div className="lg:col-span-2 space-y-1">
+          <div className="flex items-center text-xs text-muted-foreground uppercase tracking-wider px-2 py-2 border-b">
+            <span className="w-8 text-center">RANK</span>
+            <span className="flex-1 ml-2">NAME</span>
+            <span className="w-20 text-center hidden sm:block">WAIVER</span>
+            <span className="w-12 text-center hidden sm:block">PF</span>
+            <span className="w-12 text-center hidden sm:block">PA</span>
+            <span className="w-6"></span>
+          </div>
+          
+          {standings.map((team, index) => {
+            const isPlayoffSpot = index < playoffTeams;
+            const isTopTeam = index === 0;
+            const isCurrentUser = currentUserSleeperId && team.ownerId === currentUserSleeperId;
+            
+            return (
+              <div
+                key={team.rosterId}
+                className={`flex items-center px-2 py-3 cursor-pointer transition-colors hover-elevate rounded-md ${
+                  isCurrentUser 
+                    ? "bg-primary/20 border border-primary/30" 
+                    : isPlayoffSpot 
+                      ? "bg-muted/30" 
+                      : ""
+                }`}
+                onClick={() => setSelectedTeam({ rosterId: team.rosterId, ownerName: team.ownerName })}
+                data-testid={`row-standings-${team.rosterId}`}
+              >
+                <div className="w-8 text-center">
+                  <div className="flex items-center justify-center gap-0.5">
+                    <span className="font-medium text-sm">{index + 1}</span>
+                    {isTopTeam && (
+                      <Crown className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 flex-1 ml-2 min-w-0">
+                  <Avatar className="h-10 w-10 shrink-0">
+                    <AvatarImage src={team.avatar || undefined} />
+                    <AvatarFallback className="text-sm">
+                      {team.ownerName?.slice(0, 2).toUpperCase() || "??"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate" data-testid={`text-team-name-${team.rosterId}`}>
+                      {team.ownerName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {team.wins}-{team.losses}{team.ties > 0 ? `-${team.ties}` : ""}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="w-20 text-center hidden sm:block">
+                  <span className="text-xs text-muted-foreground">
+                    ${team.waiverBudget ?? 100} ({team.waiverPosition || index + 1})
+                  </span>
+                </div>
+                
+                <div className="w-12 text-center hidden sm:block">
+                  <span className="text-xs font-mono">{team.pointsFor?.toFixed(0) || 0}</span>
+                </div>
+                
+                <div className="w-12 text-center hidden sm:block">
+                  <span className="text-xs font-mono">{team.pointsAgainst?.toFixed(0) || 0}</span>
+                </div>
+                
+                <div className="w-6">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </div>
+            );
+          })}
+          
+          {playoffTeams > 0 && (
+            <p className="text-xs text-muted-foreground mt-3 px-2">
+              Top {playoffTeams} teams make the playoffs (highlighted)
+            </p>
+          )}
         </div>
 
         <div className="space-y-6">
