@@ -1669,7 +1669,11 @@ Return ONLY valid JSON, no other text.`;
           teamDepthCharts[team][positionGroup] = [];
         }
         
+        // Get depth chart order (lower is better) - important for value calculation
+        const depthOrder = player.depth_chart_order || 99;
+        
         // Get dynasty value using blended calculation with consensus data
+        // Pass depth order so role security multiplier can properly penalize backups
         const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
         const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, positionGroup, isSuperflex);
         const valueResult = dynastyEngine.getBlendedPlayerValue(
@@ -1680,14 +1684,11 @@ Return ONLY valid JSON, no other text.`;
           player.years_exp || 0,
           player.injury_status,
           { points: 0, games: 0, ppg: 0 },
-          null,
-          null,
+          depthOrder,  // Pass actual depth order for role security calculation
+          null,        // No snap% data available here
           consensusValue
         );
         const dynastyValue = valueResult.value;
-        
-        // Get depth chart order (lower is better)
-        const depthOrder = player.depth_chart_order || 99;
         
         teamDepthCharts[team][positionGroup].push({
           id: playerId,
