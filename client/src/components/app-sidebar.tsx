@@ -219,7 +219,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
-        <Logo size="sm" showText={true} />
+        <Logo size="md" showText={true} />
       </SidebarHeader>
 
       <SidebarContent>

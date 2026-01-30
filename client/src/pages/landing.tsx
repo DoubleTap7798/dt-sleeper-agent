@@ -72,7 +72,7 @@ export default function LandingPage() {
         <section className="py-24 md:py-32">
           <div className="container mx-auto px-4">
             <div className="max-w-4xl mx-auto text-center">
-              <Logo size="2xl" className="mb-8" />
+              <Logo size="xl" className="mb-8" />
               <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
                 Your ultimate companion for Sleeper fantasy football leagues. 
                 Analyze trades, track waivers, predict playoffs, and dominate your league.
