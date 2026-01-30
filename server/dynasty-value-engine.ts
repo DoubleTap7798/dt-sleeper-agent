@@ -1,6 +1,14 @@
-// Dynasty Value Engine
+// Dynasty Value Engine - UPGRADED ALGORITHM
 // Custom value system for trade calculator - replaces KTC values
 // Calculates league-specific values on 0-100 scale with 2 decimal precision
+// 
+// ALGORITHM OVERVIEW:
+// 1. Multi-Year VOR: Calculate 3-year weighted VOR (50%/30%/20% with year discounts)
+// 2. Normalize to Base Value (0-100 scale)
+// 3. Apply multipliers: Age, Role Security, Injury Risk, Production Ceiling,
+//    Volatility, Draft Capital, Team Context
+// 4. Light scarcity bonus for elite tiers only
+// 5. Blend 50/50 with KTC consensus value
 
 // ============================================================================
 // TYPES AND INTERFACES
@@ -87,12 +95,37 @@ export interface DynastyValue {
   team: string;
   value: number; // 0-100 scale with 2 decimals
   rawVOR: number;
+  weightedVOR: number; // Multi-year weighted VOR
   fantasyPoints: number;
+  // All multipliers applied
   ageMultiplier: number;
+  roleSecurityMultiplier: number;
   injuryMultiplier: number;
+  productionCeilingMultiplier: number;
+  volatilityMultiplier: number;
+  draftCapitalMultiplier: number;
+  teamContextMultiplier: number;
   scarcityBonus: number;
-  productionMultiplier: number; // Bonus for elite performers
   tier: number;
+}
+
+// Extended player info for multiplier calculations
+export interface PlayerExtendedInfo {
+  playerId: string;
+  name: string;
+  position: string;
+  team: string;
+  age: number | null;
+  yearsExp: number;
+  injuryStatus: string | null;
+  snapPct: number | null; // Snap share percentage
+  depthChartOrder: number | null;
+  draftRound: number | null; // NFL draft round
+  gamesPlayed: number; // Games played this season
+  weeklyScores: number[]; // Weekly fantasy scores for volatility
+  // Historical injury data
+  gamesPlayedLast3Years: number;
+  maxPossibleGames: number; // 51 games over 3 years
 }
 
 export interface DraftPickValue {
@@ -107,16 +140,18 @@ export interface DraftPickValue {
 // ============================================================================
 
 const AGE_CURVES: Record<string, { peak: [number, number]; decay: number }> = {
-  QB: { peak: [25, 32], decay: 0.03 }, // Slow decay
-  RB: { peak: [22, 27], decay: 0.05 }, // Extended peak to 27, reduced decay from 0.08 to 0.05
-  WR: { peak: [24, 29], decay: 0.04 }, // Extended peak to 29, reduced decay
-  TE: { peak: [25, 30], decay: 0.04 }, // Extended peak to 30
+  QB: { peak: [25, 32], decay: 0.03 }, // Slow decay - 3% per year after peak
+  RB: { peak: [22, 27], decay: 0.05 }, // Faster decay - 5% per year after peak
+  WR: { peak: [24, 29], decay: 0.04 }, // Moderate decay - 4% per year
+  TE: { peak: [25, 30], decay: 0.04 }, // Moderate decay - 4% per year
   // IDP positions
   DL: { peak: [24, 30], decay: 0.05 }, // Defensive linemen peak mid-20s to 30
   LB: { peak: [24, 29], decay: 0.05 }, // Linebackers similar to WRs
-  DB: { peak: [23, 28], decay: 0.06 }, // Defensive backs decline a bit faster (speed-dependent)
+  DB: { peak: [23, 28], decay: 0.06 }, // Defensive backs decline faster (speed-dependent)
 };
 
+// UPGRADED: Age Multiplier with bounded range 0.65-1.15
+// Young players can get up to 15% bonus, minimum is 65% for old players
 function calculateAgeMultiplier(position: string, age: number | null): number {
   if (!age) return 0.85; // Unknown age penalty
   
@@ -124,124 +159,312 @@ function calculateAgeMultiplier(position: string, age: number | null): number {
   if (!curve) return 1.0;
   
   const [peakStart, peakEnd] = curve.peak;
+  let multiplier = 1.0;
   
   if (age >= peakStart && age <= peakEnd) {
-    return 1.0; // Peak years
+    multiplier = 1.0; // Peak years
   } else if (age < peakStart) {
-    // Young player bonus (approaching peak)
+    // Young player bonus (approaching peak) - up to 15% bonus
     const yearsToGo = peakStart - age;
-    return Math.max(0.7, 1.0 - yearsToGo * 0.02);
+    // More bonus for players closer to peak, max 15%
+    const bonus = Math.min(0.15, yearsToGo * 0.04);
+    multiplier = 1.0 + bonus;
   } else {
-    // Decline phase
+    // Decline phase - apply position-specific decay
     const yearsPastPeak = age - peakEnd;
-    return Math.max(0.2, 1.0 - yearsPastPeak * curve.decay);
+    multiplier = 1.0 - yearsPastPeak * curve.decay;
   }
+  
+  // Clamp to 0.65-1.15 range
+  return Math.max(0.65, Math.min(1.15, multiplier));
 }
 
 // ============================================================================
-// INJURY ADJUSTMENT
+// ROLE SECURITY MULTIPLIER (NEW)
 // ============================================================================
+// Based on snap share, depth chart, and opportunity
+// Elite locked-in starter: 1.10 to 1.15
+// Solid starter: 1.00 to 1.08
+// Committee player: 0.90 to 0.98
+// Backup: 0.75 to 0.88
 
-function calculateInjuryMultiplier(injuryStatus: string | null): number {
-  if (!injuryStatus) return 1.0;
-  
-  const status = injuryStatus.toLowerCase();
-  
-  if (status === "ir" || status === "pup" || status === "out") {
-    return 0.90; // 10% reduction for IR/Out
-  } else if (status === "doubtful") {
-    return 0.95;
-  } else if (status === "questionable" || status === "probable") {
-    return 0.98; // Slight reduction
-  }
-  
-  return 1.0;
-}
-
-// ============================================================================
-// POSITIONAL SCARCITY BONUS
-// ============================================================================
-
-function calculateScarcityBonus(position: string, positionRank: number): number {
-  // Top-tier scarcity bonuses
-  if (position === "QB") {
-    if (positionRank <= 3) return 1.15;
-    if (positionRank <= 8) return 1.08;
-    if (positionRank <= 12) return 1.03;
-  } else if (position === "RB") {
-    if (positionRank <= 5) return 1.12;
-    if (positionRank <= 12) return 1.06;
-    if (positionRank <= 24) return 1.02;
-  } else if (position === "WR") {
-    if (positionRank <= 5) return 1.10;
-    if (positionRank <= 12) return 1.05;
-    if (positionRank <= 24) return 1.02;
-  } else if (position === "TE") {
-    // TE is most scarce - bigger bonuses
-    if (positionRank <= 3) return 1.20;
-    if (positionRank <= 6) return 1.12;
-    if (positionRank <= 12) return 1.05;
-  } else if (position === "DL") {
-    // Edge rushers / sack specialists are valuable in IDP
-    if (positionRank <= 5) return 1.12;
-    if (positionRank <= 12) return 1.06;
-    if (positionRank <= 24) return 1.02;
-  } else if (position === "LB") {
-    // Tackle machine linebackers are very valuable
-    if (positionRank <= 5) return 1.15;
-    if (positionRank <= 12) return 1.08;
-    if (positionRank <= 24) return 1.03;
-  } else if (position === "DB") {
-    // Ball-hawking DBs have value
-    if (positionRank <= 5) return 1.10;
-    if (positionRank <= 12) return 1.05;
-    if (positionRank <= 24) return 1.02;
-  }
-  
-  return 1.0;
-}
-
-// ============================================================================
-// PRODUCTION MULTIPLIER - Rewards elite performers
-// ============================================================================
-
-function calculateProductionMultiplier(position: string, ppg: number, totalPoints: number): number {
-  // Base thresholds by position for "elite" production
-  const eliteThresholds: Record<string, { elitePPG: number; goodPPG: number; eliteTotal: number }> = {
-    QB: { elitePPG: 20, goodPPG: 15, eliteTotal: 300 },
-    RB: { elitePPG: 15, goodPPG: 10, eliteTotal: 200 },
-    WR: { elitePPG: 14, goodPPG: 10, eliteTotal: 200 },
-    TE: { elitePPG: 12, goodPPG: 8, eliteTotal: 150 },
-    DL: { elitePPG: 10, goodPPG: 6, eliteTotal: 120 },
-    LB: { elitePPG: 12, goodPPG: 8, eliteTotal: 150 },
-    DB: { elitePPG: 10, goodPPG: 6, eliteTotal: 120 },
-  };
-  
-  const thresholds = eliteThresholds[position];
-  if (!thresholds) return 1.0;
+function calculateRoleSecurityMultiplier(
+  position: string,
+  snapPct: number | null,
+  depthChartOrder: number | null
+): number {
+  // If no data at all, penalize with below-average value (unknown role = risky)
+  if ((snapPct === null || snapPct === 0) && depthChartOrder === null) return 0.88;
   
   let multiplier = 1.0;
   
-  // PPG-based bonus (proven weekly production)
-  if (ppg >= thresholds.elitePPG) {
-    // Elite producer: 1.25-1.40x bonus based on how far above threshold
-    const excess = (ppg - thresholds.elitePPG) / thresholds.elitePPG;
-    multiplier += 0.25 + Math.min(0.15, excess * 0.3);
-  } else if (ppg >= thresholds.goodPPG) {
-    // Good producer: 1.10-1.25x bonus
-    const ratio = (ppg - thresholds.goodPPG) / (thresholds.elitePPG - thresholds.goodPPG);
-    multiplier += 0.10 + ratio * 0.15;
+  // Snap percentage is primary indicator
+  if (snapPct !== null) {
+    if (snapPct >= 85) {
+      // Elite locked-in starter (85%+ snaps)
+      multiplier = 1.10 + ((snapPct - 85) / 15) * 0.05; // 1.10 to 1.15
+    } else if (snapPct >= 65) {
+      // Solid starter (65-85% snaps)
+      multiplier = 1.00 + ((snapPct - 65) / 20) * 0.08; // 1.00 to 1.08
+    } else if (snapPct >= 40) {
+      // Committee player (40-65% snaps)
+      multiplier = 0.90 + ((snapPct - 40) / 25) * 0.08; // 0.90 to 0.98
+    } else if (snapPct >= 15) {
+      // Backup role (15-40% snaps)
+      multiplier = 0.75 + ((snapPct - 15) / 25) * 0.13; // 0.75 to 0.88
+    } else {
+      // Deep backup or inactive
+      multiplier = 0.65 + (snapPct / 15) * 0.10; // 0.65 to 0.75
+    }
+  } else if (depthChartOrder !== null) {
+    // Use depth chart as fallback
+    if (depthChartOrder === 1) {
+      multiplier = 1.08; // Starter
+    } else if (depthChartOrder === 2) {
+      multiplier = 0.85; // Backup
+    } else {
+      multiplier = 0.70; // Third string or lower
+    }
   }
   
-  // Total points bonus (volume/durability reward)
-  if (totalPoints >= thresholds.eliteTotal) {
-    // Additional 5-10% for high total points (played full season as starter)
-    const excess = (totalPoints - thresholds.eliteTotal) / thresholds.eliteTotal;
-    multiplier += 0.05 + Math.min(0.05, excess * 0.1);
-  }
-  
-  return Math.min(1.50, multiplier); // Cap at 50% bonus max
+  return Math.max(0.65, Math.min(1.15, multiplier));
 }
+
+// ============================================================================
+// INJURY RISK MULTIPLIER (UPGRADED)
+// ============================================================================
+// Combines current injury status AND historical durability
+
+function calculateInjuryMultiplier(
+  injuryStatus: string | null,
+  gamesPlayedLast3Years: number = 51,
+  maxPossibleGames: number = 51
+): number {
+  // Current status multiplier
+  let currentMult = 1.0;
+  if (injuryStatus) {
+    const status = injuryStatus.toLowerCase();
+    if (status === "ir" || status === "pup" || status === "out") {
+      currentMult = 0.90;
+    } else if (status === "doubtful") {
+      currentMult = 0.95;
+    } else if (status === "questionable" || status === "probable") {
+      currentMult = 0.98;
+    }
+  }
+  
+  // Historical durability multiplier (0.93-1.00 range per spec)
+  let historyMult = 1.0;
+  if (maxPossibleGames > 0) {
+    const durabilityRatio = gamesPlayedLast3Years / maxPossibleGames;
+    if (durabilityRatio >= 0.90) {
+      historyMult = 1.0; // Durable - played 90%+ of games
+    } else if (durabilityRatio >= 0.75) {
+      historyMult = 0.98; // Slight injury history
+    } else if (durabilityRatio >= 0.50) {
+      historyMult = 0.95; // Moderate injuries
+    } else {
+      historyMult = 0.93; // Injury prone (floor per spec)
+    }
+  }
+  
+  // Multiply both together
+  return currentMult * historyMult;
+}
+
+// ============================================================================
+// PRODUCTION CEILING MULTIPLIER (UPGRADED)
+// ============================================================================
+// Based on weekly fantasy points per game percentile
+// Top 5% at position: 1.40 to 1.50
+// Top 15%: 1.20 to 1.30
+// Top 30%: 1.05 to 1.15
+// All others: 1.00
+
+function calculateProductionCeilingMultiplier(
+  position: string,
+  ppg: number,
+  positionRank: number,
+  totalPlayersAtPosition: number
+): number {
+  if (totalPlayersAtPosition === 0) return 1.0;
+  
+  const percentile = (positionRank / totalPlayersAtPosition) * 100;
+  
+  if (percentile <= 5) {
+    // Top 5% - elite tier (1.40 to 1.50)
+    const withinTier = percentile / 5; // 0 to 1 within this tier
+    return 1.50 - withinTier * 0.10;
+  } else if (percentile <= 15) {
+    // Top 15% - star tier (1.20 to 1.30)
+    const withinTier = (percentile - 5) / 10;
+    return 1.30 - withinTier * 0.10;
+  } else if (percentile <= 30) {
+    // Top 30% - starter tier (1.05 to 1.15)
+    const withinTier = (percentile - 15) / 15;
+    return 1.15 - withinTier * 0.10;
+  }
+  
+  // Below top 30% - no bonus
+  return 1.0;
+}
+
+// ============================================================================
+// VOLATILITY MULTIPLIER (NEW)
+// ============================================================================
+// Based on weekly consistency - consistent producers get bonus, boom/bust get penalty
+// Consistent producers: 1.03 to 1.08
+// Average volatility: 1.00
+// Boom/bust players: 0.90 to 0.97
+
+function calculateVolatilityMultiplier(weeklyScores: number[]): number {
+  if (!weeklyScores || weeklyScores.length < 3) return 1.0;
+  
+  // Calculate standard deviation of weekly scores
+  const mean = weeklyScores.reduce((a, b) => a + b, 0) / weeklyScores.length;
+  const variance = weeklyScores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / weeklyScores.length;
+  const stdDev = Math.sqrt(variance);
+  
+  // Coefficient of variation (CV) = stdDev / mean
+  // Lower CV = more consistent
+  const cv = mean > 0 ? stdDev / mean : 1;
+  
+  if (cv <= 0.20) {
+    // Very consistent (CV <= 20%) - 1.05 to 1.08
+    return 1.05 + (0.20 - cv) * 0.15;
+  } else if (cv <= 0.35) {
+    // Consistent (CV 20-35%) - 1.03 to 1.05
+    return 1.03 + (0.35 - cv) / 0.15 * 0.02;
+  } else if (cv <= 0.50) {
+    // Average volatility - 1.00
+    return 1.0;
+  } else if (cv <= 0.70) {
+    // Boom/bust (CV 50-70%) - 0.95 to 0.97
+    return 0.97 - (cv - 0.50) / 0.20 * 0.02;
+  } else {
+    // High boom/bust (CV > 70%) - 0.90 to 0.95
+    return Math.max(0.90, 0.95 - (cv - 0.70) * 0.25);
+  }
+}
+
+// ============================================================================
+// DRAFT CAPITAL MULTIPLIER (NEW)
+// ============================================================================
+// For players under 4 years in league, based on NFL draft round
+// Round 1: 1.15, Round 2: 1.08, Round 3: 1.02, Day 3: 0.90, Undrafted: 0.85
+// Reduces by about 3% for each season played, floors at 1.00 once established
+
+function calculateDraftCapitalMultiplier(
+  draftRound: number | null,
+  yearsExp: number
+): number {
+  // Only applies to players under 4 years experience
+  if (yearsExp >= 4) return 1.0;
+  
+  // Get base multiplier from draft round
+  let baseMult: number;
+  if (draftRound === null || draftRound === 0) {
+    baseMult = 0.85; // Undrafted
+  } else if (draftRound === 1) {
+    baseMult = 1.15;
+  } else if (draftRound === 2) {
+    baseMult = 1.08;
+  } else if (draftRound === 3) {
+    baseMult = 1.02;
+  } else {
+    baseMult = 0.90; // Day 3 (rounds 4-7)
+  }
+  
+  // Reduce bonus by 3% per year of experience
+  const yearlyDecay = yearsExp * 0.03;
+  let adjustedMult = baseMult - yearlyDecay;
+  
+  // Floor at 1.00 for positive draft capital (don't let it become penalty once established)
+  if (baseMult > 1.0) {
+    adjustedMult = Math.max(1.0, adjustedMult);
+  }
+  
+  // Clamp to spec bounds (0.85-1.15)
+  return Math.max(0.85, Math.min(1.15, adjustedMult));
+}
+
+// ============================================================================
+// TEAM CONTEXT MULTIPLIER (NEW)
+// ============================================================================
+// Based on offensive strength/team environment
+// Top 5 offense: 1.05 to 1.08
+// Top 15 offense: 1.02 to 1.04
+// Bottom 10 offense: 0.95 to 0.98
+
+// 2025 Offensive Rankings (based on total offensive production)
+const TEAM_OFFENSIVE_RANKINGS: Record<string, number> = {
+  // Top 5 offenses
+  "DET": 1, "SF": 2, "BAL": 3, "BUF": 4, "MIA": 5,
+  // Top 15 offenses
+  "KC": 6, "DAL": 7, "PHI": 8, "CIN": 9, "MIN": 10,
+  "LAR": 11, "GB": 12, "HOU": 13, "ATL": 14, "SEA": 15,
+  // Middle of pack
+  "LAC": 16, "TB": 17, "DEN": 18, "ARI": 19, "IND": 20,
+  "WAS": 21, "CHI": 22, "JAX": 23,
+  // Bottom 10 offenses
+  "NO": 24, "LV": 25, "CLE": 26, "PIT": 27, "NYJ": 28,
+  "NYG": 29, "TEN": 30, "NE": 31, "CAR": 32,
+};
+
+function calculateTeamContextMultiplier(team: string): number {
+  const rank = TEAM_OFFENSIVE_RANKINGS[team];
+  if (!rank) return 1.0; // Unknown team or FA
+  
+  if (rank <= 5) {
+    // Top 5 offense: 1.05 to 1.08
+    return 1.08 - (rank - 1) * 0.0075;
+  } else if (rank <= 15) {
+    // Top 15 offense: 1.02 to 1.04
+    return 1.04 - (rank - 6) * 0.002;
+  } else if (rank <= 23) {
+    // Middle of pack: 1.00
+    return 1.0;
+  } else {
+    // Bottom 10 offense: 0.95 to 0.98
+    return 0.98 - (rank - 24) * 0.004;
+  }
+}
+
+// ============================================================================
+// POSITIONAL SCARCITY BONUS (LIGHT TOUCH)
+// ============================================================================
+// VOR already accounts for scarcity, so only apply light bonuses for elite tiers
+// Superflex leagues: Top 1-3 QBs get 8-12% boost
+// All leagues: Top 1-3 TEs get 10-15% boost, Top 1-5 RBs in deep leagues get 5-10% boost
+
+function calculateScarcityBonus(
+  position: string,
+  positionRank: number,
+  isSuperflex: boolean = false
+): number {
+  // Light scarcity bonuses - only for elite players at scarce positions
+  
+  if (position === "QB" && isSuperflex) {
+    // Superflex leagues: QB scarcity matters more
+    if (positionRank <= 1) return 1.12;
+    if (positionRank <= 3) return 1.08;
+    // No bonus for QB4+ even in superflex
+  } else if (position === "TE") {
+    // TE is most scarce - bigger bonuses
+    if (positionRank <= 1) return 1.15;
+    if (positionRank <= 3) return 1.10;
+    // No bonus for TE4+
+  } else if (position === "RB") {
+    // RB scarcity in deep leagues
+    if (positionRank <= 3) return 1.10;
+    if (positionRank <= 5) return 1.05;
+    // No bonus for RB6+
+  }
+  // WR and IDP positions don't get scarcity bonus since VOR handles it
+  
+  return 1.0;
+}
+
 
 // ============================================================================
 // DEPTH CHART MULTIPLIER - Adjusts value based on starter/backup status
@@ -571,7 +794,60 @@ export function calculateDevyValue(
 }
 
 // ============================================================================
-// MAIN VALUE CALCULATION ENGINE
+// MULTI-YEAR VOR CALCULATION (NEW)
+// ============================================================================
+// Calculate VOR for next 3 seasons with weighted averaging:
+// Year 1: 50% weight
+// Year 2: 30% weight, discounted by 8%
+// Year 3: 20% weight, discounted by 15%
+
+function calculateMultiYearVOR(
+  year1Points: number,
+  replacementPoints: number,
+  age: number | null,
+  position: string
+): { weightedVOR: number; year1VOR: number; year2VOR: number; year3VOR: number } {
+  const year1VOR = Math.max(0, year1Points - replacementPoints);
+  
+  // Project future years based on age curve
+  const curve = AGE_CURVES[position];
+  let year2Decay = 1.0;
+  let year3Decay = 1.0;
+  
+  if (age && curve) {
+    const [peakStart, peakEnd] = curve.peak;
+    const futureAge2 = age + 1;
+    const futureAge3 = age + 2;
+    
+    // Calculate decay for year 2
+    if (futureAge2 > peakEnd) {
+      year2Decay = Math.max(0.7, 1.0 - (futureAge2 - peakEnd) * curve.decay);
+    }
+    
+    // Calculate decay for year 3
+    if (futureAge3 > peakEnd) {
+      year3Decay = Math.max(0.5, 1.0 - (futureAge3 - peakEnd) * curve.decay);
+    }
+  }
+  
+  // Project future VOR with age decay
+  const year2VOR = year1VOR * year2Decay;
+  const year3VOR = year1VOR * year3Decay;
+  
+  // Apply weighted average with time discounts
+  // Year 1: 50% weight
+  // Year 2: 30% weight, discounted by 8%
+  // Year 3: 20% weight, discounted by 15%
+  const weightedVOR = 
+    (year1VOR * 0.50) + 
+    (year2VOR * 0.30 * 0.92) + // 8% discount
+    (year3VOR * 0.20 * 0.85);  // 15% discount
+  
+  return { weightedVOR, year1VOR, year2VOR, year3VOR };
+}
+
+// ============================================================================
+// MAIN VALUE CALCULATION ENGINE (UPGRADED)
 // ============================================================================
 
 export async function calculateLeagueValues(
@@ -582,6 +858,9 @@ export async function calculateLeagueValues(
 ): Promise<DynastyValue[]> {
   // Get projections for all players
   const projections = await getPlayerProjections(players);
+  
+  // Detect if this is a superflex league
+  const isSuperflex = rosterSettings.superflexSlots > 0 || rosterSettings.qbSlots >= 2;
   
   // Calculate replacement level for each position (including IDP if applicable)
   const replacementLevels: Record<string, number> = {
@@ -599,15 +878,17 @@ export async function calculateLeagueValues(
   }
   
   // Calculate fantasy points for each player (including position-specific bonuses)
-  const playerPoints: { player: PlayerProjection; points: number }[] = [];
+  const playerPoints: { player: PlayerProjection; points: number; originalPlayer: any }[] = [];
   
-  for (const proj of projections) {
+  for (let i = 0; i < projections.length; i++) {
+    const proj = projections[i];
+    const originalPlayer = players[i];
     const points = calculateFantasyPoints(proj.projections, scoringSettings, proj.position);
-    playerPoints.push({ player: proj, points });
+    playerPoints.push({ player: proj, points, originalPlayer });
   }
   
   // Sort by points within each position to get replacement level points
-  const positionGroups: Record<string, { player: PlayerProjection; points: number }[]> = {
+  const positionGroups: Record<string, { player: PlayerProjection; points: number; originalPlayer: any }[]> = {
     QB: [],
     RB: [],
     WR: [],
@@ -642,68 +923,124 @@ export async function calculateLeagueValues(
   const replacementPoints: Record<string, number> = {};
   for (const pos of Object.keys(positionGroups)) {
     const replRank = replacementLevels[pos];
-    const players = positionGroups[pos];
-    if (players.length >= replRank) {
-      replacementPoints[pos] = players[replRank - 1].points;
-    } else if (players.length > 0) {
-      replacementPoints[pos] = players[players.length - 1].points * 0.8;
+    const playersAtPos = positionGroups[pos];
+    if (playersAtPos.length >= replRank) {
+      replacementPoints[pos] = playersAtPos[replRank - 1].points;
+    } else if (playersAtPos.length > 0) {
+      replacementPoints[pos] = playersAtPos[playersAtPos.length - 1].points * 0.8;
     } else {
       replacementPoints[pos] = 0;
     }
   }
   
-  // Calculate VOR for each player
+  // Calculate values for each player with all multipliers
   const dynastyValues: DynastyValue[] = [];
   
   for (const pp of playerPoints) {
-    const { player, points } = pp;
+    const { player, points, originalPlayer } = pp;
     const originalPos = player.position;
     
     // Normalize IDP positions to their group for VOR calculation
     const idpGroup = getIDPPositionGroup(originalPos);
     const groupPos = (idpGroup && positionGroups[idpGroup]) ? idpGroup : originalPos;
     
-    // Get position rank
+    // Get position rank and total players at position
     const positionRank = positionGroups[groupPos]?.findIndex(p => p.player.playerId === player.playerId) + 1 || 999;
+    const totalPlayersAtPosition = positionGroups[groupPos]?.length || 1;
     
-    // Calculate raw VOR
+    // STEP 1: Calculate Multi-Year Weighted VOR
     const replPoints = replacementPoints[groupPos] || 0;
-    const rawVOR = Math.max(0, points - replPoints);
+    const { weightedVOR, year1VOR } = calculateMultiYearVOR(
+      points, replPoints, player.age, groupPos
+    );
     
     // Calculate estimated PPG (assuming 17-game season for projections)
     const estimatedPPG = points / 17;
     
-    // Apply dynasty adjustments (use group position for age curves)
-    const ageMultiplier = calculateAgeMultiplier(groupPos, player.age);
-    const injuryMultiplier = calculateInjuryMultiplier(player.injuryStatus);
-    const scarcityBonus = calculateScarcityBonus(groupPos, positionRank);
-    const productionMultiplier = calculateProductionMultiplier(groupPos, estimatedPPG, points);
+    // STEP 2 & MULTIPLIERS: Get all multipliers
     
-    // Final adjusted VOR - production multiplier rewards elite performers
-    const adjustedVOR = rawVOR * ageMultiplier * injuryMultiplier * scarcityBonus * productionMultiplier;
+    // 1. Age Multiplier (0.65 to 1.15)
+    const ageMultiplier = calculateAgeMultiplier(groupPos, player.age);
+    
+    // 2. Role Security Multiplier (0.65 to 1.15)
+    const snapPct = originalPlayer?.snap_pct || originalPlayer?.snapPct || null;
+    const depthOrder = originalPlayer?.depth_chart_order || originalPlayer?.depthChartOrder || null;
+    const roleSecurityMultiplier = calculateRoleSecurityMultiplier(groupPos, snapPct, depthOrder);
+    
+    // 3. Injury Multiplier (combines current status + historical)
+    const gamesLast3 = originalPlayer?.games_played_last_3_years || 51;
+    const maxGames = originalPlayer?.max_possible_games || 51;
+    const injuryMultiplier = calculateInjuryMultiplier(player.injuryStatus, gamesLast3, maxGames);
+    
+    // 4. Production Ceiling Multiplier (1.00 to 1.50)
+    const productionCeilingMultiplier = calculateProductionCeilingMultiplier(
+      groupPos, estimatedPPG, positionRank, totalPlayersAtPosition
+    );
+    
+    // 5. Volatility Multiplier (0.90 to 1.08)
+    const weeklyScores = originalPlayer?.weekly_scores || originalPlayer?.weeklyScores || [];
+    const volatilityMultiplier = calculateVolatilityMultiplier(weeklyScores);
+    
+    // 6. Draft Capital Multiplier (0.85 to 1.15 for young players)
+    const draftRound = originalPlayer?.draft_round || originalPlayer?.draftRound || null;
+    const draftCapitalMultiplier = calculateDraftCapitalMultiplier(draftRound, player.yearsExp);
+    
+    // 7. Team Context Multiplier (0.95 to 1.08)
+    const teamContextMultiplier = calculateTeamContextMultiplier(player.team);
+    
+    // STEP 3: Light Scarcity Bonus (only for elite tiers)
+    const scarcityBonus = calculateScarcityBonus(groupPos, positionRank, isSuperflex);
+    
+    // Apply all multipliers to weighted VOR
+    const adjustedVOR = weightedVOR * 
+      ageMultiplier * 
+      roleSecurityMultiplier * 
+      injuryMultiplier * 
+      productionCeilingMultiplier * 
+      volatilityMultiplier * 
+      draftCapitalMultiplier * 
+      teamContextMultiplier * 
+      scarcityBonus;
     
     dynastyValues.push({
       playerId: player.playerId,
       name: player.name,
-      position: groupPos, // Use group position for display
+      position: groupPos,
       team: player.team,
       value: 0, // Will normalize later
-      rawVOR: adjustedVOR,
+      rawVOR: year1VOR,
+      weightedVOR: weightedVOR,
       fantasyPoints: points,
       ageMultiplier,
+      roleSecurityMultiplier,
       injuryMultiplier,
+      productionCeilingMultiplier,
+      volatilityMultiplier,
+      draftCapitalMultiplier,
+      teamContextMultiplier,
       scarcityBonus,
-      productionMultiplier,
       tier: 0, // Will calculate later
     });
   }
   
-  // Normalize to 0-100 scale
-  const maxVOR = Math.max(...dynastyValues.map(v => v.rawVOR), 1);
+  // STEP 2 continued: Normalize to 0-100 scale (Base Dynasty Value)
+  const maxVOR = Math.max(...dynastyValues.map(v => v.weightedVOR * 
+    v.ageMultiplier * v.roleSecurityMultiplier * v.injuryMultiplier * 
+    v.productionCeilingMultiplier * v.volatilityMultiplier * 
+    v.draftCapitalMultiplier * v.teamContextMultiplier * v.scarcityBonus), 1);
   
   for (const dv of dynastyValues) {
+    // Calculate final adjusted value
+    const adjustedValue = dv.weightedVOR * 
+      dv.ageMultiplier * dv.roleSecurityMultiplier * dv.injuryMultiplier * 
+      dv.productionCeilingMultiplier * dv.volatilityMultiplier * 
+      dv.draftCapitalMultiplier * dv.teamContextMultiplier * dv.scarcityBonus;
+    
     // Normalize to 0-100
-    let normalizedValue = (dv.rawVOR / maxVOR) * 100;
+    let normalizedValue = (adjustedValue / maxVOR) * 100;
+    
+    // STEP 6: Clamp to 1-100 range
+    normalizedValue = Math.max(1, Math.min(100, normalizedValue));
     
     // Round to 2 decimal places
     normalizedValue = Math.round(normalizedValue * 100) / 100;
@@ -1209,8 +1546,17 @@ export function getQuickPlayerValue(
       ? actualStats.ppg 
       : (actualStats.games && actualStats.games > 0 ? totalPoints / actualStats.games : 0);
     
-    const productionMultiplier = calculateProductionMultiplier(groupPos, ppg, totalPoints);
-    value *= productionMultiplier;
+    // Simplified production multiplier for quick value calculation
+    // Elite producers (top tier PPG) get bonus, low producers get penalty
+    const eliteThresholds: Record<string, number> = { QB: 20, RB: 15, WR: 14, TE: 12, DL: 10, LB: 12, DB: 10 };
+    const elitePPG = eliteThresholds[groupPos] || 12;
+    let productionMultiplier = 1.0;
+    if (ppg >= elitePPG) {
+      productionMultiplier = 1.25 + Math.min(0.25, (ppg - elitePPG) / elitePPG * 0.5);
+    } else if (ppg >= elitePPG * 0.6) {
+      productionMultiplier = 1.0 + ((ppg - elitePPG * 0.6) / (elitePPG * 0.4)) * 0.25;
+    }
+    value *= Math.min(1.50, productionMultiplier);
   } else if (!depthChartOrder || depthChartOrder <= 0) {
     // No actual stats AND no depth chart - add small variance based on player ID
     const hash = playerId.split("").reduce((a, b) => {

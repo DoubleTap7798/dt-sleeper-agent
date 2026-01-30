@@ -100,17 +100,37 @@ The Sleeper API returns two different season values in `/state/nfl`:
 
 When fetching user leagues, the app uses `league_season` to ensure newly rolled-over dynasty leagues appear correctly. This is important during the NFL offseason when leagues transfer to the new year while the NFL season technically hasn't ended.
 
-### Dynasty Value Engine
+### Dynasty Value Engine (Upgraded Algorithm)
 The custom dynasty value engine (`server/dynasty-value-engine.ts`) calculates player values on a 0-100 scale with 2 decimal precision:
-- **Blended Values**: All endpoints display 50/50 average of league-specific value + KTC consensus value (from DynastyProcess)
-- **KTC Normalization**: Raw KTC values are normalized to 0-100 scale (rawValue × 0.01, capped at 99.5)
-- **Value Over Replacement (VOR)**: Position-based replacement levels calculated from roster settings
-- **Age Curves by Position**: QB peaks 25-32 (slow decay), RB peaks 22-26 (fast decay), WR peaks 24-28, TE peaks 25-29
-- **Injury Adjustments**: IR/Out = 0.90, Doubtful = 0.95, Questionable = 0.98 multipliers
-- **Draft Pick Values**: 1st = 80, 2nd = 55, 3rd = 35, 4th = 18 base values with ~10% year decay
-- **Devy Prospect Values**: Based on tier (1-5) and draft year proximity
-- **Normalization**: All values normalized to 0-100 scale for consistent display
-- **Consistent Display**: Dynasty values are now consistent across Trade Calculator, Roster, NFL Players, Trade History, and Player Comparison views
+
+**Step 1 - Multi-Year VOR**:
+- Year 1 VOR: 50% weight
+- Year 2 VOR: 30% weight, discounted by 8%
+- Year 3 VOR: 20% weight, discounted by 15%
+- Creates a weighted VOR score that values dynasty longevity
+
+**Step 2 - Base Value**: Normalize weighted VOR to 0-100 scale relative to top player
+
+**Multipliers Applied to Base Value**:
+1. **Age Multiplier (0.65-1.15)**: Position-specific peak years with up to 15% youth bonus
+   - QB peaks 25-32 (3% decay), RB peaks 22-27 (5% decay), WR peaks 24-29 (4% decay), TE peaks 25-30 (4% decay)
+2. **Role Security (0.65-1.15)**: Based on snap share and depth chart
+   - Elite starter (85%+ snaps): 1.10-1.15, Solid starter: 1.00-1.08, Committee: 0.90-0.98, Backup: 0.75-0.88
+3. **Injury Risk**: Combines current status (IR=0.90, Doubtful=0.95, Questionable=0.98) × historical durability (0.93-1.00)
+4. **Production Ceiling (1.00-1.50)**: PPG percentile-based (Top 5%: 1.40-1.50, Top 15%: 1.20-1.30, Top 30%: 1.05-1.15)
+5. **Volatility (0.90-1.08)**: Weekly consistency bonus/penalty based on coefficient of variation
+6. **Draft Capital (0.85-1.15)**: For players under 4 years - Rd1=1.15, Rd2=1.08, Rd3=1.02, Day3=0.90, UDFA=0.85 (decays 3%/year)
+7. **Team Context (0.95-1.08)**: Offensive strength factor (Top 5 offense: 1.05-1.08, Bottom 10: 0.95-0.98)
+
+**Light Scarcity Bonus** (only elite tiers since VOR handles scarcity):
+- Superflex: Top 3 QBs get 8-12% boost
+- All leagues: Top 3 TEs get 10-15% boost, Top 5 RBs get 5-10% boost
+
+**Market Calibration**: 50% calculated value + 50% KTC consensus value
+
+**Draft Pick Values**: 1st = 80, 2nd = 55, 3rd = 35, 4th = 18 base values with ~10% year decay
+
+**Final Scaling**: All values clamped between 1-100
 
 ### Database
 - **PostgreSQL**: Primary database, connection via `DATABASE_URL` environment variable
