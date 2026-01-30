@@ -322,14 +322,14 @@ export default function PlayersPage() {
         />
       </div>
 
-      <div className="flex items-center gap-1 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {allTabs.map((tab) => (
           <Button
             key={tab}
-            variant={positionFilter === tab ? "default" : "outline"}
+            variant={positionFilter === tab ? "default" : "ghost"}
             size="sm"
             onClick={() => setPositionFilter(tab)}
-            className="shrink-0"
+            className={`shrink-0 glass ${positionFilter === tab ? "glass-active" : ""}`}
             data-testid={`tab-position-${tab.toLowerCase()}`}
           >
             {tab}
@@ -360,11 +360,11 @@ export default function PlayersPage() {
                   </span>
                   <Avatar className="h-10 w-10" data-testid={`avatar-${player.id}`}>
                     <AvatarImage 
-                      src={player.headshot || getNFLTeamLogo(player.team) || undefined} 
-                      alt={player.fullName}
+                      src={getNFLTeamLogo(player.team) || undefined} 
+                      alt={player.team}
                     />
                     <AvatarFallback className="text-xs bg-muted">
-                      {player.fullName.split(" ").map(n => n[0]).join("")}
+                      {player.team}
                     </AvatarFallback>
                   </Avatar>
                 </div>

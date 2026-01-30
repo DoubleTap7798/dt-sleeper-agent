@@ -3982,6 +3982,152 @@ Return JSON: {"players": [{...}]}`;
     }
   });
 
+  // Matchup-based projections for a specific league
+  app.get("/api/fantasy/matchup-projections", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.query;
+      if (!leagueId) {
+        return res.status(400).json({ message: "League ID required" });
+      }
+
+      const userId = req.user.claims.sub;
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "No Sleeper account linked" });
+      }
+
+      const [league, state, allPlayers] = await Promise.all([
+        sleeperApi.getLeague(leagueId as string),
+        sleeperApi.getState(),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      const currentWeek = state?.week || 1;
+      const currentSeason = state?.season || new Date().getFullYear().toString();
+
+      // Get league rosters and user's roster
+      const rosters = await sleeperApi.getLeagueRosters(leagueId as string);
+      const userRoster = rosters.find((r: any) => r.owner_id === userProfile.sleeperUserId);
+      
+      if (!userRoster) {
+        return res.status(404).json({ message: "User roster not found" });
+      }
+
+      // Get matchups for current week
+      const matchups = await sleeperApi.getMatchups(leagueId as string, currentWeek);
+      const userMatchup = matchups.find((m: any) => m.roster_id === userRoster.roster_id);
+      const opponentMatchup = userMatchup ? matchups.find((m: any) => 
+        m.matchup_id === userMatchup.matchup_id && m.roster_id !== userRoster.roster_id
+      ) : null;
+
+      // Get opponent team name
+      const leagueUsers = await sleeperApi.getLeagueUsers(leagueId as string);
+      let opponentName = "Unknown Opponent";
+      if (opponentMatchup) {
+        const opponentRoster = rosters.find((r: any) => r.roster_id === opponentMatchup.roster_id);
+        const opponentUser = leagueUsers.find((u: any) => u.user_id === opponentRoster?.owner_id);
+        opponentName = opponentUser?.metadata?.team_name || opponentUser?.display_name || "Opponent";
+      }
+
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+
+      // Get league scoring settings
+      const scoringSettings = league.scoring_settings || {};
+      const scoringType = scoringSettings.rec === 1 ? "PPR" : scoringSettings.rec === 0.5 ? "Half PPR" : "Standard";
+
+      // Build player list from user's roster
+      const rosterPlayers = (userRoster.players || [])
+        .map((playerId: string) => {
+          const p = allPlayers[playerId];
+          if (!p || !["QB", "RB", "WR", "TE", "K", "DEF"].includes(p.position)) return null;
+          return {
+            id: playerId,
+            name: p.full_name || `${p.first_name} ${p.last_name}`,
+            position: p.position,
+            team: p.team || "FA",
+            age: p.age,
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 20);
+
+      // Get NFL schedule data for home/away info
+      const currentDate = new Date().toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+
+      const projPrompt = `Today is ${currentDate}. Generate Week ${currentWeek} fantasy projections for a ${scoringType} league.
+
+Players on the roster: ${rosterPlayers.map((p: any) => `${p.name} (${p.position}, ${p.team})`).join("; ")}
+
+For each player, analyze their Week ${currentWeek} matchup and provide:
+- opponent: The NFL team they play against (e.g., "@ DAL" for away at Dallas, "vs NYG" for home vs Giants)
+- isHome: true/false
+- gameScript: Brief 1-sentence prediction of game flow that affects their fantasy output
+- projectedPoints: Expected fantasy points in ${scoringType} scoring
+- floor: Worst-case scenario points (10th percentile outcome)
+- ceiling: Best-case scenario points (90th percentile outcome)
+- confidence: 50-95 based on matchup certainty
+- keyMatchup: Brief note about key defensive matchup (e.g., "faces elite pass rush" or "targets slot corner weakness")
+- startSitAdvice: "Start", "Sit", or "Flex" recommendation with 5-word reason
+
+Base projections on ${scoringType} scoring: ${scoringSettings.rec || 1} PPR, ${scoringSettings.pass_yd || 0.04} pts/pass yard, ${scoringSettings.rush_yd || 0.1} pts/rush yard.
+
+Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome, gameScript, projectedPoints, floor, ceiling, confidence, keyMatchup, startSitAdvice}]}`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: projPrompt }],
+        response_format: { type: "json_object" },
+        max_tokens: 3000,
+      });
+
+      let projData: any = { projections: [] };
+      try {
+        projData = JSON.parse(response.choices[0]?.message?.content || "{}");
+      } catch (e) {
+        projData = { projections: [] };
+      }
+
+      // Merge with player data
+      const projections = (projData.projections || []).map((proj: any, idx: number) => {
+        const player = rosterPlayers[idx];
+        return {
+          playerId: player?.id || `player-${idx}`,
+          name: proj.name || player?.name || "Unknown",
+          position: proj.position || player?.position || "?",
+          team: proj.team || player?.team || "FA",
+          opponent: proj.opponent || "TBD",
+          isHome: proj.isHome ?? true,
+          gameScript: proj.gameScript || "Standard game script expected",
+          projectedPoints: proj.projectedPoints || 10,
+          floor: proj.floor || 5,
+          ceiling: proj.ceiling || 20,
+          confidence: proj.confidence || 70,
+          keyMatchup: proj.keyMatchup || "Average matchup",
+          startSitAdvice: proj.startSitAdvice || "Flex",
+        };
+      });
+
+      res.json({
+        projections,
+        week: currentWeek,
+        season: currentSeason,
+        scoringType,
+        opponent: opponentName,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error generating matchup projections:", error);
+      res.status(500).json({ message: "Failed to generate projections" });
+    }
+  });
+
   // League Summary - Overall stats across leagues including ALL historical seasons
   // Cache for career summary data (keyed by sleeper user ID)
   const careerSummaryCache = new Map<string, { data: any; timestamp: number }>();

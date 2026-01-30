@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TrendingUp, TrendingDown, Minus, Search, BarChart3, Activity, UserPlus, UserMinus } from "lucide-react";
+import { getNFLTeamLogo } from "@/lib/team-logos";
 
 interface SeasonStats {
   season: string;
@@ -163,32 +164,32 @@ export default function PlayerTrendsPage() {
         <h1 className="text-xl font-bold" data-testid="text-page-title">Player Trends</h1>
       </div>
 
-      <div className="flex items-center gap-1 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
         <Button
-          variant={activeTab === "added" ? "default" : "outline"}
+          variant={activeTab === "added" ? "default" : "ghost"}
           size="sm"
           onClick={() => setActiveTab("added")}
-          className="shrink-0"
+          className={`shrink-0 glass ${activeTab === "added" ? "glass-active" : ""}`}
           data-testid="tab-most-added"
         >
           <UserPlus className="h-4 w-4 mr-1" />
           Most Added
         </Button>
         <Button
-          variant={activeTab === "dropped" ? "default" : "outline"}
+          variant={activeTab === "dropped" ? "default" : "ghost"}
           size="sm"
           onClick={() => setActiveTab("dropped")}
-          className="shrink-0"
+          className={`shrink-0 glass ${activeTab === "dropped" ? "glass-active" : ""}`}
           data-testid="tab-most-dropped"
         >
           <UserMinus className="h-4 w-4 mr-1" />
           Most Dropped
         </Button>
         <Button
-          variant={activeTab === "career" ? "default" : "outline"}
+          variant={activeTab === "career" ? "default" : "ghost"}
           size="sm"
           onClick={() => setActiveTab("career")}
-          className="shrink-0"
+          className={`shrink-0 glass ${activeTab === "career" ? "glass-active" : ""}`}
           data-testid="tab-career-trends"
         >
           <BarChart3 className="h-4 w-4 mr-1" />
@@ -325,8 +326,8 @@ export default function PlayerTrendsPage() {
                     </div>
                     
                     <Avatar className="h-10 w-10">
-                      <AvatarImage src={player.headshot || undefined} alt={player.name} />
-                      <AvatarFallback className="text-xs">{getInitials(player.name)}</AvatarFallback>
+                      <AvatarImage src={getNFLTeamLogo(player.team) || undefined} alt={player.team} />
+                      <AvatarFallback className="text-xs">{player.team}</AvatarFallback>
                     </Avatar>
                     
                     <div className="flex-1 min-w-0">

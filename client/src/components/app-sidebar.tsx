@@ -148,8 +148,8 @@ const navigationItems = [
     title: "Projections",
     url: "/league/projections",
     icon: BarChart3,
-    description: "ROS projections & outlooks",
-    requiresLeague: false,
+    description: "Matchup-based fantasy projections",
+    requiresLeague: true,
   },
   {
     title: "Devy Rankings",
