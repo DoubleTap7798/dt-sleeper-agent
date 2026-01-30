@@ -3462,86 +3462,84 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
     }
   });
 
-  // Player Trends - Multi-season analysis
-  app.get("/api/fantasy/trends", isAuthenticated, async (req: any, res: Response) => {
+  // Player Trends - Multi-season analysis (no auth required - public player data)
+  app.get("/api/fantasy/trends", async (req: any, res: Response) => {
     try {
-      const { leagueId } = req.query;
-      const [allPlayers, state] = await Promise.all([
-        sleeperApi.getAllPlayers(),
-        sleeperApi.getState(),
-      ]);
+      const allPlayers = await sleeperApi.getAllPlayers();
       
-      // Get current date and season context
-      const currentDate = new Date().toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-      const currentSeason = state?.season || new Date().getFullYear().toString();
-      const currentWeek = state?.week || 1;
-      
-      // Get established players with stats
+      // Get established players sorted by search rank (best first)
       const establishedPlayers = Object.entries(allPlayers)
         .filter(([_, p]: [string, any]) => 
           p && ["QB", "RB", "WR", "TE"].includes(p.position) && 
           p.team && p.years_exp && p.years_exp >= 2 &&
-          p.search_rank && p.search_rank < 150
+          p.search_rank && p.search_rank < 200
         )
         .map(([id, p]: [string, any]) => ({ id, ...p }))
-        .slice(0, 40);
-
-      const trendsPrompt = `Today is ${currentDate}. We are in Week ${currentWeek} of the ${currentSeason} NFL season.
-
-Analyze multi-season trends for these NFL players and provide career trajectory analysis through the current point in the ${currentSeason} season.
-
-Players: ${establishedPlayers.map(p => `${p.full_name} (${p.position}, ${p.team}, age ${p.age || "?"}, ${p.years_exp} years exp)`).join("; ")}
-
-For each player provide:
-- trend: "up" (improving), "down" (declining), or "stable" - based on their ${currentSeason} performance so far
-- avgPpg: average PPG over career (realistic number based on position)
-- careerHigh: best season PPG
-- careerLow: worst season PPG  
-- trajectory: 1-2 sentence analysis of their career arc including current season performance
-- seasons: array of 3 most recent seasons with {season: "${currentSeason}", games: X, points: Y, ppg: Z, rank: N, positionRank: M}
-
-Return JSON: {"players": [{playerId, name, position, team, age, trend, avgPpg, careerHigh, careerLow, trajectory, seasons}]}`;
-
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: trendsPrompt }],
-        response_format: { type: "json_object" },
-        max_tokens: 3000,
-      });
-
-      let trendData: any = { players: [] };
-      try {
-        const content = response.choices[0]?.message?.content || "{}";
-        const parsed = JSON.parse(content);
-        // Handle various response formats
-        trendData = { 
-          players: parsed.players || Object.values(parsed).find(v => Array.isArray(v)) || [] 
-        };
-      } catch (e) {
-        console.error("Error parsing trends response:", e);
-        trendData = { players: [] };
-      }
-
-      // Merge with player data
-      const players = (trendData.players || []).map((trend: any, idx: number) => {
-        const player = establishedPlayers[idx];
+        .sort((a, b) => (a.search_rank || 999) - (b.search_rank || 999))
+        .slice(0, 50);
+      
+      // Calculate trends based on age and position curves
+      const getPositionPeakAge = (pos: string) => {
+        switch (pos) {
+          case "QB": return { peak: 28, decline: 35 };
+          case "RB": return { peak: 25, decline: 28 };
+          case "WR": return { peak: 26, decline: 30 };
+          case "TE": return { peak: 27, decline: 31 };
+          default: return { peak: 27, decline: 30 };
+        }
+      };
+      
+      const getBasePpg = (pos: string) => {
+        switch (pos) {
+          case "QB": return { avg: 18, high: 25, low: 12 };
+          case "RB": return { avg: 12, high: 20, low: 6 };
+          case "WR": return { avg: 14, high: 22, low: 8 };
+          case "TE": return { avg: 10, high: 16, low: 5 };
+          default: return { avg: 10, high: 15, low: 5 };
+        }
+      };
+      
+      const players = establishedPlayers.map((p, idx) => {
+        const age = p.age || 25;
+        const { peak, decline } = getPositionPeakAge(p.position);
+        const basePpg = getBasePpg(p.position);
+        
+        // Determine trend based on age relative to position peak
+        let trend: "up" | "down" | "stable" = "stable";
+        let trajectory = "";
+        
+        if (age < peak - 1) {
+          trend = "up";
+          trajectory = `${p.full_name} is entering prime years at age ${age}. Expect continued development.`;
+        } else if (age > decline) {
+          trend = "down";
+          trajectory = `At ${age}, ${p.full_name} is past typical ${p.position} peak. May see gradual decline.`;
+        } else if (age >= peak - 1 && age <= peak + 2) {
+          trend = "stable";
+          trajectory = `${p.full_name} is in prime years at age ${age}. Peak production expected.`;
+        } else {
+          trend = "stable";
+          trajectory = `${p.full_name} remains a consistent performer entering year ${p.years_exp + 1}.`;
+        }
+        
+        // Adjust PPG based on search rank (better rank = higher production)
+        const rankMultiplier = Math.max(0.5, 1 - (p.search_rank || 100) / 400);
+        const avgPpg = Math.round((basePpg.avg * rankMultiplier + basePpg.avg) / 2 * 10) / 10;
+        const careerHigh = Math.round((basePpg.high * rankMultiplier + basePpg.high) / 2 * 10) / 10;
+        const careerLow = Math.round(basePpg.low * 10) / 10;
+        
         return {
-          playerId: player?.id || `player-${idx}`,
-          name: trend.name || player?.full_name || "Unknown",
-          position: trend.position || player?.position || "?",
-          team: trend.team || player?.team || "FA",
-          age: trend.age || player?.age || 25,
-          trend: trend.trend || "stable",
-          avgPpg: trend.avgPpg || 10,
-          careerHigh: trend.careerHigh || 15,
-          careerLow: trend.careerLow || 5,
-          trajectory: trend.trajectory || "Consistent performer",
-          seasons: trend.seasons || [],
+          playerId: p.id,
+          name: p.full_name || "Unknown",
+          position: p.position || "?",
+          team: p.team || "FA",
+          age,
+          trend,
+          avgPpg,
+          careerHigh,
+          careerLow,
+          trajectory,
+          seasons: [], // Would need historical data for actual seasons
         };
       });
 
