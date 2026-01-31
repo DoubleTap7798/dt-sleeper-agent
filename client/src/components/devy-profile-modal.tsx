@@ -101,6 +101,12 @@ interface DevyProfileData {
   generatedAt: string;
 }
 
+interface DevyComp {
+  name: string;
+  matchPct: number;
+  wasSuccess: boolean;
+}
+
 interface DevyProfileModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -113,8 +119,26 @@ interface DevyProfileModalProps {
     draftEligibleYear: number;
     tier: number;
     value: number;
+    trend7Day: number;
     trend30Day: number;
+    seasonChange: number;
     rank: number;
+    starterPct: number;
+    elitePct: number;
+    bustPct: number;
+    top10Pct: number;
+    round1Pct: number;
+    round2PlusPct: number;
+    pickEquivalent: string;
+    pickMultiplier: number;
+    dominatorRating: number;
+    yardShare: number;
+    tdShare: number;
+    breakoutAge: number | null;
+    comps: DevyComp[];
+    depthRole: string;
+    pathContext: string;
+    ageClass: "young-breakout" | "normal" | "old-producer";
   } | null;
 }
 
@@ -182,30 +206,34 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 mt-3">
-            <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-tier">
-              <div className="text-lg font-bold">{player.tier}</div>
-              <div className="text-xs text-muted-foreground">Tier</div>
+          <div className="grid grid-cols-5 gap-2 mt-3">
+            <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-pick-value">
+              <div className="text-lg font-bold text-primary">{player.pickMultiplier.toFixed(1)}x</div>
+              <div className="text-xs text-muted-foreground">Pick Value</div>
             </div>
-            <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-value">
-              <div className="text-lg font-bold">{player.value.toFixed(1)}</div>
-              <div className="text-xs text-muted-foreground">Value</div>
+            <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-elite">
+              <div className="text-lg font-bold text-green-500">{player.elitePct}%</div>
+              <div className="text-xs text-muted-foreground">Elite %</div>
             </div>
-            <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-pos-rank">
-              <div className="text-lg font-bold">{player.position}{player.positionRank}</div>
-              <div className="text-xs text-muted-foreground">Pos Rank</div>
+            <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-bust">
+              <div className="text-lg font-bold text-red-500">{player.bustPct}%</div>
+              <div className="text-xs text-muted-foreground">Bust %</div>
+            </div>
+            <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-round1">
+              <div className="text-lg font-bold">{player.round1Pct}%</div>
+              <div className="text-xs text-muted-foreground">Round 1</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-trend">
               <div className="text-lg font-bold flex items-center justify-center gap-1">
                 {player.trend30Day > 0 ? (
                   <>
-                    <TrendingUp className="h-3 w-3" />
-                    +{player.trend30Day}
+                    <TrendingUp className="h-3 w-3 text-green-500" />
+                    <span className="text-green-500">+{player.trend30Day}</span>
                   </>
                 ) : player.trend30Day < 0 ? (
                   <>
-                    <TrendingDown className="h-3 w-3" />
-                    {player.trend30Day}
+                    <TrendingDown className="h-3 w-3 text-red-500" />
+                    <span className="text-red-500">{player.trend30Day}</span>
                   </>
                 ) : (
                   "-"
@@ -214,6 +242,56 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               <div className="text-xs text-muted-foreground">30-Day</div>
             </div>
           </div>
+          
+          {/* Market Share & Path to Production */}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div className="p-2 bg-primary/10 border border-primary/30 rounded">
+              <div className="text-xs text-muted-foreground mb-1">Market Share</div>
+              <div className="grid grid-cols-3 gap-1 text-xs">
+                <div>
+                  <span className="font-medium">{player.dominatorRating}%</span>
+                  <span className="text-muted-foreground ml-0.5">Dom</span>
+                </div>
+                <div>
+                  <span className="font-medium">{player.yardShare}%</span>
+                  <span className="text-muted-foreground ml-0.5">Yds</span>
+                </div>
+                <div>
+                  <span className="font-medium">{player.tdShare}%</span>
+                  <span className="text-muted-foreground ml-0.5">TDs</span>
+                </div>
+              </div>
+              {player.breakoutAge && (
+                <div className="text-xs mt-1">
+                  <span className="text-muted-foreground">Breakout Age:</span>{" "}
+                  <span className={`font-medium ${player.breakoutAge <= 19 ? "text-green-500" : player.breakoutAge >= 21 ? "text-yellow-500" : ""}`}>
+                    {player.breakoutAge}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="p-2 bg-muted/50 rounded">
+              <div className="text-xs text-muted-foreground mb-1">Path to Production</div>
+              <div className="text-sm font-medium">{player.depthRole}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{player.pathContext}</div>
+            </div>
+          </div>
+
+          {/* Historical Comps */}
+          {player.comps && player.comps.length > 0 && (
+            <div className="mt-2 p-2 bg-muted/50 rounded">
+              <div className="text-xs text-muted-foreground mb-1">Historical Comparisons</div>
+              <div className="flex flex-wrap gap-2">
+                {player.comps.map((comp, idx) => (
+                  <div key={idx} className="flex items-center gap-1 text-xs">
+                    <span className={`h-1.5 w-1.5 rounded-full ${comp.wasSuccess ? "bg-green-500" : "bg-red-500"}`} />
+                    <span className="font-medium">{comp.name}</span>
+                    <span className="text-muted-foreground">({comp.matchPct}%)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </DialogHeader>
 
         <Tabs defaultValue="bio" className="flex flex-col flex-1 min-h-0 overflow-hidden">

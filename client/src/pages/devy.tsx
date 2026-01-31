@@ -13,8 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight } from "lucide-react";
+import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight, Sparkles, Target, Zap, AlertTriangle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DevyProfileModal } from "@/components/devy-profile-modal";
+
+interface DevyComp {
+  name: string;
+  matchPct: number;
+  wasSuccess: boolean;
+}
 
 interface DevyPlayer {
   playerId: string;
@@ -24,9 +31,34 @@ interface DevyPlayer {
   college: string;
   draftEligibleYear: number;
   tier: number;
+  trend7Day: number;
   trend30Day: number;
+  seasonChange: number;
   value: number;
   rank: number;
+  // Breakout/Bust probability
+  starterPct: number;
+  elitePct: number;
+  bustPct: number;
+  // Draft capital confidence
+  top10Pct: number;
+  round1Pct: number;
+  round2PlusPct: number;
+  // Trade value equivalent
+  pickEquivalent: string;
+  pickMultiplier: number;
+  // Market share metrics
+  dominatorRating: number;
+  yardShare: number;
+  tdShare: number;
+  breakoutAge: number | null;
+  // Historical comps
+  comps: DevyComp[];
+  // Path to production
+  depthRole: string;
+  pathContext: string;
+  // Age vs Class indicator
+  ageClass: "young-breakout" | "normal" | "old-producer";
 }
 
 interface DevyData {
@@ -196,8 +228,8 @@ export default function DevyPage() {
             <table className="w-full" data-testid="table-devy">
               <thead className="border-b">
                 <tr className="text-left text-sm text-muted-foreground">
-                  <th className="p-3 w-14">
-                    <SortButton field="rank" label="Rank" />
+                  <th className="p-3 w-12">
+                    <SortButton field="rank" label="#" />
                   </th>
                   <th className="p-3">
                     <SortButton field="name" label="Player" />
@@ -208,24 +240,30 @@ export default function DevyPage() {
                   <th className="p-3">
                     <SortButton field="college" label="College" />
                   </th>
-                  <th className="p-3 w-24">
+                  <th className="p-3 w-20">
                     <SortButton field="year" label="Draft" />
                   </th>
-                  <th className="p-3 w-16">
-                    <SortButton field="tier" label="Tier" />
+                  <th className="p-3 w-28 text-center">
+                    <span className="font-medium">Pick Value</span>
                   </th>
-                  <th className="p-3 w-20">
-                    <SortButton field="value" label="Value" />
+                  <th className="p-3 w-32 text-center">
+                    <span className="font-medium">Hit Rate</span>
+                  </th>
+                  <th className="p-3 w-28 text-center">
+                    <span className="font-medium">Draft Capital</span>
+                  </th>
+                  <th className="p-3 w-20 text-center">
+                    <span className="font-medium">Trend</span>
                   </th>
                   <th className="p-3 w-16 text-center">
-                    <span className="font-medium">Trend</span>
+                    <span className="font-medium">Age</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {sortedPlayers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
+                    <td colSpan={10} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
                       No players match the selected filters
                     </td>
                   </tr>
@@ -241,46 +279,133 @@ export default function DevyPage() {
                         {player.rank}
                       </td>
                       <td className="p-3">
-                        <span className="font-medium" data-testid={`text-name-${player.playerId}`}>
-                          <span className="sm:hidden">{abbreviateName(player.name)}</span>
-                          <span className="hidden sm:inline">{player.name}</span>
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium" data-testid={`text-name-${player.playerId}`}>
+                            <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                            <span className="hidden sm:inline">{player.name}</span>
+                          </span>
+                          {player.comps && player.comps.length > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              Comp: {player.comps[0].name} ({player.comps[0].matchPct}%)
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3">
                         <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid={`badge-position-${player.playerId}`}>
                           {player.position}{player.positionRank}
                         </Badge>
                       </td>
-                      <td className="p-3 text-muted-foreground" data-testid={`text-college-${player.playerId}`}>
-                        {player.college}
+                      <td className="p-3 text-muted-foreground text-sm" data-testid={`text-college-${player.playerId}`}>
+                        <div className="flex flex-col">
+                          <span>{player.college}</span>
+                          <span className="text-xs">{player.depthRole}</span>
+                        </div>
                       </td>
                       <td className="p-3">
                         <Badge variant="outline" data-testid={`badge-year-${player.playerId}`}>
                           {player.draftEligibleYear}
                         </Badge>
                       </td>
-                      <td className="p-3 text-center" data-testid={`text-tier-${player.playerId}`}>
-                        {player.tier}
-                      </td>
-                      <td className="p-3 font-medium" data-testid={`text-value-${player.playerId}`}>
-                        {player.value.toFixed(1)}
+                      <td className="p-3 text-center">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="text-xs">
+                              <span className="font-medium text-primary">{player.pickMultiplier.toFixed(1)}x</span>
+                              <div className="text-muted-foreground truncate max-w-[100px]">{player.pickEquivalent.split(" ").slice(0, 2).join(" ")}</div>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="font-medium">{player.pickEquivalent}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </td>
                       <td className="p-3">
-                        <div className="flex items-center justify-center gap-1" data-testid={`trend-${player.playerId}`}>
-                          {player.trend30Day > 0 ? (
-                            <>
-                              <TrendingUp className="h-3 w-3" />
-                              <span className="text-sm">+{player.trend30Day}</span>
-                            </>
-                          ) : player.trend30Day < 0 ? (
-                            <>
-                              <TrendingDown className="h-3 w-3" />
-                              <span className="text-sm">{player.trend30Day}</span>
-                            </>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">-</span>
-                          )}
-                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1 justify-center text-xs">
+                              <Sparkles className="h-3 w-3 text-yellow-500" />
+                              <span className="text-green-500 font-medium">{player.elitePct}%</span>
+                              <span className="text-muted-foreground">/</span>
+                              <span className="text-red-500">{player.bustPct}%</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="space-y-1 text-xs">
+                              <p>Fantasy Starter: {player.starterPct}%</p>
+                              <p className="text-green-400">Elite Producer: {player.elitePct}%</p>
+                              <p className="text-red-400">Bust Risk: {player.bustPct}%</p>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </td>
+                      <td className="p-3">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex flex-col items-center text-xs">
+                              <span className="font-medium">Rd1: {player.round1Pct}%</span>
+                              <span className="text-muted-foreground">Top 10: {player.top10Pct}%</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="space-y-1 text-xs">
+                              <p>Top 10 Pick: {player.top10Pct}%</p>
+                              <p>Round 1: {player.round1Pct}%</p>
+                              <p>Round 2+: {player.round2PlusPct}%</p>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </td>
+                      <td className="p-3">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex flex-col items-center gap-0.5" data-testid={`trend-${player.playerId}`}>
+                              <div className="flex items-center gap-1">
+                                {player.trend30Day > 0 ? (
+                                  <TrendingUp className="h-3 w-3 text-green-500" />
+                                ) : player.trend30Day < 0 ? (
+                                  <TrendingDown className="h-3 w-3 text-red-500" />
+                                ) : null}
+                                <span className={`text-xs font-medium ${player.trend30Day > 0 ? "text-green-500" : player.trend30Day < 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                                  {player.trend30Day > 0 ? `+${player.trend30Day}` : player.trend30Day || "-"}
+                                </span>
+                              </div>
+                              <span className={`text-[10px] ${player.seasonChange > 10 ? "text-green-500" : player.seasonChange < -10 ? "text-red-500" : "text-muted-foreground"}`}>
+                                Szn: {player.seasonChange > 0 ? "+" : ""}{player.seasonChange}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="space-y-1 text-xs">
+                              <p>7-Day: {player.trend7Day > 0 ? "+" : ""}{player.trend7Day}</p>
+                              <p>30-Day: {player.trend30Day > 0 ? "+" : ""}{player.trend30Day}</p>
+                              <p>Season: {player.seasonChange > 0 ? "+" : ""}{player.seasonChange}</p>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </td>
+                      <td className="p-3 text-center">
+                        {player.ageClass === "young-breakout" ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50 text-xs">
+                                <Zap className="h-3 w-3 mr-0.5" />
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>Young Breakout - Elite age curve</TooltipContent>
+                          </Tooltip>
+                        ) : player.ageClass === "old-producer" ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/50 text-xs">
+                                <AlertTriangle className="h-3 w-3" />
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>Older Producer - Age curve concern</TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -307,31 +432,48 @@ export default function DevyPage() {
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-lg font-bold shrink-0 w-8">#{player.rank}</span>
                       <div className="min-w-0">
-                        <div className="font-semibold truncate">
+                        <div className="font-semibold truncate flex items-center gap-1">
                           <span className="sm:hidden">{abbreviateName(player.name)}</span>
                           <span className="hidden sm:inline">{player.name}</span>
+                          {player.ageClass === "young-breakout" && (
+                            <Zap className="h-3 w-3 text-green-500" />
+                          )}
+                          {player.ageClass === "old-producer" && (
+                            <AlertTriangle className="h-3 w-3 text-yellow-500" />
+                          )}
                         </div>
                         <div className="flex items-center gap-1 flex-wrap mt-1">
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="outline" className={`text-xs ${getPositionColorClass(player.position)}`}>
                             {player.position}{player.positionRank}
                           </Badge>
                           <span className="text-xs text-muted-foreground">{player.college}</span>
+                          <span className="text-xs text-muted-foreground">• {player.draftEligibleYear}</span>
                         </div>
+                        {player.comps && player.comps.length > 0 && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            Comp: {player.comps[0].name}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
-                        <div className="font-medium text-sm">{player.value.toFixed(1)}</div>
+                        <div className="font-medium text-sm text-primary">{player.pickMultiplier.toFixed(1)}x</div>
+                        <div className="text-xs text-muted-foreground">
+                          <span className="text-green-500">{player.elitePct}%</span>
+                          <span className="mx-0.5">/</span>
+                          <span className="text-red-500">{player.bustPct}%</span>
+                        </div>
                         <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
                           {player.trend30Day > 0 ? (
                             <>
-                              <TrendingUp className="h-3 w-3" />
-                              +{player.trend30Day}
+                              <TrendingUp className="h-3 w-3 text-green-500" />
+                              <span className="text-green-500">+{player.trend30Day}</span>
                             </>
                           ) : player.trend30Day < 0 ? (
                             <>
-                              <TrendingDown className="h-3 w-3" />
-                              {player.trend30Day}
+                              <TrendingDown className="h-3 w-3 text-red-500" />
+                              <span className="text-red-500">{player.trend30Day}</span>
                             </>
                           ) : (
                             "-"

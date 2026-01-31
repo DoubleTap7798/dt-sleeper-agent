@@ -960,9 +960,34 @@ export async function registerRoutes(
           college: player.college,
           draftEligibleYear: player.draftEligibleYear,
           tier: player.tier,
+          trend7Day: player.trend7Day,
           trend30Day: player.trend30Day,
+          seasonChange: player.seasonChange,
           value: dynastyValue, // Now 0-100 scale
           rank: index + 1,
+          // Breakout/Bust probability
+          starterPct: player.starterPct,
+          elitePct: player.elitePct,
+          bustPct: player.bustPct,
+          // Draft capital confidence
+          top10Pct: player.top10Pct,
+          round1Pct: player.round1Pct,
+          round2PlusPct: player.round2PlusPct,
+          // Trade value equivalent
+          pickEquivalent: player.pickEquivalent,
+          pickMultiplier: player.pickMultiplier,
+          // Market share metrics
+          dominatorRating: player.dominatorRating,
+          yardShare: player.yardShare,
+          tdShare: player.tdShare,
+          breakoutAge: player.breakoutAge,
+          // Historical comps
+          comps: player.comps,
+          // Path to production
+          depthRole: player.depthRole,
+          pathContext: player.pathContext,
+          // Age vs Class indicator
+          ageClass: player.ageClass,
         };
       });
 
