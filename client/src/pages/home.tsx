@@ -3,6 +3,7 @@ import { useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Trophy, Users, TrendingUp, Calendar, Target, Crown, Medal, Activity, ArrowRightLeft, UserPlus } from "lucide-react";
 import type { SleeperLeague } from "@/lib/sleeper-types";
 
@@ -284,7 +285,15 @@ export default function HomePage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <Target className="h-6 w-6" />
+          <Avatar className="h-8 w-8">
+            <AvatarImage 
+              src={selectedLeague?.avatar ? `https://sleepercdn.com/avatars/${selectedLeague.avatar}` : undefined}
+              alt={selectedLeague?.name || "League"}
+            />
+            <AvatarFallback className="text-xs">
+              {(selectedLeague?.name || leagueData?.leagueName || "L").slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
           <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-page-title">
             {selectedLeague?.name || leagueData?.leagueName || "League Dashboard"}
           </h1>
