@@ -235,9 +235,22 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                   className="w-full justify-between bg-sidebar-accent border-sidebar-border text-sidebar-foreground"
                   data-testid="button-league-selector"
                 >
-                  <span className="truncate">
-                    {isAllLeagues ? "All Leagues" : (selectedLeague?.name || "Select a league")}
-                  </span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {!isAllLeagues && selectedLeague && (
+                      <Avatar className="h-6 w-6 shrink-0">
+                        <AvatarImage 
+                          src={selectedLeague.avatar ? `https://sleepercdn.com/avatars/${selectedLeague.avatar}` : undefined} 
+                          alt={selectedLeague.name}
+                        />
+                        <AvatarFallback className="text-xs">
+                          {selectedLeague.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                    <span className="truncate">
+                      {isAllLeagues ? "All Leagues" : (selectedLeague?.name || "Select a league")}
+                    </span>
+                  </div>
                   <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
@@ -260,6 +273,15 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                     className="cursor-pointer"
                     data-testid={`menu-item-league-${league.league_id}`}
                   >
+                    <Avatar className="h-6 w-6 shrink-0">
+                      <AvatarImage 
+                        src={league.avatar ? `https://sleepercdn.com/avatars/${league.avatar}` : undefined} 
+                        alt={league.name}
+                      />
+                      <AvatarFallback className="text-xs">
+                        {league.name.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                     <span className="truncate">{league.name}</span>
                     {league.season && (
                       <span className="ml-auto text-xs text-muted-foreground">
