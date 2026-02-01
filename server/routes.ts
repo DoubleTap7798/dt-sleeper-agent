@@ -5435,10 +5435,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
   });
 
   // Dashboard API - returns action-first data for home page
-  app.get("/api/fantasy/dashboard", isAuthenticated, async (req: any, res: Response) => {
+  app.get("/api/fantasy/dashboard/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
-      const { leagueId } = req.query;
+      const { leagueId } = req.params;
       
       if (!leagueId) {
         return res.status(400).json({ message: "League ID required" });
@@ -5476,6 +5476,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           biggestNeed: null,
           recommendations: [],
           weeklyBlurb: "Connect your roster to get personalized insights.",
+          playerCount: 0,
         });
       }
 
