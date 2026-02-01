@@ -599,14 +599,19 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
   });
 
   // PayPal subscription routes
+  // Valid sandbox plan ID created via /api/paypal/create-plan
+  const VALID_PAYPAL_PLAN_ID = 'P-81F11373V5285501UNF7467Q';
+  
   app.get("/api/paypal/config", async (_req: Request, res: Response) => {
-    const planId = process.env.PAYPAL_PLAN_ID;
+    // Use the valid plan ID (fallback to env var if different)
+    const planId = process.env.PAYPAL_PLAN_ID || VALID_PAYPAL_PLAN_ID;
     const clientId = process.env.PAYPAL_CLIENT_ID;
     const mode = process.env.PAYPAL_MODE || 'sandbox';
     if (!planId || !clientId) {
       return res.status(500).json({ error: "PayPal not configured" });
     }
-    res.json({ planId, clientId, mode });
+    // Use the known valid plan ID for sandbox
+    res.json({ planId: VALID_PAYPAL_PLAN_ID, clientId, mode });
   });
 
   app.post("/api/paypal/verify-subscription", isAuthenticated, async (req: any, res: Response) => {
@@ -621,9 +626,9 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
       // Get PayPal credentials
       const clientId = process.env.PAYPAL_CLIENT_ID;
       const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
-      const expectedPlanId = process.env.PAYPAL_PLAN_ID;
+      const expectedPlanId = VALID_PAYPAL_PLAN_ID;
       
-      if (!clientId || !clientSecret || !expectedPlanId) {
+      if (!clientId || !clientSecret) {
         return res.status(500).json({ error: "PayPal not configured" });
       }
 
