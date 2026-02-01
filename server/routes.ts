@@ -730,6 +730,125 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     }
   });
 
+  // Admin endpoint to create PayPal subscription plan (run once to set up)
+  app.post("/api/paypal/create-plan", async (_req: Request, res: Response) => {
+    try {
+      const clientId = process.env.PAYPAL_CLIENT_ID;
+      const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+      
+      if (!clientId || !clientSecret) {
+        return res.status(500).json({ error: "PayPal credentials not configured" });
+      }
+
+      const paypalMode = process.env.PAYPAL_MODE || 'sandbox';
+      const paypalBaseUrl = paypalMode === 'production' 
+        ? "https://api-m.paypal.com" 
+        : "https://api-m.sandbox.paypal.com";
+
+      // Get access token
+      const authResponse = await fetch(`${paypalBaseUrl}/v1/oauth2/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Authorization": `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
+        },
+        body: "grant_type=client_credentials"
+      });
+
+      if (!authResponse.ok) {
+        const errorText = await authResponse.text();
+        console.error("PayPal auth failed:", errorText);
+        return res.status(500).json({ error: "PayPal authentication failed", details: errorText });
+      }
+
+      const authData = await authResponse.json() as { access_token: string };
+      const accessToken = authData.access_token;
+
+      // Step 1: Create a product first
+      const productResponse = await fetch(`${paypalBaseUrl}/v1/catalogs/products`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "PayPal-Request-Id": `product-${Date.now()}`
+        },
+        body: JSON.stringify({
+          name: "DT Sleeper Agent Premium",
+          description: "Premium fantasy football analytics and tools",
+          type: "SERVICE",
+          category: "SOFTWARE"
+        })
+      });
+
+      if (!productResponse.ok) {
+        const errorText = await productResponse.text();
+        console.error("PayPal product creation failed:", errorText);
+        return res.status(500).json({ error: "Failed to create product", details: errorText });
+      }
+
+      const productData = await productResponse.json() as { id: string };
+      console.log("Created PayPal product:", productData.id);
+
+      // Step 2: Create subscription plan
+      const planResponse = await fetch(`${paypalBaseUrl}/v1/billing/plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "PayPal-Request-Id": `plan-${Date.now()}`
+        },
+        body: JSON.stringify({
+          product_id: productData.id,
+          name: "Weekly Premium",
+          description: "Full access to all premium features - billed weekly",
+          status: "ACTIVE",
+          billing_cycles: [
+            {
+              frequency: {
+                interval_unit: "WEEK",
+                interval_count: 1
+              },
+              tenure_type: "REGULAR",
+              sequence: 1,
+              total_cycles: 0,
+              pricing_scheme: {
+                fixed_price: {
+                  value: "3.99",
+                  currency_code: "USD"
+                }
+              }
+            }
+          ],
+          payment_preferences: {
+            auto_bill_outstanding: true,
+            setup_fee_failure_action: "CONTINUE",
+            payment_failure_threshold: 3
+          }
+        })
+      });
+
+      if (!planResponse.ok) {
+        const errorText = await planResponse.text();
+        console.error("PayPal plan creation failed:", errorText);
+        return res.status(500).json({ error: "Failed to create plan", details: errorText });
+      }
+
+      const planData = await planResponse.json() as { id: string; status: string };
+      console.log("Created PayPal plan:", planData.id, "Status:", planData.status);
+
+      res.json({ 
+        success: true, 
+        productId: productData.id,
+        planId: planData.id,
+        status: planData.status,
+        message: `Plan created successfully! Update PAYPAL_PLAN_ID to: ${planData.id}`
+      });
+    } catch (error: any) {
+      console.error("Error creating PayPal plan:", error);
+      res.status(500).json({ error: error.message || "Failed to create plan" });
+    }
+  });
+
   // User Profile Routes
   app.get("/api/user/profile", isAuthenticated, async (req: any, res: Response) => {
     try {
