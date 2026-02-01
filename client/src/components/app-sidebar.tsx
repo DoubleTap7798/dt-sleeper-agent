@@ -27,6 +27,7 @@ import {
   TrendingUp,
   Search,
   Eye,
+  Crosshair,
 } from "lucide-react";
 import {
   Sidebar,
@@ -90,6 +91,7 @@ const navigationGroups: NavGroup[] = [
     requiresLeague: true,
     items: [
       { title: "Standings", url: "/league/standings", icon: BarChart3, requiresLeague: true },
+      { title: "Draft War Room", url: "/league/draft", icon: Crosshair, requiresLeague: true },
       { title: "Playoff Bracket", url: "/league/bracket", icon: GitBranch, requiresLeague: true },
       { title: "Rivalries", url: "/league/rivalries", icon: Swords, requiresLeague: true },
       { title: "Trophy Room", url: "/league/trophies", icon: Trophy, requiresLeague: true },

@@ -5886,5 +5886,293 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     }
   });
 
+  // Draft War Room API - Get league drafts and picks
+  app.get("/api/fantasy/drafts/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      
+      const drafts = await sleeperApi.getLeagueDrafts(leagueId);
+      res.json({ drafts });
+    } catch (error) {
+      console.error("Error fetching drafts:", error);
+      res.status(500).json({ message: "Failed to fetch drafts" });
+    }
+  });
+
+  app.get("/api/fantasy/draft/:draftId/picks", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { draftId } = req.params;
+      
+      const [draft, picks] = await Promise.all([
+        sleeperApi.getDraft(draftId),
+        sleeperApi.getDraftPicks(draftId),
+      ]);
+      
+      res.json({ draft, picks });
+    } catch (error) {
+      console.error("Error fetching draft picks:", error);
+      res.status(500).json({ message: "Failed to fetch draft picks" });
+    }
+  });
+
+  // Draft War Room - Get smart pick recommendations
+  app.get("/api/fantasy/draft-recommendations/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      const { draftId, mode = "rookie" } = req.query;
+      
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, allPlayers, league, stats, users, drafts] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getSeasonStats("2025", "regular"),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getLeagueDrafts(leagueId),
+      ]);
+
+      // Fetch consensus values
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[DraftRoom] Failed to fetch consensus values: ${e}`);
+      }
+
+      const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+      const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+
+      // Get draft picks if draft is active
+      let draftPicks: sleeperApi.SleeperDraftPickResult[] = [];
+      let activeDraft: sleeperApi.SleeperDraft | null = null;
+      
+      if (draftId) {
+        const [draft, picks] = await Promise.all([
+          sleeperApi.getDraft(draftId as string),
+          sleeperApi.getDraftPicks(draftId as string),
+        ]);
+        activeDraft = draft;
+        draftPicks = picks;
+      } else if (drafts.length > 0) {
+        // Use most recent draft
+        activeDraft = drafts[0];
+        draftPicks = await sleeperApi.getDraftPicks(drafts[0].draft_id);
+      }
+
+      // Analyze roster needs
+      const positionCounts: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+      const rosterPlayers: any[] = [];
+      
+      if (userRoster?.players) {
+        for (const playerId of userRoster.players) {
+          const player = allPlayers[playerId];
+          if (player?.position) {
+            positionCounts[player.position] = (positionCounts[player.position] || 0) + 1;
+            const playerStats = stats?.[playerId] || {};
+            const gp = (playerStats as any).gp || 0;
+            rosterPlayers.push({
+              id: playerId,
+              name: player.full_name,
+              position: player.position,
+              age: player.age,
+              ppg: gp > 0 ? ((playerStats as any).pts_ppr || 0) / gp : 0,
+            });
+          }
+        }
+      }
+
+      // Calculate roster age average
+      const ages = rosterPlayers.filter(p => p.age).map(p => p.age);
+      const avgAge = ages.length > 0 ? ages.reduce((a, b) => a + b, 0) / ages.length : 0;
+
+      // Determine biggest needs based on position counts
+      const needs: string[] = [];
+      if (positionCounts.QB < 2 && isSuperflex) needs.push("QB");
+      if (positionCounts.RB < 4) needs.push("RB");
+      if (positionCounts.WR < 5) needs.push("WR");
+      if (positionCounts.TE < 2) needs.push("TE");
+
+      // Get available players (not drafted yet)
+      const draftedPlayerIds = new Set(draftPicks.map(p => p.player_id));
+      
+      // Build player recommendations
+      const availablePlayers: any[] = [];
+      const isRookieDraft = mode === "rookie";
+      
+      for (const [playerId, player] of Object.entries(allPlayers)) {
+        if (draftedPlayerIds.has(playerId)) continue;
+        if (!player || !player.position) continue;
+        if (!["QB", "RB", "WR", "TE"].includes(player.position)) continue;
+        
+        // For rookie draft, only include rookies (age <= 23 or experience < 1)
+        if (isRookieDraft && player.years_exp !== 0) continue;
+        // For startup, include all
+        
+        const playerStats = stats?.[playerId] || {};
+        const gamesPlayed = playerStats.gp || 0;
+        const ppg = gamesPlayed > 0 ? (playerStats.pts_ppr || 0) / gamesPlayed : 0;
+        
+        // Get dynasty value
+        const blendedValue = dynastyEngine.getBlendedPlayerValue(
+          playerId,
+          player.full_name || "",
+          player.position,
+          player.age || null,
+          player.years_exp || 0,
+          player.injury_status || null,
+          { points: playerStats.pts_ppr || 0, games: gamesPlayed, ppg },
+          1, // Assume starter for ranking
+          null,
+          null
+        );
+
+        if (blendedValue.value > 5) {
+          const needFit = needs.includes(player.position) ? "High" : "Medium";
+          
+          availablePlayers.push({
+            playerId,
+            name: player.full_name,
+            position: player.position,
+            team: player.team || "FA",
+            age: player.age,
+            value: blendedValue.value,
+            needFit,
+            ppg: Math.round(ppg * 10) / 10,
+          });
+        }
+      }
+
+      // Sort by value
+      availablePlayers.sort((a, b) => b.value - a.value);
+
+      // Detect positional runs in last 6 picks
+      const recentPicks = draftPicks.slice(-6);
+      const positionRuns: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+      for (const pick of recentPicks) {
+        if (pick.metadata?.position) {
+          positionRuns[pick.metadata.position] = (positionRuns[pick.metadata.position] || 0) + 1;
+        }
+      }
+
+      // Identify runs (3+ of same position in last 6)
+      const activeRuns: { position: string; count: number }[] = [];
+      for (const [pos, count] of Object.entries(positionRuns)) {
+        if (count >= 3) {
+          activeRuns.push({ position: pos, count });
+        }
+      }
+
+      // Get top recommendations by category
+      const bestValue = availablePlayers.slice(0, 5);
+      const bestForNeeds = availablePlayers
+        .filter(p => needs.includes(p.position))
+        .slice(0, 5);
+      const bestUpside = availablePlayers
+        .filter(p => p.age && p.age <= 24)
+        .slice(0, 5);
+
+      // Detect value drops (players who should have been picked earlier based on GLOBAL value rank)
+      // First, build a full player list with values (including drafted) for global ranking
+      const allPlayersWithValue: { playerId: string; value: number; drafted: boolean }[] = [];
+      
+      for (const [playerId, player] of Object.entries(allPlayers)) {
+        if (!player || !player.position) continue;
+        if (!["QB", "RB", "WR", "TE"].includes(player.position)) continue;
+        if (isRookieDraft && player.years_exp !== 0) continue;
+        
+        const playerStats = stats?.[playerId] || {};
+        const gamesPlayed = playerStats.gp || 0;
+        
+        const blendedValue = dynastyEngine.getBlendedPlayerValue(
+          playerId,
+          player.full_name || "",
+          player.position,
+          player.age || null,
+          player.years_exp || 0,
+          player.injury_status || null,
+          { points: playerStats.pts_ppr || 0, games: gamesPlayed, ppg: gamesPlayed > 0 ? (playerStats.pts_ppr || 0) / gamesPlayed : 0 },
+          1, null, null
+        );
+        
+        allPlayersWithValue.push({
+          playerId,
+          value: blendedValue.value,
+          drafted: draftedPlayerIds.has(playerId),
+        });
+      }
+      
+      // Sort ALL players by value to get global rank
+      allPlayersWithValue.sort((a, b) => b.value - a.value);
+      
+      // Create global rank map
+      const globalRankMap = new Map<string, number>();
+      allPlayersWithValue.forEach((p, idx) => {
+        globalRankMap.set(p.playerId, idx + 1);
+      });
+      
+      const valueDrops: any[] = [];
+      const pickNumber = draftPicks.length + 1;
+      
+      // Find available players whose global rank suggests they should have been picked earlier
+      for (const player of availablePlayers.slice(0, 30)) {
+        const globalRank = globalRankMap.get(player.playerId) || 999;
+        const spotsFallen = pickNumber - globalRank;
+        
+        // If player has fallen 10+ spots past their expected position
+        if (spotsFallen >= 10 && globalRank <= 100) {
+          valueDrops.push({
+            ...player,
+            expectedPick: globalRank,
+            spotsFallen,
+          });
+        }
+      }
+
+      res.json({
+        recommendations: {
+          bestValue,
+          bestForNeeds,
+          bestUpside,
+        },
+        valueDrops: valueDrops.slice(0, 3),
+        rosterAnalysis: {
+          positionCounts,
+          needs,
+          avgAge: Math.round(avgAge * 10) / 10,
+          profile: avgAge > 27 ? "Contender" : avgAge < 25 ? "Rebuild" : "Balanced",
+        },
+        positionalRuns: activeRuns,
+        draft: activeDraft ? {
+          id: activeDraft.draft_id,
+          status: activeDraft.status,
+          type: activeDraft.type,
+          rounds: activeDraft.settings?.rounds || 0,
+          picksMade: draftPicks.length,
+          totalPicks: (activeDraft.settings?.rounds || 0) * (activeDraft.settings?.teams || 0),
+        } : null,
+        draftBoard: draftPicks.map(p => ({
+          pickNo: p.pick_no,
+          round: p.round,
+          slot: p.draft_slot,
+          rosterId: p.roster_id,
+          player: {
+            id: p.player_id,
+            name: `${p.metadata.first_name} ${p.metadata.last_name}`,
+            position: p.metadata.position,
+            team: p.metadata.team,
+          },
+        })),
+        mode,
+      });
+    } catch (error) {
+      console.error("Error generating draft recommendations:", error);
+      res.status(500).json({ message: "Failed to generate draft recommendations" });
+    }
+  });
+
   return httpServer;
 }

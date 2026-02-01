@@ -206,6 +206,77 @@ export async function getLeagueDraftPicks(leagueId: string): Promise<SleeperDraf
   return picks || [];
 }
 
+// Draft types and endpoints
+export interface SleeperDraft {
+  draft_id: string;
+  league_id: string;
+  type: "linear" | "snake" | "auction";
+  status: "pre_draft" | "drafting" | "complete" | "paused";
+  season: string;
+  settings: {
+    rounds: number;
+    slots_wr: number;
+    slots_rb: number;
+    slots_qb: number;
+    slots_te: number;
+    slots_flex: number;
+    slots_super_flex: number;
+    slots_k: number;
+    slots_def: number;
+    slots_idp_flex?: number;
+    slots_dl?: number;
+    slots_lb?: number;
+    slots_db?: number;
+    teams: number;
+    pick_timer: number;
+    cpu_autopick: number;
+    alpha_sort: number;
+    player_type: number;
+  };
+  start_time: number | null;
+  slot_to_roster_id?: Record<string, number>;
+  draft_order?: Record<string, number>;
+  metadata?: {
+    name?: string;
+    description?: string;
+  };
+  created: number;
+  last_picked?: number;
+  last_message_id?: string;
+}
+
+export interface SleeperDraftPickResult {
+  player_id: string;
+  picked_by: string;
+  roster_id: number;
+  round: number;
+  draft_slot: number;
+  pick_no: number;
+  metadata: {
+    first_name: string;
+    last_name: string;
+    team: string;
+    position: string;
+    number?: string;
+  };
+  is_keeper: boolean | null;
+  draft_id: string;
+}
+
+export async function getLeagueDrafts(leagueId: string): Promise<SleeperDraft[]> {
+  const drafts = await fetchFromSleeper<SleeperDraft[]>(`/league/${leagueId}/drafts`);
+  return drafts || [];
+}
+
+export async function getDraft(draftId: string): Promise<SleeperDraft | null> {
+  return fetchFromSleeper<SleeperDraft>(`/draft/${draftId}`);
+}
+
+export async function getDraftPicks(draftId: string): Promise<SleeperDraftPickResult[]> {
+  const picks = await fetchFromSleeper<SleeperDraftPickResult[]>(`/draft/${draftId}/picks`);
+  return picks || [];
+}
+
 export async function getMatchups(leagueId: string, week: number): Promise<SleeperMatchup[]> {
   const matchups = await fetchFromSleeper<SleeperMatchup[]>(`/league/${leagueId}/matchups/${week}`);
   return matchups || [];

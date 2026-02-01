@@ -31,6 +31,7 @@ import RosterPage from "@/pages/roster";
 import LeagueInfoPage from "@/pages/league-info";
 import DepthChartPage from "@/pages/depth-chart";
 import WatchlistPage from "@/pages/watchlist";
+import DraftWarRoomPage from "@/pages/draft-war-room";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -229,6 +230,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <WatchlistPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/draft">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DraftWarRoomPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
