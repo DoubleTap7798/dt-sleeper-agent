@@ -154,14 +154,29 @@ class DynastyConsensusService {
       this.maxRawValue = maxVal;
       this.minRawValue = minVal;
 
+      // Sort by 1QB value for ranking
       rawPlayers.sort((a, b) => b.value1QB - a.value1QB);
+      const total = rawPlayers.length;
+      
+      // Create 2QB sorted ranking separately
+      const sorted2QB = [...rawPlayers].sort((a, b) => b.value2QB - a.value2QB);
+      const rank2QBMap = new Map<string, number>();
+      sorted2QB.forEach((p, idx) => rank2QBMap.set(p.name + "|" + p.pos, idx));
       
       for (let i = 0; i < rawPlayers.length; i++) {
         const p = rawPlayers[i];
-        // Simple normalization: raw value * 0.01 (e.g., 5532 → 55.32)
-        // Cap at 99.5 to prevent exact 100 values
-        const normalizedValue1QB = Math.min(99.5, Math.max(0, p.value1QB * 0.01));
-        const normalizedValue2QB = Math.min(99.5, Math.max(0, p.value2QB * 0.01));
+        const rank1QB = i + 1; // 1-indexed rank
+        const rank2QB = (rank2QBMap.get(p.name + "|" + p.pos) || 0) + 1;
+        
+        // Rank-based percentile normalization:
+        // - Rank 1 = 99.5 (top player)
+        // - Rank 25 = ~95 (elite tier)
+        // - Rank 100 = ~80 (starter tier)
+        // - Rank 250 = ~50 (depth)
+        // - Rank 492 = ~5 (bottom of dynasty relevance)
+        // Formula: 100 - ((rank - 1) / total) * 95 → gives range 5-100
+        const normalizedValue1QB = Math.min(99.5, Math.max(5, 100 - ((rank1QB - 1) / total) * 95));
+        const normalizedValue2QB = Math.min(99.5, Math.max(5, 100 - ((rank2QB - 1) / total) * 95));
         const key = this.createPlayerKey(p.name, p.pos);
         
         this.cache.set(key, {

@@ -1606,10 +1606,29 @@ export function getBlendedPlayerValue(
     leagueScoring
   );
   
-  // If no consensus value, return pure league value
+  // If no consensus value, player is NOT in DynastyProcess top ~500
+  // Apply moderate penalty but consider actual production/age
   if (consensusValue === null || consensusValue === undefined) {
+    // Players not in consensus get penalty, but not as severe
+    // Young players with production should still have decent value
+    const hasProduction = (actualStats.ppg || 0) > 5 || (actualStats.games || 0) > 10;
+    const isYoung = (age || 30) < 27;
+    
+    // Base cap is 35, but young producers can reach 50
+    let cappedValue: number;
+    if (hasProduction && isYoung) {
+      // Young player with production - moderate penalty (cap at 50)
+      cappedValue = Math.min(50, leagueValue * 0.65);
+    } else if (hasProduction || isYoung) {
+      // Either producing or young - lighter penalty (cap at 40)
+      cappedValue = Math.min(40, leagueValue * 0.55);
+    } else {
+      // Old non-producer - heavy penalty (cap at 25)
+      cappedValue = Math.min(25, leagueValue * 0.4);
+    }
+    
     return {
-      value: Math.round(leagueValue * 10) / 10,
+      value: Math.round(cappedValue * 10) / 10,
       leagueValue: Math.round(leagueValue * 10) / 10,
       consensusValue: null,
       blended: false
