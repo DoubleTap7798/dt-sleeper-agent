@@ -1,10 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Trophy, Users, TrendingUp, Calendar, Target, Crown, Medal, Activity, ArrowRightLeft, UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Trophy, Users, TrendingUp, Calendar, Target, Crown, Medal, Activity, ArrowRightLeft, UserPlus, RefreshCw } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { SleeperLeague } from "@/lib/sleeper-types";
 
 interface CareerSummary {
@@ -43,6 +47,7 @@ interface LeagueSummary {
   runnerUps: number;
   playoffAppearances: number;
   bestFinish: string;
+  takeoverSeason: number | null;
   seasonStats: {
     leagueId: string;
     season: string;
@@ -110,8 +115,59 @@ export default function HomePage() {
     staleTime: 60000, // Cache for 1 minute to avoid excessive syncs
   });
 
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Mutation to set takeover season
+  const setTakeoverMutation = useMutation({
+    mutationFn: async (takeoverSeason: number) => {
+      return apiRequest("POST", `/api/league-takeover/${leagueIdFromUrl}`, { takeoverSeason });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/fantasy/league-summary/${leagueIdFromUrl}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/fantasy/summary"] });
+      toast({
+        title: "Takeover Set",
+        description: "Your career stats now start from the takeover season.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to set takeover season.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to clear takeover
+  const clearTakeoverMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("DELETE", `/api/league-takeover/${leagueIdFromUrl}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/fantasy/league-summary/${leagueIdFromUrl}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/fantasy/summary"] });
+      toast({
+        title: "Takeover Cleared",
+        description: "All historical seasons are now included.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to clear takeover season.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const isLoading = isAllLeagues ? careerLoading : leagueLoading;
   const data = isAllLeagues ? careerData : leagueData;
+  
+  // Generate year options for takeover selector (past 10 years)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 12 }, (_, i) => currentYear - 11 + i);
 
   if (isLoading) {
     return (
@@ -451,6 +507,52 @@ export default function HomePage() {
           </CardContent>
         </Card>
       )}
+
+      <Card data-testid="card-team-takeover">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-5 w-5" />
+            <CardTitle className="text-base sm:text-lg">Team Takeover</CardTitle>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            If you took over an orphan team, set when you started to exclude the previous owner's stats from your career totals.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex-1">
+              <Select
+                value={leagueData?.takeoverSeason?.toString() || "all"}
+                onValueChange={(value) => {
+                  if (value === "all") {
+                    clearTakeoverMutation.mutate();
+                  } else {
+                    setTakeoverMutation.mutate(parseInt(value));
+                  }
+                }}
+                disabled={setTakeoverMutation.isPending || clearTakeoverMutation.isPending}
+              >
+                <SelectTrigger className="w-[200px]" data-testid="select-takeover-season">
+                  <SelectValue placeholder="Select takeover season" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Seasons (No Takeover)</SelectItem>
+                  {yearOptions.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year} Season
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {leagueData?.takeoverSeason && (
+              <Badge variant="outline" className="text-xs" data-testid="badge-takeover-status">
+                Stats start from {leagueData.takeoverSeason}
+              </Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
