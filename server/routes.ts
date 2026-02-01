@@ -4284,7 +4284,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           const rank = sortedRosters.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
           
           const playoffTeams = league.settings?.playoff_teams || 6;
-          const isPlayoffs = rank <= playoffTeams;
+          // Only count playoff appearance if they actually played games (not just ranked in preseason)
+          const hasPlayedGames = wins > 0 || losses > 0;
+          const isPlayoffs = hasPlayedGames && rank <= playoffTeams;
           
           // Determine championship status
           let isChampion = false;
@@ -4302,6 +4304,11 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           } else if (league.status === "complete") {
             if (rank === 1) isChampion = true;
             else if (rank === 2) isRunnerUp = true;
+          }
+          
+          // Only include seasons where games were actually played
+          if (!hasPlayedGames) {
+            return null;
           }
           
           return {
@@ -4445,7 +4452,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             const rank = sortedRosters.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
             
             const playoffTeams = league.settings?.playoff_teams || 6;
-            const isPlayoffs = rank <= playoffTeams;
+            // Only count playoff appearance if they actually played games (not just ranked in preseason)
+            const hasPlayedGames = wins > 0 || losses > 0;
+            const isPlayoffs = hasPlayedGames && rank <= playoffTeams;
             if (isPlayoffs) playoffAppearances++;
             
             let isChampion = false;
@@ -4475,18 +4484,21 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
               }
             }
             
-            seasonStats.push({
-              leagueId: currentLeagueId,
-              season: league.season,
-              wins,
-              losses,
-              ties,
-              rank,
-              totalTeams: rosters.length,
-              isChampion,
-              isPlayoffs,
-              isRunnerUp,
-            });
+            // Only include seasons where games were actually played
+            if (hasPlayedGames) {
+              seasonStats.push({
+                leagueId: currentLeagueId,
+                season: league.season,
+                wins,
+                losses,
+                ties,
+                rank,
+                totalTeams: rosters.length,
+                isChampion,
+                isPlayoffs,
+                isRunnerUp,
+              });
+            }
           }
           
           currentLeagueId = league.previous_league_id;
