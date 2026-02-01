@@ -5554,11 +5554,17 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         };
       }
 
-      // Calculate roster strength as percentage (0-100)
+      // Calculate roster strength as percentage (0-100) based on RANK
+      // Higher rank (worse) = lower bar, lower rank (better) = higher bar
+      // e.g., #1 of 12 = 100%, #6 of 12 = 58%, #12 of 12 = 8%
       const rosterStrength: Record<string, number> = {};
       for (const pos of positions) {
-        const { value, maxValue } = positionRanks[pos];
-        rosterStrength[pos] = maxValue > 0 ? Math.round((value / maxValue) * 100) : 0;
+        const { rank, total } = positionRanks[pos];
+        // Formula: ((total - rank + 1) / total) * 100
+        // Rank 1 of 12 = (12 - 1 + 1)/12 * 100 = 100%
+        // Rank 6 of 12 = (12 - 6 + 1)/12 * 100 = 58%
+        // Rank 12 of 12 = (12 - 12 + 1)/12 * 100 = 8%
+        rosterStrength[pos] = total > 0 ? Math.round(((total - rank + 1) / total) * 100) : 0;
       }
 
       // Calculate team age profile
@@ -5740,22 +5746,45 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         userPlayers[pos].sort((a, b) => b.value - a.value);
       }
 
-      // Calculate position strengths and find user's needs
+      // Calculate position VALUE totals for ALL teams (used for league ranking)
       const positions = ["QB", "RB", "WR", "TE"] as const;
-      const positionStrengths: Record<string, number> = {};
+      const teamPositionValues: Record<string, Record<string, number>> = {};
       
-      for (const pos of positions) {
-        const topPlayers = userPlayers[pos].slice(0, pos === "QB" ? 1 : pos === "TE" ? 1 : 3);
-        positionStrengths[pos] = topPlayers.reduce((sum, p) => sum + p.value, 0);
+      for (const roster of rosters) {
+        const ownerId = roster.owner_id;
+        const posValues: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+        
+        for (const pid of (roster.players || [])) {
+          const player = allPlayers[pid];
+          if (!player) continue;
+          const { value, pos } = getPlayerValue(pid, player);
+          if (pos in posValues) {
+            posValues[pos] += value;
+          }
+        }
+        teamPositionValues[ownerId] = posValues;
       }
-
-      // Find user's weakest and strongest positions
-      const sortedPositions = positions
-        .map(pos => ({ pos, strength: positionStrengths[pos] }))
-        .sort((a, b) => a.strength - b.strength);
       
-      const weakPositions = sortedPositions.slice(0, 2).map(p => p.pos);
-      const strongPositions = sortedPositions.slice(-2).map(p => p.pos);
+      // Calculate USER'S league RANK for each position (like dashboard does)
+      const userRanks: Record<string, { rank: number; total: number }> = {};
+      for (const pos of positions) {
+        const sorted = Object.entries(teamPositionValues)
+          .map(([oid, vals]) => ({ ownerId: oid, value: vals[pos] }))
+          .sort((a, b) => b.value - a.value);
+        
+        const userIndex = sorted.findIndex(t => t.ownerId === userProfile.sleeperUserId);
+        userRanks[pos] = { rank: userIndex + 1, total: rosters.length };
+      }
+      
+      // Find user's weakest and strongest positions by RANK (not raw value)
+      // Lower rank = stronger (rank 1 is best), higher rank = weaker
+      const sortedByRank = positions
+        .map(pos => ({ pos, rank: userRanks[pos].rank }))
+        .sort((a, b) => a.rank - b.rank); // Sort by rank ascending (best first)
+      
+      // Strong positions = low ranks (top 2), Weak positions = high ranks (bottom 2)
+      const strongPositions = sortedByRank.slice(0, 2).map(p => p.pos);
+      const weakPositions = sortedByRank.slice(-2).map(p => p.pos);
 
       // Build trade ideas by finding complementary needs
       const tradeIdeas: Array<{
@@ -5797,19 +5826,16 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           theirPlayers[pos].sort((a, b) => b.value - a.value);
         }
 
-        // Calculate their position strengths
-        const theirStrengths: Record<string, number> = {};
-        for (const pos of positions) {
-          const topPlayers = theirPlayers[pos].slice(0, pos === "QB" ? 1 : pos === "TE" ? 1 : 3);
-          theirStrengths[pos] = topPlayers.reduce((sum, p) => sum + p.value, 0);
-        }
+        // Get their position values (already calculated in teamPositionValues)
+        const theirPosValues = teamPositionValues[roster.owner_id] || { QB: 0, RB: 0, WR: 0, TE: 0 };
+        const ourPosValues = teamPositionValues[userProfile.sleeperUserId] || { QB: 0, RB: 0, WR: 0, TE: 0 };
 
         // Find positions where we're strong and they're weak
         for (const ourStrong of strongPositions) {
           for (const ourWeak of weakPositions) {
-            // They need what we have surplus, we need what they have surplus
-            if (theirStrengths[ourStrong] < positionStrengths[ourStrong] * 0.7 &&
-                theirStrengths[ourWeak] > positionStrengths[ourWeak] * 1.3) {
+            // They need what we have surplus (their value < 70% of ours), we need what they have (their value > 130% of ours)
+            if (theirPosValues[ourStrong] < ourPosValues[ourStrong] * 0.7 &&
+                theirPosValues[ourWeak] > ourPosValues[ourWeak] * 1.3) {
               
               // Find tradeable pieces
               // Give: One of our depth at strong position
