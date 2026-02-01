@@ -159,7 +159,7 @@ function ValueDropAlert({ player }: { player: ValueDrop }) {
           fallen {player.spotsFallen} spots - grab at {player.value.toFixed(1)} value!
         </span>
       </div>
-      <Badge className={getPositionColor(player.position)}>{player.position}</Badge>
+      <Badge className={POSITION_COLORS[player.position] || ""}>{player.position}</Badge>
     </div>
   );
 }
