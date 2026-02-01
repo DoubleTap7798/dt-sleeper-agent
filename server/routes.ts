@@ -6200,6 +6200,16 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         // Use most recent draft
         activeDraft = drafts[0];
         draftPicks = await sleeperApi.getDraftPicks(drafts[0].draft_id);
+        
+        // Debug: Log first few picks to understand the data structure
+        console.log("Draft type:", activeDraft.type);
+        console.log("Sample picks:", draftPicks.slice(0, 5).map(p => ({
+          pick_no: p.pick_no,
+          round: p.round,
+          draft_slot: p.draft_slot,
+          player_id: p.player_id,
+          metadata: p.metadata?.first_name ? `${p.metadata.first_name} ${p.metadata.last_name}` : "N/A"
+        })));
       }
 
       // Get user's draft picks from this draft
