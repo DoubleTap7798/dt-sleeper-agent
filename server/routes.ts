@@ -5963,12 +5963,37 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         draftPicks = await sleeperApi.getDraftPicks(drafts[0].draft_id);
       }
 
-      // Analyze roster needs
+      // Get user's draft picks from this draft
+      const userDraftPicks: any[] = [];
+      const userRosterId = userRoster?.roster_id;
+      
+      for (const pick of draftPicks) {
+        // Match by picked_by (user ID) or roster_id
+        if (pick.picked_by === userProfile.sleeperUserId || pick.roster_id === userRosterId) {
+          const player = allPlayers[pick.player_id];
+          if (player) {
+            userDraftPicks.push({
+              playerId: pick.player_id,
+              name: player.full_name || "Unknown",
+              position: player.position || "?",
+              team: player.team || "FA",
+              round: pick.round,
+              slot: pick.draft_slot,
+              pickNo: (pick.round - 1) * (activeDraft?.settings?.teams || 12) + pick.draft_slot,
+            });
+          }
+        }
+      }
+
+      // Analyze roster needs - include BOTH existing roster AND user's draft picks from this draft
       const positionCounts: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
       const rosterPlayers: any[] = [];
+      const countedPlayerIds = new Set<string>(); // Prevent double-counting
       
+      // Count existing roster players
       if (userRoster?.players) {
         for (const playerId of userRoster.players) {
+          countedPlayerIds.add(playerId);
           const player = allPlayers[playerId];
           if (player?.position) {
             positionCounts[player.position] = (positionCounts[player.position] || 0) + 1;
@@ -5982,6 +6007,23 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
               ppg: gp > 0 ? ((playerStats as any).pts_ppr || 0) / gp : 0,
             });
           }
+        }
+      }
+
+      // Also count user's draft picks from this draft (skip if already on roster)
+      for (const pick of userDraftPicks) {
+        if (countedPlayerIds.has(pick.playerId)) continue; // Skip duplicates
+        
+        if (pick.position && positionCounts[pick.position] !== undefined) {
+          countedPlayerIds.add(pick.playerId);
+          positionCounts[pick.position]++;
+          rosterPlayers.push({
+            id: pick.playerId,
+            name: pick.name,
+            position: pick.position,
+            age: allPlayers[pick.playerId]?.age,
+            ppg: 0,
+          });
         }
       }
 
@@ -6166,6 +6208,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             team: p.metadata.team,
           },
         })),
+        myPicks: userDraftPicks.sort((a, b) => a.pickNo - b.pickNo),
         mode,
       });
     } catch (error) {

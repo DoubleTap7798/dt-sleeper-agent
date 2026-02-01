@@ -62,6 +62,16 @@ interface ValueDrop extends PlayerRecommendation {
   spotsFallen: number;
 }
 
+interface MyDraftPick {
+  playerId: string;
+  name: string;
+  position: string;
+  team: string;
+  round: number;
+  slot: number;
+  pickNo: number;
+}
+
 interface DraftRecommendationsResponse {
   recommendations: {
     bestValue: PlayerRecommendation[];
@@ -85,6 +95,7 @@ interface DraftRecommendationsResponse {
     totalPicks: number;
   } | null;
   draftBoard: DraftBoardPick[];
+  myPicks: MyDraftPick[];
   mode: string;
 }
 
@@ -313,13 +324,14 @@ export default function DraftWarRoomPage() {
     );
   }
 
-  const { recommendations, valueDrops, rosterAnalysis, positionalRuns, draft, draftBoard } = data || {
+  const { recommendations, valueDrops, rosterAnalysis, positionalRuns, draft, draftBoard, myPicks } = data || {
     recommendations: { bestValue: [], bestForNeeds: [], bestUpside: [] },
     valueDrops: [],
     rosterAnalysis: { positionCounts: {}, needs: [], avgAge: 0, profile: "Balanced" },
     positionalRuns: [],
     draft: null,
     draftBoard: [],
+    myPicks: [],
   };
 
   return (
@@ -505,6 +517,42 @@ export default function DraftWarRoomPage() {
               </CardContent>
             </Card>
           )}
+
+          <Card data-testid="card-my-picks">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-primary" />
+                My Picks ({myPicks.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {myPicks.length > 0 ? (
+                <div className="space-y-2">
+                  {myPicks.map(pick => (
+                    <div 
+                      key={pick.playerId} 
+                      className="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-card/50 border border-border/30"
+                      data-testid={`my-pick-${pick.playerId}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-muted-foreground">
+                          {pick.round}.{String(pick.slot).padStart(2, "0")}
+                        </span>
+                        <span className="font-medium text-sm">{pick.name}</span>
+                      </div>
+                      <Badge variant="outline" className={POSITION_COLORS[pick.position] || ""}>
+                        {pick.position}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-2" data-testid="empty-state-my-picks">
+                  No picks made yet
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader className="pb-2">
