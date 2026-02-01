@@ -6215,9 +6215,23 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           return draftSlot;
         }
         
-        // Snake draft: calculate based on reversal_round
-        const reversalGroup = Math.floor((round - 1) / reversalRound);
-        const isReversed = reversalGroup % 2 === 1;
+        // Snake draft with reversal_round setting:
+        // reversal_round = the specific round where direction STAYS the same (no flip)
+        // Example with reversal_round = 3:
+        //   Round 1: Normal (1→12), Round 2: Reversed (12→1)
+        //   Round 3: STAYS reversed (12→1) - the reversal round skips the flip
+        //   Round 4: Normal (1→12), Round 5: Reversed (12→1), Round 6: Normal (1→12)
+        
+        // Track direction changes by simulating round-by-round
+        let isReversed = false;
+        for (let r = 2; r <= round; r++) {
+          // On the reversal_round, direction stays the same (skip the flip)
+          if (r === reversalRound) {
+            continue;
+          }
+          // Normal snake behavior: flip direction each round
+          isReversed = !isReversed;
+        }
         
         return isReversed ? numTeams - draftSlot + 1 : draftSlot;
       };
