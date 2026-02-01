@@ -339,7 +339,7 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         });
       }
 
-      const { subscriptionStatus, subscriptionPeriodEnd, stripeSubscriptionId, isGrandfathered } = profile[0];
+      const { subscriptionStatus, subscriptionPeriodEnd, stripeSubscriptionId, paypalSubscriptionId, subscriptionSource, isGrandfathered } = profile[0];
       
       // Grandfathered users have lifetime premium access
       if (isGrandfathered) {
@@ -348,6 +348,7 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
           status: 'grandfathered',
           periodEnd: null,
           subscriptionId: null,
+          subscriptionSource: null,
           isGrandfathered: true
         });
       }
@@ -360,7 +361,8 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         hasSubscription: isValid,
         status: subscriptionStatus,
         periodEnd: subscriptionPeriodEnd,
-        subscriptionId: stripeSubscriptionId,
+        subscriptionId: subscriptionSource === 'paypal' ? paypalSubscriptionId : stripeSubscriptionId,
+        subscriptionSource: subscriptionSource || (stripeSubscriptionId ? 'stripe' : null),
         isGrandfathered: false
       });
     } catch (error) {
@@ -593,6 +595,135 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     } catch (error) {
       console.error("Error fetching admin subscriptions:", error);
       res.status(500).json({ error: "Failed to fetch subscriptions" });
+    }
+  });
+
+  // PayPal subscription routes
+  app.get("/api/paypal/config", async (_req: Request, res: Response) => {
+    const planId = process.env.PAYPAL_PLAN_ID;
+    const clientId = process.env.PAYPAL_CLIENT_ID;
+    if (!planId || !clientId) {
+      return res.status(500).json({ error: "PayPal not configured" });
+    }
+    res.json({ planId, clientId });
+  });
+
+  app.post("/api/paypal/verify-subscription", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { subscriptionId } = req.body;
+
+      if (!subscriptionId) {
+        return res.status(400).json({ error: "Subscription ID required" });
+      }
+
+      // Get PayPal credentials
+      const clientId = process.env.PAYPAL_CLIENT_ID;
+      const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+      const expectedPlanId = process.env.PAYPAL_PLAN_ID;
+      
+      if (!clientId || !clientSecret || !expectedPlanId) {
+        return res.status(500).json({ error: "PayPal not configured" });
+      }
+
+      // Check if subscription is already claimed by another user
+      const existingSub = await db.select().from(schema.userProfiles)
+        .where(eq(schema.userProfiles.paypalSubscriptionId, subscriptionId))
+        .limit(1);
+      
+      if (existingSub[0] && existingSub[0].userId !== userId) {
+        return res.status(400).json({ error: "This subscription is already associated with another account" });
+      }
+
+      // Use sandbox API for sandbox credentials (client ID starts with 'A' for sandbox, 'AS' prefix for live is harder to distinguish)
+      // For now, use live API - production credentials should be live
+      const paypalBaseUrl = "https://api-m.paypal.com";
+
+      // Get access token from PayPal
+      const authResponse = await fetch(`${paypalBaseUrl}/v1/oauth2/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Authorization": `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
+        },
+        body: "grant_type=client_credentials"
+      });
+
+      if (!authResponse.ok) {
+        console.error("PayPal auth failed:", await authResponse.text());
+        return res.status(500).json({ error: "PayPal authentication failed" });
+      }
+
+      const authData = await authResponse.json() as { access_token: string };
+      const accessToken = authData.access_token;
+
+      // Verify subscription with PayPal
+      const subResponse = await fetch(`${paypalBaseUrl}/v1/billing/subscriptions/${subscriptionId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`
+        }
+      });
+
+      if (!subResponse.ok) {
+        console.error("PayPal subscription fetch failed:", await subResponse.text());
+        return res.status(400).json({ error: "Invalid subscription" });
+      }
+
+      const subData = await subResponse.json() as { 
+        id: string; 
+        status: string; 
+        plan_id: string;
+        billing_info?: { next_billing_time?: string } 
+      };
+      
+      // Validate that the subscription is for our plan
+      if (subData.plan_id !== expectedPlanId) {
+        console.error(`Plan ID mismatch: expected ${expectedPlanId}, got ${subData.plan_id}`);
+        return res.status(400).json({ error: "Invalid subscription plan" });
+      }
+      
+      // Check if subscription is active
+      if (subData.status !== 'ACTIVE') {
+        return res.status(400).json({ error: "Subscription not active", status: subData.status });
+      }
+
+      // Update user profile with PayPal subscription
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      
+      const nextBillingTime = subData.billing_info?.next_billing_time 
+        ? new Date(subData.billing_info.next_billing_time) 
+        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default 1 week
+
+      if (profile[0]) {
+        await db.update(schema.userProfiles)
+          .set({ 
+            paypalSubscriptionId: subscriptionId,
+            subscriptionSource: 'paypal',
+            subscriptionStatus: 'active',
+            subscriptionPeriodEnd: nextBillingTime,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.userProfiles.userId, userId));
+      } else {
+        await db.insert(schema.userProfiles).values({
+          userId,
+          paypalSubscriptionId: subscriptionId,
+          subscriptionSource: 'paypal',
+          subscriptionStatus: 'active',
+          subscriptionPeriodEnd: nextBillingTime
+        });
+      }
+
+      res.json({ 
+        success: true, 
+        message: "Subscription verified and activated",
+        status: subData.status
+      });
+    } catch (error: any) {
+      console.error("Error verifying PayPal subscription:", error);
+      res.status(500).json({ error: error.message || "Failed to verify subscription" });
     }
   });
 
