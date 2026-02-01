@@ -382,6 +382,16 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
           <Button
             variant="ghost"
             size="icon"
+            onClick={() => setLocation("/admin")}
+            className="shrink-0"
+            data-testid="button-admin"
+            title="Admin Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => logout()}
             className="shrink-0"
             data-testid="button-logout"

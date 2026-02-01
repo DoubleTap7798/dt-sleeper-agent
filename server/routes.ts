@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { users } from "@shared/models/auth";
 import * as sleeperApi from "./sleeper-api";
 import * as ktcValues from "./ktc-values";
 import * as dynastyEngine from "./dynasty-value-engine";
@@ -557,16 +558,31 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         };
       });
 
-      // Also get grandfathered users count
-      const grandfatheredUsers = await db.select()
+      // Get grandfathered users with their emails by joining with users table
+      const grandfatheredUsersData = await db.select({
+        userId: schema.userProfiles.userId,
+        sleeperUsername: schema.userProfiles.sleeperUsername,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        createdAt: users.createdAt,
+      })
         .from(schema.userProfiles)
+        .leftJoin(users, eq(schema.userProfiles.userId, users.id))
         .where(eq(schema.userProfiles.isGrandfathered, true));
 
       res.json({
         subscriptions: formattedSubs,
         totalSubscriptions: formattedSubs.length,
         activeSubscriptions: formattedSubs.filter((s: any) => s.status === 'active').length,
-        grandfatheredUsers: grandfatheredUsers.length,
+        grandfatheredUsers: grandfatheredUsersData.length,
+        grandfatheredUsersList: grandfatheredUsersData.map(u => ({
+          userId: u.userId,
+          email: u.email || 'Unknown',
+          name: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.sleeperUsername || 'Unknown',
+          sleeperUsername: u.sleeperUsername || null,
+          joinedAt: u.createdAt ? u.createdAt.toISOString() : null,
+        })),
       });
     } catch (error) {
       console.error("Error fetching admin subscriptions:", error);

@@ -27,11 +27,20 @@ interface Subscription {
   created: string | null;
 }
 
+interface GrandfatheredUser {
+  userId: string;
+  email: string;
+  name: string;
+  sleeperUsername: string | null;
+  joinedAt: string | null;
+}
+
 interface AdminData {
   subscriptions: Subscription[];
   totalSubscriptions: number;
   activeSubscriptions: number;
   grandfatheredUsers: number;
+  grandfatheredUsersList: GrandfatheredUser[];
 }
 
 function formatDate(dateString: string | null): string {
@@ -122,6 +131,49 @@ export default function AdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-amber-500" />
+            Grandfathered Users (OG)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : data?.grandfatheredUsersList?.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No grandfathered users found
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Sleeper Username</TableHead>
+                  <TableHead>Joined</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data?.grandfatheredUsersList?.map((user) => (
+                  <TableRow key={user.userId} data-testid={`row-grandfathered-${user.userId}`}>
+                    <TableCell className="font-medium">{user.name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.sleeperUsername || "-"}</TableCell>
+                    <TableCell>{formatDate(user.joinedAt)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
