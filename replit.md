@@ -36,6 +36,14 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **Trophy Room**: Champions, all-time standings, season records
 - **Real-Time Notifications**: Bell icon in header shows trades, waiver claims, and free agent pickups with auto-sync every 60 seconds
 
+### Monetization
+- **Premium Subscription**: $3.99/week via Stripe for full access to all features
+- **Free Tier**: Login, league selector, basic standings, roster, schedule, matchups, playoff bracket, NFL players list, player comparison
+- **Premium Features**: Trade Calculator, Draft War Room, Waiver Recommendations, Lineup Advice, Watchlist, News, Trophy Room, Rivalries, Player Trends, Projections, Trade Ideas
+- **Grandfathering**: Users created before Feb 1, 2026 receive permanent lifetime premium access (marked by `is_grandfathered=true` in user_profiles)
+- **UI Badges**: Grandfathered users see "OG" badge in sidebar; paying subscribers see "PRO" badge
+- **Server Protection**: Premium endpoints use `requireSubscription` middleware that checks both subscription status and grandfathered status
+
 ## User Preferences
 
 - Preferred communication style: Simple, everyday language.
