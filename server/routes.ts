@@ -459,7 +459,13 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         ORDER BY pr.unit_amount
       `);
       
-      res.json({ prices: result.rows });
+      // Parse the recurring JSON field if it's a string
+      const prices = result.rows.map((row: any) => ({
+        ...row,
+        recurring: typeof row.recurring === 'string' ? JSON.parse(row.recurring) : row.recurring
+      }));
+      
+      res.json({ prices });
     } catch (error) {
       console.error("Error fetching prices:", error);
       res.status(500).json({ error: "Failed to fetch prices" });
