@@ -11,6 +11,9 @@ import * as oddsService from "./odds-service";
 import * as playerStatsService from "./player-stats-service";
 import OpenAI from "openai";
 import { z } from "zod";
+import { db } from "./db";
+import * as schema from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
 
 // Validation schemas
 const connectSleeperSchema = z.object({
@@ -734,7 +737,7 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
       const userId = req.user.claims.sub;
 
       // Get user profile to find their Sleeper ID
-      const userProfile = await authStorage.getUserProfileByUserId(userId);
+      const userProfile = await storage.getUserProfile(userId);
       if (!userProfile?.sleeperUserId) {
         return res.status(400).json({ message: "No Sleeper account connected" });
       }
@@ -786,7 +789,16 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         if (pos && positionCounts[pos] !== undefined) {
           positionCounts[pos]++;
           // Calculate strength based on player quality (use dynasty value if available)
-          const value = dynastyValueEngine.calculateValue(player);
+          const value = dynastyEngine.getQuickPlayerValue(
+            playerId,
+            pos,
+            player.age || 25,
+            player.years_exp || 0,
+            player.injury_status || null,
+            { points: 0, games: 0, ppg: 0 },
+            1,
+            null
+          );
           positionStrengths[pos] += value;
         }
       }
@@ -814,7 +826,16 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         })
         .map(([playerId, player]: [string, any]) => {
           const pos = player.fantasy_positions[0];
-          const playerValue = dynastyValueEngine.calculateValue(player);
+          const playerValue = dynastyEngine.getQuickPlayerValue(
+            playerId,
+            pos,
+            player.age || 25,
+            player.years_exp || 0,
+            player.injury_status || null,
+            { points: 0, games: 0, ppg: 0 },
+            1,
+            null
+          );
           const positionNeed = positionNeeds.find(p => p.position === pos);
           
           // Calculate fit score: combines player value with position need bonus
@@ -886,7 +907,16 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
           position: player.fantasy_positions[0],
           team: player.team,
           age: player.age,
-          dynastyValue: Math.round(dynastyValueEngine.calculateValue(player)),
+          dynastyValue: Math.round(dynastyEngine.getQuickPlayerValue(
+            playerId,
+            player.fantasy_positions[0],
+            player.age || 25,
+            player.years_exp || 0,
+            player.injury_status || null,
+            { points: 0, games: 0, ppg: 0 },
+            1,
+            null
+          )),
         }))
         .sort((a, b) => b.dynastyValue - a.dynastyValue)
         .slice(0, limit);
@@ -915,7 +945,16 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
       const allPlayers = await sleeperApi.getAllPlayers();
       const updatedItems = watchlistItems.map(item => {
         const player = allPlayers?.[item.playerId];
-        const currentValue = player ? Math.round(dynastyValueEngine.calculateValue(player)) : item.currentValue;
+        const currentValue = player ? Math.round(dynastyEngine.getQuickPlayerValue(
+          item.playerId,
+          player.position || item.position,
+          player.age || 25,
+          player.years_exp || 0,
+          player.injury_status || null,
+          { points: 0, games: 0, ppg: 0 },
+          1,
+          null
+        )) : item.currentValue;
         const valueChange = currentValue - item.valueAtAdd;
         return {
           ...item,
@@ -964,7 +1003,16 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         return res.status(404).json({ message: "Player not found" });
       }
 
-      const currentValue = Math.round(dynastyValueEngine.calculateValue(player));
+      const currentValue = Math.round(dynastyEngine.getQuickPlayerValue(
+        playerId,
+        player.fantasy_positions?.[0] || player.position,
+        player.age || 25,
+        player.years_exp || 0,
+        player.injury_status || null,
+        { points: 0, games: 0, ppg: 0 },
+        1,
+        null
+      ));
 
       const [newItem] = await db
         .insert(schema.playerWatchlist)
