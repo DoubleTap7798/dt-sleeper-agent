@@ -4184,8 +4184,13 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         });
       }
 
-      // Check cache first
-      const cacheKey = userProfile.sleeperUserId;
+      // Get all takeovers for this user
+      const allTakeovers = await storage.getAllLeagueTakeovers(userId);
+      const takeoverMap = new Map(allTakeovers.map(t => [t.leagueId, t.takeoverSeason]));
+
+      // Check cache first - include takeover hash in cache key
+      const takeoverHash = allTakeovers.map(t => `${t.leagueId}:${t.takeoverSeason}`).sort().join(',');
+      const cacheKey = `${userProfile.sleeperUserId}:${takeoverHash}`;
       const cached = careerSummaryCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < CAREER_CACHE_TTL) {
         return res.json(cached.data);
@@ -4198,23 +4203,33 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       const leagueDataCache = new Map<string, any>();
 
       // Collect all league IDs and cache league data in a single pass
+      // Include takeoverSeason for filtering
       const leagueIdsToProcess: { leagueId: string; leagueName: string }[] = [];
       
       // First pass: collect all league IDs by tracing back histories (and cache league data)
-      const collectLeagueIds = async (startLeagueId: string, leagueName: string): Promise<string[]> => {
+      // Filter out seasons before takeover date
+      const collectLeagueIds = async (startLeagueId: string, leagueName: string, takeoverSeason: number | null): Promise<string[]> => {
         const ids: string[] = [];
         let currentId: string | null = startLeagueId;
         
         while (currentId && currentId !== "0") {
           if (processedLeagueIds.has(currentId)) break;
           processedLeagueIds.add(currentId);
-          ids.push(currentId);
           
           try {
             const league = await sleeperApi.getLeague(currentId);
             if (!league) break;
+            
+            // Skip seasons before takeover if set
+            const seasonYear = parseInt(league.season);
+            if (takeoverSeason && seasonYear < takeoverSeason) {
+              currentId = league.previous_league_id;
+              continue;
+            }
+            
             // Cache for reuse in processing phase
             leagueDataCache.set(currentId, league);
+            ids.push(currentId);
             currentId = league.previous_league_id;
           } catch {
             break;
@@ -4225,11 +4240,12 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
 
       // Collect all league IDs from all current leagues in parallel
       const leagueIdResults = await Promise.all(
-        currentLeagues.map(league => 
-          collectLeagueIds(league.league_id, league.name).then(ids => 
+        currentLeagues.map(league => {
+          const takeoverSeason = takeoverMap.get(league.league_id) || null;
+          return collectLeagueIds(league.league_id, league.name, takeoverSeason).then(ids => 
             ids.map(id => ({ leagueId: id, leagueName: league.name }))
-          )
-        )
+          );
+        })
       );
       
       leagueIdResults.forEach(ids => leagueIdsToProcess.push(...ids));
@@ -4374,6 +4390,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         return res.status(400).json({ message: "No Sleeper account connected" });
       }
 
+      // Check if user has a takeover season set for this league
+      const takeover = await storage.getLeagueTakeover(userId, leagueId);
+      const takeoverSeason = takeover?.takeoverSeason;
+
       let totalWins = 0;
       let totalLosses = 0;
       let totalTies = 0;
@@ -4392,6 +4412,13 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         try {
           const league = await sleeperApi.getLeague(currentLeagueId);
           if (!league) break;
+          
+          // Skip seasons before takeover if set
+          const seasonYear = parseInt(league.season);
+          if (takeoverSeason && seasonYear < takeoverSeason) {
+            currentLeagueId = league.previous_league_id;
+            continue;
+          }
           
           const rosters = await sleeperApi.getLeagueRosters(currentLeagueId);
           
@@ -4486,10 +4513,67 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         playoffAppearances,
         bestFinish: championships > 0 ? "Champion" : runnerUps > 0 ? "Runner-up" : playoffAppearances > 0 ? "Playoffs" : "N/A",
         seasonStats,
+        takeoverSeason: takeoverSeason || null, // Include takeover info for UI
       });
     } catch (error) {
       console.error("Error fetching league summary:", error);
       res.status(500).json({ message: "Failed to fetch league summary" });
+    }
+  });
+
+  // League Takeover API - For orphan team management
+  app.get("/api/league-takeover/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      
+      const takeover = await storage.getLeagueTakeover(userId, leagueId);
+      res.json(takeover || null);
+    } catch (error) {
+      console.error("Error fetching league takeover:", error);
+      res.status(500).json({ message: "Failed to fetch league takeover" });
+    }
+  });
+
+  app.get("/api/league-takeover", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const takeovers = await storage.getAllLeagueTakeovers(userId);
+      res.json(takeovers);
+    } catch (error) {
+      console.error("Error fetching all league takeovers:", error);
+      res.status(500).json({ message: "Failed to fetch league takeovers" });
+    }
+  });
+
+  app.post("/api/league-takeover/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      const { takeoverSeason } = req.body;
+      
+      if (!takeoverSeason || typeof takeoverSeason !== "number") {
+        return res.status(400).json({ message: "takeoverSeason is required and must be a number" });
+      }
+      
+      const takeover = await storage.upsertLeagueTakeover(userId, leagueId, takeoverSeason);
+      res.json(takeover);
+    } catch (error) {
+      console.error("Error saving league takeover:", error);
+      res.status(500).json({ message: "Failed to save league takeover" });
+    }
+  });
+
+  app.delete("/api/league-takeover/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      
+      await storage.deleteLeagueTakeover(userId, leagueId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting league takeover:", error);
+      res.status(500).json({ message: "Failed to delete league takeover" });
     }
   });
 
