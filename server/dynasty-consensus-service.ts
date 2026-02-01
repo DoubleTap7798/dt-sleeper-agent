@@ -1,5 +1,62 @@
 // Use global fetch (Node 18+)
 
+// Static fallback values for elite NFL players (ensures correct values if DynastyProcess lookup fails)
+// Values on 0-100 scale, updated for 2025-2026 dynasty season
+const ELITE_PLAYER_FALLBACKS: Record<string, { value1QB: number; value2QB: number; position: string }> = {
+  // Elite QBs
+  "josh allen": { value1QB: 75, value2QB: 99, position: "QB" },
+  "patrick mahomes": { value1QB: 72, value2QB: 85, position: "QB" },
+  "lamar jackson": { value1QB: 70, value2QB: 82, position: "QB" },
+  "jalen hurts": { value1QB: 65, value2QB: 78, position: "QB" },
+  "joe burrow": { value1QB: 62, value2QB: 75, position: "QB" },
+  "cj stroud": { value1QB: 68, value2QB: 80, position: "QB" },
+  "caleb williams": { value1QB: 60, value2QB: 72, position: "QB" },
+  "jayden daniels": { value1QB: 58, value2QB: 70, position: "QB" },
+  
+  // Elite RBs
+  "bijan robinson": { value1QB: 95, value2QB: 88, position: "RB" },
+  "breece hall": { value1QB: 88, value2QB: 82, position: "RB" },
+  "jahmyr gibbs": { value1QB: 85, value2QB: 78, position: "RB" },
+  "jonathan taylor": { value1QB: 72, value2QB: 65, position: "RB" },
+  "saquon barkley": { value1QB: 65, value2QB: 58, position: "RB" },
+  "isaiah pacheco": { value1QB: 55, value2QB: 48, position: "RB" },
+  "derrick henry": { value1QB: 35, value2QB: 30, position: "RB" },
+  "josh jacobs": { value1QB: 45, value2QB: 40, position: "RB" },
+  "kyren williams": { value1QB: 55, value2QB: 48, position: "RB" },
+  "devon achane": { value1QB: 68, value2QB: 62, position: "RB" },
+  "kenneth walker": { value1QB: 52, value2QB: 45, position: "RB" },
+  "kenny mcintosh": { value1QB: 18, value2QB: 15, position: "RB" }, // Backup RB
+  
+  // Elite WRs
+  "jamarr chase": { value1QB: 99, value2QB: 92, position: "WR" },
+  "ja'marr chase": { value1QB: 99, value2QB: 92, position: "WR" },
+  "justin jefferson": { value1QB: 93, value2QB: 85, position: "WR" },
+  "ceedee lamb": { value1QB: 94, value2QB: 87, position: "WR" },
+  "jaxon smithnjigba": { value1QB: 96, value2QB: 84, position: "WR" },
+  "amon-ra st brown": { value1QB: 88, value2QB: 80, position: "WR" },
+  "amonra st brown": { value1QB: 88, value2QB: 80, position: "WR" },
+  "malik nabers": { value1QB: 90, value2QB: 82, position: "WR" },
+  "marvin harrison": { value1QB: 88, value2QB: 80, position: "WR" },
+  "garrett wilson": { value1QB: 82, value2QB: 75, position: "WR" },
+  "nico collins": { value1QB: 78, value2QB: 72, position: "WR" },
+  "drake london": { value1QB: 80, value2QB: 74, position: "WR" },
+  "chris olave": { value1QB: 75, value2QB: 68, position: "WR" },
+  "aj brown": { value1QB: 72, value2QB: 65, position: "WR" },
+  "tyreek hill": { value1QB: 55, value2QB: 48, position: "WR" },
+  "davante adams": { value1QB: 48, value2QB: 42, position: "WR" },
+  
+  // Elite TEs
+  "brock bowers": { value1QB: 92, value2QB: 85, position: "TE" }, // Elite TE1
+  "sam laporta": { value1QB: 75, value2QB: 68, position: "TE" },
+  "trey mcbride": { value1QB: 70, value2QB: 63, position: "TE" },
+  "travis kelce": { value1QB: 45, value2QB: 40, position: "TE" },
+  "george kittle": { value1QB: 50, value2QB: 45, position: "TE" },
+  "dalton kincaid": { value1QB: 68, value2QB: 62, position: "TE" },
+  "kyle pitts": { value1QB: 55, value2QB: 50, position: "TE" },
+  "mark andrews": { value1QB: 42, value2QB: 38, position: "TE" },
+  "evan engram": { value1QB: 35, value2QB: 32, position: "TE" },
+};
+
 interface DynastyProcessPlayer {
   player: string;
   pos: string;
@@ -210,8 +267,27 @@ class DynastyConsensusService {
 
   getNormalizedValue(playerName: string, position: string, isSuperflex: boolean = false): number | null {
     const consensus = this.getConsensusValue(playerName, position);
-    if (!consensus) return null;
-    return isSuperflex ? consensus.normalizedValue2QB : consensus.normalizedValue1QB;
+    if (consensus) {
+      return isSuperflex ? consensus.normalizedValue2QB : consensus.normalizedValue1QB;
+    }
+    
+    // Fall back to static elite player values if DynastyProcess lookup fails
+    const normalizedSearchName = this.normalizeName(playerName);
+    const fallback = ELITE_PLAYER_FALLBACKS[normalizedSearchName];
+    if (fallback && fallback.position === position) {
+      return isSuperflex ? fallback.value2QB : fallback.value1QB;
+    }
+    
+    // Try partial name match for fallback (e.g., "Patrick Mahomes II" -> "patrick mahomes")
+    for (const [fallbackName, fallbackData] of Object.entries(ELITE_PLAYER_FALLBACKS)) {
+      if (fallbackData.position === position) {
+        if (normalizedSearchName.includes(fallbackName) || fallbackName.includes(normalizedSearchName.split(' ')[0] + ' ' + (normalizedSearchName.split(' ').pop() || ''))) {
+          return isSuperflex ? fallbackData.value2QB : fallbackData.value1QB;
+        }
+      }
+    }
+    
+    return null;
   }
 
   blendValues(leagueValue: number, consensusValue: number | null, leagueWeight: number = 0.6): number {

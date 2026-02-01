@@ -14,7 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Trophy, TrendingUp, Users, ChevronRight, Star, Zap, BarChart3, Crown } from "lucide-react";
+import { Trophy, TrendingUp, Users, ChevronRight, Star, Zap, Crown } from "lucide-react";
 import type { StandingsTeam } from "@/lib/sleeper-types";
 
 interface StandingsData {
@@ -77,7 +77,6 @@ export default function LeagueStandingsPage() {
   const leagueId = urlParams.get("id");
 
   const [selectedTeam, setSelectedTeam] = useState<{ rosterId: number; ownerName: string } | null>(null);
-  const [viewMode, setViewMode] = useState<"standings" | "playoff">("standings");
 
   const { data: profile } = useQuery<UserProfile>({
     queryKey: ["/api/user/profile"],
@@ -111,37 +110,10 @@ export default function LeagueStandingsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold" data-testid="text-standings-title">
-            Standings
-          </h2>
-          <span className="text-muted-foreground text-sm cursor-pointer hover:underline" data-testid="link-details">
-            Details &gt;
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={viewMode === "standings" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("standings")}
-            className="glass"
-            data-testid="button-standings-view"
-          >
-            <BarChart3 className="h-4 w-4 mr-1.5" />
-            STANDINGS
-          </Button>
-          <Button
-            variant={viewMode === "playoff" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("playoff")}
-            className="glass"
-            data-testid="button-playoff-view"
-          >
-            <Crown className="h-4 w-4 mr-1.5" />
-            PLAYOFF
-          </Button>
-        </div>
+      <div className="flex items-center gap-4 flex-wrap">
+        <h2 className="text-xl font-semibold" data-testid="text-standings-title">
+          Standings
+        </h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
