@@ -1,0 +1,185 @@
+You’re 100% right — a Draft War Room is one of the stickiest features in fantasy apps, and it fits PERFECTLY with your AI + dynasty focus.
+
+Most tools just show:
+❌ Rankings
+❌ ADP lists
+
+The opportunity for you is to build a smart, personalized war room that actively guides picks in real time.
+
+Let’s walk through:
+
+🎯 Core war room flow (simple but powerful)
+🔥 Unique features that would set DT Sleeper Agent apart
+📱 UX layout that fits your app cleanly
+🚀 How I’d phase it in (MVP → advanced)
+
+⸻
+
+🧭 CORE IDEA: AI DRAFT COMMAND CENTER
+
+Instead of:
+
+“Here’s a list of players”
+
+Make it:
+
+👉 “Here’s who you should draft next and why”
+
+⸻
+
+📋 WAR ROOM HOME SCREEN
+
+Top Section — Your Pick Is Coming Up
+
+⏳ Picks until you’re on the clock
+📊 Best picks available (Top 3–5)
+
+Each suggestion shows:
+
+• Player name + position
+• Value score
+• Team need fit
+• Short AI explanation
+
+Example:
+
+🥇 Jayden Reed (WR)
+Value: 92 | Need fit: High
+“Strong age curve, rising role, fills your WR depth need.”
+
+⸻
+
+📊 Draft Board (Live)
+	•	Full pick history (like Sleeper)
+	•	Color coded by position
+	•	Highlight your picks
+
+⸻
+
+📈 Dynamic Rankings
+
+Not static.
+
+They update based on:
+
+✅ Who’s drafted
+✅ Your roster needs
+✅ Positional runs
+✅ Dynasty value curves
+
+⸻
+
+🔥 UNIQUE FEATURES (Where You Win)
+
+Here’s how you stand out:
+
+⸻
+
+🧠 1. Smart Pick Recommendations (Core Differentiator)
+
+AI considers:
+	•	Dynasty value
+	•	Age curve
+	•	Roster construction
+	•	League tendencies (RB runs, etc)
+	•	Future trade value
+
+And shows:
+
+➡ Best overall value
+➡ Best for roster balance
+➡ High upside swing
+
+(3 styles of pick)
+
+⸻
+
+📊 2. Positional Run Alerts
+
+“RB run happening — 4 RBs taken in last 6 picks”
+
+Then:
+
+⚡ “Recommend grabbing RB now or wait 2 rounds”
+
+⸻
+
+📉 3. Value Drop Alerts
+
+“Player X has fallen 12 spots past expected range”
+
+Shows:
+
+🔥 Steal opportunity
+
+⸻
+
+🏗 Startup Mode vs Rookie Mode (Different Logic)
+
+Startup Draft War Room:
+
+Focus on:
+	•	Age balance
+	•	Elite anchor players
+	•	Dynasty value curve
+	•	Long-term roster build
+
+Rookie Draft War Room:
+
+Focus on:
+	•	Prospect upside
+	•	team landing spot
+	•	draft capital
+	•	positional scarcity
+
+Let users toggle modes.
+
+⸻
+
+📈 4. Roster Build Visual
+
+Live chart:
+
+QB | RB | WR | TE
+Slots filling in
+
+Plus:
+
+📊 Age average
+📊 Win-now vs rebuild meter
+
+Shows if you’re building too old or too thin.
+
+⸻
+
+🔁 5. Trade Up/Down Suggestions (🔥🔥)
+
+Example:
+
+“You could trade pick 2.05 for 2.09 + future 2nd and still get similar value.”
+
+This is SUPER unique.
+
+⸻
+
+📱 UX FLOW FOR WAR ROOM TAB
+
+Suggested tab structure:
+
+🏠 Home
+📊 Team
+🔁 Trades
+🚨 Waivers
+📈 Players
+🏈 League
+🎯 Draft (NEW)
+
+Inside Draft:
+
+• Startup War Room
+• Rookie War Room
+• Draft Board
+• Rankings
+• Pick History
+
+But default to War Room view.
