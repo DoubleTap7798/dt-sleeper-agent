@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, TrendingUp, TrendingDown, Minus, Trash2, Plus, Search, StickyNote } from "lucide-react";
+import { MetricTooltip } from "@/components/metric-tooltip";
 
 interface WatchlistItem {
   id: string;
@@ -249,9 +250,13 @@ export default function WatchlistPage() {
                     <TableHead>Player</TableHead>
                     <TableHead className="text-center">Pos</TableHead>
                     <TableHead className="text-center">Team</TableHead>
-                    <TableHead className="text-right">Added Value</TableHead>
+                    <TableHead className="text-right">
+                      <MetricTooltip metric="dynastyValue">Added Value</MetricTooltip>
+                    </TableHead>
                     <TableHead className="text-right">Current</TableHead>
-                    <TableHead className="text-right">Change</TableHead>
+                    <TableHead className="text-right">
+                      <MetricTooltip metric="valueChange">Change</MetricTooltip>
+                    </TableHead>
                     <TableHead className="text-center">Notes</TableHead>
                     <TableHead></TableHead>
                   </TableRow>

@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Search, TrendingUp, Users, Sparkles, Target, AlertCircle } from "lucide-react";
+import { MetricTooltip } from "@/components/metric-tooltip";
 
 interface WaiverPlayer {
   playerId: string;
@@ -213,10 +214,10 @@ export default function WaiverWirePage() {
                           </Badge>
                           <span className="font-medium text-sm">{rec.name}</span>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <MetricTooltip metric="fitScore" className="flex items-center gap-1 text-sm font-bold text-primary">
                           <Target className="h-3 w-3 text-primary" />
-                          <span className="text-sm font-bold text-primary">{rec.fitScore}</span>
-                        </div>
+                          {rec.fitScore}
+                        </MetricTooltip>
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">{rec.team} • Age {rec.age || "?"}</span>

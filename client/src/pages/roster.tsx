@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, AlertCircle, User, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
 import { getNFLTeamLogo } from "@/lib/team-logos";
+import { MetricTooltip } from "@/components/metric-tooltip";
 
 interface RosterPlayer {
   playerId: string;
@@ -209,7 +210,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
               <span className="text-sm font-semibold text-primary" data-testid={`stat-value-${player.playerId}`}>
                 {player.dynastyValue.toFixed(1)}
               </span>
-              <span className="text-xs text-muted-foreground block">Dynasty Value</span>
+              <MetricTooltip metric="dynastyValue" className="text-xs text-muted-foreground block" />
             </div>
             <div className="text-right">
               <span className="text-sm font-medium" data-testid={`stat-projected-${player.playerId}`}>
@@ -236,7 +237,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
                 <span className="font-medium" data-testid={`stat-slot-${player.playerId}`}>{player.slotPosition}</span>
               </div>
               <div className="sm:hidden">
-                <span className="text-muted-foreground block text-xs">Dynasty Value</span>
+                <MetricTooltip metric="dynastyValue" className="text-muted-foreground block text-xs" />
                 <span className="font-semibold text-primary">{player.dynastyValue.toFixed(1)}</span>
               </div>
               <div>

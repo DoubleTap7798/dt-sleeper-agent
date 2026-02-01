@@ -25,6 +25,7 @@ import {
 import { Users, Search, TrendingUp, AlertCircle, Loader2, BarChart3 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
 import { getNFLTeamLogo } from "@/lib/team-logos";
+import { MetricTooltip } from "@/components/metric-tooltip";
 
 interface Player {
   id: string;
@@ -453,7 +454,7 @@ export default function PlayersPage() {
                       <p className="text-lg font-bold">{selectedPlayer.gamesPlayed}</p>
                     </Card>
                     <Card className="p-3">
-                      <p className="text-xs text-muted-foreground">Dynasty Value</p>
+                      <MetricTooltip metric="dynastyValue" className="text-xs text-muted-foreground" />
                       <p className="text-lg font-bold font-mono text-primary">{selectedPlayer.dynastyValue.toFixed(1)}</p>
                     </Card>
                     <Card className="p-3">
