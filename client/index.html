@@ -70,9 +70,36 @@
     <link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Fira+Code:wght@300..700&family=Geist+Mono:wght@100..900&family=Geist:wght@100..900&family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=IBM+Plex+Sans:ital,wght@0,100..700;1,100..700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400..700;1,400..700&family=Merriweather:ital,opsz,wght@0,18..144,300..900;1,18..144,300..900&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Outfit:wght@100..900&family=Oxanium:wght@200..800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Roboto:ital,wght@0,100..900;1,100..900&family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static content visible to crawlers and during initial load - React will replace this -->
+      <div style="background: #000; color: #fff; min-height: 100vh; padding: 40px; font-family: system-ui, -apple-system, sans-serif;">
+        <header style="max-width: 1200px; margin: 0 auto;">
+          <h1 style="color: #00D4FF; font-size: 2.5rem; margin-bottom: 0.5rem;">DT Sleeper Agent</h1>
+          <p style="font-size: 1.25rem; color: #a0a0a0; margin-bottom: 2rem;">Your Ultimate Fantasy Football Companion for Sleeper Leagues</p>
+        </header>
+        
+        <main style="max-width: 1200px; margin: 0 auto;">
+          <p style="font-size: 1.1rem; line-height: 1.7; margin-bottom: 2rem;">Analyze trades, optimize waivers, and get AI-powered insights for your Sleeper fantasy football leagues. DT Sleeper Agent connects directly to your Sleeper account to provide advanced analytics and recommendations.</p>
+          
+          <h2 style="color: #00D4FF; font-size: 1.5rem; margin-bottom: 1rem;">Features</h2>
+          <ul style="line-height: 2; color: #d0d0d0; list-style: none; padding: 0;">
+            <li>Trade Calculator - Custom dynasty values with AI-powered analysis</li>
+            <li>Lineup Advice - AI-powered start/sit recommendations</li>
+            <li>Career Stats - Track performance across all seasons</li>
+            <li>Playoff Predictions - See your playoff chances</li>
+            <li>Waiver Wire - Find the best available players</li>
+            <li>Devy Rankings - Scout 200+ college prospects</li>
+            <li>Player Trends - Multi-season performance tracking</li>
+            <li>ROS Projections - Rest-of-season AI insights</li>
+            <li>Trophy Room - Championships and all-time records</li>
+          </ul>
+        </main>
+        
+        <p style="margin-top: 3rem; color: #606060; text-align: center;">Loading application...</p>
+      </div>
+    </div>
     
-    <!-- Static content for search engines and crawlers -->
+    <!-- Fallback for users with JavaScript disabled -->
     <noscript>
       <div style="background: #000; color: #fff; padding: 40px; font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto;">
         <h1 style="color: #00D4FF;">DT Sleeper Agent</h1>
