@@ -5299,5 +5299,207 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     }
   });
 
+  // Smart Trade Ideas API - generates AI-powered trade suggestions
+  app.get("/api/fantasy/trade-ideas", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.query;
+      
+      if (!leagueId) {
+        return res.status(400).json({ message: "League ID required" });
+      }
+
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, allPlayers, league, stats, users] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId as string),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeague(leagueId as string),
+        sleeperApi.getSeasonStats("2025", "regular"),
+        sleeperApi.getLeagueUsers(leagueId as string),
+      ]);
+
+      // Fetch consensus values
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[TradeIdeas] Failed to fetch consensus values: ${e}`);
+      }
+
+      const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+      const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+
+      if (!userRoster) {
+        return res.json({ tradeIdeas: [] });
+      }
+
+      // Helper function to get player value
+      const getPlayerValue = (playerId: string, player: any) => {
+        const pos = player?.position || "?";
+        const playerName = player?.full_name || `${player?.first_name} ${player?.last_name}`;
+        const playerStats = stats?.[playerId] || {};
+        const gamesPlayed = playerStats.gp || 0;
+        const fantasyPoints = playerStats.pts_ppr || 0;
+        const pointsPerGame = gamesPlayed > 0 ? fantasyPoints / gamesPlayed : 0;
+        
+        const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, pos, isSuperflex);
+        
+        const valueResult = dynastyEngine.getBlendedPlayerValue(
+          playerId,
+          playerName,
+          pos,
+          player?.age || 25,
+          player?.years_exp || 0,
+          player?.injury_status,
+          { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
+          null,
+          null,
+          consensusValue
+        );
+        return { value: valueResult.value, name: playerName, pos, age: player?.age || 25 };
+      };
+
+      // Build user's player values by position
+      const userPlayers: Record<string, Array<{ id: string; name: string; value: number; pos: string; age: number }>> = {
+        QB: [], RB: [], WR: [], TE: []
+      };
+      
+      for (const pid of (userRoster.players || [])) {
+        const player = allPlayers[pid];
+        if (!player) continue;
+        const { value, name, pos, age } = getPlayerValue(pid, player);
+        if (pos in userPlayers) {
+          userPlayers[pos].push({ id: pid, name, value, pos, age });
+        }
+      }
+
+      // Sort user players by value (highest first)
+      for (const pos of Object.keys(userPlayers)) {
+        userPlayers[pos].sort((a, b) => b.value - a.value);
+      }
+
+      // Calculate position strengths and find user's needs
+      const positions = ["QB", "RB", "WR", "TE"] as const;
+      const positionStrengths: Record<string, number> = {};
+      
+      for (const pos of positions) {
+        const topPlayers = userPlayers[pos].slice(0, pos === "QB" ? 1 : pos === "TE" ? 1 : 3);
+        positionStrengths[pos] = topPlayers.reduce((sum, p) => sum + p.value, 0);
+      }
+
+      // Find user's weakest and strongest positions
+      const sortedPositions = positions
+        .map(pos => ({ pos, strength: positionStrengths[pos] }))
+        .sort((a, b) => a.strength - b.strength);
+      
+      const weakPositions = sortedPositions.slice(0, 2).map(p => p.pos);
+      const strongPositions = sortedPositions.slice(-2).map(p => p.pos);
+
+      // Build trade ideas by finding complementary needs
+      const tradeIdeas: Array<{
+        tradePartner: { name: string; avatar: string | null; ownerId: string };
+        give: Array<{ name: string; pos: string; value: number }>;
+        get: Array<{ name: string; pos: string; value: number }>;
+        reason: string;
+        fairnessScore: number; // 0-100, 50 = perfectly fair
+      }> = [];
+
+      // Create owner name lookup
+      const ownerMap = new Map<string, { name: string; avatar: string | null }>();
+      for (const user of users) {
+        ownerMap.set(user.user_id, { 
+          name: user.display_name || user.username || "Unknown",
+          avatar: user.avatar ? `https://sleepercdn.com/avatars/${user.avatar}` : null
+        });
+      }
+
+      // Analyze other teams
+      for (const roster of rosters) {
+        if (roster.owner_id === userProfile.sleeperUserId) continue;
+
+        const theirPlayers: Record<string, Array<{ id: string; name: string; value: number; pos: string; age: number }>> = {
+          QB: [], RB: [], WR: [], TE: []
+        };
+
+        for (const pid of (roster.players || [])) {
+          const player = allPlayers[pid];
+          if (!player) continue;
+          const { value, name, pos, age } = getPlayerValue(pid, player);
+          if (pos in theirPlayers) {
+            theirPlayers[pos].push({ id: pid, name, value, pos, age });
+          }
+        }
+
+        // Sort their players
+        for (const pos of Object.keys(theirPlayers)) {
+          theirPlayers[pos].sort((a, b) => b.value - a.value);
+        }
+
+        // Calculate their position strengths
+        const theirStrengths: Record<string, number> = {};
+        for (const pos of positions) {
+          const topPlayers = theirPlayers[pos].slice(0, pos === "QB" ? 1 : pos === "TE" ? 1 : 3);
+          theirStrengths[pos] = topPlayers.reduce((sum, p) => sum + p.value, 0);
+        }
+
+        // Find positions where we're strong and they're weak
+        for (const ourStrong of strongPositions) {
+          for (const ourWeak of weakPositions) {
+            // They need what we have surplus, we need what they have surplus
+            if (theirStrengths[ourStrong] < positionStrengths[ourStrong] * 0.7 &&
+                theirStrengths[ourWeak] > positionStrengths[ourWeak] * 1.3) {
+              
+              // Find tradeable pieces
+              // Give: One of our depth at strong position
+              const ourTradeable = userPlayers[ourStrong].slice(1, 3); // Our 2nd/3rd best
+              // Get: One of their players at our weak position
+              const theirTradeable = theirPlayers[ourWeak].slice(0, 2);
+
+              if (ourTradeable.length > 0 && theirTradeable.length > 0) {
+                // Try to find a fair trade
+                for (const give of ourTradeable) {
+                  for (const get of theirTradeable) {
+                    const valueDiff = Math.abs(give.value - get.value);
+                    const avgValue = (give.value + get.value) / 2;
+                    const fairnessScore = avgValue > 0 ? Math.round(100 - (valueDiff / avgValue) * 50) : 50;
+                    
+                    // Only suggest trades within reasonable value difference (fairness >= 50)
+                    if (fairnessScore >= 50 && give.value >= 15 && get.value >= 15) {
+                      const ownerInfo = ownerMap.get(roster.owner_id) || { name: "Unknown", avatar: null };
+                      
+                      tradeIdeas.push({
+                        tradePartner: { 
+                          name: ownerInfo.name, 
+                          avatar: ownerInfo.avatar,
+                          ownerId: roster.owner_id
+                        },
+                        give: [{ name: give.name, pos: give.pos, value: Math.round(give.value) }],
+                        get: [{ name: get.name, pos: get.pos, value: Math.round(get.value) }],
+                        reason: `They need ${ourStrong} help, you need ${ourWeak} depth`,
+                        fairnessScore: Math.min(100, Math.max(0, fairnessScore)),
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Sort by fairness and limit to top 5
+      tradeIdeas.sort((a, b) => b.fairnessScore - a.fairnessScore);
+      const topIdeas = tradeIdeas.slice(0, 5);
+
+      res.json({ tradeIdeas: topIdeas });
+    } catch (error) {
+      console.error("Error generating trade ideas:", error);
+      res.status(500).json({ message: "Failed to generate trade ideas" });
+    }
+  });
+
   return httpServer;
 }

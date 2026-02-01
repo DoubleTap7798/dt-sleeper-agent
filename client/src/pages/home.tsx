@@ -96,6 +96,14 @@ interface Notification {
   createdAt: string;
 }
 
+interface TradeIdea {
+  tradePartner: { name: string; avatar: string | null; ownerId: string };
+  give: Array<{ name: string; pos: string; value: number }>;
+  get: Array<{ name: string; pos: string; value: number }>;
+  reason: string;
+  fairnessScore: number;
+}
+
 // Strength bar component with glow effect
 function StrengthBar({ position, value, rank, total }: { position: string; value: number; rank: number; total: number }) {
   const positionColors: Record<string, string> = {
@@ -251,6 +259,19 @@ export default function HomePage() {
   // Fetch dashboard data for action-first view
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery<DashboardData>({
     queryKey: ["/api/fantasy/dashboard", leagueIdFromUrl],
+    enabled: !!leagueIdFromUrl && leagueIdFromUrl !== "all",
+  });
+
+  // Fetch smart trade ideas
+  const { data: tradeIdeasData, isLoading: tradeIdeasLoading } = useQuery<{ tradeIdeas: TradeIdea[] }>({
+    queryKey: ["/api/fantasy/trade-ideas", leagueIdFromUrl],
+    queryFn: async () => {
+      const res = await fetch(`/api/fantasy/trade-ideas?leagueId=${leagueIdFromUrl}`, {
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Failed to fetch trade ideas");
+      return res.json();
+    },
     enabled: !!leagueIdFromUrl && leagueIdFromUrl !== "all",
   });
 
@@ -621,6 +642,95 @@ export default function HomePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Smart Trade Ideas */}
+      <Card data-testid="card-trade-ideas">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-primary" />
+              <CardTitle className="text-base font-semibold">Smart Trade Ideas</CardTitle>
+            </div>
+            <Link href={`/league/trade?id=${leagueIdFromUrl}`}>
+              <Button size="sm" variant="ghost" data-testid="btn-view-trade-calc">
+                Trade Calculator <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {tradeIdeasLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-20" />
+              ))}
+            </div>
+          ) : tradeIdeasData?.tradeIdeas && tradeIdeasData.tradeIdeas.length > 0 ? (
+            <div className="space-y-4">
+              {tradeIdeasData.tradeIdeas.slice(0, 3).map((idea, idx) => (
+                <div 
+                  key={idx}
+                  className="p-3 rounded-lg border border-border/50 bg-card/50 space-y-2"
+                  data-testid={`trade-idea-${idx}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={idea.tradePartner.avatar || undefined} alt={idea.tradePartner.name} />
+                        <AvatarFallback className="text-[10px]">
+                          {idea.tradePartner.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium">{idea.tradePartner.name}</span>
+                    </div>
+                    <Badge 
+                      variant={idea.fairnessScore >= 70 ? "default" : idea.fairnessScore >= 50 ? "secondary" : "outline"}
+                      className="text-xs"
+                    >
+                      {idea.fairnessScore >= 70 ? "Fair" : idea.fairnessScore >= 50 ? "Close" : "Reach"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-1">You give</p>
+                      {idea.give.map((p, i) => (
+                        <span key={i} className="inline-flex items-center gap-1">
+                          <Badge variant="outline" className="text-xs font-normal">
+                            {p.pos}
+                          </Badge>
+                          <span className="font-medium">{p.name}</span>
+                          <span className="text-muted-foreground text-xs">({p.value})</span>
+                        </span>
+                      ))}
+                    </div>
+                    <ArrowRightLeft className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-1">You get</p>
+                      {idea.get.map((p, i) => (
+                        <span key={i} className="inline-flex items-center gap-1">
+                          <Badge variant="outline" className="text-xs font-normal">
+                            {p.pos}
+                          </Badge>
+                          <span className="font-medium">{p.name}</span>
+                          <span className="text-muted-foreground text-xs">({p.value})</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{idea.reason}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <ArrowRightLeft className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No trade suggestions right now. Check back after more roster analysis.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Quick Stats Row */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
