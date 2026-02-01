@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
 import { PremiumGate } from "@/components/premium-gate";
@@ -17,6 +17,8 @@ import {
   Trophy,
   AlertTriangle,
   ChevronRight,
+  RefreshCw,
+  ArrowDown,
 } from "lucide-react";
 import {
   Table,
@@ -239,7 +241,26 @@ function RosterBuildVisual({ analysis }: { analysis: DraftRecommendationsRespons
   );
 }
 
-function DraftBoard({ picks }: { picks: DraftBoardPick[] }) {
+function DraftBoard({ picks, currentPick }: { 
+  picks: DraftBoardPick[]; 
+  currentPick?: number;
+}) {
+  const currentPickRef = useRef<HTMLTableRowElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to current pick when it changes
+  useEffect(() => {
+    if (currentPickRef.current) {
+      currentPickRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [currentPick]);
+
+  const handleScrollToCurrent = () => {
+    if (currentPickRef.current) {
+      currentPickRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   if (picks.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground" data-testid="empty-state-draft-board">
@@ -250,39 +271,64 @@ function DraftBoard({ picks }: { picks: DraftBoardPick[] }) {
     );
   }
 
-  const rounds = Math.max(...picks.map(p => p.round));
-  const picksPerRound = Math.max(...picks.filter(p => p.round === 1).map(p => p.slot));
-
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-12 text-xs">Pick</TableHead>
-            <TableHead className="text-xs">Player</TableHead>
-            <TableHead className="w-12 text-xs text-center">Pos</TableHead>
-            <TableHead className="w-12 text-xs text-center">Team</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {picks.slice(-20).reverse().map((pick) => (
-            <TableRow key={pick.pickNo} data-testid={`draft-pick-${pick.pickNo}`}>
-              <TableCell className="font-mono text-xs">
-                {pick.round}.{String(pick.slot).padStart(2, "0")}
-              </TableCell>
-              <TableCell className="font-medium">{pick.player.name}</TableCell>
-              <TableCell className="text-center">
-                <Badge variant="outline" className={`text-xs ${POSITION_COLORS[pick.player.position] || ""}`}>
-                  {pick.player.position}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-center text-xs text-muted-foreground">
-                {pick.player.team}
-              </TableCell>
+    <div className="space-y-2">
+      {currentPick && (
+        <div className="flex items-center justify-between px-2">
+          <Badge variant="outline" className="text-primary border-primary">
+            <Zap className="w-3 h-3 mr-1" />
+            On the clock: Pick {currentPick}
+          </Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleScrollToCurrent}
+            className="text-xs"
+            data-testid="button-scroll-to-current"
+          >
+            <ArrowDown className="w-3 h-3 mr-1" />
+            Jump to current
+          </Button>
+        </div>
+      )}
+      <div className="overflow-x-auto max-h-80 overflow-y-auto" ref={scrollContainerRef}>
+        <Table>
+          <TableHeader className="sticky top-0 bg-card z-10">
+            <TableRow>
+              <TableHead className="w-12 text-xs">Pick</TableHead>
+              <TableHead className="text-xs">Player</TableHead>
+              <TableHead className="w-12 text-xs text-center">Pos</TableHead>
+              <TableHead className="w-12 text-xs text-center">Team</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {picks.map((pick) => {
+              const isCurrent = currentPick === pick.pickNo;
+              return (
+                <TableRow 
+                  key={pick.pickNo} 
+                  ref={isCurrent ? currentPickRef : undefined}
+                  className={isCurrent ? "bg-primary/20" : ""}
+                  data-testid={`draft-pick-${pick.pickNo}`}
+                >
+                  <TableCell className="font-mono text-xs">
+                    {pick.round}.{String(pick.slot).padStart(2, "0")}
+                  </TableCell>
+                  <TableCell className="font-medium">{pick.player.name}</TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant="outline" className={`text-xs ${POSITION_COLORS[pick.player.position] || ""}`}>
+                      {pick.player.position}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center text-xs text-muted-foreground">
+                    {pick.player.team}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
@@ -380,6 +426,7 @@ export default function DraftWarRoomPage() {
             onClick={() => refetch()}
             data-testid="button-refresh-draft"
           >
+            <RefreshCw className="w-4 h-4 mr-1" />
             Refresh
           </Button>
         </div>
@@ -496,7 +543,10 @@ export default function DraftWarRoomPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <DraftBoard picks={draftBoard} />
+              <DraftBoard 
+                picks={draftBoard} 
+                currentPick={draft?.status === "drafting" ? draftBoard.length + 1 : undefined}
+              />
             </CardContent>
           </Card>
         </div>

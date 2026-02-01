@@ -123,59 +123,59 @@
 }
 
 .dark {
-  --button-outline: rgba(0, 212, 255, .15);
-  --badge-outline: rgba(0, 212, 255, .10);
+  --button-outline: rgba(0, 240, 255, .20);
+  --badge-outline: rgba(0, 240, 255, .15);
 
   --opaque-button-border-intensity: 9;  /* In terms of percentages */
 
   /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(0, 212, 255, .06);
-  --elevate-2: rgba(0, 212, 255, .12);
+  --elevate-1: rgba(0, 240, 255, .08);
+  --elevate-2: rgba(0, 240, 255, .15);
 
-  /* Electric Blue/Cyan accent color - HSL: 187 100% 50% */
-  --accent-cyan: 187 100% 50%;
-  --accent-cyan-glow: 0 0 20px rgba(0, 212, 255, 0.4);
-  --accent-cyan-glow-strong: 0 0 30px rgba(0, 212, 255, 0.6);
+  /* Electric Neon Cyan accent color - HSL: 185 100% 55% - More vivid/electric */
+  --accent-cyan: 185 100% 55%;
+  --accent-cyan-glow: 0 0 25px rgba(0, 240, 255, 0.5);
+  --accent-cyan-glow-strong: 0 0 40px rgba(0, 240, 255, 0.7);
 
   --background: 0 0% 4%;
 
   --foreground: 0 0% 95%;
 
-  --border: 187 30% 18%;
+  --border: 185 35% 20%;
 
   --card: 0 0% 7%;
 
   --card-foreground: 0 0% 95%;
 
-  --card-border: 187 20% 15%;
+  --card-border: 185 30% 18%;
 
   --sidebar: 0 0% 2%;
 
   --sidebar-foreground: 0 0% 95%;
 
-  --sidebar-border: 187 15% 12%;
+  --sidebar-border: 185 25% 15%;
 
-  --sidebar-primary: 187 100% 50%;
+  --sidebar-primary: 185 100% 55%;
 
   --sidebar-primary-foreground: 0 0% 2%;
 
-  --sidebar-accent: 187 40% 15%;
+  --sidebar-accent: 185 50% 18%;
 
   --sidebar-accent-foreground: 0 0% 95%;
 
-  --sidebar-ring: 187 60% 40%;
+  --sidebar-ring: 185 80% 45%;
 
   --popover: 0 0% 6%;
 
   --popover-foreground: 0 0% 95%;
 
-  --popover-border: 187 20% 15%;
+  --popover-border: 185 25% 18%;
 
-  --primary: 187 100% 50%;
+  --primary: 185 100% 55%;
 
   --primary-foreground: 0 0% 2%;
 
-  --secondary: 187 15% 12%;
+  --secondary: 185 20% 14%;
 
   --secondary-foreground: 0 0% 95%;
 
@@ -183,7 +183,7 @@
 
   --muted-foreground: 0 0% 60%;
 
-  --accent: 187 30% 18%;
+  --accent: 185 35% 20%;
 
   --accent-foreground: 0 0% 95%;
 
