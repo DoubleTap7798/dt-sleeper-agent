@@ -5,6 +5,14 @@
 DT Sleeper Agent is a fantasy football companion application for Sleeper leagues. It provides league management tools including trade calculators with custom dynasty values, waiver wire analysis, playoff predictions, trade history tracking, rivalry head-to-head records, and a trophy room for league achievements. The application integrates with the Sleeper API to fetch real-time league data and uses AI (OpenAI) for trade analysis and recommendations.
 
 ## Features
+
+### UX Design Philosophy
+- **Action-First Dashboard**: Home page prioritizes personalized recommendations over raw data - shows roster strength bars, team profile indicator (Contender/Balanced/Rebuild), biggest need, and weekly AI insights
+- **Persistent League Selector**: Dropdown in header always visible for quick switching between leagues with avatars and season info
+- **Consolidated Navigation**: Grouped collapsible sections (League, My Team, Players, Trades) reduce cognitive load while maintaining full feature access
+- **Dashboard API**: `/api/fantasy/dashboard/:leagueId` returns roster strength percentages (0-100), position ranks, team profile classification, biggest need analysis, and action recommendations
+
+### Core Features
 - **Career Stats (All Leagues)**: Default view showing aggregated statistics across ALL historical seasons - total W-L-T record, championships, runner-ups, playoff appearances, and season-by-season breakdown with navigation filtered to career-level pages
 - **Standings**: League standings with playoff predictions, clickable teams show roster and draft picks
 - **News Feed**: Real-time fantasy football news and analysis with injury updates, trade rumors, waiver recommendations, and player analysis - AI-generated with 5-minute refresh

@@ -5076,5 +5076,228 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     }
   });
 
+  // Dashboard API - returns action-first data for home page
+  app.get("/api/fantasy/dashboard", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.query;
+      
+      if (!leagueId) {
+        return res.status(400).json({ message: "League ID required" });
+      }
+
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, allPlayers, league, stats, matchups] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId as string),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeague(leagueId as string),
+        sleeperApi.getSeasonStats("2025", "regular"),
+        sleeperApi.getMatchups(leagueId as string, 1),
+      ]);
+
+      // Fetch consensus values
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[Dashboard] Failed to fetch consensus values: ${e}`);
+      }
+
+      const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+      const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+      const leagueSize = rosters.length;
+
+      if (!userRoster) {
+        return res.json({
+          rosterStrength: { QB: 0, RB: 0, WR: 0, TE: 0 },
+          positionRanks: { QB: { rank: 0, total: leagueSize }, RB: { rank: 0, total: leagueSize }, WR: { rank: 0, total: leagueSize }, TE: { rank: 0, total: leagueSize } },
+          teamProfile: "balanced",
+          biggestNeed: null,
+          recommendations: [],
+          weeklyBlurb: "Connect your roster to get personalized insights.",
+        });
+      }
+
+      // Calculate dynasty values
+      const getBlendedValue = (playerId: string, player: any) => {
+        const pos = player?.position || "?";
+        const playerName = player?.full_name || `${player?.first_name} ${player?.last_name}`;
+        const playerStats = stats?.[playerId] || {};
+        const gamesPlayed = playerStats.gp || 0;
+        const fantasyPoints = playerStats.pts_ppr || 0;
+        const pointsPerGame = gamesPlayed > 0 ? fantasyPoints / gamesPlayed : 0;
+        
+        const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, pos, isSuperflex);
+        
+        const valueResult = dynastyEngine.getBlendedPlayerValue(
+          playerId,
+          playerName,
+          pos,
+          player?.age || 25,
+          player?.years_exp || 0,
+          player?.injury_status,
+          { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
+          null,
+          null,
+          consensusValue
+        );
+        return valueResult.value;
+      };
+
+      // Calculate position group values for ALL teams
+      const teamPositionValues: Record<string, { QB: number; RB: number; WR: number; TE: number }> = {};
+      const teamAges: Record<string, number[]> = {};
+      
+      for (const roster of rosters) {
+        const ownerId = roster.owner_id;
+        const rosterPlayers = roster.players || [];
+        
+        const posValues = { QB: 0, RB: 0, WR: 0, TE: 0 };
+        const ages: number[] = [];
+        
+        for (const pid of rosterPlayers) {
+          const player = allPlayers[pid];
+          if (!player) continue;
+          
+          const pos = player.position as "QB" | "RB" | "WR" | "TE";
+          if (pos in posValues) {
+            const value = getBlendedValue(pid, player);
+            posValues[pos] += value;
+            if (player.age) ages.push(player.age);
+          }
+        }
+        
+        teamPositionValues[ownerId] = posValues;
+        teamAges[ownerId] = ages;
+      }
+
+      // Rank each position group
+      const positions = ["QB", "RB", "WR", "TE"] as const;
+      const positionRanks: Record<string, { rank: number; total: number; value: number; maxValue: number }> = {};
+      
+      for (const pos of positions) {
+        const sorted = Object.entries(teamPositionValues)
+          .map(([oid, vals]) => ({ ownerId: oid, value: vals[pos] }))
+          .sort((a, b) => b.value - a.value);
+        
+        const userIndex = sorted.findIndex(t => t.ownerId === userProfile.sleeperUserId);
+        const userValue = userIndex >= 0 ? sorted[userIndex].value : 0;
+        const maxValue = sorted[0]?.value || 1;
+        
+        positionRanks[pos] = {
+          rank: userIndex + 1,
+          total: leagueSize,
+          value: userValue,
+          maxValue,
+        };
+      }
+
+      // Calculate roster strength as percentage (0-100)
+      const rosterStrength: Record<string, number> = {};
+      for (const pos of positions) {
+        const { value, maxValue } = positionRanks[pos];
+        rosterStrength[pos] = maxValue > 0 ? Math.round((value / maxValue) * 100) : 0;
+      }
+
+      // Calculate team age profile
+      const userAges = teamAges[userProfile.sleeperUserId] || [];
+      const avgAge = userAges.length > 0 ? userAges.reduce((a, b) => a + b, 0) / userAges.length : 25;
+      const youngPlayers = userAges.filter(a => a <= 24).length;
+      const oldPlayers = userAges.filter(a => a >= 28).length;
+      
+      let teamProfile: "contender" | "balanced" | "rebuild" = "balanced";
+      if (avgAge >= 27 || oldPlayers > youngPlayers * 1.5) {
+        teamProfile = "contender"; // Older roster, win-now
+      } else if (avgAge <= 24 || youngPlayers > oldPlayers * 1.5) {
+        teamProfile = "rebuild"; // Young roster, building
+      }
+
+      // Find biggest need
+      const weakestPos = positions.reduce((weakest, pos) => {
+        if (!weakest || positionRanks[pos].rank > positionRanks[weakest].rank) {
+          return pos;
+        }
+        return weakest;
+      }, null as string | null);
+      
+      const biggestNeed = weakestPos ? {
+        position: weakestPos,
+        rank: positionRanks[weakestPos].rank,
+        total: leagueSize,
+        message: `Your ${weakestPos} room ranks #${positionRanks[weakestPos].rank} of ${leagueSize}`
+      } : null;
+
+      // Generate recommendations
+      const recommendations: Array<{ type: string; priority: "high" | "medium" | "low"; title: string; description: string; action?: string }> = [];
+
+      // Waiver recommendation based on need
+      if (biggestNeed && biggestNeed.rank > leagueSize / 2) {
+        recommendations.push({
+          type: "waiver",
+          priority: "high",
+          title: `Add ${biggestNeed.position} depth`,
+          description: `Your ${biggestNeed.position} room needs help. Check the waiver wire for options.`,
+          action: `/league/waivers?id=${leagueId}&position=${biggestNeed.position}`,
+        });
+      }
+
+      // Trade recommendation based on surplus
+      const strongestPos = positions.reduce((strongest, pos) => {
+        if (!strongest || positionRanks[pos].rank < positionRanks[strongest].rank) {
+          return pos;
+        }
+        return strongest;
+      }, null as string | null);
+
+      if (strongestPos && biggestNeed && strongestPos !== biggestNeed.position) {
+        if (positionRanks[strongestPos].rank <= 3 && positionRanks[biggestNeed.position].rank > leagueSize / 2) {
+          recommendations.push({
+            type: "trade",
+            priority: "medium",
+            title: `Trade ${strongestPos} for ${biggestNeed.position}`,
+            description: `You're stacked at ${strongestPos} (ranked #${positionRanks[strongestPos].rank}). Consider trading depth for a ${biggestNeed.position} upgrade.`,
+            action: `/league/trade?id=${leagueId}`,
+          });
+        }
+      }
+
+      // Lineup check
+      recommendations.push({
+        type: "lineup",
+        priority: "low",
+        title: "Review your lineup",
+        description: "Make sure your best players are in the starting spots.",
+        action: `/league/lineup?id=${leagueId}`,
+      });
+
+      // Generate weekly blurb
+      const blurbOptions = [
+        teamProfile === "contender" 
+          ? "Your roster is built to win now. Focus on maximizing points and making win-now moves."
+          : teamProfile === "rebuild"
+          ? "Your young roster has upside. Prioritize acquiring future picks and developing players."
+          : "Your roster is well-balanced. Look for opportunities to tip the scales in your favor.",
+      ];
+      const weeklyBlurb = blurbOptions[0];
+
+      res.json({
+        rosterStrength,
+        positionRanks,
+        teamProfile,
+        biggestNeed,
+        recommendations,
+        weeklyBlurb,
+        avgAge: Math.round(avgAge * 10) / 10,
+        playerCount: userRoster.players?.length || 0,
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard data" });
+    }
+  });
+
   return httpServer;
 }

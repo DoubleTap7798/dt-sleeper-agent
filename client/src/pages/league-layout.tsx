@@ -7,6 +7,15 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { PwaInstallButton } from "@/components/pwa-install-button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown, Globe } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, prefetchLeagueData, prefetchPlayerData } from "@/lib/queryClient";
 import type { SleeperLeague } from "@/lib/sleeper-types";
@@ -157,9 +166,74 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
           <header className="flex items-center justify-between h-14 px-4 border-b border-border shrink-0 gap-2">
             <div className="flex items-center gap-2">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <h1 className="text-lg font-semibold truncate" data-testid="text-league-name">
-                {isAllLeagues ? "All Leagues" : selectedLeague?.name}
-              </h1>
+              {/* Persistent League Selector in Header */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="flex items-center gap-2 h-9 px-3 max-w-[200px] sm:max-w-[280px]"
+                    data-testid="header-league-selector"
+                  >
+                    {isAllLeagues ? (
+                      <Globe className="h-4 w-4 shrink-0 text-primary" />
+                    ) : selectedLeague?.avatar ? (
+                      <Avatar className="h-5 w-5 shrink-0">
+                        <AvatarImage 
+                          src={`https://sleepercdn.com/avatars/${selectedLeague.avatar}`}
+                          alt={selectedLeague.name}
+                        />
+                        <AvatarFallback className="text-[10px]">
+                          {selectedLeague.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    ) : (
+                      <Avatar className="h-5 w-5 shrink-0">
+                        <AvatarFallback className="text-[10px]">
+                          {(selectedLeague?.name || "L").slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                    <span className="font-semibold truncate text-sm">
+                      {isAllLeagues ? "All Leagues" : selectedLeague?.name}
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64">
+                  <DropdownMenuItem
+                    onClick={() => handleLeagueChange(null)}
+                    className={`cursor-pointer ${isAllLeagues ? "bg-accent" : ""}`}
+                    data-testid="header-menu-all-leagues"
+                  >
+                    <Globe className="h-4 w-4 mr-2 text-primary" />
+                    <span className="font-medium">All Leagues</span>
+                    <span className="ml-auto text-xs text-muted-foreground">Career</span>
+                  </DropdownMenuItem>
+                  <div className="h-px bg-border my-1" />
+                  {leagues.map((league) => (
+                    <DropdownMenuItem
+                      key={league.league_id}
+                      onClick={() => handleLeagueChange(league)}
+                      className={`cursor-pointer ${selectedLeague?.league_id === league.league_id ? "bg-accent" : ""}`}
+                      data-testid={`header-menu-league-${league.league_id}`}
+                    >
+                      <Avatar className="h-5 w-5 mr-2 shrink-0">
+                        <AvatarImage 
+                          src={league.avatar ? `https://sleepercdn.com/avatars/${league.avatar}` : undefined}
+                          alt={league.name}
+                        />
+                        <AvatarFallback className="text-[10px]">
+                          {league.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="truncate">{league.name}</span>
+                      <span className="ml-auto text-xs text-muted-foreground shrink-0">
+                        {league.season}
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <div className="flex items-center gap-2">
               {!isAllLeagues && <NotificationBell leagueId={selectedLeague?.league_id} />}

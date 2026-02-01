@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation, Link, useSearch } from "wouter";
 import {
   Home,
@@ -7,6 +8,7 @@ import {
   Users,
   LogOut,
   ChevronDown,
+  ChevronRight,
   Swords,
   Gamepad2,
   CalendarDays,
@@ -20,6 +22,10 @@ import {
   BarChart3,
   Settings,
   Layers,
+  LayoutDashboard,
+  UserCog,
+  TrendingUp,
+  Search,
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,6 +38,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -41,6 +50,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Logo } from "./logo";
 import { useAuth } from "@/hooks/use-auth";
 import type { SleeperLeague } from "@/lib/sleeper-types";
@@ -52,147 +66,74 @@ interface AppSidebarProps {
   onLeagueChange: (league: SleeperLeague | null) => void;
 }
 
-const navigationItems = [
+interface NavItem {
+  title: string;
+  url: string;
+  icon: any;
+  description?: string;
+  requiresLeague?: boolean;
+}
+
+interface NavGroup {
+  title: string;
+  icon: any;
+  items: NavItem[];
+  requiresLeague?: boolean;
+}
+
+// Consolidated navigation structure
+const navigationGroups: NavGroup[] = [
   {
-    title: "Home",
-    url: "/league",
-    icon: Home,
-    description: "Dashboard overview & stats",
-    requiresLeague: false,
-  },
-  {
-    title: "League Info",
-    url: "/league/info",
-    icon: Settings,
-    description: "League settings & scoring rules",
-    requiresLeague: true,
-  },
-  {
-    title: "Standings",
-    url: "/league/standings",
-    icon: BarChart3,
-    description: "League standings & playoff predictions",
-    requiresLeague: true,
-  },
-  {
-    title: "My Roster",
-    url: "/league/roster",
-    icon: Users,
-    description: "Your team roster",
-    requiresLeague: true,
-  },
-  {
-    title: "News",
-    url: "/league/news",
-    icon: Newspaper,
-    description: "Real-time fantasy news & analysis",
-    requiresLeague: false,
-  },
-  {
-    title: "Matchups",
-    url: "/league/matchups",
-    icon: Gamepad2,
-    description: "Current week matchups & live scoring",
-    requiresLeague: true,
-  },
-  {
-    title: "Lineup Advice",
-    url: "/league/lineup",
-    icon: Target,
-    description: "AI start/sit recommendations",
-    requiresLeague: true,
-  },
-  {
-    title: "Schedule",
-    url: "/league/schedule",
-    icon: CalendarDays,
-    description: "Your season schedule",
-    requiresLeague: true,
-  },
-  {
-    title: "Playoff Bracket",
-    url: "/league/bracket",
-    icon: GitBranch,
-    description: "Playoff matchups & bracket",
-    requiresLeague: true,
-  },
-  {
-    title: "Waiver Wire",
-    url: "/league/waivers",
-    icon: UserCircle,
-    description: "Available players & stats",
-    requiresLeague: true,
-  },
-  {
-    title: "NFL Players",
-    url: "/league/players",
-    icon: UserCircle,
-    description: "Player rankings & insights",
-    requiresLeague: false,
-  },
-  {
-    title: "Player Trends",
-    url: "/league/trends",
-    icon: Activity,
-    description: "Multi-season performance analysis",
-    requiresLeague: false,
-  },
-  {
-    title: "Compare Players",
-    url: "/league/compare",
-    icon: GitCompare,
-    description: "Side-by-side player comparison",
-    requiresLeague: false,
-  },
-  {
-    title: "Projections",
-    url: "/league/projections",
-    icon: BarChart3,
-    description: "Matchup-based fantasy projections",
-    requiresLeague: true,
-  },
-  {
-    title: "Devy Rankings",
-    url: "/league/devy",
-    icon: GraduationCap,
-    description: "College player rankings",
-    requiresLeague: false,
-  },
-  {
-    title: "Depth Charts",
-    url: "/league/depth-chart",
-    icon: Layers,
-    description: "NFL team depth charts",
-    requiresLeague: false,
-  },
-  {
-    title: "Trade Calculator",
-    url: "/league/trade",
-    icon: RefreshCw,
-    description: "Calculate trade values",
-    requiresLeague: true,
-  },
-  {
-    title: "Trade History",
-    url: "/league/history",
-    icon: History,
-    description: "Historical trades & analysis",
-    requiresLeague: true,
-  },
-  {
-    title: "Rivalries",
-    url: "/league/rivalries",
-    icon: Swords,
-    description: "Head-to-head records",
-    requiresLeague: true,
-  },
-  {
-    title: "Trophy Room",
-    url: "/league/trophies",
+    title: "League",
     icon: Trophy,
-    description: "Champions & records",
     requiresLeague: true,
+    items: [
+      { title: "Standings", url: "/league/standings", icon: BarChart3, requiresLeague: true },
+      { title: "Playoff Bracket", url: "/league/bracket", icon: GitBranch, requiresLeague: true },
+      { title: "Rivalries", url: "/league/rivalries", icon: Swords, requiresLeague: true },
+      { title: "Trophy Room", url: "/league/trophies", icon: Trophy, requiresLeague: true },
+      { title: "League Info", url: "/league/info", icon: Settings, requiresLeague: true },
+    ],
   },
+  {
+    title: "My Team",
+    icon: Users,
+    requiresLeague: true,
+    items: [
+      { title: "Roster", url: "/league/roster", icon: Users, requiresLeague: true },
+      { title: "Lineup Advice", url: "/league/lineup", icon: Target, requiresLeague: true },
+      { title: "Matchups", url: "/league/matchups", icon: Gamepad2, requiresLeague: true },
+      { title: "Schedule", url: "/league/schedule", icon: CalendarDays, requiresLeague: true },
+    ],
+  },
+  {
+    title: "Players",
+    icon: Search,
+    items: [
+      { title: "NFL Players", url: "/league/players", icon: UserCircle },
+      { title: "Waiver Wire", url: "/league/waivers", icon: UserCog, requiresLeague: true },
+      { title: "Player Trends", url: "/league/trends", icon: Activity },
+      { title: "Compare", url: "/league/compare", icon: GitCompare },
+      { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true },
+      { title: "Devy Rankings", url: "/league/devy", icon: GraduationCap },
+      { title: "Depth Charts", url: "/league/depth-chart", icon: Layers },
+    ],
+  },
+  {
+    title: "Trades",
+    icon: RefreshCw,
+    requiresLeague: true,
+    items: [
+      { title: "Trade Calculator", url: "/league/trade", icon: RefreshCw, requiresLeague: true },
+      { title: "Trade History", url: "/league/history", icon: History, requiresLeague: true },
+    ],
+  },
+];
+
+// Standalone items (not grouped)
+const standaloneItems: NavItem[] = [
+  { title: "Home", url: "/league", icon: LayoutDashboard, description: "Dashboard & actions" },
+  { title: "News", url: "/league/news", icon: Newspaper, description: "Fantasy news & analysis" },
 ];
 
 export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChange }: AppSidebarProps) {
@@ -200,14 +141,27 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
   const searchString = useSearch();
   const { user, logout } = useAuth();
   
-  // Get leagueId from URL or selected league
+  // Track which groups are open
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["League", "My Team"]));
+  
   const urlParams = new URLSearchParams(searchString);
   const leagueId = isAllLeagues ? null : (urlParams.get("id") || selectedLeague?.league_id);
-  
-  // Filter nav items based on whether a specific league is selected
-  const visibleNavItems = navigationItems.filter(item => 
-    !item.requiresLeague || !isAllLeagues
-  );
+
+  const toggleGroup = (groupTitle: string, isOpen: boolean) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (isOpen) {
+        next.add(groupTitle);
+      } else {
+        next.delete(groupTitle);
+      }
+      return next;
+    });
+  };
+
+  const isItemActive = (itemUrl: string) => {
+    return location === itemUrl || location.startsWith(itemUrl + "/");
+  };
 
   const getInitials = () => {
     if (user?.firstName && user?.lastName) {
@@ -216,6 +170,11 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
     return user?.email?.[0]?.toUpperCase() || "U";
   };
 
+  // Filter groups based on whether a league is selected
+  const visibleGroups = navigationGroups.filter(group => 
+    !group.requiresLeague || !isAllLeagues
+  );
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
@@ -223,6 +182,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
       </SidebarHeader>
 
       <SidebarContent>
+        {/* League Selector */}
         <SidebarGroup>
           <SidebarGroupLabel className="px-4 py-2 text-xs uppercase tracking-wider text-sidebar-foreground/60">
             Select League
@@ -261,9 +221,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                   data-testid="menu-item-all-leagues"
                 >
                   <span>All Leagues</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    Career Stats
-                  </span>
+                  <span className="ml-auto text-xs text-muted-foreground">Career Stats</span>
                 </DropdownMenuItem>
                 <div className="h-px bg-border my-1" />
                 {leagues.map((league) => (
@@ -273,9 +231,9 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                     className="cursor-pointer"
                     data-testid={`menu-item-league-${league.league_id}`}
                   >
-                    <Avatar className="h-6 w-6 shrink-0">
+                    <Avatar className="h-6 w-6 mr-2 shrink-0">
                       <AvatarImage 
-                        src={league.avatar ? `https://sleepercdn.com/avatars/${league.avatar}` : undefined} 
+                        src={league.avatar ? `https://sleepercdn.com/avatars/${league.avatar}` : undefined}
                         alt={league.name}
                       />
                       <AvatarFallback className="text-xs">
@@ -283,32 +241,20 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                       </AvatarFallback>
                     </Avatar>
                     <span className="truncate">{league.name}</span>
-                    {league.season && (
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {league.season}
-                      </span>
-                    )}
+                    <span className="ml-auto text-xs text-muted-foreground shrink-0">{league.season}</span>
                   </DropdownMenuItem>
                 ))}
-                {leagues.length === 0 && (
-                  <DropdownMenuItem disabled>
-                    No leagues found
-                  </DropdownMenuItem>
-                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="mt-4">
-          <SidebarGroupLabel className="px-4 py-2 text-xs uppercase tracking-wider text-sidebar-foreground/60">
-            Navigation
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
+        {/* Standalone Navigation Items */}
+        <SidebarGroup>
+          <SidebarGroupContent className="px-2">
             <SidebarMenu>
-              {visibleNavItems.map((item) => {
-                const isActive = location === item.url || 
-                  (item.url === "/league" && location === "/league");
+              {standaloneItems.map((item) => {
+                const isActive = location === item.url;
                 const linkUrl = leagueId ? `${item.url}?id=${leagueId}` : item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -329,29 +275,87 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Grouped Navigation */}
+        {visibleGroups.map((group) => {
+          const isOpen = openGroups.has(group.title);
+          const hasActiveItem = group.items.some(item => isItemActive(item.url));
+          const visibleItems = group.items.filter(item => !item.requiresLeague || !isAllLeagues);
+          
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <SidebarGroup key={group.title}>
+              <SidebarGroupContent className="px-2">
+                <Collapsible open={isOpen || hasActiveItem} onOpenChange={(open) => toggleGroup(group.title, open)}>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton 
+                          className={hasActiveItem ? "bg-sidebar-accent" : ""}
+                          data-testid={`nav-group-${group.title.toLowerCase().replace(/\s/g, "-")}`}
+                        >
+                          <group.icon className="h-4 w-4" />
+                          <span className="font-medium">{group.title}</span>
+                          <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${isOpen || hasActiveItem ? "rotate-90" : ""}`} />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {visibleItems.map((item) => {
+                            const isActive = isItemActive(item.url);
+                            const linkUrl = leagueId ? `${item.url}?id=${leagueId}` : item.url;
+                            return (
+                              <SidebarMenuSubItem key={item.title}>
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={isActive}
+                                  data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}
+                                >
+                                  <Link href={linkUrl}>
+                                    <item.icon className="h-4 w-4" />
+                                    <span>{item.title}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            );
+                          })}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </Collapsible>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={user?.profileImageUrl || undefined} alt="User avatar" />
-            <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground">
+            <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
+            <AvatarFallback className="bg-primary text-primary-foreground">
               {getInitials()}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">
-              {user?.firstName || user?.email || "User"}
+            <p className="text-sm font-medium truncate" data-testid="text-user-name">
+              {user?.firstName && user?.lastName
+                ? `${user.firstName} ${user.lastName}`
+                : user?.email || "User"}
             </p>
-            <p className="text-xs text-sidebar-foreground/60 truncate">
-              {user?.email}
-            </p>
+            {user?.email && user?.firstName && (
+              <p className="text-xs text-muted-foreground truncate" data-testid="text-user-email">
+                {user.email}
+              </p>
+            )}
           </div>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => logout()}
-            className="shrink-0 text-sidebar-foreground/60 hover:text-sidebar-foreground"
+            className="shrink-0"
             data-testid="button-logout"
           >
             <LogOut className="h-4 w-4" />
