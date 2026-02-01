@@ -602,10 +602,11 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
   app.get("/api/paypal/config", async (_req: Request, res: Response) => {
     const planId = process.env.PAYPAL_PLAN_ID;
     const clientId = process.env.PAYPAL_CLIENT_ID;
+    const mode = process.env.PAYPAL_MODE || 'sandbox';
     if (!planId || !clientId) {
       return res.status(500).json({ error: "PayPal not configured" });
     }
-    res.json({ planId, clientId });
+    res.json({ planId, clientId, mode });
   });
 
   app.post("/api/paypal/verify-subscription", isAuthenticated, async (req: any, res: Response) => {
@@ -635,9 +636,11 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         return res.status(400).json({ error: "This subscription is already associated with another account" });
       }
 
-      // Use sandbox API for sandbox credentials (client ID starts with 'A' for sandbox, 'AS' prefix for live is harder to distinguish)
-      // For now, use live API - production credentials should be live
-      const paypalBaseUrl = "https://api-m.paypal.com";
+      // Check if using sandbox or production based on PAYPAL_MODE env var (defaults to 'sandbox' for safety)
+      const paypalMode = process.env.PAYPAL_MODE || 'sandbox';
+      const paypalBaseUrl = paypalMode === 'production' 
+        ? "https://api-m.paypal.com" 
+        : "https://api-m.sandbox.paypal.com";
 
       // Get access token from PayPal
       const authResponse = await fetch(`${paypalBaseUrl}/v1/oauth2/token`, {

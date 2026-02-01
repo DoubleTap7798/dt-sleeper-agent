@@ -62,7 +62,7 @@ export default function UpgradePage() {
     queryKey: ["/api/subscription/prices"],
   });
 
-  const { data: paypalConfig } = useQuery<{ planId: string; clientId: string }>({
+  const { data: paypalConfig } = useQuery<{ planId: string; clientId: string; mode: string }>({
     queryKey: ["/api/paypal/config"],
   });
 
