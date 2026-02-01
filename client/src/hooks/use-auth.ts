@@ -23,7 +23,7 @@ async function logout(): Promise<void> {
 
 export function useAuth() {
   const queryClient = useQueryClient();
-  const { data: user, isLoading } = useQuery<User | null>({
+  const { data: user, isLoading, isFetched } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     queryFn: fetchUser,
     retry: false,
@@ -37,9 +37,13 @@ export function useAuth() {
     },
   });
 
+  // Consider loading until we've completed at least one fetch
+  // This prevents the landing page from flashing before auth check completes
+  const isCheckingAuth = !isFetched || isLoading;
+
   return {
     user,
-    isLoading,
+    isLoading: isCheckingAuth,
     isAuthenticated: !!user,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,
