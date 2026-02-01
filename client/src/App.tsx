@@ -33,6 +33,7 @@ import DepthChartPage from "@/pages/depth-chart";
 import WatchlistPage from "@/pages/watchlist";
 import DraftWarRoomPage from "@/pages/draft-war-room";
 import UpgradePage from "@/pages/upgrade";
+import AdminPage from "@/pages/admin";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -246,6 +247,11 @@ function Router() {
           <LeagueLayout>
             <UpgradePage />
           </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/admin">
+        <AuthenticatedRoute>
+          <AdminPage />
         </AuthenticatedRoute>
       </Route>
       <Route component={NotFound} />

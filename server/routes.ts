@@ -506,6 +506,74 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     }
   });
 
+  // Admin middleware - check if user is admin (by Sleeper username)
+  const ADMIN_SLEEPER_USERNAMES = ['doubletap7798'];
+  
+  const requireAdmin = async (req: any, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const profile = await storage.getUserProfile(userId);
+      if (!profile?.sleeperUsername || !ADMIN_SLEEPER_USERNAMES.includes(profile.sleeperUsername.toLowerCase())) {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      next();
+    } catch (error) {
+      console.error("Admin check error:", error);
+      return res.status(500).json({ error: "Failed to verify admin access" });
+    }
+  };
+
+  // Admin routes
+  app.get("/api/admin/subscriptions", isAuthenticated, requireAdmin, async (req: any, res: Response) => {
+    try {
+      const stripe = await getUncachableStripeClient();
+      
+      // Fetch all subscriptions from Stripe
+      const subscriptions = await stripe.subscriptions.list({
+        limit: 100,
+        expand: ['data.customer'],
+      });
+
+      // Format subscription data
+      const formattedSubs = subscriptions.data.map((sub: any) => {
+        const customer = sub.customer as any;
+        return {
+          id: sub.id,
+          status: sub.status,
+          customerEmail: customer?.email || 'Unknown',
+          customerName: customer?.name || customer?.email || 'Unknown',
+          customerId: customer?.id || sub.customer,
+          amount: sub.items?.data?.[0]?.price?.unit_amount ? (sub.items.data[0].price.unit_amount / 100).toFixed(2) : '0.00',
+          currency: sub.items?.data?.[0]?.price?.currency?.toUpperCase() || 'USD',
+          interval: sub.items?.data?.[0]?.price?.recurring?.interval || 'month',
+          currentPeriodStart: sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null,
+          currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
+          cancelAtPeriodEnd: sub.cancel_at_period_end,
+          created: sub.created ? new Date(sub.created * 1000).toISOString() : null,
+        };
+      });
+
+      // Also get grandfathered users count
+      const grandfatheredUsers = await db.select()
+        .from(schema.userProfiles)
+        .where(eq(schema.userProfiles.isGrandfathered, true));
+
+      res.json({
+        subscriptions: formattedSubs,
+        totalSubscriptions: formattedSubs.length,
+        activeSubscriptions: formattedSubs.filter((s: any) => s.status === 'active').length,
+        grandfatheredUsers: grandfatheredUsers.length,
+      });
+    } catch (error) {
+      console.error("Error fetching admin subscriptions:", error);
+      res.status(500).json({ error: "Failed to fetch subscriptions" });
+    }
+  });
+
   // User Profile Routes
   app.get("/api/user/profile", isAuthenticated, async (req: any, res: Response) => {
     try {
