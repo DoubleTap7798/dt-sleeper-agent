@@ -28,6 +28,8 @@ import {
   Search,
   Eye,
   Crosshair,
+  Crown,
+  Sparkles,
 } from "lucide-react";
 import {
   Sidebar,
@@ -58,7 +60,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Logo } from "./logo";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
+import { useSubscription } from "@/hooks/use-subscription";
 import type { SleeperLeague } from "@/lib/sleeper-types";
 
 interface AppSidebarProps {
@@ -141,9 +145,10 @@ const standaloneItems: NavItem[] = [
 ];
 
 export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChange }: AppSidebarProps) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const searchString = useSearch();
   const { user, logout } = useAuth();
+  const { isPremium, isLoading: subLoading } = useSubscription();
   
   // Track which groups are open
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["League", "My Team"]));
@@ -335,7 +340,18 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
         })}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-4">
+      <SidebarFooter className="border-t border-sidebar-border p-4 space-y-3">
+        {!subLoading && !isPremium && (
+          <Button
+            onClick={() => setLocation("/upgrade")}
+            className="w-full bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-400/90"
+            data-testid="button-upgrade"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Upgrade to Premium
+          </Button>
+        )}
+        
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
             <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
@@ -344,11 +360,19 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate" data-testid="text-user-name">
-              {user?.firstName && user?.lastName
-                ? `${user.firstName} ${user.lastName}`
-                : user?.email || "User"}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium truncate" data-testid="text-user-name">
+                {user?.firstName && user?.lastName
+                  ? `${user.firstName} ${user.lastName}`
+                  : user?.email || "User"}
+              </p>
+              {isPremium && (
+                <Badge variant="outline" className="text-primary border-primary text-[10px] px-1.5 py-0" data-testid="badge-premium">
+                  <Crown className="h-3 w-3 mr-0.5" />
+                  PRO
+                </Badge>
+              )}
+            </div>
             {user?.email && user?.firstName && (
               <p className="text-xs text-muted-foreground truncate" data-testid="text-user-email">
                 {user.email}

@@ -7,13 +7,17 @@ import { z } from "zod";
 export * from "./models/auth";
 export * from "./models/chat";
 
-// User profiles with Sleeper integration
+// User profiles with Sleeper integration and Stripe subscription
 export const userProfiles = pgTable("user_profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().unique(),
   sleeperUsername: text("sleeper_username"),
   sleeperUserId: text("sleeper_user_id"),
   selectedLeagueId: text("selected_league_id"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  subscriptionStatus: text("subscription_status"), // 'active', 'canceled', 'past_due', 'trialing', null
+  subscriptionPeriodEnd: timestamp("subscription_period_end"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

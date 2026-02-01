@@ -32,6 +32,7 @@ import LeagueInfoPage from "@/pages/league-info";
 import DepthChartPage from "@/pages/depth-chart";
 import WatchlistPage from "@/pages/watchlist";
 import DraftWarRoomPage from "@/pages/draft-war-room";
+import UpgradePage from "@/pages/upgrade";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -237,6 +238,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <DraftWarRoomPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/upgrade">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <UpgradePage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

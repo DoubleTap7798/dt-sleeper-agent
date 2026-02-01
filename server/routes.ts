@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
@@ -13,7 +13,8 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { db } from "./db";
 import * as schema from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 
 // Validation schemas
 const connectSleeperSchema = z.object({
@@ -275,6 +276,218 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
   // Setup authentication
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  // Helper to check if user has active subscription
+  async function hasActiveSubscription(userId: string): Promise<boolean> {
+    const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+    if (!profile[0]) return false;
+    
+    const { subscriptionStatus, subscriptionPeriodEnd } = profile[0];
+    if (subscriptionStatus !== 'active' && subscriptionStatus !== 'trialing') return false;
+    if (subscriptionPeriodEnd && new Date(subscriptionPeriodEnd) < new Date()) return false;
+    return true;
+  }
+
+  // Subscription middleware - returns 403 if no active subscription
+  const requireSubscription = async (req: any, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const hasAccess = await hasActiveSubscription(userId);
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          error: "Premium subscription required",
+          code: "SUBSCRIPTION_REQUIRED"
+        });
+      }
+      next();
+    } catch (error) {
+      console.error("Subscription check error:", error);
+      return res.status(500).json({ error: "Failed to verify subscription" });
+    }
+  };
+
+  // Stripe subscription routes
+  app.get("/api/stripe/publishable-key", async (_req: Request, res: Response) => {
+    try {
+      const key = await getStripePublishableKey();
+      res.json({ publishableKey: key });
+    } catch (error) {
+      console.error("Error getting publishable key:", error);
+      res.status(500).json({ error: "Failed to get Stripe key" });
+    }
+  });
+
+  app.get("/api/subscription/status", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      
+      if (!profile[0]) {
+        return res.json({ 
+          hasSubscription: false,
+          status: null,
+          periodEnd: null
+        });
+      }
+
+      const { subscriptionStatus, subscriptionPeriodEnd, stripeSubscriptionId } = profile[0];
+      const isActive = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
+      const periodEnd = subscriptionPeriodEnd ? new Date(subscriptionPeriodEnd) : null;
+      const isValid = isActive && (!periodEnd || periodEnd > new Date());
+
+      res.json({
+        hasSubscription: isValid,
+        status: subscriptionStatus,
+        periodEnd: subscriptionPeriodEnd,
+        subscriptionId: stripeSubscriptionId
+      });
+    } catch (error) {
+      console.error("Error checking subscription:", error);
+      res.status(500).json({ error: "Failed to check subscription" });
+    }
+  });
+
+  app.post("/api/subscription/create-checkout", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { priceId } = req.body;
+
+      if (!priceId) {
+        return res.status(400).json({ error: "Price ID required" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+
+      // Get or create user profile
+      let profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      
+      let customerId = profile[0]?.stripeCustomerId;
+
+      // Create Stripe customer if needed
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          metadata: { userId }
+        });
+        customerId = customer.id;
+
+        if (profile[0]) {
+          await db.update(schema.userProfiles)
+            .set({ stripeCustomerId: customerId })
+            .where(eq(schema.userProfiles.userId, userId));
+        } else {
+          await db.insert(schema.userProfiles).values({
+            userId,
+            stripeCustomerId: customerId
+          });
+        }
+      }
+
+      // Create checkout session
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: 'subscription',
+        success_url: `${baseUrl}/upgrade?success=true`,
+        cancel_url: `${baseUrl}/upgrade?canceled=true`,
+        metadata: { userId }
+      });
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating checkout:", error);
+      res.status(500).json({ error: error.message || "Failed to create checkout session" });
+    }
+  });
+
+  app.post("/api/subscription/create-portal", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      
+      if (!profile[0]?.stripeCustomerId) {
+        return res.status(400).json({ error: "No subscription found" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      
+      const session = await stripe.billingPortal.sessions.create({
+        customer: profile[0].stripeCustomerId,
+        return_url: `${baseUrl}/settings`
+      });
+
+      res.json({ url: session.url });
+    } catch (error: any) {
+      console.error("Error creating portal:", error);
+      res.status(500).json({ error: error.message || "Failed to create portal session" });
+    }
+  });
+
+  // Get available prices
+  app.get("/api/subscription/prices", async (_req: Request, res: Response) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT p.id, p.name, p.description, pr.id as price_id, pr.unit_amount, pr.currency, pr.recurring
+        FROM stripe.products p
+        JOIN stripe.prices pr ON pr.product = p.id
+        WHERE p.active = true AND pr.active = true
+        ORDER BY pr.unit_amount
+      `);
+      
+      res.json({ prices: result.rows });
+    } catch (error) {
+      console.error("Error fetching prices:", error);
+      res.status(500).json({ error: "Failed to fetch prices" });
+    }
+  });
+
+  // Webhook handler for subscription updates
+  app.post("/api/subscription/webhook-sync", async (req: Request, res: Response) => {
+    try {
+      // This endpoint syncs subscription status from Stripe tables to user profiles
+      const { customerId, subscriptionId } = req.body;
+      
+      if (!customerId) {
+        return res.status(400).json({ error: "Customer ID required" });
+      }
+
+      // Find subscription in stripe schema
+      const subResult = await db.execute(sql`
+        SELECT id, status, current_period_end 
+        FROM stripe.subscriptions 
+        WHERE customer = ${customerId}
+        ORDER BY created DESC
+        LIMIT 1
+      `);
+
+      const subscription = subResult.rows[0] as any;
+      
+      if (!subscription) {
+        return res.json({ synced: false, message: "No subscription found" });
+      }
+
+      // Find user by stripe customer ID and update
+      await db.update(schema.userProfiles)
+        .set({
+          stripeSubscriptionId: subscription.id,
+          subscriptionStatus: subscription.status,
+          subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null
+        })
+        .where(eq(schema.userProfiles.stripeCustomerId, customerId));
+
+      res.json({ synced: true });
+    } catch (error) {
+      console.error("Error syncing subscription:", error);
+      res.status(500).json({ error: "Failed to sync subscription" });
+    }
+  });
 
   // User Profile Routes
   app.get("/api/user/profile", isAuthenticated, async (req: any, res: Response) => {
