@@ -123,33 +123,59 @@ export default function UpgradePage() {
     // Clear any existing buttons
     paypalContainerRef.current.innerHTML = "";
     
-    window.paypal.Buttons({
-      style: {
-        shape: "rect",
-        color: "gold",
-        layout: "vertical",
-        label: "subscribe"
-      },
-      createSubscription: function(_data: any, actions: any) {
-        return actions.subscription.create({
-          plan_id: paypalConfig.planId
-        });
-      },
-      onApprove: function(data: { subscriptionID: string }) {
-        setPaypalProcessing(true);
-        verifyPaypalMutation.mutate(data.subscriptionID);
-      },
-      onError: function(err: any) {
-        console.error("PayPal error:", err);
-        const errorMessage = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
-        console.error("PayPal error details:", errorMessage);
+    try {
+      window.paypal.Buttons({
+        style: {
+          shape: "rect",
+          color: "gold",
+          layout: "vertical",
+          label: "subscribe"
+        },
+        createSubscription: function(_data: any, actions: any) {
+          console.log("Creating PayPal subscription with plan:", paypalConfig.planId);
+          return actions.subscription.create({
+            plan_id: paypalConfig.planId
+          });
+        },
+        onApprove: function(data: { subscriptionID: string }) {
+          console.log("PayPal subscription approved:", data.subscriptionID);
+          setPaypalProcessing(true);
+          verifyPaypalMutation.mutate(data.subscriptionID);
+        },
+        onCancel: function() {
+          console.log("PayPal subscription cancelled by user");
+          toast({
+            title: "Cancelled",
+            description: "You cancelled the PayPal checkout.",
+            variant: "default",
+          });
+        },
+        onError: function(err: any) {
+          console.error("PayPal onError callback:", err);
+          const errorMessage = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
+          console.error("PayPal error details:", errorMessage);
+          toast({
+            title: "PayPal Error",
+            description: `PayPal error: ${errorMessage.substring(0, 100)}`,
+            variant: "destructive",
+          });
+        }
+      }).render(paypalContainerRef.current).catch((renderErr: any) => {
+        console.error("PayPal render error:", renderErr);
         toast({
           title: "PayPal Error",
-          description: `PayPal error: ${errorMessage.substring(0, 100)}`,
+          description: `Failed to load PayPal: ${renderErr?.message || 'Unknown error'}`,
           variant: "destructive",
         });
-      }
-    }).render(paypalContainerRef.current);
+      });
+    } catch (err: any) {
+      console.error("PayPal initialization error:", err);
+      toast({
+        title: "PayPal Error",
+        description: `Failed to initialize PayPal: ${err?.message || 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
   };
 
   // Re-render PayPal button when data is available
