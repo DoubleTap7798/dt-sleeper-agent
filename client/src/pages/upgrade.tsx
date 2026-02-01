@@ -141,9 +141,11 @@ export default function UpgradePage() {
       },
       onError: function(err: any) {
         console.error("PayPal error:", err);
+        const errorMessage = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
+        console.error("PayPal error details:", errorMessage);
         toast({
           title: "PayPal Error",
-          description: "Something went wrong with PayPal. Please try again.",
+          description: `PayPal error: ${errorMessage.substring(0, 100)}`,
           variant: "destructive",
         });
       }
