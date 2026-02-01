@@ -232,6 +232,7 @@ export interface SleeperDraft {
     cpu_autopick: number;
     alpha_sort: number;
     player_type: number;
+    reversal_round?: number; // How many rounds before direction reverses (default 1 for standard snake)
   };
   start_time: number | null;
   slot_to_roster_id?: Record<string, number>;

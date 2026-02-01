@@ -6200,21 +6200,29 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         // Use most recent draft
         activeDraft = drafts[0];
         draftPicks = await sleeperApi.getDraftPicks(drafts[0].draft_id);
-        
-        // Debug: Log first few picks to understand the data structure
-        console.log("Draft type:", activeDraft.type);
-        console.log("Sample picks:", draftPicks.slice(0, 5).map(p => ({
-          pick_no: p.pick_no,
-          round: p.round,
-          draft_slot: p.draft_slot,
-          player_id: p.player_id,
-          metadata: p.metadata?.first_name ? `${p.metadata.first_name} ${p.metadata.last_name}` : "N/A"
-        })));
       }
 
       // Get user's draft picks from this draft
       const userDraftPicks: any[] = [];
       const userRosterId = userRoster?.roster_id;
+      
+      // Helper function to calculate within-round pick position
+      const calculateWithinRoundPick = (round: number, draftSlot: number, numTeams: number) => {
+        const reversalRound = activeDraft?.settings?.reversal_round || 1;
+        const draftType = activeDraft?.type || "snake";
+        
+        if (draftType === "linear") {
+          return draftSlot;
+        }
+        
+        // Snake draft: calculate based on reversal_round
+        const reversalGroup = Math.floor((round - 1) / reversalRound);
+        const isReversed = reversalGroup % 2 === 1;
+        
+        return isReversed ? numTeams - draftSlot + 1 : draftSlot;
+      };
+      
+      const numTeams = activeDraft?.settings?.teams || 12;
       
       for (const pick of draftPicks) {
         // Match by picked_by (user ID) or roster_id
@@ -6227,7 +6235,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
               position: player.position || "?",
               team: player.team || "FA",
               round: pick.round,
-              slot: pick.draft_slot,
+              slot: calculateWithinRoundPick(pick.round, pick.draft_slot, numTeams),
               pickNo: pick.pick_no, // Use actual pick_no from API - correct for both snake and linear drafts
             });
           }
@@ -6444,18 +6452,19 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           rounds: activeDraft.settings?.rounds || 0,
           picksMade: draftPicks.length,
           totalPicks: (activeDraft.settings?.rounds || 0) * (activeDraft.settings?.teams || 0),
+          reversalRound: activeDraft.settings?.reversal_round || 1, // How many rounds before direction reverses
         } : null,
         draftBoard: draftPicks
           .filter(p => p.player_id) // Only include completed picks (player_id is set when pick is made)
           .map(p => {
             // Use actual pick_no from API; fallback to computed linear order if missing
-            const numTeams = activeDraft?.settings?.teams || 12;
             const computedPickNo = (p.round - 1) * numTeams + p.draft_slot;
             const pickNo = p.pick_no ?? computedPickNo;
+            
             return {
               pickNo,
               round: p.round,
-              slot: p.draft_slot,
+              slot: calculateWithinRoundPick(p.round, p.draft_slot, numTeams), // Within-round pick position
               rosterId: p.roster_id,
               player: {
                 id: p.player_id,
