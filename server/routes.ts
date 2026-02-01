@@ -277,10 +277,13 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
   await setupAuth(app);
   registerAuthRoutes(app);
 
-  // Helper to check if user has active subscription
+  // Helper to check if user has active subscription or is grandfathered
   async function hasActiveSubscription(userId: string): Promise<boolean> {
     const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
     if (!profile[0]) return false;
+    
+    // Grandfathered users have lifetime premium access
+    if (profile[0].isGrandfathered) return true;
     
     const { subscriptionStatus, subscriptionPeriodEnd } = profile[0];
     if (subscriptionStatus !== 'active' && subscriptionStatus !== 'trialing') return false;
@@ -330,11 +333,24 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         return res.json({ 
           hasSubscription: false,
           status: null,
-          periodEnd: null
+          periodEnd: null,
+          isGrandfathered: false
         });
       }
 
-      const { subscriptionStatus, subscriptionPeriodEnd, stripeSubscriptionId } = profile[0];
+      const { subscriptionStatus, subscriptionPeriodEnd, stripeSubscriptionId, isGrandfathered } = profile[0];
+      
+      // Grandfathered users have lifetime premium access
+      if (isGrandfathered) {
+        return res.json({
+          hasSubscription: true,
+          status: 'grandfathered',
+          periodEnd: null,
+          subscriptionId: null,
+          isGrandfathered: true
+        });
+      }
+      
       const isActive = subscriptionStatus === 'active' || subscriptionStatus === 'trialing';
       const periodEnd = subscriptionPeriodEnd ? new Date(subscriptionPeriodEnd) : null;
       const isValid = isActive && (!periodEnd || periodEnd > new Date());
@@ -343,7 +359,8 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         hasSubscription: isValid,
         status: subscriptionStatus,
         periodEnd: subscriptionPeriodEnd,
-        subscriptionId: stripeSubscriptionId
+        subscriptionId: stripeSubscriptionId,
+        isGrandfathered: false
       });
     } catch (error) {
       console.error("Error checking subscription:", error);

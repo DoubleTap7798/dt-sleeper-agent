@@ -11,6 +11,7 @@ interface SubscriptionStatus {
   hasSubscription: boolean;
   status: string | null;
   periodEnd: string | null;
+  isGrandfathered?: boolean;
 }
 
 interface PriceRow {
@@ -137,6 +138,53 @@ export default function UpgradePage() {
   }
 
   if (subStatus?.hasSubscription) {
+    // Special view for grandfathered (lifetime) users
+    if (subStatus.isGrandfathered) {
+      return (
+        <div className="p-6 max-w-2xl mx-auto">
+          <Button 
+            variant="ghost" 
+            onClick={() => setLocation("/")} 
+            className="mb-4"
+            data-testid="button-back"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+          
+          <Card className="border-primary/50">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Crown className="w-6 h-6 text-primary" />
+                <CardTitle>Lifetime Premium</CardTitle>
+              </div>
+              <CardDescription>
+                Thank you for being an early supporter!
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-card/50 rounded-lg border border-border/30">
+                <div>
+                  <p className="font-medium">Status</p>
+                  <p className="text-sm text-muted-foreground">Lifetime Access</p>
+                </div>
+                <Badge variant="outline" className="text-primary border-primary">
+                  Grandfathered
+                </Badge>
+              </div>
+              
+              <div className="p-4 bg-primary/10 rounded-lg border border-primary/30">
+                <p className="text-sm">
+                  As an early user, you have permanent lifetime access to all premium features at no cost.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    // Regular subscription view
     return (
       <div className="p-6 max-w-2xl mx-auto">
         <Button 

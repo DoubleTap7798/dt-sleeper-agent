@@ -18,6 +18,7 @@ export const userProfiles = pgTable("user_profiles", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   subscriptionStatus: text("subscription_status"), // 'active', 'canceled', 'past_due', 'trialing', null
   subscriptionPeriodEnd: timestamp("subscription_period_end"),
+  isGrandfathered: boolean("is_grandfathered").default(false), // Lifetime premium for early users
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

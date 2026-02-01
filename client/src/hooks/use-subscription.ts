@@ -5,6 +5,7 @@ interface SubscriptionStatus {
   status: string | null;
   periodEnd: string | null;
   subscriptionId: string | null;
+  isGrandfathered: boolean;
 }
 
 export function useSubscription() {
@@ -16,6 +17,7 @@ export function useSubscription() {
 
   return {
     isPremium: data?.hasSubscription ?? false,
+    isGrandfathered: data?.isGrandfathered ?? false,
     status: data?.status ?? null,
     periodEnd: data?.periodEnd ?? null,
     isLoading,

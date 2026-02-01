@@ -148,7 +148,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
   const [location, setLocation] = useLocation();
   const searchString = useSearch();
   const { user, logout } = useAuth();
-  const { isPremium, isLoading: subLoading } = useSubscription();
+  const { isPremium, isGrandfathered, isLoading: subLoading } = useSubscription();
   
   // Track which groups are open
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["League", "My Team"]));
@@ -369,7 +369,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
               {isPremium && (
                 <Badge variant="outline" className="text-primary border-primary text-[10px] px-1.5 py-0" data-testid="badge-premium">
                   <Crown className="h-3 w-3 mr-0.5" />
-                  PRO
+                  {isGrandfathered ? "OG" : "PRO"}
                 </Badge>
               )}
             </div>
