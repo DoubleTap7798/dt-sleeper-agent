@@ -73,6 +73,115 @@ export interface PlayerProfile {
 // Map Sleeper player IDs to ESPN IDs (this would need to be maintained)
 const sleeperToEspnMap: Map<string, string> = new Map();
 
+// IDP position detection
+const IDP_POSITIONS = ["DL", "LB", "DB", "DE", "DT", "CB", "S", "ILB", "OLB", "MLB", "NT", "FS", "SS", "ED"];
+function isIDPPosition(position: string): boolean {
+  return IDP_POSITIONS.includes(position?.toUpperCase() || "");
+}
+
+// Cache for Sleeper season stats to avoid duplicate fetches
+const sleeperSeasonStatsCache: Map<string, { data: any; time: number }> = new Map();
+const SLEEPER_STATS_CACHE_DURATION = 60 * 60 * 1000; // 1 hour cache for season stats
+
+// Fetch IDP stats from Sleeper with caching
+async function fetchSleeperSeasonStats(season: string): Promise<any> {
+  const cacheKey = `sleeper-stats-${season}`;
+  const cached = sleeperSeasonStatsCache.get(cacheKey);
+  
+  if (cached && Date.now() - cached.time < SLEEPER_STATS_CACHE_DURATION) {
+    return cached.data;
+  }
+  
+  try {
+    const response = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${season}`);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    sleeperSeasonStatsCache.set(cacheKey, { data, time: Date.now() });
+    return data;
+  } catch (error) {
+    console.error(`Error fetching Sleeper stats for ${season}:`, error);
+    return null;
+  }
+}
+
+// Fetch multiple seasons of IDP stats in parallel with caching
+async function fetchIDPSeasonHistory(sleeperPlayerId: string, position: string, currentTeam?: string): Promise<{ career: CareerStats | null; seasons: SeasonStats[] }> {
+  if (!isIDPPosition(position)) {
+    return { career: null, seasons: [] };
+  }
+  
+  const currentYear = new Date().getFullYear();
+  const yearsToFetch = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4, currentYear - 5];
+  
+  // Fetch all seasons in parallel
+  const seasonStatsPromises = yearsToFetch.map(year => fetchSleeperSeasonStats(year.toString()));
+  const allSeasonStats = await Promise.all(seasonStatsPromises);
+  
+  const seasons: SeasonStats[] = [];
+  const careerTotals: Record<string, number> = {};
+  let totalGames = 0;
+  
+  for (let i = 0; i < yearsToFetch.length; i++) {
+    const year = yearsToFetch[i];
+    const allStats = allSeasonStats[i];
+    if (!allStats) continue;
+    
+    const playerStats = allStats[sleeperPlayerId];
+    if (!playerStats) continue;
+    
+    const games = playerStats.gp || 0;
+    if (games > 0) {
+      // Map IDP stats to display format
+      const stats: Record<string, number | string> = {
+        TOT: playerStats.idp_tkl || 0,
+        SOLO: playerStats.idp_tkl_solo || 0,
+        AST: playerStats.idp_tkl_ast || 0,
+        SACK: playerStats.idp_sack || 0,
+        TFL: playerStats.idp_tkl_loss || 0,
+        "QB HUR": playerStats.idp_qb_hit || 0,
+        INT: playerStats.idp_int || 0,
+        PD: playerStats.idp_pass_def || 0,
+        FF: playerStats.idp_ff || 0,
+        FR: playerStats.idp_fum_rec || 0,
+        TD: playerStats.idp_def_td || 0,
+        SAF: playerStats.idp_safe || 0,
+      };
+      
+      // Use team from stats if available, otherwise use current team
+      const team = playerStats.team || currentTeam || "";
+      
+      seasons.push({
+        season: year.toString(),
+        team,
+        games,
+        gamesStarted: playerStats.gs || 0,
+        stats,
+      });
+      
+      // Accumulate career totals
+      for (const [key, val] of Object.entries(stats)) {
+        if (typeof val === "number") {
+          careerTotals[key] = (careerTotals[key] || 0) + val;
+        }
+      }
+      totalGames += games;
+    }
+  }
+  
+  seasons.sort((a, b) => parseInt(b.season) - parseInt(a.season));
+  
+  const career: CareerStats | null = totalGames > 0 ? {
+    games: totalGames,
+    gamesStarted: seasons.reduce((sum, s) => sum + s.gamesStarted, 0),
+    stats: careerTotals,
+  } : null;
+  
+  console.log(`[IDP Stats] Fetched ${seasons.length} seasons for player ${sleeperPlayerId}, total games: ${totalGames}`);
+  
+  return { career, seasons };
+}
+
 // Search for a player on ESPN by name
 async function searchESPNPlayer(playerName: string): Promise<string | null> {
   try {
@@ -494,6 +603,16 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
   };
 
   if (sleeperData) {
+    // For IDP players, fetch IDP stats from Sleeper
+    let careerStats: CareerStats | null = null;
+    let seasonStats: SeasonStats[] = [];
+    
+    if (isIDPPosition(sleeperData.position)) {
+      const idpStats = await fetchIDPSeasonHistory(playerId, sleeperData.position, sleeperData.team);
+      careerStats = idpStats.career;
+      seasonStats = idpStats.seasons;
+    }
+    
     return {
       bio: {
         name: sleeperData.full_name || playerName,
@@ -514,8 +633,8 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
         status: sleeperData.status || "active",
         injuryStatus: sleeperData.injury_status,
       },
-      careerStats: null,
-      seasonStats: [],
+      careerStats,
+      seasonStats,
       recentGameLogs: [],
       splits: null,
       espnId: null,
@@ -552,7 +671,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v16-${sleeperPlayerId}`;
+  const cacheKey = `profile-v18-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
@@ -651,6 +770,22 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
       const sleeperProfile = await createProfileFromSleeper(sleeperPlayerId, playerName);
       console.log(`[PROFILE DEBUG] ${playerName}: ESPN bio null, using Sleeper bio. position=${sleeperProfile.bio.position}`);
       
+      // For IDP players, use the IDP stats already fetched in sleeperProfile
+      if (isIDPPosition(sleeperProfile.bio.position) && sleeperProfile.seasonStats.length > 0) {
+        console.log(`[IDP PROFILE] ${playerName}: Using IDP stats from Sleeper profile for position ${sleeperProfile.bio.position}`);
+        
+        const profile: PlayerProfile = {
+          bio: sleeperProfile.bio,
+          careerStats: sleeperProfile.careerStats,
+          seasonStats: sleeperProfile.seasonStats,
+          recentGameLogs: sleeperProfile.recentGameLogs,
+          splits: splits || sleeperProfile.splits,
+          espnId,
+        };
+        playerStatsCache.set(cacheKey, { data: profile, time: Date.now() });
+        return profile;
+      }
+      
       // Determine what career/season stats to use
       let mergedCareerStats = statsData.career || sleeperProfile.careerStats;
       let mergedSeasonStats = statsData.seasons.length > 0 ? statsData.seasons : sleeperProfile.seasonStats;
@@ -678,6 +813,26 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
     }
     
     console.log(`[PROFILE DEBUG] ${playerName}: bio.position=${bio.position}, gameLogs.length=${gameLogs.length}`);
+    
+    // For IDP players, use Sleeper IDP stats (ESPN often doesn't return defensive stats properly)
+    if (isIDPPosition(bio.position)) {
+      console.log(`[IDP PROFILE] ${playerName}: Fetching IDP stats from Sleeper for position ${bio.position}`);
+      const idpStats = await fetchIDPSeasonHistory(sleeperPlayerId, bio.position, bio.teamAbbr || bio.team);
+      
+      // If we got IDP stats from Sleeper, use those
+      if (idpStats.seasons.length > 0) {
+        const profile: PlayerProfile = {
+          bio,
+          careerStats: idpStats.career,
+          seasonStats: idpStats.seasons,
+          recentGameLogs: gameLogs,
+          splits,
+          espnId,
+        };
+        playerStatsCache.set(cacheKey, { data: profile, time: Date.now() });
+        return profile;
+      }
+    }
     
     // Apply QB interceptions fix
     const fixedStats = applyQbIntsFix(
