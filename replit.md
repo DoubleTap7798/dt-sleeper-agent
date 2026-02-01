@@ -21,7 +21,9 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **Schedule**: Full season schedule with week-by-week matchups, opponents, scores, and W/L/T results
 - **Playoff Bracket**: Visual bracket display with matchups organized by round (Quarterfinals, Semifinals, Championship)
 - **Rivalries**: Head-to-head records between teams across all seasons
-- **Waiver Wire**: Available players and stats
+- **Waiver Wire**: Available players and stats with personalized "Recommended for You" section showing fit scores based on roster needs
+- **Player Watchlist**: Track players and monitor dynasty value changes over time. Add/remove players, view value when added vs current value, with visual indicators for rising/falling values
+- **Smart Trade Ideas**: AI-powered trade suggestions on dashboard analyzing roster weaknesses and league-wide opportunities with fairness scoring
 - **NFL Players**: Player rankings by fantasy points with snap %, position-specific stats (1st downs, targets, attempts), click to view full player profile
 - **Player Profile Modal**: Click any player to view comprehensive stats including bio (height, weight, college, draft info), career stats, season-by-season history, game logs, and performance splits (home/away, wins/losses)
 - **Player Trends**: Multi-season performance tracking with year-over-year analysis, career trajectory visualization, and historical PPG trends
@@ -73,6 +75,7 @@ DT Sleeper Agent is a fantasy football companion application for Sleeper leagues
 - **Conditional Component Pattern**: Pages requiring leagueId (like Roster) use a parent/child component pattern - parent checks for valid leagueId and returns early if missing, child component only renders with valid leagueId to prevent React Query from firing without required parameters
 - **QueryKey Array Format**: Use array format for React Query keys with variables like `["/api/fantasy/roster", leagueId]` instead of dynamic strings for proper cache invalidation
 - **useSelectedLeague Hook**: Returns `{ league, isLoading }` object - pages should destructure with `const { league } = useSelectedLeague()` and optionally use `isLoading` for showing loading skeletons while leagues are being fetched
+- **MetricTooltip Component**: Reusable tooltip component (`client/src/components/metric-tooltip.tsx`) for explaining advanced metrics like Dynasty Value, VOR, Fit Score. Uses accessible button trigger with aria-labels. Import and use with predefined metric keys or SimpleTooltip for custom definitions
 
 ### Project Structure
 ```
