@@ -99,3 +99,22 @@ export const leagueSyncStatus = pgTable("league_sync_status", {
 });
 
 export type LeagueSyncStatus = typeof leagueSyncStatus.$inferSelect;
+
+// Track when users took over orphan leagues (to exclude previous owner stats)
+export const userLeagueTakeover = pgTable("user_league_takeover", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  leagueId: text("league_id").notNull(), // The current/latest league ID in the dynasty chain
+  takeoverSeason: integer("takeover_season").notNull(), // First season the user actually managed this team
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertUserLeagueTakeoverSchema = createInsertSchema(userLeagueTakeover).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UserLeagueTakeover = typeof userLeagueTakeover.$inferSelect;
+export type InsertUserLeagueTakeover = z.infer<typeof insertUserLeagueTakeoverSchema>;

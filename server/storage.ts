@@ -3,11 +3,14 @@ import {
   leagueNotifications, 
   userNotificationStatus,
   leagueSyncStatus,
+  userLeagueTakeover,
   type UserProfile, 
   type InsertUserProfile,
   type LeagueNotification,
   type InsertLeagueNotification,
-  type LeagueSyncStatus
+  type LeagueSyncStatus,
+  type UserLeagueTakeover,
+  type InsertUserLeagueTakeover
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, notInArray, inArray } from "drizzle-orm";
@@ -27,6 +30,12 @@ export interface IStorage {
   // Sync status
   getSyncStatus(leagueId: string): Promise<LeagueSyncStatus | undefined>;
   updateSyncStatus(leagueId: string, updates: Partial<LeagueSyncStatus>): Promise<void>;
+  
+  // League takeover (for orphan teams)
+  getLeagueTakeover(userId: string, leagueId: string): Promise<UserLeagueTakeover | undefined>;
+  getAllLeagueTakeovers(userId: string): Promise<UserLeagueTakeover[]>;
+  upsertLeagueTakeover(userId: string, leagueId: string, takeoverSeason: number): Promise<UserLeagueTakeover>;
+  deleteLeagueTakeover(userId: string, leagueId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -160,6 +169,55 @@ export class DatabaseStorage implements IStorage {
         ...updates,
       });
     }
+  }
+
+  async getLeagueTakeover(userId: string, leagueId: string): Promise<UserLeagueTakeover | undefined> {
+    const [takeover] = await db
+      .select()
+      .from(userLeagueTakeover)
+      .where(
+        and(
+          eq(userLeagueTakeover.userId, userId),
+          eq(userLeagueTakeover.leagueId, leagueId)
+        )
+      );
+    return takeover || undefined;
+  }
+
+  async getAllLeagueTakeovers(userId: string): Promise<UserLeagueTakeover[]> {
+    return db
+      .select()
+      .from(userLeagueTakeover)
+      .where(eq(userLeagueTakeover.userId, userId));
+  }
+
+  async upsertLeagueTakeover(userId: string, leagueId: string, takeoverSeason: number): Promise<UserLeagueTakeover> {
+    const existing = await this.getLeagueTakeover(userId, leagueId);
+    
+    if (existing) {
+      await db
+        .update(userLeagueTakeover)
+        .set({ takeoverSeason, updatedAt: new Date() })
+        .where(eq(userLeagueTakeover.id, existing.id));
+      return { ...existing, takeoverSeason };
+    } else {
+      const [created] = await db
+        .insert(userLeagueTakeover)
+        .values({ userId, leagueId, takeoverSeason })
+        .returning();
+      return created;
+    }
+  }
+
+  async deleteLeagueTakeover(userId: string, leagueId: string): Promise<void> {
+    await db
+      .delete(userLeagueTakeover)
+      .where(
+        and(
+          eq(userLeagueTakeover.userId, userId),
+          eq(userLeagueTakeover.leagueId, leagueId)
+        )
+      );
   }
 }
 
