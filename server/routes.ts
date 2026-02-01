@@ -49,6 +49,115 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // SEO Routes - serve before auth to ensure crawlers can access
+  app.get("/robots.txt", (_req: Request, res: Response) => {
+    const robotsTxt = `# DT Sleeper Agent - robots.txt
+# https://dt-sleeper-agent.replit.app
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://dt-sleeper-agent.replit.app/sitemap.xml
+
+# Disallow API routes from indexing
+Disallow: /api/
+`;
+    res.type("text/plain").send(robotsTxt);
+  });
+
+  app.get("/sitemap.xml", (_req: Request, res: Response) => {
+    const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/standings</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/matchups</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/roster</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/trade</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/devy</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/players</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/waiver</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/news</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/lineup</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/trophies</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/rivalries</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/schedule</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/playoff-bracket</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/trends</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/projections</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://dt-sleeper-agent.replit.app/compare</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+</urlset>`;
+    res.type("application/xml").send(sitemapXml);
+  });
+
   // Setup authentication
   await setupAuth(app);
   registerAuthRoutes(app);
