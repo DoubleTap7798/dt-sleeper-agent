@@ -858,6 +858,185 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     }
   });
 
+  // ===== PLAYER SEARCH ENDPOINT =====
+
+  // Search players for watchlist add dialog
+  app.get("/api/fantasy/players", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const search = (req.query.search as string)?.toLowerCase() || "";
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      if (!allPlayers) {
+        return res.json({ players: [] });
+      }
+
+      const results = Object.entries(allPlayers)
+        .filter(([playerId, player]: [string, any]) => {
+          if (!player.fantasy_positions?.length) return false;
+          const pos = player.fantasy_positions[0];
+          if (!["QB", "RB", "WR", "TE"].includes(pos)) return false;
+          
+          const name = (player.full_name || `${player.first_name} ${player.last_name}`).toLowerCase();
+          return name.includes(search) && player.team; // Must be on NFL team
+        })
+        .map(([playerId, player]: [string, any]) => ({
+          id: playerId,
+          name: player.full_name || `${player.first_name} ${player.last_name}`,
+          position: player.fantasy_positions[0],
+          team: player.team,
+          age: player.age,
+          dynastyValue: Math.round(dynastyValueEngine.calculateValue(player)),
+        }))
+        .sort((a, b) => b.dynastyValue - a.dynastyValue)
+        .slice(0, limit);
+
+      res.json({ players: results });
+    } catch (error) {
+      console.error("Error searching players:", error);
+      res.status(500).json({ message: "Failed to search players" });
+    }
+  });
+
+  // ===== PLAYER WATCHLIST ENDPOINTS =====
+
+  // Get user's watchlist
+  app.get("/api/watchlist", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const watchlistItems = await db
+        .select()
+        .from(schema.playerWatchlist)
+        .where(eq(schema.playerWatchlist.userId, userId))
+        .orderBy(desc(schema.playerWatchlist.createdAt));
+
+      // Update current values
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const updatedItems = watchlistItems.map(item => {
+        const player = allPlayers?.[item.playerId];
+        const currentValue = player ? Math.round(dynastyValueEngine.calculateValue(player)) : item.currentValue;
+        const valueChange = currentValue - item.valueAtAdd;
+        return {
+          ...item,
+          currentValue,
+          valueChange,
+          team: player?.team || item.team,
+        };
+      });
+
+      res.json({ watchlist: updatedItems });
+    } catch (error) {
+      console.error("Error fetching watchlist:", error);
+      res.status(500).json({ message: "Failed to fetch watchlist" });
+    }
+  });
+
+  // Add player to watchlist
+  app.post("/api/watchlist", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { playerId, notes } = req.body;
+
+      if (!playerId) {
+        return res.status(400).json({ message: "Player ID is required" });
+      }
+
+      // Check if already in watchlist
+      const existing = await db
+        .select()
+        .from(schema.playerWatchlist)
+        .where(and(
+          eq(schema.playerWatchlist.userId, userId),
+          eq(schema.playerWatchlist.playerId, playerId)
+        ))
+        .limit(1);
+
+      if (existing.length > 0) {
+        return res.status(400).json({ message: "Player already in watchlist" });
+      }
+
+      // Get player info
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const player = allPlayers?.[playerId];
+      
+      if (!player) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+
+      const currentValue = Math.round(dynastyValueEngine.calculateValue(player));
+
+      const [newItem] = await db
+        .insert(schema.playerWatchlist)
+        .values({
+          userId,
+          playerId,
+          playerName: player.full_name || `${player.first_name} ${player.last_name}`,
+          position: player.fantasy_positions?.[0] || "?",
+          team: player.team,
+          valueAtAdd: currentValue,
+          currentValue,
+          notes: notes || null,
+        })
+        .returning();
+
+      res.json({ item: { ...newItem, valueChange: 0 } });
+    } catch (error) {
+      console.error("Error adding to watchlist:", error);
+      res.status(500).json({ message: "Failed to add to watchlist" });
+    }
+  });
+
+  // Remove player from watchlist
+  app.delete("/api/watchlist/:playerId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { playerId } = req.params;
+
+      await db
+        .delete(schema.playerWatchlist)
+        .where(and(
+          eq(schema.playerWatchlist.userId, userId),
+          eq(schema.playerWatchlist.playerId, playerId)
+        ));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing from watchlist:", error);
+      res.status(500).json({ message: "Failed to remove from watchlist" });
+    }
+  });
+
+  // Update watchlist entry notes
+  app.patch("/api/watchlist/:playerId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { playerId } = req.params;
+      const { notes } = req.body;
+
+      const [updated] = await db
+        .update(schema.playerWatchlist)
+        .set({ 
+          notes,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(schema.playerWatchlist.userId, userId),
+          eq(schema.playerWatchlist.playerId, playerId)
+        ))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ message: "Watchlist entry not found" });
+      }
+
+      res.json({ item: updated });
+    } catch (error) {
+      console.error("Error updating watchlist:", error);
+      res.status(500).json({ message: "Failed to update watchlist" });
+    }
+  });
+
   // Get current week matchups with scoring
   app.get("/api/sleeper/matchups/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {

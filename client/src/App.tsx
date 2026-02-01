@@ -30,6 +30,7 @@ import HomePage from "@/pages/home";
 import RosterPage from "@/pages/roster";
 import LeagueInfoPage from "@/pages/league-info";
 import DepthChartPage from "@/pages/depth-chart";
+import WatchlistPage from "@/pages/watchlist";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -221,6 +222,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <DepthChartPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/watchlist">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <WatchlistPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

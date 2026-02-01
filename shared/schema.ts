@@ -118,3 +118,27 @@ export const insertUserLeagueTakeoverSchema = createInsertSchema(userLeagueTakeo
 
 export type UserLeagueTakeover = typeof userLeagueTakeover.$inferSelect;
 export type InsertUserLeagueTakeover = z.infer<typeof insertUserLeagueTakeoverSchema>;
+
+// Player watchlist for tracking value changes
+export const playerWatchlist = pgTable("player_watchlist", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  playerId: text("player_id").notNull(), // Sleeper player ID
+  playerName: text("player_name").notNull(),
+  position: text("position").notNull(),
+  team: text("team"),
+  valueAtAdd: integer("value_at_add").notNull(), // Dynasty value when added (0-100 scale)
+  currentValue: integer("current_value").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPlayerWatchlistSchema = createInsertSchema(playerWatchlist).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type PlayerWatchlist = typeof playerWatchlist.$inferSelect;
+export type InsertPlayerWatchlist = z.infer<typeof insertPlayerWatchlistSchema>;

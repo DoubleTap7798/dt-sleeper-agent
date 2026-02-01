@@ -26,6 +26,7 @@ import {
   UserCog,
   TrendingUp,
   Search,
+  Eye,
 } from "lucide-react";
 import {
   Sidebar,
@@ -104,6 +105,7 @@ const navigationGroups: NavGroup[] = [
       { title: "Lineup Advice", url: "/league/lineup", icon: Target, requiresLeague: true },
       { title: "Matchups", url: "/league/matchups", icon: Gamepad2, requiresLeague: true },
       { title: "Schedule", url: "/league/schedule", icon: CalendarDays, requiresLeague: true },
+      { title: "Watchlist", url: "/league/watchlist", icon: Eye },
     ],
   },
   {
