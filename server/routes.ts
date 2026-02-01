@@ -885,8 +885,8 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     }
   });
 
-  // Get waiver wire players
-  app.get("/api/sleeper/waivers/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+  // Get waiver wire players (Premium)
+  app.get("/api/sleeper/waivers/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;
 
@@ -943,8 +943,8 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     }
   });
 
-  // Get personalized waiver recommendations based on roster needs
-  app.get("/api/fantasy/waiver-recommendations/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+  // Get personalized waiver recommendations based on roster needs (Premium)
+  app.get("/api/fantasy/waiver-recommendations/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;
       const userId = req.user.claims.sub;
@@ -1143,8 +1143,8 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
 
   // ===== PLAYER WATCHLIST ENDPOINTS =====
 
-  // Get user's watchlist
-  app.get("/api/watchlist", isAuthenticated, async (req: any, res: Response) => {
+  // Get user's watchlist (Premium)
+  app.get("/api/watchlist", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       
@@ -1184,8 +1184,8 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     }
   });
 
-  // Add player to watchlist
-  app.post("/api/watchlist", isAuthenticated, async (req: any, res: Response) => {
+  // Add player to watchlist (Premium)
+  app.post("/api/watchlist", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const { playerId, notes } = req.body;
@@ -1248,8 +1248,8 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     }
   });
 
-  // Remove player from watchlist
-  app.delete("/api/watchlist/:playerId", isAuthenticated, async (req: any, res: Response) => {
+  // Remove player from watchlist (Premium)
+  app.delete("/api/watchlist/:playerId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const { playerId } = req.params;
@@ -1268,8 +1268,8 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     }
   });
 
-  // Update watchlist entry notes
-  app.patch("/api/watchlist/:playerId", isAuthenticated, async (req: any, res: Response) => {
+  // Update watchlist entry notes (Premium)
+  app.patch("/api/watchlist/:playerId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const { playerId } = req.params;
@@ -3047,8 +3047,8 @@ ${fantasyOutlookSection}
     }
   });
 
-  // Analyze trade
-  app.post("/api/trade/analyze", isAuthenticated, async (req: any, res: Response) => {
+  // Analyze trade (Premium)
+  app.post("/api/trade/analyze", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const parsed = analyzeTradeSchema.safeParse(req.body);
       
@@ -3398,8 +3398,8 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
     }
   });
 
-  // Get trophy room data
-  app.get("/api/sleeper/trophies/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+  // Get trophy room data (Premium)
+  app.get("/api/sleeper/trophies/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;
 
@@ -3622,8 +3622,8 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
     }
   });
 
-  // Rivalry Head-to-Head Records
-  app.get("/api/sleeper/rivalries/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+  // Rivalry Head-to-Head Records (Premium)
+  app.get("/api/sleeper/rivalries/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;
       
@@ -4164,8 +4164,8 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
     }
   });
 
-  // Fantasy News Feed - Real news from sports sources, personalized to user's roster
-  app.get("/api/fantasy/news", isAuthenticated, async (req: any, res: Response) => {
+  // Fantasy News Feed - Real news from sports sources, personalized to user's roster (Premium)
+  app.get("/api/fantasy/news", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const { leagueId } = req.query;
@@ -4280,7 +4280,8 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
   });
 
   // Player Trends - Multi-season analysis (no auth required - public player data)
-  app.get("/api/fantasy/trends", async (req: any, res: Response) => {
+  // Player trends (Premium)
+  app.get("/api/fantasy/trends", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const allPlayers = await sleeperApi.getAllPlayers();
       
@@ -4564,7 +4565,8 @@ Provide a brief 2-3 sentence analysis. Be specific about who wins and what they'
   });
 
   // Lineup Advice - AI-powered start/sit recommendations
-  app.get("/api/fantasy/lineup-advice", isAuthenticated, async (req: any, res: Response) => {
+  // Lineup Advice (Premium)
+  app.get("/api/fantasy/lineup-advice", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const { leagueId } = req.query;
@@ -4690,7 +4692,8 @@ Return JSON with: {starters: [...], bench: [...], suggestions: [...], overallAna
   });
 
   // Advanced Projections - ROS outlook
-  app.get("/api/fantasy/projections", isAuthenticated, async (req: any, res: Response) => {
+  // ROS Projections (Premium)
+  app.get("/api/fantasy/projections", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.query;
       const [allPlayers, state] = await Promise.all([
@@ -5877,8 +5880,8 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     }
   });
 
-  // Smart Trade Ideas API - generates AI-powered trade suggestions
-  app.get("/api/fantasy/trade-ideas", isAuthenticated, async (req: any, res: Response) => {
+  // Smart Trade Ideas API - generates AI-powered trade suggestions (Premium)
+  app.get("/api/fantasy/trade-ideas", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const { leagueId } = req.query;
@@ -6099,8 +6102,8 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     }
   });
 
-  // Draft War Room API - Get league drafts and picks
-  app.get("/api/fantasy/drafts/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+  // Draft War Room API - Get league drafts and picks (Premium)
+  app.get("/api/fantasy/drafts/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;
       
@@ -6112,7 +6115,8 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     }
   });
 
-  app.get("/api/fantasy/draft/:draftId/picks", isAuthenticated, async (req: any, res: Response) => {
+  // Draft picks (Premium)
+  app.get("/api/fantasy/draft/:draftId/picks", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const { draftId } = req.params;
       
@@ -6128,8 +6132,8 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     }
   });
 
-  // Draft War Room - Get smart pick recommendations
-  app.get("/api/fantasy/draft-recommendations/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+  // Draft War Room - Get smart pick recommendations (Premium)
+  app.get("/api/fantasy/draft-recommendations/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const { leagueId } = req.params;

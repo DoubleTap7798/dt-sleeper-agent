@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { CACHE_TIMES } from "@/lib/queryClient";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,6 +55,7 @@ export default function TrophyRoomPage() {
   }
 
   return (
+    <PremiumGate featureName="Trophy Room">
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight" data-testid="text-trophy-title">
@@ -340,6 +342,7 @@ export default function TrophyRoomPage() {
         )}
       </div>
     </div>
+    </PremiumGate>
   );
 }
 

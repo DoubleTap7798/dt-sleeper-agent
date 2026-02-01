@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
 import { abbreviateName, getPositionColorClass } from "@/lib/utils";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -174,6 +175,7 @@ export default function LineupAdvicePage() {
   }
 
   return (
+    <PremiumGate featureName="Lineup Advice">
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
@@ -277,5 +279,6 @@ export default function LineupAdvicePage() {
         </>
       )}
     </div>
+    </PremiumGate>
   );
 }

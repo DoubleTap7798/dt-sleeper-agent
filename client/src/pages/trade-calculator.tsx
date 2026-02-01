@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { abbreviateName, getPositionColorClass } from "@/lib/utils";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -129,6 +130,7 @@ export default function TradeCalculatorPage() {
   }
 
   return (
+    <PremiumGate featureName="Trade Calculator">
     <div className="space-y-6">
       <div className="space-y-3">
         <div>
@@ -369,6 +371,7 @@ export default function TradeCalculatorPage() {
         </Card>
       )}
     </div>
+    </PremiumGate>
   );
 }
 

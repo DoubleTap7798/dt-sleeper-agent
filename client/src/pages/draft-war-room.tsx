@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -335,6 +336,7 @@ export default function DraftWarRoomPage() {
   };
 
   return (
+    <PremiumGate featureName="Draft War Room">
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -579,5 +581,6 @@ export default function DraftWarRoomPage() {
         </div>
       </div>
     </div>
+    </PremiumGate>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
 import { abbreviateName } from "@/lib/utils";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -142,6 +143,7 @@ export default function ProjectionsPage() {
   }
 
   return (
+    <PremiumGate featureName="ROS Projections">
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
@@ -331,5 +333,6 @@ export default function ProjectionsPage() {
         </div>
       )}
     </div>
+    </PremiumGate>
   );
 }

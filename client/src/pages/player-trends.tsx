@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
 import { getPositionColorClass } from "@/lib/utils";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -147,6 +148,7 @@ export default function PlayerTrendsPage() {
   }
 
   return (
+    <PremiumGate featureName="Player Trends">
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Activity className="h-5 w-5" />
@@ -357,5 +359,6 @@ export default function PlayerTrendsPage() {
         )
       )}
     </div>
+    </PremiumGate>
   );
 }

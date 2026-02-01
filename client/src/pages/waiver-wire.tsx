@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { abbreviateName, getPositionColorClass } from "@/lib/utils";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -133,6 +134,7 @@ export default function WaiverWirePage() {
   ) || [];
 
   return (
+    <PremiumGate featureName="Waiver Wire">
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -368,6 +370,7 @@ export default function WaiverWirePage() {
         </CardContent>
       </Card>
     </div>
+    </PremiumGate>
   );
 }
 

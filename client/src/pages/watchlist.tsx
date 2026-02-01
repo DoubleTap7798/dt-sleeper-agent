@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { getPositionColorClass } from "@/lib/utils";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -153,6 +154,7 @@ export default function WatchlistPage() {
   }
 
   return (
+    <PremiumGate featureName="Watchlist">
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -408,5 +410,6 @@ export default function WatchlistPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </PremiumGate>
   );
 }

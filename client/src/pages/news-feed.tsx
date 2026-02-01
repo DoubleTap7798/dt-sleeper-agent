@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -172,6 +173,7 @@ export default function NewsFeedPage() {
   }
 
   return (
+    <PremiumGate featureName="Fantasy News">
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
@@ -403,5 +405,6 @@ export default function NewsFeedPage() {
         )
       )}
     </div>
+    </PremiumGate>
   );
 }
