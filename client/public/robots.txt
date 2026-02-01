@@ -1,0 +1,11 @@
+# DT Sleeper Agent - robots.txt
+# https://dt-sleeper-agent.replit.app
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://dt-sleeper-agent.replit.app/sitemap.xml
+
+# Disallow API routes from indexing
+Disallow: /api/
