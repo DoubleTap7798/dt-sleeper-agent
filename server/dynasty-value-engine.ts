@@ -1161,6 +1161,14 @@ export function parseLeagueScoringSettings(leagueSettings: any): LeagueScoringSe
 }
 
 export function parseLeagueRosterSettings(league: any): LeagueRosterSettings {
+  if (!league) {
+    // Return default 1QB settings if no league data
+    return {
+      qbSlots: 1, rbSlots: 2, wrSlots: 2, teSlots: 1,
+      flexSlots: 2, superflexSlots: 0, benchSlots: 6, teamCount: 12,
+      dlSlots: 0, lbSlots: 0, dbSlots: 0, idpFlexSlots: 0, isIDPLeague: false
+    };
+  }
   const rosterPositions: string[] = league.roster_positions || [];
   const teamCount = league.total_rosters || 12;
   

@@ -318,9 +318,17 @@ export default function DraftWarRoomPage() {
   }
 
   if (error) {
+    const errorMessage = (error as any)?.message || "Failed to load draft data";
     return (
-      <div className="p-6 text-center text-red-400">
-        Failed to load draft data. Please try again.
+      <div className="p-6 text-center space-y-4">
+        <p className="text-red-400">{errorMessage}</p>
+        <Button 
+          variant="outline" 
+          onClick={() => refetch()}
+          data-testid="button-retry-draft"
+        >
+          Try Again
+        </Button>
       </div>
     );
   }

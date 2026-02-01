@@ -15,7 +15,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Globe } from "lucide-react";
+import { ChevronDown, Globe, User, Crown, LogOut, Settings } from "lucide-react";
+import { useSubscription } from "@/hooks/use-subscription";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, prefetchLeagueData, prefetchPlayerData } from "@/lib/queryClient";
 import type { SleeperLeague } from "@/lib/sleeper-types";
@@ -34,7 +36,8 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
   const [, setLocation] = useLocation();
   const searchString = useSearch();
   const queryClient = useQueryClient();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, logout } = useAuth();
+  const { isPremium, isGrandfathered } = useSubscription();
 
   const urlParams = new URLSearchParams(searchString);
   const leagueIdFromUrl = urlParams.get("id");
@@ -239,6 +242,74 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
               {!isAllLeagues && <NotificationBell leagueId={selectedLeague?.league_id} />}
               <PwaInstallButton />
               <ThemeToggle />
+              
+              {/* Profile/Account Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="relative"
+                    data-testid="button-profile-menu"
+                  >
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
+                      <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+                        {user?.firstName?.[0] || user?.email?.[0]?.toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    {isPremium && (
+                      <span className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full flex items-center justify-center">
+                        <Crown className="h-2 w-2 text-primary-foreground" />
+                      </span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-3 py-2 border-b border-border">
+                    <p className="text-sm font-medium truncate">
+                      {user?.firstName && user?.lastName
+                        ? `${user.firstName} ${user.lastName}`
+                        : user?.email || "User"}
+                    </p>
+                    {isPremium && (
+                      <Badge 
+                        variant="outline" 
+                        className="text-primary border-primary text-[10px] px-1.5 py-0 mt-1"
+                      >
+                        <Crown className="h-2.5 w-2.5 mr-0.5" />
+                        {isGrandfathered ? "OG Member" : "PRO"}
+                      </Badge>
+                    )}
+                  </div>
+                  {!isPremium && (
+                    <DropdownMenuItem
+                      onClick={() => setLocation("/upgrade")}
+                      className="cursor-pointer text-primary"
+                      data-testid="menu-upgrade"
+                    >
+                      <Crown className="h-4 w-4 mr-2" />
+                      Upgrade to Premium
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => setLocation("/upgrade")}
+                    className="cursor-pointer"
+                    data-testid="menu-account"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Account Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => logout()}
+                    className="cursor-pointer text-red-400"
+                    data-testid="menu-logout"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
           <main className="flex-1 overflow-auto p-4 md:p-6">

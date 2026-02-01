@@ -6170,6 +6170,11 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         sleeperApi.getLeagueDrafts(leagueId),
       ]);
 
+      // Handle invalid/missing league
+      if (!league) {
+        return res.status(404).json({ message: "League not found. Please select a valid league." });
+      }
+
       // Fetch consensus values
       try {
         await dynastyConsensusService.fetchAndCacheValues();
