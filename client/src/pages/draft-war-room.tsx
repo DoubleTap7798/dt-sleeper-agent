@@ -298,7 +298,8 @@ function DraftBoard({ picks, currentPick }: {
         <Table>
           <TableHeader className="sticky top-0 bg-card z-10">
             <TableRow>
-              <TableHead className="w-12 text-xs">Pick</TableHead>
+              <TableHead className="w-16 text-xs">Pick #</TableHead>
+              <TableHead className="w-16 text-xs">Rd/Slot</TableHead>
               <TableHead className="text-xs">Player</TableHead>
               <TableHead className="w-12 text-xs text-center">Pos</TableHead>
               <TableHead className="w-12 text-xs text-center">Team</TableHead>
@@ -314,7 +315,10 @@ function DraftBoard({ picks, currentPick }: {
                   className={isCurrent ? "bg-primary/20" : ""}
                   data-testid={`draft-pick-${pick.pickNo}`}
                 >
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="font-mono text-xs font-semibold text-primary">
+                    #{pick.pickNo}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
                     {pick.round}.{String(pick.slot).padStart(2, "0")}
                   </TableCell>
                   <TableCell className="font-medium">{pick.player.name}</TableCell>

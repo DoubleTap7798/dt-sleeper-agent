@@ -6218,7 +6218,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
               team: player.team || "FA",
               round: pick.round,
               slot: pick.draft_slot,
-              pickNo: (pick.round - 1) * (activeDraft?.settings?.teams || 12) + pick.draft_slot,
+              pickNo: pick.pick_no, // Use actual pick_no from API - correct for both snake and linear drafts
             });
           }
         }
@@ -6435,18 +6435,27 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           picksMade: draftPicks.length,
           totalPicks: (activeDraft.settings?.rounds || 0) * (activeDraft.settings?.teams || 0),
         } : null,
-        draftBoard: draftPicks.map(p => ({
-          pickNo: p.pick_no,
-          round: p.round,
-          slot: p.draft_slot,
-          rosterId: p.roster_id,
-          player: {
-            id: p.player_id,
-            name: `${p.metadata.first_name} ${p.metadata.last_name}`,
-            position: p.metadata.position,
-            team: p.metadata.team,
-          },
-        })),
+        draftBoard: draftPicks
+          .filter(p => p.player_id) // Only include completed picks (player_id is set when pick is made)
+          .map(p => {
+            // Use actual pick_no from API; fallback to computed linear order if missing
+            const numTeams = activeDraft?.settings?.teams || 12;
+            const computedPickNo = (p.round - 1) * numTeams + p.draft_slot;
+            const pickNo = p.pick_no ?? computedPickNo;
+            return {
+              pickNo,
+              round: p.round,
+              slot: p.draft_slot,
+              rosterId: p.roster_id,
+              player: {
+                id: p.player_id,
+                name: p.metadata?.first_name ? `${p.metadata.first_name} ${p.metadata.last_name}` : allPlayers[p.player_id]?.full_name || "Unknown",
+                position: p.metadata?.position || allPlayers[p.player_id]?.position || "?",
+                team: p.metadata?.team || allPlayers[p.player_id]?.team || "FA",
+              },
+            };
+          })
+          .sort((a, b) => a.pickNo - b.pickNo), // Sort by chronological pick order
         myPicks: userDraftPicks.sort((a, b) => a.pickNo - b.pickNo),
         mode,
       });
