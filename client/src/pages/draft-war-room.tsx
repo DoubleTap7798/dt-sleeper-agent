@@ -271,6 +271,9 @@ function DraftBoard({ picks, currentPick }: {
     );
   }
 
+  // Sort picks by pickNo in descending order (most recent first)
+  const sortedPicks = [...picks].sort((a, b) => b.pickNo - a.pickNo);
+
   return (
     <div className="space-y-2">
       {currentPick && (
@@ -302,7 +305,7 @@ function DraftBoard({ picks, currentPick }: {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {picks.map((pick) => {
+            {sortedPicks.map((pick) => {
               const isCurrent = currentPick === pick.pickNo;
               return (
                 <TableRow 
