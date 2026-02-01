@@ -66,6 +66,117 @@ Disallow: /api/
     res.type("text/plain").send(robotsTxt);
   });
 
+  // Plain text app info for AI review tools (bypasses robots.txt issues)
+  app.get("/app-info", (_req: Request, res: Response) => {
+    const appInfo = `DT Sleeper Agent - Fantasy Football Companion App
+====================================================
+
+OVERVIEW
+--------
+DT Sleeper Agent is a comprehensive companion application for Sleeper fantasy football dynasty leagues. It connects directly to your Sleeper account to provide advanced analytics, trade tools, and AI-powered recommendations.
+
+URL: https://dt-sleeper-agent.replit.app
+
+CORE FEATURES
+-------------
+
+1. TRADE CALCULATOR
+   - Custom dynasty player values (0-100 scale)
+   - Multi-year Value Over Replacement (VOR) algorithm
+   - AI-powered trade analysis and recommendations
+   - Factor analysis: age, injury risk, team context, draft capital
+
+2. CAREER STATS DASHBOARD
+   - Aggregated statistics across ALL historical seasons
+   - Total W-L-T record, championships, runner-ups
+   - Playoff appearances tracking
+   - Season-by-season breakdown with navigation
+
+3. LINEUP ADVICE
+   - AI-powered start/sit recommendations
+   - Matchup analysis with projected points
+   - Confidence ratings and game script predictions
+   - Smart swap suggestions
+
+4. STANDINGS & PLAYOFFS
+   - League standings with playoff predictions
+   - Visual playoff bracket display
+   - Clickable teams showing roster and draft picks
+
+5. NEWS FEED
+   - Real-time fantasy football news
+   - AI-generated analysis with 5-minute refresh
+   - Injury updates, trade rumors, waiver recommendations
+
+6. WAIVER WIRE
+   - Available players with stats
+   - Position-specific analysis
+
+7. NFL PLAYERS DATABASE
+   - Player rankings by fantasy points
+   - Snap percentages, position-specific stats
+   - Click to view full player profile with:
+     * Bio (height, weight, college, draft info)
+     * Career stats and season history
+     * Game logs and performance splits
+
+8. DEVY RANKINGS
+   - 200+ college prospect profiles
+   - Players NOT yet drafted to NFL
+   - AI scouting analysis
+   - ESPN college stats integration
+   - Draft eligibility tracking (2026-2028)
+
+9. PLAYER TRENDS & COMPARISONS
+   - Multi-season performance tracking
+   - Year-over-year analysis
+   - Side-by-side comparison tool (2-4 players)
+
+10. ROS PROJECTIONS
+    - Rest-of-season projections
+    - AI-generated outlooks
+    - Schedule strength and injury risk analysis
+
+11. TROPHY ROOM
+    - Champions display
+    - All-time standings
+    - Season records
+
+12. RIVALRIES
+    - Head-to-head records between teams
+    - Historical matchup data
+
+13. ORPHAN TEAM TAKEOVER
+    - Exclude previous owner stats from career totals
+    - Set takeover season for accurate tracking
+
+TECHNICAL STACK
+---------------
+- Frontend: React + TypeScript + Vite
+- Backend: Express.js + Node.js
+- Database: PostgreSQL with Drizzle ORM
+- Authentication: Replit Auth (OpenID Connect)
+- AI: OpenAI integration for analysis
+- APIs: Sleeper API, ESPN API
+
+DESIGN
+------
+- Modern tech theme with black background
+- Electric blue/cyan accent color (#00D4FF)
+- Glow effects on interactive elements
+- PWA-enabled for mobile app install
+
+INTEGRATIONS
+------------
+- Sleeper API: League data, rosters, matchups
+- ESPN API: Player stats, game logs, career data
+- OpenAI: Trade analysis, lineup advice, news generation
+
+Created for fantasy football enthusiasts who want advanced tools to dominate their dynasty leagues.
+`;
+    res.type("text/plain").send(appInfo);
+  });
+
   app.get("/sitemap.xml", (_req: Request, res: Response) => {
     const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
