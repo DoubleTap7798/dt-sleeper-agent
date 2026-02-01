@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { abbreviateName, getPositionColorClass } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, TrendingUp, Users } from "lucide-react";
+import { Search, TrendingUp, Users, Sparkles, Target, AlertCircle } from "lucide-react";
 
 interface WaiverPlayer {
   playerId: string;
@@ -44,20 +44,64 @@ interface WaiverData {
   week: number;
 }
 
+interface WaiverRecommendation {
+  playerId: string;
+  name: string;
+  position: string;
+  team: string;
+  age: number | null;
+  injuryStatus: string | null;
+  dynastyValue: number;
+  fitScore: number;
+  needLevel: "high" | "medium" | "low";
+  reason: string;
+}
+
+interface PositionNeed {
+  position: string;
+  level: "high" | "medium" | "low";
+  count: number;
+}
+
+interface RecommendationsData {
+  recommendations: WaiverRecommendation[];
+  needs: PositionNeed[];
+  week: number;
+}
+
 const positions = ["All", "QB", "RB", "WR", "TE", "K", "DEF"];
 
 export default function WaiverWirePage() {
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
   const leagueId = urlParams.get("id");
+  const presetPosition = urlParams.get("position");
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [positionFilter, setPositionFilter] = useState("All");
+  const [positionFilter, setPositionFilter] = useState(presetPosition || "All");
   const [sortBy, setSortBy] = useState<"avgPoints" | "seasonPoints" | "projectedPoints">("avgPoints");
+  const [showRecommendations, setShowRecommendations] = useState(true);
 
   const { data, isLoading, error } = useQuery<WaiverData>({
     queryKey: ["/api/sleeper/waivers", leagueId],
     enabled: !!leagueId,
+  });
+
+  // Fetch personalized recommendations
+  const { data: recsData, isLoading: recsLoading, error: recsError } = useQuery<RecommendationsData>({
+    queryKey: ["/api/fantasy/waiver-recommendations", leagueId],
+    queryFn: async () => {
+      const res = await fetch(`/api/fantasy/waiver-recommendations/${leagueId}`, {
+        credentials: "include"
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to fetch recommendations");
+      }
+      return res.json();
+    },
+    enabled: !!leagueId,
+    retry: 1,
   });
 
   const filteredPlayers = data?.players
@@ -82,6 +126,11 @@ export default function WaiverWirePage() {
   }
 
 
+  // Filter recommendations by position if set
+  const filteredRecs = recsData?.recommendations?.filter(rec => 
+    positionFilter === "All" || rec.position === positionFilter
+  ) || [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -94,6 +143,112 @@ export default function WaiverWirePage() {
           </p>
         </div>
       </div>
+
+      {/* Personalized Recommendations Section */}
+      {showRecommendations && (
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent" data-testid="card-recommendations">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">Recommended for You</CardTitle>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowRecommendations(false)}
+                data-testid="btn-hide-recommendations"
+              >
+                Hide
+              </Button>
+            </div>
+            <CardDescription>
+              Players that best fit your roster needs
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recsLoading ? (
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-24" />
+                ))}
+              </div>
+            ) : recsError ? (
+              <div className="text-center py-4 text-muted-foreground flex items-center justify-center gap-2">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+                <span>Unable to load recommendations. Connect your Sleeper account to see personalized picks.</span>
+              </div>
+            ) : filteredRecs.length > 0 ? (
+              <>
+                {/* Position Needs Badges */}
+                {recsData?.needs && recsData.needs.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <span className="text-sm text-muted-foreground">Your needs:</span>
+                    {recsData.needs.map((need) => (
+                      <Badge 
+                        key={need.position}
+                        variant={need.level === "high" ? "destructive" : need.level === "medium" ? "default" : "secondary"}
+                        className="text-xs"
+                        data-testid={`badge-need-${need.position}`}
+                      >
+                        {need.position} ({need.count})
+                        {need.level === "high" && <AlertCircle className="ml-1 h-3 w-3" />}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Recommendation Cards */}
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredRecs.slice(0, 6).map((rec) => (
+                    <div 
+                      key={rec.playerId}
+                      className="p-3 rounded-lg border border-border/50 bg-card/80 space-y-2 hover-elevate"
+                      data-testid={`rec-player-${rec.playerId}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={getPositionColorClass(rec.position)}>
+                            {rec.position}
+                          </Badge>
+                          <span className="font-medium text-sm">{rec.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Target className="h-3 w-3 text-primary" />
+                          <span className="text-sm font-bold text-primary">{rec.fitScore}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{rec.team} • Age {rec.age || "?"}</span>
+                        <span className="text-muted-foreground">Value: {rec.dynastyValue}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{rec.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground">
+                No personalized recommendations available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Toggle to show recommendations if hidden */}
+      {!showRecommendations && (
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => setShowRecommendations(true)}
+          className="gap-2"
+          data-testid="btn-show-recommendations"
+        >
+          <Sparkles className="h-4 w-4" />
+          Show Recommendations
+        </Button>
+      )}
 
       <Card>
         <CardHeader className="pb-4">

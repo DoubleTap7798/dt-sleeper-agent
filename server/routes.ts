@@ -727,6 +727,137 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     }
   });
 
+  // Get personalized waiver recommendations based on roster needs
+  app.get("/api/fantasy/waiver-recommendations/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+
+      // Get user profile to find their Sleeper ID
+      const userProfile = await authStorage.getUserProfileByUserId(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "No Sleeper account connected" });
+      }
+
+      const [league, rosters, users, allPlayers, state] = await Promise.all([
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getState(),
+      ]);
+
+      if (!rosters || !allPlayers) {
+        return res.json({ recommendations: [], needs: [] });
+      }
+
+      // Find user's roster
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+      const userRoster = rosters.find((r) => {
+        const owner = userMap.get(r.owner_id);
+        return r.owner_id === userProfile.sleeperUserId || owner?.user_id === userProfile.sleeperUserId;
+      });
+
+      if (!userRoster) {
+        return res.json({ recommendations: [], needs: [] });
+      }
+
+      // Get all rostered player IDs across all teams
+      const rosteredPlayers = new Set<string>();
+      rosters.forEach((roster) => {
+        (roster.players || []).forEach((p: string) => rosteredPlayers.add(p));
+        (roster.reserve || []).forEach((p: string) => rosteredPlayers.add(p));
+        (roster.taxi || []).forEach((p: string) => rosteredPlayers.add(p));
+      });
+
+      // Analyze user's roster by position (include players, taxi, reserve)
+      const positionCounts: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+      const positionStrengths: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+      const userPlayerIds = [
+        ...(userRoster.players || []),
+        ...(userRoster.taxi || []),
+        ...(userRoster.reserve || []),
+      ];
+
+      for (const playerId of userPlayerIds) {
+        const player = allPlayers[playerId];
+        if (!player) continue;
+        const pos = player.fantasy_positions?.[0];
+        if (pos && positionCounts[pos] !== undefined) {
+          positionCounts[pos]++;
+          // Calculate strength based on player quality (use dynasty value if available)
+          const value = dynastyValueEngine.calculateValue(player);
+          positionStrengths[pos] += value;
+        }
+      }
+
+      // Determine position needs (lower strength = higher need)
+      const positionNeeds: { position: string; need: number; count: number }[] = [];
+      const idealCounts: Record<string, number> = { QB: 2, RB: 5, WR: 5, TE: 2 };
+      
+      for (const pos of ["QB", "RB", "WR", "TE"]) {
+        const countRatio = positionCounts[pos] / idealCounts[pos];
+        const avgStrength = positionCounts[pos] > 0 ? positionStrengths[pos] / positionCounts[pos] : 0;
+        // Need = inverse of depth + quality
+        const need = Math.max(0, 100 - (countRatio * 30 + avgStrength * 0.7));
+        positionNeeds.push({ position: pos, need, count: positionCounts[pos] });
+      }
+      positionNeeds.sort((a, b) => b.need - a.need);
+
+      // Get available players and score them based on roster fit
+      const recommendations = Object.entries(allPlayers)
+        .filter(([playerId, player]: [string, any]) => {
+          if (rosteredPlayers.has(playerId)) return false;
+          if (!player.fantasy_positions?.length) return false;
+          const pos = player.fantasy_positions[0];
+          return ["QB", "RB", "WR", "TE"].includes(pos) && player.team; // Must be on NFL team
+        })
+        .map(([playerId, player]: [string, any]) => {
+          const pos = player.fantasy_positions[0];
+          const playerValue = dynastyValueEngine.calculateValue(player);
+          const positionNeed = positionNeeds.find(p => p.position === pos);
+          
+          // Calculate fit score: combines player value with position need bonus
+          // Need bonus ranges from 0 to 20 based on position need level
+          const needBonus = positionNeed ? (positionNeed.need / 100) * 20 : 0;
+          const fitScore = Math.round(Math.min(100, playerValue + needBonus));
+          
+          return {
+            playerId,
+            name: player.full_name || `${player.first_name} ${player.last_name}`,
+            position: pos,
+            team: player.team,
+            age: player.age,
+            injuryStatus: player.injury_status,
+            dynastyValue: Math.round(playerValue * 10) / 10,
+            fitScore,
+            needLevel: positionNeed?.need ? (positionNeed.need >= 70 ? "high" : positionNeed.need >= 40 ? "medium" : "low") : "low",
+            reason: positionNeed && positionNeed.need >= 50 
+              ? `Fills ${pos} need (only ${positionNeed.count} on roster)` 
+              : playerValue >= 30 
+                ? `High-value upside player` 
+                : `Depth/handcuff option`,
+          };
+        })
+        .filter(p => p.fitScore >= 10 && p.dynastyValue >= 5) // Only include players with decent value
+        .sort((a, b) => b.fitScore - a.fitScore)
+        .slice(0, 20);
+
+      res.json({
+        recommendations,
+        needs: positionNeeds.map(p => ({
+          position: p.position,
+          level: p.need >= 70 ? "high" : p.need >= 40 ? "medium" : "low",
+          count: p.count,
+        })),
+        week: state?.week || 1,
+      });
+    } catch (error) {
+      console.error("Error fetching waiver recommendations:", error);
+      res.status(500).json({ message: "Failed to fetch recommendations" });
+    }
+  });
+
   // Get current week matchups with scoring
   app.get("/api/sleeper/matchups/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
