@@ -66,8 +66,8 @@ export default function LandingPage() {
     },
     {
       icon: Shield,
-      title: "100% Free",
-      description: "Full access to all features, no premium tiers",
+      title: "Premium Power",
+      description: "Unlock AI tools for just $3.99/week with free basic features",
     },
     {
       icon: RefreshCw,
@@ -194,9 +194,9 @@ export default function LandingPage() {
                 <div className="text-sm text-muted-foreground">Real-Time Updates</div>
               </div>
               <div className="h-8 w-px bg-border hidden sm:block" />
-              <div data-testid="stat-free">
-                <div className="text-3xl font-bold text-[hsl(var(--accent))]">100%</div>
-                <div className="text-sm text-muted-foreground">Free Forever</div>
+              <div data-testid="stat-price">
+                <div className="text-3xl font-bold text-[hsl(var(--accent))]">$3.99</div>
+                <div className="text-sm text-muted-foreground">Per Week</div>
               </div>
             </div>
           </div>
@@ -413,11 +413,11 @@ export default function LandingPage() {
               disabled={isLoading}
               data-testid="button-footer-cta"
             >
-              Get Started Free
+              Get Started
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
             <p className="text-xs text-muted-foreground mt-4">
-              No credit card required. No premium tiers. Just winning.
+              Free basic features. Premium unlocks full AI-powered tools.
             </p>
           </div>
         </section>
