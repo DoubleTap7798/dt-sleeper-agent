@@ -2827,6 +2827,36 @@ ${fantasyOutlookSection}
       const userMap = new Map((users || []).map((u) => [u.user_id, u]));
       const playerData = allPlayers || {};
 
+      // Calculate pick position (early/mid/late) based on standings
+      // Sort rosters by record to determine pick positions
+      const rostersByStanding = [...rosters].sort((a, b) => {
+        const aWins = a.settings?.wins || 0;
+        const bWins = b.settings?.wins || 0;
+        const aLosses = a.settings?.losses || 0;
+        const bLosses = b.settings?.losses || 0;
+        const aTotal = aWins + aLosses + (a.settings?.ties || 0);
+        const bTotal = bWins + bLosses + (b.settings?.ties || 0);
+        const aWinPct = aTotal > 0 ? aWins / aTotal : 0.5;
+        const bWinPct = bTotal > 0 ? bWins / bTotal : 0.5;
+        // Sort by win percentage (lower = earlier pick)
+        return aWinPct - bWinPct;
+      });
+      
+      // Map roster_id to pick position based on standing
+      const rosterPickPosition = new Map<number, "early" | "mid" | "late">();
+      const totalRosters = rostersByStanding.length;
+      rostersByStanding.forEach((roster, index) => {
+        // Bottom 1/3 = early picks, Middle 1/3 = mid, Top 1/3 = late
+        const position = index / totalRosters;
+        if (position < 0.33) {
+          rosterPickPosition.set(roster.roster_id, "early");
+        } else if (position < 0.67) {
+          rosterPickPosition.set(roster.roster_id, "mid");
+        } else {
+          rosterPickPosition.set(roster.roster_id, "late");
+        }
+      });
+
       const rostersWithAssets = rosters.map((roster) => {
         const user = userMap.get(roster.owner_id);
         
@@ -2883,7 +2913,7 @@ ${fantasyOutlookSection}
         }
 
         // Get draft pick assets for this roster (picks acquired from trades)
-        const picks: { id: string; name: string; type: "pick"; value: number }[] = [];
+        const picks: { id: string; name: string; type: "pick"; value: number; pickPosition?: string }[] = [];
         
         // Find all picks this roster currently owns (from trades)
         for (const [key, ownership] of Array.from(pickOwnershipMap.entries())) {
@@ -2893,13 +2923,17 @@ ${fantasyOutlookSection}
             const round = parseInt(roundStr);
             const originalOwner = rosters.find((r) => r.roster_id === parseInt(originalRosterId));
             const originalOwnerUser = originalOwner ? userMap.get(originalOwner.owner_id) : null;
-            const pickValue = dynastyEngine.getDraftPickValue(season, round);
+            // Use the ORIGINAL owner's standing to determine pick position
+            const pickPosition = rosterPickPosition.get(parseInt(originalRosterId)) || "mid";
+            const pickValue = dynastyEngine.getDraftPickValue(season, round, pickPosition);
             const ownerSuffix = originalOwnerUser?.display_name || originalOwnerUser?.username;
+            const positionLabel = pickPosition.charAt(0).toUpperCase() + pickPosition.slice(1);
             picks.push({
               id: key,
-              name: ownerSuffix ? `${pickValue.displayName} (${ownerSuffix})` : pickValue.displayName,
+              name: ownerSuffix ? `${positionLabel} ${pickValue.displayName} (${ownerSuffix})` : `${positionLabel} ${pickValue.displayName}`,
               type: "pick" as const,
               value: pickValue.value,
+              pickPosition,
             });
           }
         }
@@ -2908,6 +2942,9 @@ ${fantasyOutlookSection}
         // A roster owns their own pick UNLESS it's been traded away (owner_id !== roster.roster_id)
         const currentYear = new Date().getFullYear();
         const currentPicks = new Set(picks.map((p) => p.id));
+        // Get this roster's pick position (based on their own standing)
+        const thisRosterPickPosition = rosterPickPosition.get(roster.roster_id) || "mid";
+        const positionLabel = thisRosterPickPosition.charAt(0).toUpperCase() + thisRosterPickPosition.slice(1);
         [String(currentYear), String(currentYear + 1), String(currentYear + 2)].forEach((season) => {
           [1, 2, 3, 4].forEach((round) => {
             const id = `${season}-${round}-${roster.roster_id}`;
@@ -2915,12 +2952,13 @@ ${fantasyOutlookSection}
             const ownership = pickOwnershipMap.get(id);
             const tradedAway = ownership && ownership.owner_id !== roster.roster_id;
             if (!currentPicks.has(id) && !tradedAway) {
-              const pickValue = dynastyEngine.getDraftPickValue(season, round);
+              const pickValue = dynastyEngine.getDraftPickValue(season, round, thisRosterPickPosition);
               picks.push({
                 id,
-                name: pickValue.displayName,
+                name: `${positionLabel} ${pickValue.displayName}`,
                 type: "pick" as const,
                 value: pickValue.value,
+                pickPosition: thisRosterPickPosition,
               });
             }
           });
@@ -2979,6 +3017,32 @@ ${fantasyOutlookSection}
       const userMap = new Map((users || []).map((u) => [u.user_id, u]));
       const playerData = allPlayers || {};
       const user = userMap.get(roster.owner_id);
+
+      // Calculate pick position (early/mid/late) based on standings for all rosters
+      const rostersByStanding = [...rosters].sort((a, b) => {
+        const aWins = a.settings?.wins || 0;
+        const bWins = b.settings?.wins || 0;
+        const aLosses = a.settings?.losses || 0;
+        const bLosses = b.settings?.losses || 0;
+        const aTotal = aWins + aLosses + (a.settings?.ties || 0);
+        const bTotal = bWins + bLosses + (b.settings?.ties || 0);
+        const aWinPct = aTotal > 0 ? aWins / aTotal : 0.5;
+        const bWinPct = bTotal > 0 ? bWins / bTotal : 0.5;
+        return aWinPct - bWinPct;
+      });
+      
+      const rosterPickPosition = new Map<number, "early" | "mid" | "late">();
+      const totalTeams = rostersByStanding.length;
+      rostersByStanding.forEach((r, index) => {
+        const position = index / totalTeams;
+        if (position < 0.33) {
+          rosterPickPosition.set(r.roster_id, "early");
+        } else if (position < 0.67) {
+          rosterPickPosition.set(r.roster_id, "mid");
+        } else {
+          rosterPickPosition.set(r.roster_id, "late");
+        }
+      });
 
       // Helper for display name
       const getDisplayName = (player: any): string => {
@@ -3094,9 +3158,13 @@ ${fantasyOutlookSection}
         pickOwnershipMap.set(key, { owner_id: pick.owner_id, roster_id: pick.roster_id });
       }
       
-      const totalRosters = league?.total_rosters || rosters.length;
+      const totalRostersCount = league?.total_rosters || rosters.length;
       const picks: any[] = [];
       const currentYear = new Date().getFullYear();
+      
+      // Get this roster's pick position based on their standings
+      const thisRosterPickPos = rosterPickPosition.get(rosterIdNum) || "mid";
+      const posLabel = thisRosterPickPos.charAt(0).toUpperCase() + thisRosterPickPos.slice(1);
       
       // Generate picks for next 3 years
       for (let season = currentYear; season <= currentYear + 2; season++) {
@@ -3107,16 +3175,17 @@ ${fantasyOutlookSection}
           const ownership = pickOwnershipMap.get(id);
           const ownPickTradedAway = ownership && ownership.owner_id !== rosterIdNum;
 
-          // Add own pick if not traded away
+          // Add own pick if not traded away (use their own standings)
           if (!ownPickTradedAway) {
-            const ownPickValue = dynastyEngine.getDraftPickValue(String(season), round);
+            const ownPickValue = dynastyEngine.getDraftPickValue(String(season), round, thisRosterPickPos);
             picks.push({
               id,
-              name: `${season} Round ${round}`,
+              name: `${posLabel} ${season} Round ${round}`,
               season: String(season),
               round,
               isOwn: true,
               value: ownPickValue.value,
+              pickPosition: thisRosterPickPos,
             });
           }
         }
@@ -3129,15 +3198,19 @@ ${fantasyOutlookSection}
           const round = parseInt(roundStr);
           const originalOwner = rosters.find((r) => r.roster_id === parseInt(originalRosterId));
           const originalUser = originalOwner ? userMap.get(originalOwner.owner_id) : null;
-          const tradedPickValue = dynastyEngine.getDraftPickValue(seasonStr, round);
+          // Use the ORIGINAL owner's standings to determine pick position
+          const origPickPos = rosterPickPosition.get(parseInt(originalRosterId)) || "mid";
+          const origPosLabel = origPickPos.charAt(0).toUpperCase() + origPickPos.slice(1);
+          const tradedPickValue = dynastyEngine.getDraftPickValue(seasonStr, round, origPickPos);
           picks.push({
             id: key,
-            name: `${seasonStr} Round ${round} (from ${originalUser?.display_name || "Unknown"})`,
+            name: `${origPosLabel} ${seasonStr} Round ${round} (from ${originalUser?.display_name || "Unknown"})`,
             season: seasonStr,
             round,
             originalOwner: originalUser?.display_name || "Unknown",
             isOwn: false,
             value: tradedPickValue.value,
+            pickPosition: origPickPos,
           });
         }
       }
@@ -3200,23 +3273,30 @@ ${fantasyOutlookSection}
       // Generate AI analysis
       let aiAnalysis = "";
       try {
-        const teamAPlayerNames = teamAAssets.map((a: any) => a.name).join(", ");
-        const teamBPlayerNames = teamBAssets.map((a: any) => a.name).join(", ");
+        const teamAAssetNames = teamAAssets.map((a: any) => a.name).join(", ");
+        const teamBAssetNames = teamBAssets.map((a: any) => a.name).join(", ");
 
-        const prompt = `Analyze this fantasy football dynasty trade:
+        // Clearly explain the trade direction to avoid AI confusion
+        const winnerName = adjustmentResult.winner === "A" ? teamADisplayName : 
+                          adjustmentResult.winner === "B" ? teamBDisplayName : null;
+        const loserName = adjustmentResult.winner === "A" ? teamBDisplayName : 
+                         adjustmentResult.winner === "B" ? teamADisplayName : null;
 
-TRADE DETAILS:
-- ${teamADisplayName} SENDS: ${teamAPlayerNames || "Nothing"} (raw value: ${teamAValue.toFixed(1)}, adjusted: ${adjustmentResult.teamA.adjustedTotal.toFixed(1)})
-- ${teamADisplayName} RECEIVES: ${teamBPlayerNames || "Nothing"} (raw value: ${teamBValue.toFixed(1)}, adjusted: ${adjustmentResult.teamB.adjustedTotal.toFixed(1)})
+        const prompt = `Analyze this fantasy football dynasty trade between ${teamADisplayName} and ${teamBDisplayName}:
 
-- ${teamBDisplayName} SENDS: ${teamBPlayerNames || "Nothing"} (raw value: ${teamBValue.toFixed(1)}, adjusted: ${adjustmentResult.teamB.adjustedTotal.toFixed(1)})
-- ${teamBDisplayName} RECEIVES: ${teamAPlayerNames || "Nothing"} (raw value: ${teamAValue.toFixed(1)}, adjusted: ${adjustmentResult.teamA.adjustedTotal.toFixed(1)})
+THE TRADE:
+• ${teamADisplayName} is GIVING UP: ${teamAAssetNames || "Nothing"} (total value: ${adjustmentResult.teamA.adjustedTotal.toFixed(1)})
+• ${teamBDisplayName} is GIVING UP: ${teamBAssetNames || "Nothing"} (total value: ${adjustmentResult.teamB.adjustedTotal.toFixed(1)})
 
-Trade grade: ${gradeResult.grade}
-Fairness: ${adjustmentResult.isFair ? "Fair trade (within 5%)" : `${adjustmentResult.winner === "A" ? teamADisplayName : teamBDisplayName} wins by ${Math.abs(adjustmentResult.fairnessPercent).toFixed(1)}%`}
-${adjustmentResult.winner === "A" ? `${teamADisplayName} receives more value.` : adjustmentResult.winner === "B" ? `${teamBDisplayName} receives more value.` : "Trade is even."}
+This means:
+• ${teamADisplayName} RECEIVES: ${teamBAssetNames || "Nothing"}
+• ${teamBDisplayName} RECEIVES: ${teamAAssetNames || "Nothing"}
 
-Provide a brief 2-3 sentence analysis. Be specific about who wins and what they're getting. Use the owner names ${teamADisplayName} and ${teamBDisplayName}, never "Team A" or "Team B".`;
+WINNER: ${adjustmentResult.isFair ? "Trade is fair (within 5% difference)" : `${winnerName} wins this trade by ${Math.abs(adjustmentResult.fairnessPercent).toFixed(1)}% because they RECEIVE more value than they GIVE UP.`}
+
+IMPORTANT: Do NOT confuse the assets. ${teamADisplayName} is RECEIVING ${teamBAssetNames || "nothing"}, NOT giving those up. ${teamBDisplayName} is RECEIVING ${teamAAssetNames || "nothing"}, NOT giving those up.
+
+Provide a brief 2-3 sentence analysis explaining who wins and why, being specific about what each team is actually RECEIVING. Use owner names "${teamADisplayName}" and "${teamBDisplayName}".`;
 
         const response = await openai.chat.completions.create({
           model: "gpt-4o-mini",
