@@ -2801,13 +2801,14 @@ ${fantasyOutlookSection}
     try {
       const { leagueId } = req.params;
 
-      const [rosters, users, allPlayers, draftPicks, stats, league] = await Promise.all([
+      const [rosters, users, allPlayers, draftPicks, stats, league, drafts] = await Promise.all([
         sleeperApi.getLeagueRosters(leagueId),
         sleeperApi.getLeagueUsers(leagueId),
         sleeperApi.getAllPlayers(),
         sleeperApi.getLeagueDraftPicks(leagueId),
         sleeperApi.getSeasonStats("2025", "regular"),
         sleeperApi.getLeague(leagueId),
+        sleeperApi.getLeagueDrafts(leagueId),
       ]);
 
       // Fetch consensus values for blended dynasty values
@@ -2826,36 +2827,64 @@ ${fantasyOutlookSection}
 
       const userMap = new Map((users || []).map((u) => [u.user_id, u]));
       const playerData = allPlayers || {};
-
-      // Calculate pick position (early/mid/late) based on standings
-      // Sort rosters by record to determine pick positions
-      const rostersByStanding = [...rosters].sort((a, b) => {
-        const aWins = a.settings?.wins || 0;
-        const bWins = b.settings?.wins || 0;
-        const aLosses = a.settings?.losses || 0;
-        const bLosses = b.settings?.losses || 0;
-        const aTotal = aWins + aLosses + (a.settings?.ties || 0);
-        const bTotal = bWins + bLosses + (b.settings?.ties || 0);
-        const aWinPct = aTotal > 0 ? aWins / aTotal : 0.5;
-        const bWinPct = bTotal > 0 ? bWins / bTotal : 0.5;
-        // Sort by win percentage (lower = earlier pick)
-        return aWinPct - bWinPct;
-      });
+      const totalRosters = rosters.length;
       
-      // Map roster_id to pick position based on standing
-      const rosterPickPosition = new Map<number, "early" | "mid" | "late">();
-      const totalRosters = rostersByStanding.length;
-      rostersByStanding.forEach((roster, index) => {
-        // Bottom 1/3 = early picks, Middle 1/3 = mid, Top 1/3 = late
-        const position = index / totalRosters;
-        if (position < 0.33) {
-          rosterPickPosition.set(roster.roster_id, "early");
-        } else if (position < 0.67) {
-          rosterPickPosition.set(roster.roster_id, "mid");
-        } else {
-          rosterPickPosition.set(roster.roster_id, "late");
+      // Build draft slot maps for each season from actual draft data
+      // Map: season -> (roster_id -> actual slot number 1-N)
+      const draftSlotsBySeason = new Map<string, Map<number, number>>();
+      for (const draft of drafts || []) {
+        if (draft.slot_to_roster_id) {
+          const seasonMap = new Map<number, number>();
+          // slot_to_roster_id maps slot (1,2,3...) to roster_id
+          for (const [slot, rosterId] of Object.entries(draft.slot_to_roster_id)) {
+            // Coerce both to numbers for consistent Map lookups
+            seasonMap.set(Number(rosterId), Number(slot));
+          }
+          draftSlotsBySeason.set(draft.season, seasonMap);
+        } else if (draft.draft_order) {
+          const seasonMap = new Map<number, number>();
+          // draft_order maps user_id to slot - need to convert via roster
+          const userToRoster = new Map((rosters || []).map(r => [r.owner_id, r.roster_id]));
+          for (const [userId, slot] of Object.entries(draft.draft_order)) {
+            const rosterId = userToRoster.get(userId);
+            if (rosterId) {
+              // Coerce slot to number for consistent math
+              seasonMap.set(rosterId, Number(slot));
+            }
+          }
+          draftSlotsBySeason.set(draft.season, seasonMap);
         }
-      });
+      }
+      
+      // Helper: get pick position based on actual slot or default to "mid"
+      const getPickPosition = (rosterId: number, season: string): "early" | "mid" | "late" => {
+        const seasonSlots = draftSlotsBySeason.get(season);
+        if (seasonSlots) {
+          const slot = seasonSlots.get(rosterId);
+          if (slot !== undefined) {
+            // Use actual slot to determine position
+            // Early = first 1/3, Mid = middle 1/3, Late = last 1/3
+            const position = (slot - 1) / totalRosters;
+            if (position < 0.33) return "early";
+            if (position < 0.67) return "mid";
+            return "late";
+          }
+        }
+        // No actual slot found - default to "mid"
+        return "mid";
+      };
+      
+      // Helper: get actual slot display (e.g., "1.06") if available
+      const getActualSlotDisplay = (rosterId: number, season: string, round: number): string | null => {
+        const seasonSlots = draftSlotsBySeason.get(season);
+        if (seasonSlots) {
+          const slot = seasonSlots.get(rosterId);
+          if (slot !== undefined) {
+            return `${round}.${slot.toString().padStart(2, '0')}`;
+          }
+        }
+        return null;
+      };
 
       const rostersWithAssets = rosters.map((roster) => {
         const user = userMap.get(roster.owner_id);
@@ -2923,14 +2952,16 @@ ${fantasyOutlookSection}
             const round = parseInt(roundStr);
             const originalOwner = rosters.find((r) => r.roster_id === parseInt(originalRosterId));
             const originalOwnerUser = originalOwner ? userMap.get(originalOwner.owner_id) : null;
-            // Use the ORIGINAL owner's standing to determine pick position
-            const pickPosition = rosterPickPosition.get(parseInt(originalRosterId)) || "mid";
+            // Use the ORIGINAL owner's actual slot to determine pick position (default to mid)
+            const pickPosition = getPickPosition(parseInt(originalRosterId), season);
             const pickValue = dynastyEngine.getDraftPickValue(season, round, pickPosition);
             const ownerSuffix = originalOwnerUser?.display_name || originalOwnerUser?.username;
-            const positionLabel = pickPosition.charAt(0).toUpperCase() + pickPosition.slice(1);
+            // Use actual slot display if available (e.g., "1.06"), otherwise show position label
+            const slotDisplay = getActualSlotDisplay(parseInt(originalRosterId), season, round);
+            const pickLabel = slotDisplay || `${pickPosition.charAt(0).toUpperCase() + pickPosition.slice(1)} ${pickValue.displayName}`;
             picks.push({
               id: key,
-              name: ownerSuffix ? `${positionLabel} ${pickValue.displayName} (${ownerSuffix})` : `${positionLabel} ${pickValue.displayName}`,
+              name: ownerSuffix ? `${pickLabel} (${ownerSuffix})` : pickLabel,
               type: "pick" as const,
               value: pickValue.value,
               pickPosition,
@@ -2942,9 +2973,6 @@ ${fantasyOutlookSection}
         // A roster owns their own pick UNLESS it's been traded away (owner_id !== roster.roster_id)
         const currentYear = new Date().getFullYear();
         const currentPicks = new Set(picks.map((p) => p.id));
-        // Get this roster's pick position (based on their own standing)
-        const thisRosterPickPosition = rosterPickPosition.get(roster.roster_id) || "mid";
-        const positionLabel = thisRosterPickPosition.charAt(0).toUpperCase() + thisRosterPickPosition.slice(1);
         [String(currentYear), String(currentYear + 1), String(currentYear + 2)].forEach((season) => {
           [1, 2, 3, 4].forEach((round) => {
             const id = `${season}-${round}-${roster.roster_id}`;
@@ -2952,13 +2980,18 @@ ${fantasyOutlookSection}
             const ownership = pickOwnershipMap.get(id);
             const tradedAway = ownership && ownership.owner_id !== roster.roster_id;
             if (!currentPicks.has(id) && !tradedAway) {
-              const pickValue = dynastyEngine.getDraftPickValue(season, round, thisRosterPickPosition);
+              // Get pick position from actual slot or default to mid
+              const thisPickPosition = getPickPosition(roster.roster_id, season);
+              const pickValue = dynastyEngine.getDraftPickValue(season, round, thisPickPosition);
+              // Use actual slot display if available (e.g., "1.06"), otherwise show position label
+              const slotDisplay = getActualSlotDisplay(roster.roster_id, season, round);
+              const pickLabel = slotDisplay || `${thisPickPosition.charAt(0).toUpperCase() + thisPickPosition.slice(1)} ${pickValue.displayName}`;
               picks.push({
                 id,
-                name: `${positionLabel} ${pickValue.displayName}`,
+                name: pickLabel,
                 type: "pick" as const,
                 value: pickValue.value,
-                pickPosition: thisRosterPickPosition,
+                pickPosition: thisPickPosition,
               });
             }
           });
@@ -2986,13 +3019,14 @@ ${fantasyOutlookSection}
       const { leagueId, rosterId } = req.params;
       const rosterIdNum = parseInt(rosterId);
 
-      const [rosters, users, allPlayers, draftPicks, league, stats] = await Promise.all([
+      const [rosters, users, allPlayers, draftPicks, league, stats, drafts] = await Promise.all([
         sleeperApi.getLeagueRosters(leagueId),
         sleeperApi.getLeagueUsers(leagueId),
         sleeperApi.getAllPlayers(),
         sleeperApi.getLeagueDraftPicks(leagueId),
         sleeperApi.getLeague(leagueId),
         sleeperApi.getSeasonStats("2025", "regular"),
+        sleeperApi.getLeagueDrafts(leagueId),
       ]);
 
       // Fetch consensus values for blended dynasty values
@@ -3017,32 +3051,58 @@ ${fantasyOutlookSection}
       const userMap = new Map((users || []).map((u) => [u.user_id, u]));
       const playerData = allPlayers || {};
       const user = userMap.get(roster.owner_id);
-
-      // Calculate pick position (early/mid/late) based on standings for all rosters
-      const rostersByStanding = [...rosters].sort((a, b) => {
-        const aWins = a.settings?.wins || 0;
-        const bWins = b.settings?.wins || 0;
-        const aLosses = a.settings?.losses || 0;
-        const bLosses = b.settings?.losses || 0;
-        const aTotal = aWins + aLosses + (a.settings?.ties || 0);
-        const bTotal = bWins + bLosses + (b.settings?.ties || 0);
-        const aWinPct = aTotal > 0 ? aWins / aTotal : 0.5;
-        const bWinPct = bTotal > 0 ? bWins / bTotal : 0.5;
-        return aWinPct - bWinPct;
-      });
+      const totalTeams = rosters.length;
       
-      const rosterPickPosition = new Map<number, "early" | "mid" | "late">();
-      const totalTeams = rostersByStanding.length;
-      rostersByStanding.forEach((r, index) => {
-        const position = index / totalTeams;
-        if (position < 0.33) {
-          rosterPickPosition.set(r.roster_id, "early");
-        } else if (position < 0.67) {
-          rosterPickPosition.set(r.roster_id, "mid");
-        } else {
-          rosterPickPosition.set(r.roster_id, "late");
+      // Build draft slot maps for each season from actual draft data
+      const draftSlotsBySeason = new Map<string, Map<number, number>>();
+      for (const draft of drafts || []) {
+        if (draft.slot_to_roster_id) {
+          const seasonMap = new Map<number, number>();
+          for (const [slot, rostId] of Object.entries(draft.slot_to_roster_id)) {
+            // Coerce both to numbers for consistent Map lookups
+            seasonMap.set(Number(rostId), Number(slot));
+          }
+          draftSlotsBySeason.set(draft.season, seasonMap);
+        } else if (draft.draft_order) {
+          const seasonMap = new Map<number, number>();
+          const userToRoster = new Map((rosters || []).map(r => [r.owner_id, r.roster_id]));
+          for (const [userId, slot] of Object.entries(draft.draft_order)) {
+            const rostId = userToRoster.get(userId);
+            if (rostId) {
+              // Coerce slot to number for consistent math
+              seasonMap.set(rostId, Number(slot));
+            }
+          }
+          draftSlotsBySeason.set(draft.season, seasonMap);
         }
-      });
+      }
+      
+      // Helper: get pick position based on actual slot or default to "mid"
+      const getPickPos = (rostId: number, season: string): "early" | "mid" | "late" => {
+        const seasonSlots = draftSlotsBySeason.get(season);
+        if (seasonSlots) {
+          const slot = seasonSlots.get(rostId);
+          if (slot !== undefined) {
+            const position = (slot - 1) / totalTeams;
+            if (position < 0.33) return "early";
+            if (position < 0.67) return "mid";
+            return "late";
+          }
+        }
+        return "mid";
+      };
+      
+      // Helper: get actual slot display (e.g., "1.06") if available
+      const getSlotDisplay = (rostId: number, season: string, round: number): string | null => {
+        const seasonSlots = draftSlotsBySeason.get(season);
+        if (seasonSlots) {
+          const slot = seasonSlots.get(rostId);
+          if (slot !== undefined) {
+            return `${round}.${slot.toString().padStart(2, '0')}`;
+          }
+        }
+        return null;
+      };
 
       // Helper for display name
       const getDisplayName = (player: any): string => {
@@ -3158,16 +3218,12 @@ ${fantasyOutlookSection}
         pickOwnershipMap.set(key, { owner_id: pick.owner_id, roster_id: pick.roster_id });
       }
       
-      const totalRostersCount = league?.total_rosters || rosters.length;
       const picks: any[] = [];
       const currentYear = new Date().getFullYear();
       
-      // Get this roster's pick position based on their standings
-      const thisRosterPickPos = rosterPickPosition.get(rosterIdNum) || "mid";
-      const posLabel = thisRosterPickPos.charAt(0).toUpperCase() + thisRosterPickPos.slice(1);
-      
       // Generate picks for next 3 years
       for (let season = currentYear; season <= currentYear + 2; season++) {
+        const seasonStr = String(season);
         for (let round = 1; round <= 5; round++) {
           const id = `${season}-${round}-${rosterIdNum}`;
           
@@ -3175,17 +3231,21 @@ ${fantasyOutlookSection}
           const ownership = pickOwnershipMap.get(id);
           const ownPickTradedAway = ownership && ownership.owner_id !== rosterIdNum;
 
-          // Add own pick if not traded away (use their own standings)
+          // Add own pick if not traded away
           if (!ownPickTradedAway) {
-            const ownPickValue = dynastyEngine.getDraftPickValue(String(season), round, thisRosterPickPos);
+            const pickPosition = getPickPos(rosterIdNum, seasonStr);
+            const ownPickValue = dynastyEngine.getDraftPickValue(seasonStr, round, pickPosition);
+            // Use actual slot display if available (e.g., "1.06"), otherwise show position label
+            const slotDisplay = getSlotDisplay(rosterIdNum, seasonStr, round);
+            const pickLabel = slotDisplay || `${pickPosition.charAt(0).toUpperCase() + pickPosition.slice(1)} ${season} Round ${round}`;
             picks.push({
               id,
-              name: `${posLabel} ${season} Round ${round}`,
-              season: String(season),
+              name: pickLabel,
+              season: seasonStr,
               round,
               isOwn: true,
               value: ownPickValue.value,
-              pickPosition: thisRosterPickPos,
+              pickPosition,
             });
           }
         }
@@ -3198,13 +3258,15 @@ ${fantasyOutlookSection}
           const round = parseInt(roundStr);
           const originalOwner = rosters.find((r) => r.roster_id === parseInt(originalRosterId));
           const originalUser = originalOwner ? userMap.get(originalOwner.owner_id) : null;
-          // Use the ORIGINAL owner's standings to determine pick position
-          const origPickPos = rosterPickPosition.get(parseInt(originalRosterId)) || "mid";
-          const origPosLabel = origPickPos.charAt(0).toUpperCase() + origPickPos.slice(1);
+          // Use the ORIGINAL owner's actual slot or default to mid
+          const origPickPos = getPickPos(parseInt(originalRosterId), seasonStr);
           const tradedPickValue = dynastyEngine.getDraftPickValue(seasonStr, round, origPickPos);
+          // Use actual slot display if available (e.g., "1.06"), otherwise show position label
+          const slotDisplay = getSlotDisplay(parseInt(originalRosterId), seasonStr, round);
+          const pickLabel = slotDisplay || `${origPickPos.charAt(0).toUpperCase() + origPickPos.slice(1)} ${seasonStr} Round ${round}`;
           picks.push({
             id: key,
-            name: `${origPosLabel} ${seasonStr} Round ${round} (from ${originalUser?.display_name || "Unknown"})`,
+            name: `${pickLabel} (from ${originalUser?.display_name || "Unknown"})`,
             season: seasonStr,
             round,
             originalOwner: originalUser?.display_name || "Unknown",

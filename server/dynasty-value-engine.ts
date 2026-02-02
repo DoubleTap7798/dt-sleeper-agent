@@ -710,7 +710,8 @@ export function getDraftPickValue(
   value = Math.round(value * 100) / 100;
   
   const ordinal = round === 1 ? "1st" : round === 2 ? "2nd" : round === 3 ? "3rd" : `${round}th`;
-  const displayName = `${season} ${ordinal}${pickPosition ? ` (${pickPosition})` : ""}`;
+  // displayName is just year + round - position label is added by caller
+  const displayName = `${season} ${ordinal}`;
   
   return {
     season,
