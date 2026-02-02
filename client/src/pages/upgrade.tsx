@@ -14,6 +14,7 @@ interface SubscriptionStatus {
   periodEnd: string | null;
   isGrandfathered?: boolean;
   subscriptionSource?: string | null;
+  subscriptionId?: string | null;
 }
 
 interface PriceRow {
@@ -203,15 +204,17 @@ export default function UpgradePage() {
               </Badge>
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-card/50 rounded-lg border border-border/30">
-              <div>
-                <p className="font-medium">Payment Method</p>
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  <CreditCard className="w-4 h-4" />
-                  Card (Stripe)
-                </p>
+            {subStatus.subscriptionId && (
+              <div className="flex items-center justify-between p-4 bg-card/50 rounded-lg border border-border/30">
+                <div>
+                  <p className="font-medium">Payment Method</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <CreditCard className="w-4 h-4" />
+                    Card (Stripe)
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
             
             {subStatus.periodEnd && (
               <div className="p-4 bg-card/50 rounded-lg border border-border/30">
@@ -222,18 +225,26 @@ export default function UpgradePage() {
               </div>
             )}
             
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={() => portalMutation.mutate()}
-              disabled={portalMutation.isPending}
-              data-testid="button-manage-subscription"
-            >
-              {portalMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : null}
-              Manage Subscription
-            </Button>
+            {subStatus.subscriptionId ? (
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => portalMutation.mutate()}
+                disabled={portalMutation.isPending}
+                data-testid="button-manage-subscription"
+              >
+                {portalMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
+                Manage Subscription
+              </Button>
+            ) : (
+              <div className="p-4 bg-primary/10 rounded-lg border border-primary/30">
+                <p className="text-sm text-center">
+                  Your premium access was activated manually. Enjoy all features!
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
