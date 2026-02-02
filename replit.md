@@ -28,7 +28,8 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Career Stats (All Leagues)**: Aggregated W-L-T, championships, playoff appearances across all historical seasons.
 - **Standings**: League standings with playoff predictions.
 - **News Feed**: Real-time AI-generated fantasy news, injury updates, waiver recommendations.
-- **Matchups**: Current week matchups with live scoring.
+- **Matchups**: Current week matchups with live scoring, including Median Tracker for median leagues.
+- **Median Tracker**: Detects `league_average_match` setting, tracks season W-L-T vs median, shows current week status (above/below median) with live 30-second updates during games.
 - **Lineup Advice**: AI-powered start/sit recommendations.
 - **Schedule**: Full season schedule.
 - **Playoff Bracket**: Visual bracket display.
