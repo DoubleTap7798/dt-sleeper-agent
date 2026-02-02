@@ -50,6 +50,7 @@ interface MatchupsData {
 interface MedianTrackerData {
   isMedianLeague: boolean;
   currentWeek: number;
+  gamesInProgress: boolean;
   seasonRecord: {
     wins: number;
     losses: number;
@@ -87,10 +88,14 @@ export default function MatchupsPage() {
     enabled: !!leagueId,
   });
 
-  const { data: medianData } = useQuery<MedianTrackerData>({
+  const { data: medianData, isLoading: medianLoading, error: medianError } = useQuery<MedianTrackerData>({
     queryKey: [`/api/sleeper/median-tracker/${leagueId}`],
     enabled: !!leagueId,
-    refetchInterval: data?.gamesInProgress ? 30000 : false,
+    refetchInterval: (query) => {
+      // Use median tracker's own gamesInProgress flag for refresh
+      const data = query.state.data as MedianTrackerData | undefined;
+      return data?.gamesInProgress ? 30000 : false;
+    },
   });
 
   const currentWeek = data?.currentWeek || 1;
@@ -180,12 +185,36 @@ export default function MatchupsPage() {
         </div>
       )}
 
-      {medianData && (
+      {medianLoading && (
+        <Card className="border-[hsl(var(--accent))]">
+          <CardHeader className="py-3">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-9 w-9 rounded-md" />
+              <div>
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-24 mt-1" />
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
+      
+      {medianError && (
+        <Card className="border-destructive/50">
+          <CardHeader className="py-3">
+            <p className="text-sm text-muted-foreground" data-testid="text-median-error">
+              Unable to load median tracker
+            </p>
+          </CardHeader>
+        </Card>
+      )}
+      
+      {medianData && !medianError && (
         <MedianTrackerCard 
           medianData={medianData}
           showDetails={showMedianDetails}
           onToggleDetails={() => setShowMedianDetails(!showMedianDetails)}
-          gamesInProgress={data.gamesInProgress}
+          gamesInProgress={medianData.gamesInProgress}
         />
       )}
 

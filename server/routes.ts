@@ -1663,9 +1663,14 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         ? Math.round((medianWins / totalWeeksPlayed) * 100) 
         : null;
 
+      // Determine if games are in progress (current week has some scores but not all finalized)
+      const hasCurrentWeekScores = currentWeekData && currentWeekData.leagueScores.some(s => s.score > 0);
+      const gamesInProgress = hasCurrentWeekScores && (state.season_type === "regular" || state.season_type === "post");
+
       res.json({
         isMedianLeague,
         currentWeek,
+        gamesInProgress: gamesInProgress || false,
         seasonRecord: {
           wins: medianWins,
           losses: medianLosses,
