@@ -29,6 +29,9 @@ export interface SleeperLeague {
     trade_deadline: number;
     type: number;
     leg?: number;
+    league_average_match?: number; // 1 if median scoring is enabled (extra game vs median each week)
+    best_ball?: number; // 1 if best ball league
+    num_teams?: number; // Number of teams in the league
   };
   status: string;
   avatar: string | null;
@@ -612,4 +615,78 @@ export function calculatePlayoffOdds(
   });
 
   return odds;
+}
+
+// Calculate the league median score from matchups for a given week
+// Median is the average of the two middle scores
+export function calculateMedianFromMatchups(matchups: SleeperMatchup[]): number {
+  if (!matchups || matchups.length === 0) return 0;
+  
+  // Get all scores from this week
+  const scores = matchups
+    .map(m => m.points || 0)
+    .filter(s => s > 0) // Exclude teams that haven't played yet
+    .sort((a, b) => b - a); // Sort descending
+  
+  if (scores.length === 0) return 0;
+  
+  // Calculate median - average of two middle scores
+  const midIndex = Math.floor(scores.length / 2);
+  if (scores.length % 2 === 0) {
+    // Even number of teams - average the two middle scores
+    return (scores[midIndex - 1] + scores[midIndex]) / 2;
+  } else {
+    // Odd number of teams - just the middle score
+    return scores[midIndex];
+  }
+}
+
+// Get median record for a roster from matchups across multiple weeks
+export interface MedianRecord {
+  wins: number;
+  losses: number;
+  ties: number;
+  weeklyResults: {
+    week: number;
+    score: number;
+    median: number;
+    result: 'W' | 'L' | 'T';
+  }[];
+}
+
+export async function getMedianRecordForRoster(
+  leagueId: string,
+  rosterId: number,
+  weeks: number[] // weeks to check
+): Promise<MedianRecord> {
+  const record: MedianRecord = {
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    weeklyResults: []
+  };
+  
+  for (const week of weeks) {
+    const matchups = await getMatchups(leagueId, week);
+    if (!matchups || matchups.length === 0) continue;
+    
+    const rosterMatchup = matchups.find((m: SleeperMatchup) => m.roster_id === rosterId);
+    if (!rosterMatchup || !rosterMatchup.points) continue;
+    
+    const median = calculateMedianFromMatchups(matchups);
+    const score = rosterMatchup.points;
+    
+    if (score > median) {
+      record.wins++;
+      record.weeklyResults.push({ week, score, median, result: 'W' });
+    } else if (score < median) {
+      record.losses++;
+      record.weeklyResults.push({ week, score, median, result: 'L' });
+    } else {
+      record.ties++;
+      record.weeklyResults.push({ week, score, median, result: 'T' });
+    }
+  }
+  
+  return record;
 }

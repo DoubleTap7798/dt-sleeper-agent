@@ -913,6 +913,7 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
           tradeDeadline: league.settings?.trade_deadline || 0,
           waiverSystem,
           waiverBudget: league.settings?.waiver_budget || 100,
+          isMedianLeague: (league.settings as any)?.league_average_match === 1,
         },
         scoringCategories,
         unmappedScoring,
@@ -1532,6 +1533,151 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     } catch (error) {
       console.error("Error fetching matchups:", error);
       res.status(500).json({ message: "Failed to fetch matchups" });
+    }
+  });
+
+  // Get median tracker data for a team - shows current week median status and season record
+  app.get("/api/sleeper/median-tracker/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const profile = await storage.getUserProfile(userId);
+      if (!profile || !profile.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [league, state, rosters, users] = await Promise.all([
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+      ]);
+
+      if (!league || !state) {
+        return res.status(404).json({ message: "League or state not found" });
+      }
+
+      // Check if this is a median league
+      const isMedianLeague = (league.settings as any)?.league_average_match === 1;
+
+      // Find user's roster
+      const userRoster = rosters.find(r => r.owner_id === profile.sleeperUserId);
+      if (!userRoster) {
+        return res.status(404).json({ message: "User roster not found in this league" });
+      }
+
+      const userRosterId = userRoster.roster_id;
+      const currentWeek = state.display_week || state.week || 1;
+      const playoffWeekStart = league.settings?.playoff_week_start || 15;
+      const regularSeasonWeeks = Math.min(currentWeek, playoffWeekStart - 1);
+
+      // Fetch matchups for completed weeks and current week
+      const weeksToFetch = Array.from({ length: regularSeasonWeeks }, (_, i) => i + 1);
+      const matchupPromises = weeksToFetch.map(week => 
+        sleeperApi.getMatchups(leagueId, week).then(matchups => ({ week, matchups }))
+      );
+      const weekResults = await Promise.all(matchupPromises);
+
+      // Calculate median record for user
+      let medianWins = 0;
+      let medianLosses = 0;
+      let medianTies = 0;
+      const weeklyMedianResults: {
+        week: number;
+        userScore: number;
+        median: number;
+        result: 'W' | 'L' | 'T' | null;
+        beatingMedian: boolean | null;
+      }[] = [];
+
+      let currentWeekData: {
+        userScore: number;
+        median: number;
+        beatingMedian: boolean | null;
+        leagueScores: { rosterId: number; ownerName: string; score: number; }[];
+      } | null = null;
+
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+
+      for (const { week, matchups } of weekResults) {
+        if (!matchups || matchups.length === 0) continue;
+
+        const userMatchup = matchups.find(m => m.roster_id === userRosterId);
+        const userScore = userMatchup?.points || 0;
+
+        // Calculate median from all scores
+        const allScores = matchups
+          .map(m => m.points || 0)
+          .filter(s => s > 0)
+          .sort((a, b) => b - a);
+
+        if (allScores.length === 0) continue;
+
+        const midIndex = Math.floor(allScores.length / 2);
+        const median = allScores.length % 2 === 0
+          ? (allScores[midIndex - 1] + allScores[midIndex]) / 2
+          : allScores[midIndex];
+
+        // Check if this week is complete (user has points)
+        const isWeekComplete = userScore > 0 && week < currentWeek;
+        const isCurrentWeek = week === currentWeek;
+
+        if (isWeekComplete) {
+          if (userScore > median) {
+            medianWins++;
+            weeklyMedianResults.push({ week, userScore, median, result: 'W', beatingMedian: true });
+          } else if (userScore < median) {
+            medianLosses++;
+            weeklyMedianResults.push({ week, userScore, median, result: 'L', beatingMedian: false });
+          } else {
+            medianTies++;
+            weeklyMedianResults.push({ week, userScore, median, result: 'T', beatingMedian: null });
+          }
+        }
+
+        // Current week live data
+        if (isCurrentWeek) {
+          const leagueScores = matchups.map(m => {
+            const roster = rosters.find(r => r.roster_id === m.roster_id);
+            const user = roster ? userMap.get(roster.owner_id) : null;
+            return {
+              rosterId: m.roster_id,
+              ownerName: user?.display_name || "Unknown",
+              score: m.points || 0,
+            };
+          }).sort((a, b) => b.score - a.score);
+
+          currentWeekData = {
+            userScore,
+            median: allScores.length > 0 ? median : 0,
+            beatingMedian: userScore > 0 && median > 0 ? userScore > median : null,
+            leagueScores,
+          };
+        }
+      }
+
+      // Calculate percentage of weeks beating the median
+      const totalWeeksPlayed = medianWins + medianLosses + medianTies;
+      const beatMedianPercentage = totalWeeksPlayed > 0 
+        ? Math.round((medianWins / totalWeeksPlayed) * 100) 
+        : null;
+
+      res.json({
+        isMedianLeague,
+        currentWeek,
+        seasonRecord: {
+          wins: medianWins,
+          losses: medianLosses,
+          ties: medianTies,
+          percentage: beatMedianPercentage,
+        },
+        currentWeekData,
+        weeklyResults: weeklyMedianResults,
+      });
+    } catch (error) {
+      console.error("Error fetching median tracker:", error);
+      res.status(500).json({ message: "Failed to fetch median tracker data" });
     }
   });
 
