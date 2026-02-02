@@ -4,16 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Check, Crown, Zap, LineChart, Users, Trophy, ArrowLeft, CreditCard } from "lucide-react";
-import { SiPaypal } from "react-icons/si";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useRef, useState } from "react";
-
-declare global {
-  interface Window {
-    paypal?: any;
-  }
-}
+import { useEffect } from "react";
 
 interface SubscriptionStatus {
   hasSubscription: boolean;
@@ -50,9 +43,6 @@ export default function UpgradePage() {
   const searchParams = new URLSearchParams(window.location.search);
   const success = searchParams.get("success");
   const canceled = searchParams.get("canceled");
-  const paypalContainerRef = useRef<HTMLDivElement>(null);
-  const [paypalLoaded, setPaypalLoaded] = useState(false);
-  const [paypalProcessing, setPaypalProcessing] = useState(false);
 
   const { data: subStatus, isLoading: statusLoading } = useQuery<SubscriptionStatus>({
     queryKey: ["/api/subscription/status"],
@@ -61,129 +51,6 @@ export default function UpgradePage() {
   const { data: pricesData, isLoading: pricesLoading } = useQuery<{ prices: PriceRow[] }>({
     queryKey: ["/api/subscription/prices"],
   });
-
-  const { data: paypalConfig } = useQuery<{ planId: string; clientId: string; mode: string }>({
-    queryKey: ["/api/paypal/config"],
-  });
-
-  const verifyPaypalMutation = useMutation({
-    mutationFn: async (subscriptionId: string) => {
-      const res = await apiRequest("POST", "/api/paypal/verify-subscription", { subscriptionId });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
-      toast({
-        title: "Success",
-        description: "Your premium subscription is now active!",
-      });
-      setLocation("/upgrade?success=true");
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to verify subscription",
-        variant: "destructive",
-      });
-      setPaypalProcessing(false);
-    },
-  });
-
-  // Load PayPal SDK
-  useEffect(() => {
-    if (!paypalConfig?.planId || !paypalConfig?.clientId || paypalLoaded || subStatus?.hasSubscription) return;
-
-    // Check if script already exists
-    const existingScript = document.querySelector(`script[src*="paypal.com/sdk"]`);
-    if (existingScript) {
-      if (window.paypal) {
-        renderPayPalButton();
-      }
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = `https://www.paypal.com/sdk/js?client-id=${paypalConfig.clientId}&vault=true&intent=subscription`;
-    script.setAttribute("data-sdk-integration-source", "button-factory");
-    script.async = true;
-    script.onload = () => {
-      setPaypalLoaded(true);
-      renderPayPalButton();
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      // Cleanup if needed
-    };
-  }, [paypalConfig?.planId, paypalConfig?.clientId, subStatus?.hasSubscription]);
-
-  const renderPayPalButton = () => {
-    if (!window.paypal || !paypalContainerRef.current || !paypalConfig?.planId) return;
-    
-    // Clear any existing buttons
-    paypalContainerRef.current.innerHTML = "";
-    
-    try {
-      window.paypal.Buttons({
-        style: {
-          shape: "rect",
-          color: "gold",
-          layout: "vertical",
-          label: "subscribe"
-        },
-        createSubscription: function(_data: any, actions: any) {
-          console.log("Creating PayPal subscription with plan:", paypalConfig.planId);
-          return actions.subscription.create({
-            plan_id: paypalConfig.planId
-          });
-        },
-        onApprove: function(data: { subscriptionID: string }) {
-          console.log("PayPal subscription approved:", data.subscriptionID);
-          setPaypalProcessing(true);
-          verifyPaypalMutation.mutate(data.subscriptionID);
-        },
-        onCancel: function() {
-          console.log("PayPal subscription cancelled by user");
-          toast({
-            title: "Cancelled",
-            description: "You cancelled the PayPal checkout.",
-            variant: "default",
-          });
-        },
-        onError: function(err: any) {
-          console.error("PayPal onError callback:", err);
-          const errorMessage = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
-          console.error("PayPal error details:", errorMessage);
-          toast({
-            title: "PayPal Error",
-            description: `PayPal error: ${errorMessage.substring(0, 100)}`,
-            variant: "destructive",
-          });
-        }
-      }).render(paypalContainerRef.current).catch((renderErr: any) => {
-        console.error("PayPal render error:", renderErr);
-        toast({
-          title: "PayPal Error",
-          description: `Failed to load PayPal: ${renderErr?.message || 'Unknown error'}`,
-          variant: "destructive",
-        });
-      });
-    } catch (err: any) {
-      console.error("PayPal initialization error:", err);
-      toast({
-        title: "PayPal Error",
-        description: `Failed to initialize PayPal: ${err?.message || 'Unknown error'}`,
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Re-render PayPal button when data is available
-  useEffect(() => {
-    if (paypalLoaded && paypalConfig?.planId && !subStatus?.hasSubscription) {
-      renderPayPalButton();
-    }
-  }, [paypalLoaded, paypalConfig?.planId, subStatus?.hasSubscription]);
 
   const checkoutMutation = useMutation({
     mutationFn: async (priceId: string) => {
@@ -206,7 +73,7 @@ export default function UpgradePage() {
 
   const portalMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/subscription/create-portal", {});
+      const res = await apiRequest("POST", "/api/subscription/customer-portal");
       return res.json();
     },
     onSuccess: (data) => {
@@ -217,63 +84,44 @@ export default function UpgradePage() {
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to open billing portal",
+        description: error.message || "Failed to open portal",
         variant: "destructive",
       });
     },
   });
 
+  useEffect(() => {
+    if (success) {
+      queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
+      toast({
+        title: "Welcome to Premium!",
+        description: "Your subscription is now active. Enjoy all features!",
+      });
+      window.history.replaceState({}, document.title, "/upgrade");
+    }
+    if (canceled) {
+      toast({
+        title: "Checkout Cancelled",
+        description: "You can try again anytime.",
+        variant: "default",
+      });
+      window.history.replaceState({}, document.title, "/upgrade");
+    }
+  }, [success, canceled]);
+
+  const weeklyPrice = pricesData?.prices?.find(
+    (p) => p.recurring?.interval === "week" && p.recurring?.interval_count === 1
+  );
+
   if (statusLoading || pricesLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  const weeklyPrice = pricesData?.prices?.find(p => p.recurring?.interval === "week");
-
-  if (success) {
-    return (
-      <div className="p-6 max-w-2xl mx-auto">
-        <Card className="border-primary/50">
-          <CardContent className="pt-6 text-center">
-            <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
-              <Check className="w-8 h-8 text-primary" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">Welcome to Premium!</h2>
-            <p className="text-muted-foreground mb-6">
-              Your subscription is now active. Enjoy full access to all features.
-            </p>
-            <Button onClick={() => setLocation("/")} data-testid="button-go-home">
-              Go to Dashboard
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (canceled) {
-    return (
-      <div className="p-6 max-w-2xl mx-auto">
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <h2 className="text-xl font-bold mb-2">Checkout Canceled</h2>
-            <p className="text-muted-foreground mb-6">
-              No worries! You can upgrade anytime.
-            </p>
-            <Button variant="outline" onClick={() => setLocation("/upgrade")} data-testid="button-try-again">
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   if (subStatus?.hasSubscription) {
-    // Special view for grandfathered (lifetime) users
     if (subStatus.isGrandfathered) {
       return (
         <div className="p-6 max-w-2xl mx-auto">
@@ -291,10 +139,13 @@ export default function UpgradePage() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Crown className="w-6 h-6 text-primary" />
-                <CardTitle>Lifetime Premium</CardTitle>
+                <CardTitle>Premium Active</CardTitle>
+                <Badge variant="outline" className="ml-2 bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-0">
+                  OG
+                </Badge>
               </div>
               <CardDescription>
-                Thank you for being an early supporter!
+                You're one of our original supporters with lifetime premium access
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -319,9 +170,6 @@ export default function UpgradePage() {
       );
     }
 
-    // Regular subscription view
-    const isPayPalSubscription = subStatus.subscriptionSource === 'paypal';
-    
     return (
       <div className="p-6 max-w-2xl mx-auto">
         <Button 
@@ -359,17 +207,8 @@ export default function UpgradePage() {
               <div>
                 <p className="font-medium">Payment Method</p>
                 <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  {isPayPalSubscription ? (
-                    <>
-                      <SiPaypal className="w-4 h-4" />
-                      PayPal
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="w-4 h-4" />
-                      Card (Stripe)
-                    </>
-                  )}
+                  <CreditCard className="w-4 h-4" />
+                  Card (Stripe)
                 </p>
               </div>
             </div>
@@ -383,30 +222,18 @@ export default function UpgradePage() {
               </div>
             )}
             
-            {isPayPalSubscription ? (
-              <Button 
-                variant="outline" 
-                className="w-full"
-                onClick={() => window.open("https://www.paypal.com/myaccount/autopay", "_blank")}
-                data-testid="button-manage-paypal"
-              >
-                <SiPaypal className="w-4 h-4 mr-2" />
-                Manage on PayPal
-              </Button>
-            ) : (
-              <Button 
-                variant="outline" 
-                className="w-full"
-                onClick={() => portalMutation.mutate()}
-                disabled={portalMutation.isPending}
-                data-testid="button-manage-subscription"
-              >
-                {portalMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : null}
-                Manage Subscription
-              </Button>
-            )}
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => portalMutation.mutate()}
+              disabled={portalMutation.isPending}
+              data-testid="button-manage-subscription"
+            >
+              {portalMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
+              Manage Subscription
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -481,8 +308,6 @@ export default function UpgradePage() {
             </ul>
 
             <div className="space-y-3 pt-2">
-              <p className="text-xs text-muted-foreground text-center font-medium">Choose your payment method:</p>
-              
               <Button 
                 className="w-full" 
                 size="lg"
@@ -495,33 +320,11 @@ export default function UpgradePage() {
                 ) : (
                   <CreditCard className="w-4 h-4 mr-2" />
                 )}
-                Pay with Card
+                Subscribe Now
               </Button>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">or</span>
-                </div>
-              </div>
-
-              {paypalProcessing ? (
-                <div className="flex items-center justify-center py-4 gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="text-sm text-muted-foreground">Processing PayPal subscription...</span>
-                </div>
-              ) : (
-                <div 
-                  ref={paypalContainerRef} 
-                  data-testid="paypal-button-container"
-                  className="min-h-[45px]"
-                />
-              )}
             </div>
             
-            {!weeklyPrice && !paypalConfig?.planId && (
+            {!weeklyPrice && (
               <p className="text-xs text-muted-foreground text-center">
                 Loading payment options...
               </p>
@@ -531,7 +334,7 @@ export default function UpgradePage() {
       </div>
 
       <p className="text-center text-xs text-muted-foreground mt-8">
-        Secure payments. Cancel anytime from your account settings.
+        Secure payments powered by Stripe. Cancel anytime from your account settings.
       </p>
     </div>
   );
