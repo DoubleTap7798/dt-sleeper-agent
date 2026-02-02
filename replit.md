@@ -73,5 +73,4 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Replit Auth**: OpenID Connect authentication.
 
 ### Monetization
-- **Stripe**: Payment gateway for premium subscriptions.
-- **PayPal**: Alternative payment gateway for premium subscriptions.
+- **Stripe**: Payment gateway for premium subscriptions ($3.99/week).
