@@ -2872,36 +2872,49 @@ ${fantasyOutlookSection}
           };
         }).filter(Boolean);
 
-        // Get draft pick assets for this roster
-        const picks = (draftPicks || [])
-          .filter((p) => p.owner_id === roster.roster_id)
-          .map((pick) => {
-            const originalOwner = pick.previous_owner_id !== pick.owner_id
-              ? rosters.find((r) => r.roster_id === pick.previous_owner_id)
-              : null;
-            const originalOwnerUser = originalOwner 
-              ? userMap.get(originalOwner.owner_id)
-              : null;
+        // Build pick ownership map from Sleeper's traded_picks endpoint
+        // Note: Sleeper's /traded_picks returns CURRENT ownership state, not history
+        // Each (season, round, roster_id) key maps to who CURRENTLY owns that pick
+        // If a pick is not in this list, the original team (roster_id) still owns it
+        const pickOwnershipMap = new Map<string, { owner_id: number; roster_id: number }>();
+        for (const pick of draftPicks || []) {
+          const key = `${pick.season}-${pick.round}-${pick.roster_id}`;
+          pickOwnershipMap.set(key, { owner_id: pick.owner_id, roster_id: pick.roster_id });
+        }
 
-            const pickValue = dynastyEngine.getDraftPickValue(pick.season, pick.round);
+        // Get draft pick assets for this roster (picks acquired from trades)
+        const picks: { id: string; name: string; type: "pick"; value: number }[] = [];
+        
+        // Find all picks this roster currently owns (from trades)
+        for (const [key, ownership] of Array.from(pickOwnershipMap.entries())) {
+          if (ownership.owner_id === roster.roster_id && ownership.roster_id !== roster.roster_id) {
+            // This is a pick from another team that this roster now owns
+            const [season, roundStr, originalRosterId] = key.split("-");
+            const round = parseInt(roundStr);
+            const originalOwner = rosters.find((r) => r.roster_id === parseInt(originalRosterId));
+            const originalOwnerUser = originalOwner ? userMap.get(originalOwner.owner_id) : null;
+            const pickValue = dynastyEngine.getDraftPickValue(season, round);
             const ownerSuffix = originalOwnerUser?.display_name || originalOwnerUser?.username;
-            return {
-              id: `${pick.season}-${pick.round}-${pick.roster_id}`,
+            picks.push({
+              id: key,
               name: ownerSuffix ? `${pickValue.displayName} (${ownerSuffix})` : pickValue.displayName,
               type: "pick" as const,
               value: pickValue.value,
-            };
-          });
+            });
+          }
+        }
 
-        // Add standard future picks (2026-2028, rounds 1-4)
+        // Add standard future picks (current year + 2 years, rounds 1-4)
+        // A roster owns their own pick UNLESS it's been traded away (owner_id !== roster.roster_id)
         const currentYear = new Date().getFullYear();
         const currentPicks = new Set(picks.map((p) => p.id));
         [String(currentYear), String(currentYear + 1), String(currentYear + 2)].forEach((season) => {
           [1, 2, 3, 4].forEach((round) => {
             const id = `${season}-${round}-${roster.roster_id}`;
-            if (!currentPicks.has(id) && !(draftPicks || []).find(
-              (p) => p.season === season && p.round === round && p.previous_owner_id === roster.roster_id
-            )) {
+            // Check if this roster's own pick has been traded away
+            const ownership = pickOwnershipMap.get(id);
+            const tradedAway = ownership && ownership.owner_id !== roster.roster_id;
+            if (!currentPicks.has(id) && !tradedAway) {
               const pickValue = dynastyEngine.getDraftPickValue(season, round);
               picks.push({
                 id,
@@ -3071,10 +3084,17 @@ ${fantasyOutlookSection}
       taxi.sort(sortByValue);
       ir.sort(sortByValue);
 
-      // Get draft picks for this roster
-      const tradedPicks = (draftPicks || []).filter((p) => p.owner_id === rosterIdNum);
+      // Build pick ownership map from Sleeper's traded_picks endpoint
+      // Note: Sleeper's /traded_picks returns CURRENT ownership state, not history
+      // Each (season, round, roster_id) key maps to who CURRENTLY owns that pick
+      // If a pick is not in this list, the original team (roster_id) still owns it
+      const pickOwnershipMap = new Map<string, { owner_id: number; roster_id: number }>();
+      for (const pick of draftPicks || []) {
+        const key = `${pick.season}-${pick.round}-${pick.roster_id}`;
+        pickOwnershipMap.set(key, { owner_id: pick.owner_id, roster_id: pick.roster_id });
+      }
+      
       const totalRosters = league?.total_rosters || rosters.length;
-
       const picks: any[] = [];
       const currentYear = new Date().getFullYear();
       
@@ -3082,34 +3102,13 @@ ${fantasyOutlookSection}
       for (let season = currentYear; season <= currentYear + 2; season++) {
         for (let round = 1; round <= 5; round++) {
           const id = `${season}-${round}-${rosterIdNum}`;
-          const tradedAway = tradedPicks.find(
-            (p) => p.season === String(season) && p.round === round && p.previous_owner_id === rosterIdNum
-          );
-          const tradedIn = tradedPicks.find(
-            (p) => p.season === String(season) && p.round === round && p.owner_id === rosterIdNum && p.previous_owner_id !== rosterIdNum
-          );
+          
+          // Check if this roster's OWN pick has been traded away
+          const ownership = pickOwnershipMap.get(id);
+          const ownPickTradedAway = ownership && ownership.owner_id !== rosterIdNum;
 
-          if (tradedAway && !tradedIn) {
-            // Team traded this pick away, skip it
-            continue;
-          }
-
-          if (tradedIn) {
-            // Got a pick from another team
-            const originalOwner = rosters.find((r) => r.roster_id === tradedIn.previous_owner_id);
-            const originalUser = originalOwner ? userMap.get(originalOwner.owner_id) : null;
-            const tradedPickValue = dynastyEngine.getDraftPickValue(String(season), round);
-            picks.push({
-              id: `${season}-${round}-${tradedIn.previous_owner_id}`,
-              name: `${season} Round ${round} (from ${originalUser?.display_name || "Unknown"})`,
-              season: String(season),
-              round,
-              originalOwner: originalUser?.display_name || "Unknown",
-              isOwn: false,
-              value: tradedPickValue.value,
-            });
-          } else {
-            // Own pick
+          // Add own pick if not traded away
+          if (!ownPickTradedAway) {
             const ownPickValue = dynastyEngine.getDraftPickValue(String(season), round);
             picks.push({
               id,
@@ -3120,6 +3119,26 @@ ${fantasyOutlookSection}
               value: ownPickValue.value,
             });
           }
+        }
+      }
+      
+      // Add acquired picks from other teams (deduplicated via Map)
+      for (const [key, ownership] of Array.from(pickOwnershipMap.entries())) {
+        if (ownership.owner_id === rosterIdNum && ownership.roster_id !== rosterIdNum) {
+          const [seasonStr, roundStr, originalRosterId] = key.split("-");
+          const round = parseInt(roundStr);
+          const originalOwner = rosters.find((r) => r.roster_id === parseInt(originalRosterId));
+          const originalUser = originalOwner ? userMap.get(originalOwner.owner_id) : null;
+          const tradedPickValue = dynastyEngine.getDraftPickValue(seasonStr, round);
+          picks.push({
+            id: key,
+            name: `${seasonStr} Round ${round} (from ${originalUser?.display_name || "Unknown"})`,
+            season: seasonStr,
+            round,
+            originalOwner: originalUser?.display_name || "Unknown",
+            isOwn: false,
+            value: tradedPickValue.value,
+          });
         }
       }
 
