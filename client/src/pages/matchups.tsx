@@ -12,7 +12,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronLeft, ChevronRight, ChevronDown, Zap, Clock, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Zap, Clock, CheckCircle2, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react";
 
 interface PlayerScore {
   playerId: string;
@@ -47,6 +47,30 @@ interface MatchupsData {
   gamesInProgress: boolean;
 }
 
+interface MedianTrackerData {
+  isMedianLeague: boolean;
+  currentWeek: number;
+  seasonRecord: {
+    wins: number;
+    losses: number;
+    ties: number;
+    percentage: number | null;
+  };
+  currentWeekData: {
+    userScore: number;
+    median: number;
+    beatingMedian: boolean | null;
+    leagueScores: { rosterId: number; ownerName: string; score: number; }[];
+  } | null;
+  weeklyResults: {
+    week: number;
+    userScore: number;
+    median: number;
+    result: 'W' | 'L' | 'T' | null;
+    beatingMedian: boolean | null;
+  }[];
+}
+
 export default function MatchupsPage() {
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
@@ -54,12 +78,19 @@ export default function MatchupsPage() {
 
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [expandedMatchup, setExpandedMatchup] = useState<number | null>(null);
+  const [showMedianDetails, setShowMedianDetails] = useState(false);
 
   const { data, isLoading, error } = useQuery<MatchupsData>({
     queryKey: selectedWeek 
       ? [`/api/sleeper/matchups/${leagueId}?week=${selectedWeek}`]
       : [`/api/sleeper/matchups/${leagueId}`],
     enabled: !!leagueId,
+  });
+
+  const { data: medianData } = useQuery<MedianTrackerData>({
+    queryKey: [`/api/sleeper/median-tracker/${leagueId}`],
+    enabled: !!leagueId,
+    refetchInterval: data?.gamesInProgress ? 30000 : false,
   });
 
   const currentWeek = data?.currentWeek || 1;
@@ -147,6 +178,15 @@ export default function MatchupsPage() {
           </div>
           <span className="text-muted-foreground" data-testid="text-live-status">Live - Scores update automatically</span>
         </div>
+      )}
+
+      {medianData && (
+        <MedianTrackerCard 
+          medianData={medianData}
+          showDetails={showMedianDetails}
+          onToggleDetails={() => setShowMedianDetails(!showMedianDetails)}
+          gamesInProgress={data.gamesInProgress}
+        />
       )}
 
       <div className="grid gap-4">
@@ -407,5 +447,175 @@ function MatchupsSkeleton() {
         ))}
       </div>
     </div>
+  );
+}
+
+interface MedianTrackerCardProps {
+  medianData: MedianTrackerData;
+  showDetails: boolean;
+  onToggleDetails: () => void;
+  gamesInProgress: boolean;
+}
+
+function MedianTrackerCard({ medianData, showDetails, onToggleDetails, gamesInProgress }: MedianTrackerCardProps) {
+  const { seasonRecord, currentWeekData, isMedianLeague } = medianData;
+  
+  if (!isMedianLeague && !currentWeekData) {
+    return null;
+  }
+
+  const totalGames = seasonRecord.wins + seasonRecord.losses + seasonRecord.ties;
+  const hasCurrentWeekScore = currentWeekData && currentWeekData.userScore > 0;
+
+  return (
+    <Collapsible open={showDetails} onOpenChange={onToggleDetails}>
+      <Card className="border-[hsl(var(--accent))]" data-testid="card-median-tracker">
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover-elevate py-3">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md bg-[hsl(var(--accent))]/10">
+                  <BarChart3 className="h-5 w-5 text-[hsl(var(--accent))]" />
+                </div>
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2" data-testid="text-median-title">
+                    Median Tracker
+                    {isMedianLeague && (
+                      <Badge variant="outline" className="text-xs" data-testid="badge-median-league">
+                        Median League
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground" data-testid="text-median-record">
+                    Season: {seasonRecord.wins}-{seasonRecord.losses}
+                    {seasonRecord.ties > 0 && `-${seasonRecord.ties}`}
+                    {seasonRecord.percentage !== null && ` (${seasonRecord.percentage}%)`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                {hasCurrentWeekScore && currentWeekData && (
+                  <div className="flex items-center gap-2" data-testid="container-current-week-median">
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">This Week</p>
+                      <div className="flex items-center gap-1">
+                        {currentWeekData.beatingMedian === true && (
+                          <>
+                            <TrendingUp className="h-4 w-4 text-green-500" />
+                            <span className="text-sm font-medium text-green-500" data-testid="text-beating-median">
+                              Above
+                            </span>
+                          </>
+                        )}
+                        {currentWeekData.beatingMedian === false && (
+                          <>
+                            <TrendingDown className="h-4 w-4 text-red-500" />
+                            <span className="text-sm font-medium text-red-500" data-testid="text-below-median">
+                              Below
+                            </span>
+                          </>
+                        )}
+                        {currentWeekData.beatingMedian === null && (
+                          <>
+                            <Minus className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground" data-testid="text-at-median">
+                              At Median
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right border-l pl-3">
+                      <p className="text-xs text-muted-foreground">You / Median</p>
+                      <p className="text-sm font-medium" data-testid="text-score-vs-median">
+                        {currentWeekData.userScore.toFixed(1)} / {currentWeekData.median.toFixed(1)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {gamesInProgress && hasCurrentWeekScore && (
+                  <div className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[hsl(var(--accent))]/40 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[hsl(var(--accent))]"></span>
+                  </div>
+                )}
+
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showDetails ? "rotate-180" : ""}`} />
+              </div>
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <CardContent className="pt-0 pb-4">
+            <div className="space-y-4">
+              {currentWeekData && currentWeekData.leagueScores.length > 0 && (
+                <div data-testid="container-league-scores">
+                  <p className="text-sm font-medium mb-2">Current Week Scores</p>
+                  <div className="grid gap-1.5 max-h-48 overflow-y-auto">
+                    {currentWeekData.leagueScores.map((team, index) => {
+                      const isAboveMedian = team.score > currentWeekData.median;
+                      const isBelowMedian = team.score < currentWeekData.median && team.score > 0;
+                      const midIndex = Math.floor(currentWeekData.leagueScores.length / 2);
+                      const isMedianLine = index === midIndex - 1;
+                      
+                      return (
+                        <div key={team.rosterId}>
+                          <div 
+                            className={`flex items-center justify-between py-1.5 px-2 rounded text-sm ${
+                              isAboveMedian ? "bg-green-500/10" : isBelowMedian ? "bg-red-500/10" : ""
+                            }`}
+                            data-testid={`row-team-score-${team.rosterId}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground w-4 text-right">{index + 1}.</span>
+                              <span>{team.ownerName}</span>
+                            </div>
+                            <span className={`font-medium ${isAboveMedian ? "text-green-500" : isBelowMedian ? "text-red-500" : "text-muted-foreground"}`}>
+                              {team.score.toFixed(1)}
+                            </span>
+                          </div>
+                          {isMedianLine && (
+                            <div className="flex items-center gap-2 py-1 px-2" data-testid="divider-median-line">
+                              <div className="flex-1 h-px bg-[hsl(var(--accent))]/50"></div>
+                              <span className="text-xs text-[hsl(var(--accent))]">Median: {currentWeekData.median.toFixed(1)}</span>
+                              <div className="flex-1 h-px bg-[hsl(var(--accent))]/50"></div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {totalGames > 0 && (
+                <div data-testid="container-weekly-results">
+                  <p className="text-sm font-medium mb-2">Weekly Results vs Median</p>
+                  <div className="flex flex-wrap gap-1">
+                    {medianData.weeklyResults.map((weekResult) => (
+                      <div
+                        key={weekResult.week}
+                        className={`w-8 h-8 rounded flex items-center justify-center text-xs font-medium ${
+                          weekResult.result === 'W' ? 'bg-green-500/20 text-green-500' :
+                          weekResult.result === 'L' ? 'bg-red-500/20 text-red-500' :
+                          'bg-muted text-muted-foreground'
+                        }`}
+                        title={`Week ${weekResult.week}: ${weekResult.userScore.toFixed(1)} vs ${weekResult.median.toFixed(1)}`}
+                        data-testid={`badge-week-result-${weekResult.week}`}
+                      >
+                        {weekResult.result || '-'}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
