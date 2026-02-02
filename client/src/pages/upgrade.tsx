@@ -73,7 +73,7 @@ export default function UpgradePage() {
 
   const portalMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/subscription/customer-portal");
+      const res = await apiRequest("POST", "/api/subscription/create-portal");
       return res.json();
     },
     onSuccess: (data) => {
