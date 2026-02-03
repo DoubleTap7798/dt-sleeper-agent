@@ -54,12 +54,14 @@ async function getCredentials() {
     }
     
     // Fallback to manual secrets if connector not available
-    if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PUBLISHABLE_KEY) {
+    // Only use if keys look valid (start with correct prefixes)
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+    if (secretKey && publishableKey && 
+        secretKey.startsWith('sk_live_') && 
+        publishableKey.startsWith('pk_live_')) {
       console.log('Using manual Stripe secrets for production');
-      return {
-        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
-        secretKey: process.env.STRIPE_SECRET_KEY,
-      };
+      return { publishableKey, secretKey };
     }
     
     // Last resort: use development connector in production (test mode)
