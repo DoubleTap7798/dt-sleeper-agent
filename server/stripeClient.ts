@@ -3,6 +3,17 @@ import Stripe from 'stripe';
 let connectionSettings: any;
 
 async function getCredentials() {
+  const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
+  
+  // In production, use manually configured secrets if available
+  if (isProduction && process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PUBLISHABLE_KEY) {
+    return {
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+      secretKey: process.env.STRIPE_SECRET_KEY,
+    };
+  }
+  
+  // In development or if no manual keys, try Replit connector
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? 'repl ' + process.env.REPL_IDENTITY
@@ -15,7 +26,6 @@ async function getCredentials() {
   }
 
   const connectorName = 'stripe';
-  const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
   const targetEnvironment = isProduction ? 'production' : 'development';
 
   const url = new URL(`https://${hostname}/api/v2/connection`);
