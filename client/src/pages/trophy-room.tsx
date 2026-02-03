@@ -62,7 +62,7 @@ export default function TrophyRoomPage() {
           Trophy Room
         </h2>
         <p className="text-muted-foreground">
-          {data.leagueAge} season{data.leagueAge > 1 ? "s" : ""} of league history
+          {data.champions.length} season{data.champions.length > 1 ? "s" : ""} of league history
         </p>
       </div>
 
@@ -212,7 +212,7 @@ export default function TrophyRoomPage() {
               All-Time Standings
             </CardTitle>
             <CardDescription>
-              Total wins and losses across all {data.leagueAge} seasons
+              Total wins and losses across all {data.champions.length} seasons
             </CardDescription>
           </CardHeader>
           <CardContent>
