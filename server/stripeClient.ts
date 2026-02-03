@@ -2,18 +2,7 @@ import Stripe from 'stripe';
 
 let connectionSettings: any;
 
-async function getCredentials() {
-  const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
-  
-  // In production, use manually configured secrets if available
-  if (isProduction && process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PUBLISHABLE_KEY) {
-    return {
-      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
-      secretKey: process.env.STRIPE_SECRET_KEY,
-    };
-  }
-  
-  // In development or if no manual keys, try Replit connector
+async function getCredentialsFromConnector(targetEnvironment: string) {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? 'repl ' + process.env.REPL_IDENTITY
@@ -26,7 +15,6 @@ async function getCredentials() {
   }
 
   const connectorName = 'stripe';
-  const targetEnvironment = isProduction ? 'production' : 'development';
 
   const url = new URL(`https://${hostname}/api/v2/connection`);
   url.searchParams.set('include_secrets', 'true');
@@ -45,13 +33,52 @@ async function getCredentials() {
   connectionSettings = data.items?.[0];
 
   if (!connectionSettings || (!connectionSettings.settings.publishable || !connectionSettings.settings.secret)) {
-    throw new Error(`Stripe ${targetEnvironment} connection not found`);
+    return null;
   }
 
   return {
     publishableKey: connectionSettings.settings.publishable,
     secretKey: connectionSettings.settings.secret,
   };
+}
+
+async function getCredentials() {
+  const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
+  
+  // Try production connector first if in production
+  if (isProduction) {
+    const prodCreds = await getCredentialsFromConnector('production');
+    if (prodCreds) {
+      console.log('Using production Stripe connector');
+      return prodCreds;
+    }
+    
+    // Fallback to manual secrets if connector not available
+    if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PUBLISHABLE_KEY) {
+      console.log('Using manual Stripe secrets for production');
+      return {
+        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+        secretKey: process.env.STRIPE_SECRET_KEY,
+      };
+    }
+    
+    // Last resort: use development connector in production (test mode)
+    console.log('WARNING: Using development Stripe connector in production - payments will be in TEST mode');
+    const devCreds = await getCredentialsFromConnector('development');
+    if (devCreds) {
+      return devCreds;
+    }
+    
+    throw new Error('No Stripe credentials available for production');
+  }
+  
+  // In development, use development connector
+  const devCreds = await getCredentialsFromConnector('development');
+  if (devCreds) {
+    return devCreds;
+  }
+  
+  throw new Error('Stripe development connection not found');
 }
 
 export async function getUncachableStripeClient() {
