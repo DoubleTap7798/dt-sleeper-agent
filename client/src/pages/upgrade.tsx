@@ -56,9 +56,6 @@ export default function UpgradePage() {
     staleTime: 60000,
   });
 
-  // Debug: Log prices data
-  console.log("Prices data:", pricesData, "Error:", pricesError);
-
   const checkoutMutation = useMutation({
     mutationFn: async (priceId: string) => {
       const res = await apiRequest("POST", "/api/subscription/create-checkout", { priceId });
@@ -119,6 +116,10 @@ export default function UpgradePage() {
   const weeklyPrice = pricesData?.prices?.find(
     (p) => p.recurring?.interval === "week" && p.recurring?.interval_count === 1
   );
+
+  // Fallback price ID if query fails - this is the known weekly price
+  const fallbackPriceId = "price_1Sw0jYAfG2ju3f0JF1Vafcuz";
+  const activePriceId = weeklyPrice?.price_id || fallbackPriceId;
 
   if (statusLoading || pricesLoading) {
     return (
@@ -328,8 +329,8 @@ export default function UpgradePage() {
               <Button 
                 className="w-full" 
                 size="lg"
-                onClick={() => weeklyPrice && checkoutMutation.mutate(weeklyPrice.price_id)}
-                disabled={checkoutMutation.isPending || !weeklyPrice}
+                onClick={() => checkoutMutation.mutate(activePriceId)}
+                disabled={checkoutMutation.isPending}
                 data-testid="button-subscribe-stripe"
               >
                 {checkoutMutation.isPending ? (
@@ -340,12 +341,6 @@ export default function UpgradePage() {
                 Subscribe Now
               </Button>
             </div>
-            
-            {!weeklyPrice && (
-              <p className="text-xs text-muted-foreground text-center">
-                Loading payment options...
-              </p>
-            )}
           </CardContent>
         </Card>
       </div>
