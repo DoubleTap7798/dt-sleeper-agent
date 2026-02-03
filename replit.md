@@ -59,6 +59,7 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **React Query Keys**: Uses array format for robust caching.
 - **`useSelectedLeague` Hook**: Centralized league selection state management.
 - **Dynasty Value Engine**: Custom algorithm calculating player values (0-100 scale) based on multi-year VOR, age, role security, injury risk, production ceiling, volatility, draft capital, team context, scarcity bonus, and market calibration.
+- **Consolidation Premium**: Trade calculator applies a star player premium (similar to KTC's "Value Adjustment") when trading fewer, higher-value assets for multiple pieces. Elite players (93+) receive ~35-42% boost, scaling down for lower tiers. Premium considers piece differential and value concentration.
 
 ## External Dependencies
 

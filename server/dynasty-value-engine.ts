@@ -1268,6 +1268,83 @@ export function getAdjustedValue(rawValue: number): number {
 }
 
 /**
+ * Calculate the consolidation premium for a side of a trade.
+ * This rewards sides that are trading away fewer, higher-value assets (studs).
+ * 
+ * The premium is designed to match KTC's "Value Adjustment" which gives
+ * a ~30-40% boost when trading away elite players for multiple pieces.
+ * 
+ * Logic:
+ * - Higher max single asset value = bigger premium
+ * - Higher concentration of value in top assets = bigger premium
+ * - Premium is returned as ADDITIVE VALUE (not percentage) applied to raw total
+ * 
+ * Returns the additive premium value to add to the adjusted total.
+ */
+export function calculateConsolidationPremium(
+  assets: Array<{ value: number }>,
+  opposingAssetCount: number
+): number {
+  if (assets.length === 0) return 0;
+  
+  // Sort assets by value (highest first)
+  const sortedValues = assets.map(a => a.value).sort((a, b) => b - a);
+  const maxValue = sortedValues[0];
+  const totalRawValue = sortedValues.reduce((sum, v) => sum + v, 0);
+  const assetCount = assets.length;
+  
+  // Calculate concentration: what % of total value is in the top asset
+  const concentration = totalRawValue > 0 ? maxValue / totalRawValue : 0;
+  
+  // Premium triggers when:
+  // 1. You have at least one star player (70+)
+  // 2. AND either: fewer pieces than opponent OR high concentration (>60%)
+  const hasFewerPieces = assetCount < opposingAssetCount;
+  const hasHighConcentration = concentration > 0.60;
+  
+  if (maxValue < 70 || (!hasFewerPieces && !hasHighConcentration)) return 0;
+  
+  // Base premium rate based on max asset value tier
+  // These rates are applied to the MAX ASSET VALUE (not total)
+  let basePremiumRate = 0;
+  
+  if (maxValue >= 93) {
+    // Elite 1 (top 3-5 dynasty assets like Chase, Jefferson, etc.): 35-42%
+    basePremiumRate = 0.35 + ((maxValue - 93) / 7) * 0.07;
+  } else if (maxValue >= 85) {
+    // Elite 2 (WR1s, RB1s, elite young QBs): 25-35%
+    basePremiumRate = 0.25 + ((maxValue - 85) / 8) * 0.10;
+  } else if (maxValue >= 78) {
+    // Star tier: 15-25%
+    basePremiumRate = 0.15 + ((maxValue - 78) / 7) * 0.10;
+  } else if (maxValue >= 70) {
+    // Borderline star: 8-15%
+    basePremiumRate = 0.08 + ((maxValue - 70) / 8) * 0.07;
+  }
+  
+  // Amplify based on piece differential (when trading fewer pieces)
+  let pieceMultiplier = 1.0;
+  if (hasFewerPieces) {
+    const pieceDiff = opposingAssetCount - assetCount;
+    pieceMultiplier = 1 + (Math.min(pieceDiff, 4) * 0.08); // +8% per extra piece, max +32%
+  }
+  
+  // Amplify based on concentration (high concentration = star-heavy package)
+  let concentrationMultiplier = 1.0;
+  if (concentration > 0.75) {
+    concentrationMultiplier = 1.15; // 15% boost for super concentrated (1 stud + nothing else)
+  } else if (concentration > 0.60) {
+    concentrationMultiplier = 1.08; // 8% boost for concentrated packages
+  }
+  
+  // Calculate premium as ADDITIVE value based on the star player's value
+  const premiumValue = maxValue * basePremiumRate * pieceMultiplier * concentrationMultiplier;
+  
+  // Cap at 50% of the star's value
+  return Math.min(maxValue * 0.50, premiumValue);
+}
+
+/**
  * Calculate adjusted values for a trade.
  * Returns both raw totals and adjusted totals for each side,
  * plus the fairness metrics.
@@ -1310,13 +1387,22 @@ export function calculateTradeAdjustment(
     multiplier: getAdjustmentMultiplier(asset.value),
   }));
 
-  // Sum totals
+  // Sum base adjusted totals (without consolidation premium)
   const teamARawTotal = teamAWithAdjustments.reduce((sum, a) => sum + a.rawValue, 0);
-  const teamAAdjustedTotal = teamAWithAdjustments.reduce((sum, a) => sum + a.adjustedValue, 0);
+  const teamABaseAdjusted = teamAWithAdjustments.reduce((sum, a) => sum + a.adjustedValue, 0);
   const teamBRawTotal = teamBWithAdjustments.reduce((sum, a) => sum + a.rawValue, 0);
-  const teamBAdjustedTotal = teamBWithAdjustments.reduce((sum, a) => sum + a.adjustedValue, 0);
+  const teamBBaseAdjusted = teamBWithAdjustments.reduce((sum, a) => sum + a.adjustedValue, 0);
 
-  // Calculate fairness based on adjusted values
+  // Calculate consolidation premiums for each side (additive value, not percentage)
+  // This rewards teams trading fewer, higher-value assets (star player premium)
+  const teamAConsolidationPremium = calculateConsolidationPremium(teamAAssets, teamBAssets.length);
+  const teamBConsolidationPremium = calculateConsolidationPremium(teamBAssets, teamAAssets.length);
+
+  // Apply consolidation premium as ADDITIVE value to adjusted totals
+  const teamAAdjustedTotal = teamABaseAdjusted + teamAConsolidationPremium;
+  const teamBAdjustedTotal = teamBBaseAdjusted + teamBConsolidationPremium;
+
+  // Calculate fairness based on adjusted values (with consolidation premium)
   const totalAdjusted = teamAAdjustedTotal + teamBAdjustedTotal;
   let fairnessPercent = 0;
   
