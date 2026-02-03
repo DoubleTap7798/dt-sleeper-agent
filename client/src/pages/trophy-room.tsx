@@ -160,7 +160,7 @@ export default function TrophyRoomPage() {
               Hall of Champions
             </CardTitle>
             <CardDescription>
-              League winners for all {data.leagueAge} seasons
+              League winners for all {data.champions.length} seasons
             </CardDescription>
           </CardHeader>
           <CardContent>
