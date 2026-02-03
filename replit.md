@@ -16,6 +16,8 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Persistent League Selector**: Always visible for quick league switching.
 - **Consolidated Navigation**: Grouped collapsible sections (League, My Team, Players, Trades).
 - **Design Theme**: Modern tech theme with black background and electric blue/cyan accent color, featuring glow effects, cyan-tinted borders, and accent highlights.
+- **Position Colors**: Distinct colors for player positions - QB (red), RB (green), WR (blue), TE (orange), K (purple), DEF (brown), FLEX (pink), SUPERFLEX (teal), DL (yellow), LB (cyan), DB (pink secondary).
+- **League Breakdown**: Uniform grid layout showing League Name, Record, Place, Status, and Movement columns. Movement indicator shows "--" placeholder until accurate data source is available.
 
 ### Technical Implementations
 - **Frontend**: React with TypeScript, Vite, Wouter for routing, TanStack React Query for state, Shadcn/ui (Radix UI) for components, Tailwind CSS for styling.
