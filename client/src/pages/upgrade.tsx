@@ -47,11 +47,17 @@ export default function UpgradePage() {
 
   const { data: subStatus, isLoading: statusLoading } = useQuery<SubscriptionStatus>({
     queryKey: ["/api/subscription/status"],
+    retry: 1,
   });
 
-  const { data: pricesData, isLoading: pricesLoading } = useQuery<{ prices: PriceRow[] }>({
+  const { data: pricesData, isLoading: pricesLoading, error: pricesError } = useQuery<{ prices: PriceRow[] }>({
     queryKey: ["/api/subscription/prices"],
+    retry: 2,
+    staleTime: 60000,
   });
+
+  // Debug: Log prices data
+  console.log("Prices data:", pricesData, "Error:", pricesError);
 
   const checkoutMutation = useMutation({
     mutationFn: async (priceId: string) => {
