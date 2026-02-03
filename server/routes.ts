@@ -5472,6 +5472,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           const league = leagueDataCache.get(leagueId);
           if (!league) return null;
           
+          const currentSeason = new Date().getFullYear().toString();
+          const isCurrentSeason = league.season === currentSeason;
+          
           // Fetch rosters and bracket in parallel
           const [rosters, bracket] = await Promise.all([
             sleeperApi.getLeagueRosters(leagueId),
@@ -5487,7 +5490,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           const losses = userRoster.settings?.losses || 0;
           const ties = userRoster.settings?.ties || 0;
           
-          // Calculate rank
+          // Calculate current rank
           const sortedRosters = [...rosters].sort((a, b) => {
             const winsA = a.settings?.wins || 0;
             const winsB = b.settings?.wins || 0;
@@ -5497,6 +5500,105 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             return fptsB - fptsA;
           });
           const rank = sortedRosters.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
+          
+          // Calculate previous rank for current season using actual matchup data
+          // Only calculate for standard H2H leagues with 1-on-1 matchups
+          let prevRank: number | undefined;
+          let prevRankVerified = false;
+          
+          if (isCurrentSeason && (wins > 0 || losses > 0)) {
+            try {
+              // Get the last completed week from league status
+              const currentWeek = league.settings?.last_scored_leg || 0;
+              
+              // Only calculate for standard leagues: not playoff week, has scoring, standard H2H format
+              const playoffWeekStart = league.settings?.playoff_week_start || 15;
+              const isRegularSeason = currentWeek > 0 && currentWeek < playoffWeekStart;
+              const isStandardFormat = !league.settings?.league_average_match; // No median games
+              
+              if (isRegularSeason && isStandardFormat && currentWeek > 1) {
+                // Fetch matchups for the last scored week
+                const matchups = await sleeperApi.getMatchups(leagueId, currentWeek);
+                
+                if (matchups && matchups.length > 0) {
+                  // Build a map of roster_id to their result in the last week
+                  const lastWeekResults = new Map<number, { won: boolean; lost: boolean; tied: boolean; pts: number }>();
+                  
+                  // Group matchups by matchup_id to find opponent scores
+                  const matchupGroups = new Map<number, any[]>();
+                  matchups.forEach((m: any) => {
+                    if (!matchupGroups.has(m.matchup_id)) {
+                      matchupGroups.set(m.matchup_id, []);
+                    }
+                    matchupGroups.get(m.matchup_id)!.push(m);
+                  });
+                  
+                  // Verify all matchups are standard 1v1 (exactly 2 teams per matchup_id)
+                  let allMatchupsValid = true;
+                  matchupGroups.forEach((group) => {
+                    if (group.length !== 2) allMatchupsValid = false;
+                  });
+                  
+                  if (allMatchupsValid) {
+                    // Determine win/loss for each roster
+                    matchupGroups.forEach((group) => {
+                      const [a, b] = group;
+                      const ptsA = a.points || 0;
+                      const ptsB = b.points || 0;
+                      
+                      if (ptsA > ptsB) {
+                        lastWeekResults.set(a.roster_id, { won: true, lost: false, tied: false, pts: ptsA });
+                        lastWeekResults.set(b.roster_id, { won: false, lost: true, tied: false, pts: ptsB });
+                      } else if (ptsB > ptsA) {
+                        lastWeekResults.set(a.roster_id, { won: false, lost: true, tied: false, pts: ptsA });
+                        lastWeekResults.set(b.roster_id, { won: true, lost: false, tied: false, pts: ptsB });
+                      } else {
+                        lastWeekResults.set(a.roster_id, { won: false, lost: false, tied: true, pts: ptsA });
+                        lastWeekResults.set(b.roster_id, { won: false, lost: false, tied: true, pts: ptsB });
+                      }
+                    });
+                    
+                    // Only proceed if we have results for all rosters (no byes)
+                    if (lastWeekResults.size === rosters.length) {
+                      // Calculate what standings would have been BEFORE this week's results
+                      const prevWeekRosters = rosters.map(r => {
+                        const result = lastWeekResults.get(r.roster_id);
+                        const rWins = r.settings?.wins || 0;
+                        const rLosses = r.settings?.losses || 0;
+                        const rTies = r.settings?.ties || 0;
+                        const fpts = (r.settings?.fpts || 0) + (r.settings?.fpts_decimal || 0) / 100;
+                        const lastWeekPts = result?.pts || 0;
+                        
+                        // Subtract last week's result from current record
+                        let prevWins = rWins;
+                        let prevLosses = rLosses;
+                        let prevTies = rTies;
+                        let prevFpts = fpts - lastWeekPts;
+                        
+                        if (result?.won) prevWins = Math.max(0, rWins - 1);
+                        else if (result?.lost) prevLosses = Math.max(0, rLosses - 1);
+                        else if (result?.tied) prevTies = Math.max(0, rTies - 1);
+                        
+                        return { rosterId: r.roster_id, prevWins, prevLosses, prevTies, prevFpts };
+                      });
+                      
+                      // Sort by previous week's standings
+                      const prevSorted = [...prevWeekRosters].sort((a, b) => {
+                        if (b.prevWins !== a.prevWins) return b.prevWins - a.prevWins;
+                        return b.prevFpts - a.prevFpts;
+                      });
+                      
+                      prevRank = prevSorted.findIndex(r => r.rosterId === userRoster.roster_id) + 1;
+                      prevRankVerified = true; // Data is verified for standard H2H leagues
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              // If we can't fetch matchup data, prevRank stays undefined
+              console.error(`Error calculating prevRank for ${leagueId}:`, e);
+            }
+          }
           
           const playoffTeams = league.settings?.playoff_teams || 6;
           // Only count playoff appearance if they actually played games (not just ranked in preseason)
@@ -5534,10 +5636,13 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             losses,
             ties,
             rank,
+            // Movement indicator disabled until full accuracy can be guaranteed
+            // prevRank: prevRankVerified ? prevRank : undefined,
             totalTeams: rosters.length,
             isChampion,
             isPlayoffs,
             isRunnerUp,
+            isCurrentSeason,
           };
         } catch (e) {
           console.error(`Error processing league ${leagueId}:`, e);

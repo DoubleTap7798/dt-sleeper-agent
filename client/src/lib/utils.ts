@@ -44,6 +44,14 @@ export function getPositionColorClass(position?: string): string {
     case "FS":
     case "SS":
       return "position-def";
+    case "FLEX":
+    case "REC_FLEX":
+    case "WRRB_FLEX":
+      return "position-flex";
+    case "SUPER_FLEX":
+    case "SF":
+    case "SUPERFLEX":
+      return "position-sf";
     case "PICK":
       return "position-pick";
     default:

@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { 
   Trophy, Users, TrendingUp, Calendar, Target, Crown, Medal, Activity, 
   ArrowRightLeft, UserPlus, RefreshCw, Zap, AlertTriangle, ChevronRight,
-  ArrowUpRight, Rocket, Shield, Hourglass, HelpCircle, Lightbulb
+  ArrowUpRight, ArrowUp, ArrowDown, Minus, Rocket, Shield, Hourglass, HelpCircle, Lightbulb
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -37,10 +37,12 @@ interface CareerSummary {
     losses: number;
     ties: number;
     rank: number;
+    prevRank?: number;
     totalTeams: number;
     isChampion: boolean;
     isPlayoffs: boolean;
     isRunnerUp?: boolean;
+    isCurrentSeason?: boolean;
   }[];
 }
 
@@ -180,6 +182,37 @@ function TeamProfileBadge({ profile, avgAge }: { profile: "contender" | "balance
       <TooltipContent>
         <p>{description}</p>
         <p className="text-muted-foreground text-xs mt-1">Average player age: {avgAge} years</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// Movement indicator component
+function MovementIndicator({ rank, prevRank, isCurrentSeason }: { rank: number; prevRank?: number; isCurrentSeason?: boolean }) {
+  // Only show movement for current season with verified previous rank data
+  // prevRank must be defined, positive, and different from current rank
+  if (!isCurrentSeason || prevRank === undefined || prevRank <= 0 || prevRank === rank) {
+    return <span className="text-muted-foreground text-xs">--</span>;
+  }
+  
+  const movement = prevRank - rank; // Positive = moved up, Negative = moved down
+  const isUp = movement > 0;
+  const Icon = isUp ? ArrowUp : ArrowDown;
+  const colorClass = isUp ? "text-green-500" : "text-red-500";
+  const spots = Math.abs(movement);
+  
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className={`flex items-center gap-1 ${colorClass} text-xs font-medium cursor-help`}>
+          <Icon className="h-3 w-3" />
+          <span>{isUp ? "+" : "-"}{spots}</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p className="text-xs">
+          {isUp ? "Moved up" : "Moved down"} {spots} spot{spots !== 1 ? "s" : ""} from last week
+        </p>
       </TooltipContent>
     </Tooltip>
   );
@@ -424,59 +457,120 @@ export default function HomePage() {
           </CardHeader>
           <CardContent>
             {careerData?.leagueStats && careerData.leagueStats.length > 0 ? (
-              <div className="space-y-3">
-                {careerData.leagueStats.map((league, idx) => (
-                  <div 
-                    key={`${league.leagueId}-${league.season}`} 
-                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-muted/50 gap-2"
-                    data-testid={`league-row-${idx}`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      {league.isChampion && <Crown className="h-4 w-4 shrink-0" />}
-                      <div className="min-w-0">
-                        <p className="font-medium truncate text-sm sm:text-base" data-testid={`league-name-${idx}`}>
-                          {league.leagueName}
-                        </p>
-                        <p className="text-xs text-muted-foreground" data-testid={`league-season-${idx}`}>
-                          {league.season}
-                        </p>
+              <div className="space-y-2">
+                {/* Table header */}
+                <div className="hidden sm:grid sm:grid-cols-[1fr_80px_80px_100px_60px] gap-2 px-3 py-2 text-xs text-muted-foreground font-medium border-b">
+                  <div>League</div>
+                  <div className="text-center">Record</div>
+                  <div className="text-center">Place</div>
+                  <div className="text-center">Status</div>
+                  <div className="text-center">Move</div>
+                </div>
+                {careerData.leagueStats.map((league, idx) => {
+                  const isCurrentSeason = league.season === new Date().getFullYear().toString();
+                  return (
+                    <div 
+                      key={`${league.leagueId}-${league.season}`} 
+                      className="grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_100px_60px] gap-2 items-center p-3 rounded-lg bg-muted/50"
+                      data-testid={`league-row-${idx}`}
+                    >
+                      {/* League name & season */}
+                      <div className="flex items-center gap-2 min-w-0">
+                        {league.isChampion && <Crown className="h-4 w-4 shrink-0 text-yellow-500" />}
+                        {league.isRunnerUp && <Medal className="h-4 w-4 shrink-0 text-gray-400" />}
+                        <div className="min-w-0">
+                          <p className="font-medium truncate text-sm" data-testid={`league-name-${idx}`}>
+                            {league.leagueName}
+                          </p>
+                          <p className="text-xs text-muted-foreground" data-testid={`league-season-${idx}`}>
+                            {league.season} {isCurrentSeason && <span className="opacity-80">(Current)</span>}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Record */}
+                      <div className="flex sm:justify-center">
+                        <Badge variant="outline" className="text-xs" data-testid={`league-record-${idx}`}>
+                          {league.wins}-{league.losses}{league.ties ? `-${league.ties}` : ""}
+                        </Badge>
+                      </div>
+                      
+                      {/* Place */}
+                      <div className="flex sm:justify-center">
+                        <Badge variant="secondary" className="text-xs" data-testid={`league-rank-${idx}`}>
+                          #{league.rank}/{league.totalTeams}
+                        </Badge>
+                      </div>
+                      
+                      {/* Status badges */}
+                      <div className="flex sm:justify-center gap-1">
+                        {league.isChampion ? (
+                          <Badge className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
+                            Champ
+                          </Badge>
+                        ) : league.isRunnerUp ? (
+                          <Badge variant="outline" className="text-xs">
+                            2nd
+                          </Badge>
+                        ) : league.isPlayoffs ? (
+                          <Badge variant="outline" className="text-xs text-green-400 border-green-500/50">
+                            Playoffs
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">--</span>
+                        )}
+                      </div>
+                      
+                      {/* Movement indicator */}
+                      <div className="flex sm:justify-center" data-testid={`league-movement-${idx}`}>
+                        <MovementIndicator 
+                          rank={league.rank} 
+                          prevRank={league.prevRank}
+                          isCurrentSeason={isCurrentSeason}
+                        />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline" className="text-xs" data-testid={`league-record-${idx}`}>
-                        {league.wins}-{league.losses}{league.ties ? `-${league.ties}` : ""}
-                      </Badge>
-                      <Badge variant="secondary" className="text-xs" data-testid={`league-rank-${idx}`}>
-                        #{league.rank} of {league.totalTeams}
-                      </Badge>
-                      {league.isPlayoffs && (
-                        <Badge variant="outline" className="text-xs" data-testid={`league-playoffs-${idx}`}>
-                          Playoffs
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : leagues && leagues.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
+                {/* Table header */}
+                <div className="hidden sm:grid sm:grid-cols-[1fr_80px_80px_100px_60px] gap-2 px-3 py-2 text-xs text-muted-foreground font-medium border-b">
+                  <div>League</div>
+                  <div className="text-center">Record</div>
+                  <div className="text-center">Place</div>
+                  <div className="text-center">Status</div>
+                  <div className="text-center">Move</div>
+                </div>
                 {leagues.map((league: any, idx: number) => (
                   <div 
                     key={league.league_id} 
-                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-muted/50 gap-2"
+                    className="grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_100px_60px] gap-2 items-center p-3 rounded-lg bg-muted/50"
                     data-testid={`league-row-${idx}`}
                   >
                     <div className="min-w-0">
-                      <p className="font-medium truncate text-sm sm:text-base" data-testid={`league-name-${idx}`}>
+                      <p className="font-medium truncate text-sm" data-testid={`league-name-${idx}`}>
                         {league.name}
                       </p>
                       <p className="text-xs text-muted-foreground" data-testid={`league-season-${idx}`}>
                         {league.season} Season
                       </p>
                     </div>
-                    <Badge variant="secondary" className="text-xs self-start sm:self-center" data-testid={`league-teams-${idx}`}>
-                      {league.total_rosters} Teams
-                    </Badge>
+                    <div className="flex sm:justify-center">
+                      <Badge variant="outline" className="text-xs">--</Badge>
+                    </div>
+                    <div className="flex sm:justify-center">
+                      <Badge variant="secondary" className="text-xs" data-testid={`league-teams-${idx}`}>
+                        {league.total_rosters} Teams
+                      </Badge>
+                    </div>
+                    <div className="flex sm:justify-center">
+                      <span className="text-xs text-muted-foreground">--</span>
+                    </div>
+                    <div className="flex sm:justify-center">
+                      <span className="text-xs text-muted-foreground">--</span>
+                    </div>
                   </div>
                 ))}
               </div>
