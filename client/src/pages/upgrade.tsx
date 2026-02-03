@@ -8,6 +8,17 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
 
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'stripe-buy-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement> & {
+        'buy-button-id': string;
+        'publishable-key': string;
+      }, HTMLElement>;
+    }
+  }
+}
+
 interface SubscriptionStatus {
   hasSubscription: boolean;
   status: string | null;
@@ -17,15 +28,6 @@ interface SubscriptionStatus {
   subscriptionId?: string | null;
 }
 
-interface PriceRow {
-  id: string;
-  name: string;
-  description: string;
-  price_id: string;
-  unit_amount: number;
-  currency: string;
-  recurring: { interval: string; interval_count: number } | null;
-}
 
 const PREMIUM_FEATURES = [
   { icon: LineChart, text: "Trade Calculator with AI Analysis" },
@@ -37,6 +39,9 @@ const PREMIUM_FEATURES = [
   { icon: Check, text: "Trophy Room & Rivalries" },
   { icon: Check, text: "Player Trends & ROS Projections" },
 ];
+
+const STRIPE_BUY_BUTTON_ID = "buy_btn_1SwjYp0hkUkkdElKZJqH1I3S";
+const STRIPE_PUBLISHABLE_KEY = "pk_live_51Sw3SH0hkUkkdElKiXuWGdheNun9WXSGX0fa6yugemJERMI3jx6vqVYktyPcIvtbUT5USAVUxbTk66dWtjok1uQa00rJRkTTaR";
 
 export default function UpgradePage() {
   const [, setLocation] = useLocation();
@@ -50,30 +55,15 @@ export default function UpgradePage() {
     retry: 1,
   });
 
-  const { data: pricesData, isLoading: pricesLoading, error: pricesError } = useQuery<{ prices: PriceRow[] }>({
-    queryKey: ["/api/subscription/prices"],
-    retry: 2,
-    staleTime: 60000,
-  });
-
-  const checkoutMutation = useMutation({
-    mutationFn: async (priceId: string) => {
-      const res = await apiRequest("POST", "/api/subscription/create-checkout", { priceId });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to start checkout",
-        variant: "destructive",
-      });
-    },
-  });
+  useEffect(() => {
+    const existingScript = document.querySelector('script[src="https://js.stripe.com/v3/buy-button.js"]');
+    if (!existingScript) {
+      const script = document.createElement("script");
+      script.src = "https://js.stripe.com/v3/buy-button.js";
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   const portalMutation = useMutation({
     mutationFn: async () => {
@@ -113,15 +103,7 @@ export default function UpgradePage() {
     }
   }, [success, canceled]);
 
-  const weeklyPrice = pricesData?.prices?.find(
-    (p) => p.recurring?.interval === "week" && p.recurring?.interval_count === 1
-  );
-
-  // Fallback price ID if query fails - this is the known weekly price
-  const fallbackPriceId = "price_1Sw0jYAfG2ju3f0JF1Vafcuz";
-  const activePriceId = weeklyPrice?.price_id || fallbackPriceId;
-
-  if (statusLoading || pricesLoading) {
+  if (statusLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -326,20 +308,10 @@ export default function UpgradePage() {
             </ul>
 
             <div className="space-y-3 pt-2">
-              <Button 
-                className="w-full" 
-                size="lg"
-                onClick={() => checkoutMutation.mutate(activePriceId)}
-                disabled={checkoutMutation.isPending}
-                data-testid="button-subscribe-stripe"
-              >
-                {checkoutMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <CreditCard className="w-4 h-4 mr-2" />
-                )}
-                Subscribe Now
-              </Button>
+              <stripe-buy-button
+                buy-button-id={STRIPE_BUY_BUTTON_ID}
+                publishable-key={STRIPE_PUBLISHABLE_KEY}
+              />
             </div>
           </CardContent>
         </Card>
