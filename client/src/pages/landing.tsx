@@ -5,17 +5,13 @@ import { useAuth } from "@/hooks/use-auth";
 import { PwaInstallButton } from "@/components/pwa-install-button";
 import { 
   ArrowRight, 
-  TrendingUp, 
   Users, 
   Trophy, 
   RefreshCw, 
-  BarChart3, 
-  History,
   Zap,
   Shield,
   Brain,
   Target,
-  Star,
   ChevronRight,
   Sparkles,
   LineChart,
@@ -76,23 +72,6 @@ export default function LandingPage() {
     },
   ];
 
-  const testimonials = [
-    {
-      quote: "Finally, a dynasty tool that actually understands my league's scoring. The trade calculator saved me from a terrible deal.",
-      author: "Dynasty Champion",
-      league: "12-team SF",
-    },
-    {
-      quote: "The personalized waiver recommendations helped me find a league winner on the wire. Fit scores are a game-changer.",
-      author: "3x Playoff Qualifier",
-      league: "10-team PPR",
-    },
-    {
-      quote: "I love seeing my career stats across all my leagues. The rivalry records add so much trash talk fuel.",
-      author: "Multi-League Manager",
-      league: "5 Active Leagues",
-    },
-  ];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -145,7 +124,7 @@ export default function LandingPage() {
                 </span>
               </h1>
               
-              <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+              <p className="text-lg md:text-xl text-foreground/90 mb-8 max-w-2xl mx-auto">
                 Stop guessing on trades and waivers. DT Sleeper Agent analyzes your roster, 
                 identifies weaknesses, and delivers personalized recommendations to build 
                 your championship team.
@@ -163,7 +142,7 @@ export default function LandingPage() {
                 </Button>
               </div>
               
-              <div className="flex flex-wrap items-center justify-center gap-6 mt-8 text-sm text-muted-foreground" data-testid="section-benefits">
+              <div className="flex flex-wrap items-center justify-center gap-6 mt-8 text-sm text-[hsl(var(--accent))]/80" data-testid="section-benefits">
                 {benefits.map((benefit, index) => (
                   <div key={index} className="flex items-center gap-2 flex-wrap" data-testid={`text-benefit-${index}`}>
                     <benefit.icon className="h-4 w-4 text-[hsl(var(--accent))]" />
@@ -175,32 +154,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Social Proof */}
-        <section className="py-12 border-y border-border bg-card/30" data-testid="section-social-proof">
-          <div className="container mx-auto px-4">
-            <div className="flex flex-wrap items-center justify-center gap-8 text-center">
-              <div data-testid="stat-users">
-                <div className="text-3xl font-bold text-[hsl(var(--accent))]">1000+</div>
-                <div className="text-sm text-muted-foreground">Active Users</div>
-              </div>
-              <div className="h-8 w-px bg-border hidden sm:block" />
-              <div data-testid="stat-trades">
-                <div className="text-3xl font-bold text-[hsl(var(--accent))]">50K+</div>
-                <div className="text-sm text-muted-foreground">Trades Analyzed</div>
-              </div>
-              <div className="h-8 w-px bg-border hidden sm:block" />
-              <div data-testid="stat-realtime">
-                <div className="text-3xl font-bold text-[hsl(var(--accent))]">24/7</div>
-                <div className="text-sm text-muted-foreground">Real-Time Updates</div>
-              </div>
-              <div className="h-8 w-px bg-border hidden sm:block" />
-              <div data-testid="stat-price">
-                <div className="text-3xl font-bold text-[hsl(var(--accent))]">$3.99</div>
-                <div className="text-sm text-muted-foreground">Per Week</div>
-              </div>
-            </div>
-          </div>
-        </section>
 
         {/* Features Section */}
         <section className="py-20">
@@ -210,7 +163,7 @@ export default function LandingPage() {
                 Everything You Need to{" "}
                 <span className="text-[hsl(var(--accent))]">Dominate</span>
               </h2>
-              <p className="text-muted-foreground max-w-2xl mx-auto">
+              <p className="text-foreground/90 max-w-2xl mx-auto">
                 Built by dynasty players, for dynasty players. Every feature designed to give you 
                 an edge over your competition.
               </p>
@@ -220,14 +173,14 @@ export default function LandingPage() {
               {features.map((feature, index) => (
                 <Card
                   key={index}
-                  className="p-6 hover-elevate border-border/50"
+                  className="p-6 hover-elevate border-[hsl(var(--accent))]/30"
                   data-testid={`card-feature-${index}`}
                 >
                   <div className="w-12 h-12 rounded-lg bg-[hsl(var(--accent))]/10 flex items-center justify-center mb-4">
                     <feature.icon className="h-6 w-6 text-[hsl(var(--accent))]" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">
+                  <h3 className="text-lg font-semibold mb-2 text-[hsl(var(--accent))]">{feature.title}</h3>
+                  <p className="text-foreground/90 text-sm leading-relaxed">
                     {feature.description}
                   </p>
                 </Card>
@@ -269,8 +222,8 @@ export default function LandingPage() {
                     <div className="w-14 h-14 rounded-full bg-[hsl(var(--accent))]/10 border-2 border-[hsl(var(--accent))]/30 flex items-center justify-center mx-auto mb-4">
                       <span className="text-xl font-bold text-[hsl(var(--accent))]">{item.step}</span>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
-                    <p className="text-muted-foreground text-sm">{item.description}</p>
+                    <h3 className="text-lg font-semibold mb-2 text-[hsl(var(--accent))]">{item.title}</h3>
+                    <p className="text-foreground/90 text-sm">{item.description}</p>
                     
                     {index < 2 && (
                       <ChevronRight className="hidden md:block absolute top-7 -right-4 h-6 w-6 text-[hsl(var(--accent))]/50" />
@@ -282,38 +235,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Testimonials */}
-        <section className="py-20">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                What League Managers{" "}
-                <span className="text-[hsl(var(--accent))]">Are Saying</span>
-              </h2>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-              {testimonials.map((testimonial, index) => (
-                <Card 
-                  key={index} 
-                  className="p-6 border-border/50"
-                  data-testid={`card-testimonial-${index}`}
-                >
-                  <div className="flex gap-1 mb-4 flex-wrap">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-[hsl(var(--accent))] text-[hsl(var(--accent))]" />
-                    ))}
-                  </div>
-                  <p className="text-foreground mb-4 italic">"{testimonial.quote}"</p>
-                  <div className="text-sm">
-                    <div className="font-semibold">{testimonial.author}</div>
-                    <div className="text-muted-foreground">{testimonial.league}</div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </section>
 
         {/* Feature Highlights */}
         <section className="py-20 bg-card/50">
@@ -324,7 +245,7 @@ export default function LandingPage() {
                   Dynasty Values You Can{" "}
                   <span className="text-[hsl(var(--accent))]">Trust</span>
                 </h2>
-                <p className="text-muted-foreground mb-6">
+                <p className="text-foreground/90 mb-6">
                   Our custom dynasty value engine goes beyond simple rankings. We factor in:
                 </p>
                 <ul className="space-y-4">
@@ -352,37 +273,37 @@ export default function LandingPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-4 p-4 rounded-lg bg-background/50 flex-wrap">
                       <div className="flex items-center gap-3 flex-wrap">
-                        <div className="w-10 h-10 rounded-full bg-[hsl(var(--accent))]/10 flex items-center justify-center text-sm font-bold">JJ</div>
+                        <div className="w-10 h-10 rounded-full bg-[hsl(var(--accent))]/10 flex items-center justify-center text-sm font-bold text-[hsl(var(--accent))]">JJ</div>
                         <div>
-                          <div className="font-semibold">Ja'Marr Chase</div>
-                          <div className="text-xs text-muted-foreground">WR - CIN</div>
+                          <div className="font-semibold text-foreground">Ja'Marr Chase</div>
+                          <div className="text-xs text-[hsl(var(--accent))]/70">WR - CIN</div>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="text-2xl font-bold text-[hsl(var(--accent))]">98.5</div>
-                        <div className="text-xs text-muted-foreground">Dynasty Value</div>
+                        <div className="text-xs text-[hsl(var(--accent))]/60">Dynasty Value</div>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-3 gap-2 text-center text-xs">
                       <div className="p-2 rounded bg-background/50">
                         <div className="font-semibold text-[hsl(var(--accent))]">24</div>
-                        <div className="text-muted-foreground">Age</div>
+                        <div className="text-[hsl(var(--accent))]/60">Age</div>
                       </div>
                       <div className="p-2 rounded bg-background/50">
                         <div className="font-semibold text-[hsl(var(--accent))]">95%</div>
-                        <div className="text-muted-foreground">Snap Share</div>
+                        <div className="text-[hsl(var(--accent))]/60">Snap Share</div>
                       </div>
                       <div className="p-2 rounded bg-background/50">
                         <div className="font-semibold text-[hsl(var(--accent))]">22.4</div>
-                        <div className="text-muted-foreground">PPG</div>
+                        <div className="text-[hsl(var(--accent))]/60">PPG</div>
                       </div>
                     </div>
                     
                     <div className="p-4 rounded-lg bg-[hsl(var(--accent))]/5 border border-[hsl(var(--accent))]/20">
                       <div className="flex items-start gap-2 flex-wrap">
                         <Brain className="h-4 w-4 text-[hsl(var(--accent))] mt-0.5 flex-shrink-0" />
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-[hsl(var(--accent))]/80">
                           Elite WR1 in prime years. Top 3 snap share with elite efficiency. 
                           Hold as cornerstone asset or sell for 3+ premium picks.
                         </p>
@@ -403,8 +324,8 @@ export default function LandingPage() {
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               Ready to Dominate Your League?
             </h2>
-            <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-              Join thousands of dynasty managers using AI to gain an edge. 
+            <p className="text-foreground/90 mb-8 max-w-xl mx-auto">
+              Start using AI to gain an edge in your dynasty leagues. 
               Your championship run starts here.
             </p>
             <Button
@@ -416,25 +337,25 @@ export default function LandingPage() {
               Get Started
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            <p className="text-xs text-muted-foreground mt-4">
-              Free basic features. Premium unlocks full AI-powered tools.
+            <p className="text-xs text-[hsl(var(--accent))]/80 mt-4">
+              Free basic features • Premium at $3.99/week unlocks full AI tools
             </p>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-border py-8">
+      <footer className="border-t border-[hsl(var(--accent))]/20 py-8">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Logo size="sm" showText={false} />
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-[hsl(var(--accent))]/80">
                 &copy; {new Date().getFullYear()} DT Sleeper Agent
               </span>
             </div>
-            <div className="text-sm text-muted-foreground text-center md:text-right">
+            <div className="text-sm text-[hsl(var(--accent))]/80 text-center md:text-right">
               <p>Built for dynasty players, by dynasty players.</p>
-              <p className="text-xs mt-1">
+              <p className="text-xs mt-1 text-[hsl(var(--accent))]/60">
                 Not affiliated with Sleeper. Uses public Sleeper API.
               </p>
             </div>

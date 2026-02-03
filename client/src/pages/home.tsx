@@ -457,127 +457,141 @@ export default function HomePage() {
           </CardHeader>
           <CardContent>
             {careerData?.leagueStats && careerData.leagueStats.length > 0 ? (
-              <div className="space-y-2">
-                {/* Table header */}
-                <div className="hidden sm:grid sm:grid-cols-[1fr_80px_80px_100px_60px] gap-2 px-3 py-2 text-xs text-muted-foreground font-medium border-b">
-                  <div>League</div>
-                  <div className="text-center">Record</div>
-                  <div className="text-center">Place</div>
-                  <div className="text-center">Status</div>
-                  <div className="text-center">Move</div>
-                </div>
-                {careerData.leagueStats.map((league, idx) => {
-                  const isCurrentSeason = league.season === new Date().getFullYear().toString();
+              (() => {
+                // Filter to only show current year (2026)
+                const currentYear = new Date().getFullYear().toString();
+                const currentYearLeagues = careerData.leagueStats.filter(league => league.season === currentYear);
+                
+                if (currentYearLeagues.length === 0) {
                   return (
-                    <div 
-                      key={`${league.leagueId}-${league.season}`} 
-                      className="grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_100px_60px] gap-2 items-center p-3 rounded-lg bg-muted/50"
-                      data-testid={`league-row-${idx}`}
-                    >
-                      {/* League name & season */}
-                      <div className="flex items-center gap-2 min-w-0">
-                        {league.isChampion && <Crown className="h-4 w-4 shrink-0 text-yellow-500" />}
-                        {league.isRunnerUp && <Medal className="h-4 w-4 shrink-0 text-gray-400" />}
-                        <div className="min-w-0">
-                          <p className="font-medium truncate text-sm" data-testid={`league-name-${idx}`}>
-                            {league.leagueName}
-                          </p>
-                          <p className="text-xs text-muted-foreground" data-testid={`league-season-${idx}`}>
-                            {league.season} {isCurrentSeason && <span className="opacity-80">(Current)</span>}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {/* Record */}
-                      <div className="flex sm:justify-center">
-                        <Badge variant="outline" className="text-xs" data-testid={`league-record-${idx}`}>
-                          {league.wins}-{league.losses}{league.ties ? `-${league.ties}` : ""}
-                        </Badge>
-                      </div>
-                      
-                      {/* Place */}
-                      <div className="flex sm:justify-center">
-                        <Badge variant="secondary" className="text-xs" data-testid={`league-rank-${idx}`}>
-                          #{league.rank}/{league.totalTeams}
-                        </Badge>
-                      </div>
-                      
-                      {/* Status badges */}
-                      <div className="flex sm:justify-center gap-1">
-                        {league.isChampion ? (
-                          <Badge className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
-                            Champ
-                          </Badge>
-                        ) : league.isRunnerUp ? (
-                          <Badge variant="outline" className="text-xs">
-                            2nd
-                          </Badge>
-                        ) : league.isPlayoffs ? (
-                          <Badge variant="outline" className="text-xs text-green-400 border-green-500/50">
-                            Playoffs
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">--</span>
-                        )}
-                      </div>
-                      
-                      {/* Movement indicator */}
-                      <div className="flex sm:justify-center" data-testid={`league-movement-${idx}`}>
-                        <MovementIndicator 
-                          rank={league.rank} 
-                          prevRank={league.prevRank}
-                          isCurrentSeason={isCurrentSeason}
-                        />
-                      </div>
+                    <div className="text-center py-6">
+                      <p className="text-[hsl(var(--accent))]">No active leagues for {currentYear}</p>
                     </div>
                   );
-                })}
-              </div>
-            ) : leagues && leagues.length > 0 ? (
-              <div className="space-y-2">
-                {/* Table header */}
-                <div className="hidden sm:grid sm:grid-cols-[1fr_80px_80px_100px_60px] gap-2 px-3 py-2 text-xs text-muted-foreground font-medium border-b">
-                  <div>League</div>
-                  <div className="text-center">Record</div>
-                  <div className="text-center">Place</div>
-                  <div className="text-center">Status</div>
-                  <div className="text-center">Move</div>
-                </div>
-                {leagues.map((league: any, idx: number) => (
-                  <div 
-                    key={league.league_id} 
-                    className="grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_100px_60px] gap-2 items-center p-3 rounded-lg bg-muted/50"
-                    data-testid={`league-row-${idx}`}
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium truncate text-sm" data-testid={`league-name-${idx}`}>
-                        {league.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground" data-testid={`league-season-${idx}`}>
-                        {league.season} Season
-                      </p>
+                }
+                
+                return (
+                  <div className="space-y-1">
+                    {/* Table header - horizontal compact */}
+                    <div className="hidden sm:grid sm:grid-cols-[1fr_70px_70px_80px_50px] gap-1 px-2 py-1 text-xs text-[hsl(var(--accent))]/80 font-medium border-b border-[hsl(var(--accent))]/20">
+                      <div>League</div>
+                      <div className="text-center">Record</div>
+                      <div className="text-center">Place</div>
+                      <div className="text-center">Status</div>
+                      <div className="text-center">Move</div>
                     </div>
-                    <div className="flex sm:justify-center">
-                      <Badge variant="outline" className="text-xs">--</Badge>
-                    </div>
-                    <div className="flex sm:justify-center">
-                      <Badge variant="secondary" className="text-xs" data-testid={`league-teams-${idx}`}>
-                        {league.total_rosters} Teams
-                      </Badge>
-                    </div>
-                    <div className="flex sm:justify-center">
-                      <span className="text-xs text-muted-foreground">--</span>
-                    </div>
-                    <div className="flex sm:justify-center">
-                      <span className="text-xs text-muted-foreground">--</span>
-                    </div>
+                    {currentYearLeagues.map((league, idx) => (
+                      <div 
+                        key={`${league.leagueId}-${league.season}`} 
+                        className="grid grid-cols-[1fr_70px_70px_80px_50px] gap-1 items-center px-2 py-1.5 rounded bg-muted/30"
+                        data-testid={`league-row-${idx}`}
+                      >
+                        {/* League name - horizontal */}
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {league.isChampion && <Crown className="h-3.5 w-3.5 shrink-0 text-yellow-500" />}
+                          {league.isRunnerUp && <Medal className="h-3.5 w-3.5 shrink-0 text-gray-400" />}
+                          <p className="font-medium truncate text-sm text-[hsl(var(--accent))]" data-testid={`league-name-${idx}`}>
+                            {league.leagueName}
+                          </p>
+                        </div>
+                        
+                        {/* Record */}
+                        <div className="flex justify-center">
+                          <span className="text-xs font-medium text-foreground" data-testid={`league-record-${idx}`}>
+                            {league.wins}-{league.losses}{league.ties ? `-${league.ties}` : ""}
+                          </span>
+                        </div>
+                        
+                        {/* Place */}
+                        <div className="flex justify-center">
+                          <span className="text-xs font-medium text-foreground" data-testid={`league-rank-${idx}`}>
+                            #{league.rank}/{league.totalTeams}
+                          </span>
+                        </div>
+                        
+                        {/* Status badges */}
+                        <div className="flex justify-center flex-wrap">
+                          {league.isChampion ? (
+                            <Badge variant="outline" className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
+                              Champ
+                            </Badge>
+                          ) : league.isRunnerUp ? (
+                            <span className="text-xs text-[hsl(var(--accent))]">2nd</span>
+                          ) : league.isPlayoffs ? (
+                            <span className="text-xs text-green-400">Playoffs</span>
+                          ) : (
+                            <span className="text-xs text-[hsl(var(--accent))]/60">--</span>
+                          )}
+                        </div>
+                        
+                        {/* Movement indicator */}
+                        <div className="flex justify-center" data-testid={`league-movement-${idx}`}>
+                          <MovementIndicator 
+                            rank={league.rank} 
+                            prevRank={league.prevRank}
+                            isCurrentSeason={true}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                );
+              })()
+            ) : leagues && leagues.length > 0 ? (
+              (() => {
+                const currentYear = new Date().getFullYear().toString();
+                const currentYearLeagues = leagues.filter((l: any) => l.season === currentYear);
+                
+                if (currentYearLeagues.length === 0) {
+                  return (
+                    <div className="text-center py-6">
+                      <p className="text-[hsl(var(--accent))]">No active leagues for {currentYear}</p>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <div className="space-y-1">
+                    {/* Table header - horizontal compact */}
+                    <div className="hidden sm:grid sm:grid-cols-[1fr_70px_70px_80px_50px] gap-1 px-2 py-1 text-xs text-[hsl(var(--accent))]/80 font-medium border-b border-[hsl(var(--accent))]/20">
+                      <div>League</div>
+                      <div className="text-center">Record</div>
+                      <div className="text-center">Teams</div>
+                      <div className="text-center">Status</div>
+                      <div className="text-center">Move</div>
+                    </div>
+                    {currentYearLeagues.map((league: any, idx: number) => (
+                      <div 
+                        key={league.league_id} 
+                        className="grid grid-cols-[1fr_70px_70px_80px_50px] gap-1 items-center px-2 py-1.5 rounded bg-muted/30"
+                        data-testid={`league-row-${idx}`}
+                      >
+                        <p className="font-medium truncate text-sm text-[hsl(var(--accent))]" data-testid={`league-name-${idx}`}>
+                          {league.name}
+                        </p>
+                        <div className="flex justify-center">
+                          <span className="text-xs text-foreground">--</span>
+                        </div>
+                        <div className="flex justify-center">
+                          <span className="text-xs text-foreground" data-testid={`league-teams-${idx}`}>
+                            {league.total_rosters}
+                          </span>
+                        </div>
+                        <div className="flex justify-center">
+                          <span className="text-xs text-[hsl(var(--accent))]/60">--</span>
+                        </div>
+                        <div className="flex justify-center">
+                          <span className="text-xs text-[hsl(var(--accent))]/60">--</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
             ) : (
               <div className="text-center py-8">
-                <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground" data-testid="text-no-leagues">
+                <Users className="h-12 w-12 mx-auto text-[hsl(var(--accent))]/50 mb-4" />
+                <p className="text-[hsl(var(--accent))]" data-testid="text-no-leagues">
                   No leagues connected. Connect your Sleeper account to get started.
                 </p>
               </div>
