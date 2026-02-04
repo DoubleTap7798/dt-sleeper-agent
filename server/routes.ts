@@ -6207,8 +6207,20 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       }
 
       const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
-      const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
-      const leagueSize = rosters.length;
+      const userRoster = rosters?.find(r => r.owner_id === userProfile.sleeperUserId);
+      const leagueSize = rosters?.length || 0;
+
+      if (!rosters || rosters.length === 0) {
+        return res.json({
+          rosterStrength: { QB: 0, RB: 0, WR: 0, TE: 0 },
+          positionRanks: { QB: { rank: 0, total: 0 }, RB: { rank: 0, total: 0 }, WR: { rank: 0, total: 0 }, TE: { rank: 0, total: 0 } },
+          teamProfile: "balanced",
+          biggestNeed: null,
+          recommendations: [],
+          weeklyBlurb: "Rosters not yet available for this season. Check back when the season starts!",
+          playerCount: 0,
+        });
+      }
 
       if (!userRoster) {
         return res.json({
@@ -6217,7 +6229,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           teamProfile: "balanced",
           biggestNeed: null,
           recommendations: [],
-          weeklyBlurb: "Connect your roster to get personalized insights.",
+          weeklyBlurb: "Unable to find your roster in this league.",
           playerCount: 0,
         });
       }

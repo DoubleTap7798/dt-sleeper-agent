@@ -667,32 +667,40 @@ export default function HomePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {dashboardData ? (
-              <>
-                <StrengthBar 
-                  position="QB" 
-                  value={dashboardData.rosterStrength.QB} 
-                  rank={dashboardData.positionRanks.QB?.rank || 0}
-                  total={dashboardData.positionRanks.QB?.total || 0}
-                />
-                <StrengthBar 
-                  position="RB" 
-                  value={dashboardData.rosterStrength.RB} 
-                  rank={dashboardData.positionRanks.RB?.rank || 0}
-                  total={dashboardData.positionRanks.RB?.total || 0}
-                />
-                <StrengthBar 
-                  position="WR" 
-                  value={dashboardData.rosterStrength.WR} 
-                  rank={dashboardData.positionRanks.WR?.rank || 0}
-                  total={dashboardData.positionRanks.WR?.total || 0}
-                />
-                <StrengthBar 
-                  position="TE" 
-                  value={dashboardData.rosterStrength.TE} 
-                  rank={dashboardData.positionRanks.TE?.rank || 0}
-                  total={dashboardData.positionRanks.TE?.total || 0}
-                />
-              </>
+              dashboardData.playerCount === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Rosters not yet available for this season</p>
+                  <p className="text-xs mt-1">Check back when the season starts</p>
+                </div>
+              ) : (
+                <>
+                  <StrengthBar 
+                    position="QB" 
+                    value={dashboardData.rosterStrength.QB} 
+                    rank={dashboardData.positionRanks.QB?.rank || 0}
+                    total={dashboardData.positionRanks.QB?.total || 0}
+                  />
+                  <StrengthBar 
+                    position="RB" 
+                    value={dashboardData.rosterStrength.RB} 
+                    rank={dashboardData.positionRanks.RB?.rank || 0}
+                    total={dashboardData.positionRanks.RB?.total || 0}
+                  />
+                  <StrengthBar 
+                    position="WR" 
+                    value={dashboardData.rosterStrength.WR} 
+                    rank={dashboardData.positionRanks.WR?.rank || 0}
+                    total={dashboardData.positionRanks.WR?.total || 0}
+                  />
+                  <StrengthBar 
+                    position="TE" 
+                    value={dashboardData.rosterStrength.TE} 
+                    rank={dashboardData.positionRanks.TE?.rank || 0}
+                    total={dashboardData.positionRanks.TE?.total || 0}
+                  />
+                </>
+              )
             ) : (
               <div className="space-y-4">
                 {["QB", "RB", "WR", "TE"].map(pos => (
