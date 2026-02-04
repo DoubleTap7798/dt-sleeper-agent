@@ -140,11 +140,11 @@ function StrengthBar({ position, value, rank, total, onClick }: { position: stri
     TE: "shadow-yellow-500/50",
   };
 
-  const positionBgColors: Record<string, string> = {
-    QB: "bg-red-500",
-    RB: "bg-green-500",
-    WR: "bg-blue-500",
-    TE: "bg-yellow-500",
+  const positionBorderColors: Record<string, string> = {
+    QB: "border-red-500 text-red-400",
+    RB: "border-green-500 text-green-400",
+    WR: "border-blue-500 text-blue-400",
+    TE: "border-yellow-500 text-yellow-400",
   };
 
   return (
@@ -154,7 +154,7 @@ function StrengthBar({ position, value, rank, total, onClick }: { position: stri
       data-testid={`strength-bar-${position}`}
     >
       <div className="flex items-center justify-between text-sm">
-        <span className={`font-medium px-2 py-0.5 rounded text-white ${positionBgColors[position]}`}>{position}</span>
+        <span className={`font-medium px-2 py-0.5 rounded border bg-transparent ${positionBorderColors[position]}`}>{position}</span>
         <span className="text-muted-foreground">#{rank} of {total}</span>
       </div>
       <div className="h-3 bg-muted rounded-full overflow-hidden">
