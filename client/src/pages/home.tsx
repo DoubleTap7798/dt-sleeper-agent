@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { Link } from "wouter";
@@ -9,10 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { 
   Trophy, Users, TrendingUp, Calendar, Target, Crown, Medal, Activity, 
   ArrowRightLeft, UserPlus, RefreshCw, Zap, AlertTriangle, ChevronRight,
-  ArrowUpRight, ArrowUp, ArrowDown, Minus, Rocket, Shield, Hourglass, HelpCircle, Lightbulb
+  ArrowUpRight, ArrowUp, ArrowDown, Minus, Rocket, Shield, Hourglass, HelpCircle, Lightbulb, X
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -106,8 +108,24 @@ interface TradeIdea {
   fairnessScore: number;
 }
 
-// Strength bar component with glow effect
-function StrengthBar({ position, value, rank, total }: { position: string; value: number; rank: number; total: number }) {
+interface RosterPlayer {
+  playerId: string;
+  name: string;
+  position: string;
+  team: string;
+  age: number;
+  dynastyValue: number;
+  injuryStatus: string | null;
+}
+
+interface RosterResponse {
+  players: RosterPlayer[];
+  teamName: string;
+  totalValue: number;
+}
+
+// Strength bar component with glow effect - clickable to show players
+function StrengthBar({ position, value, rank, total, onClick }: { position: string; value: number; rank: number; total: number; onClick?: () => void }) {
   const positionColors: Record<string, string> = {
     QB: "from-red-500 to-red-600",
     RB: "from-green-500 to-green-600",
@@ -122,18 +140,22 @@ function StrengthBar({ position, value, rank, total }: { position: string; value
     TE: "shadow-yellow-500/50",
   };
 
+  const positionBgColors: Record<string, string> = {
+    QB: "bg-red-500",
+    RB: "bg-green-500",
+    WR: "bg-blue-500",
+    TE: "bg-yellow-500",
+  };
+
   return (
-    <div className="space-y-1">
+    <div 
+      className="space-y-1 cursor-pointer hover-elevate rounded-lg p-2 -mx-2 transition-colors" 
+      onClick={onClick}
+      data-testid={`strength-bar-${position}`}
+    >
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">{position}</span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="text-muted-foreground cursor-help">#{rank} of {total}</span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Your {position} room ranks #{rank} out of {total} teams in dynasty value</p>
-          </TooltipContent>
-        </Tooltip>
+        <span className={`font-medium px-2 py-0.5 rounded text-white ${positionBgColors[position]}`}>{position}</span>
+        <span className="text-muted-foreground">#{rank} of {total}</span>
       </div>
       <div className="h-3 bg-muted rounded-full overflow-hidden">
         <div 
@@ -270,6 +292,9 @@ export default function HomePage() {
   const leagueIdFromUrl = urlParams.get("id");
   
   const isAllLeagues = !leagueIdFromUrl || leagueIdFromUrl === "all";
+  
+  // State for position player modal (must be at top level before any returns)
+  const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
 
   const { data: leagues = [] } = useQuery<SleeperLeague[]>({
     queryKey: ["/api/sleeper/leagues"],
@@ -322,6 +347,19 @@ export default function HomePage() {
     },
     enabled: !!leagueIdFromUrl && leagueIdFromUrl !== "all",
     staleTime: 60000,
+  });
+
+  // Fetch roster data for position player modal
+  const { data: rosterData, isLoading: rosterLoading } = useQuery<RosterResponse>({
+    queryKey: ["/api/fantasy/roster", leagueIdFromUrl],
+    queryFn: async () => {
+      const res = await fetch(`/api/fantasy/roster?leagueId=${leagueIdFromUrl}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch roster");
+      return res.json();
+    },
+    enabled: !!leagueIdFromUrl && leagueIdFromUrl !== "all",
   });
 
   const queryClient = useQueryClient();
@@ -603,7 +641,18 @@ export default function HomePage() {
   }
 
   // SINGLE LEAGUE VIEW - Action-First Dashboard
-  const recentActivity = notificationsData?.notifications?.slice(0, 5) || [];
+  // Deduplicate recent activity by transactionId to avoid showing same transaction twice
+  // Use id as fallback if transactionId is missing
+  const recentActivity = (() => {
+    const notifications = notificationsData?.notifications || [];
+    const seen = new Set<string>();
+    return notifications.filter(n => {
+      const key = n.transactionId || n.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 5);
+  })();
 
   return (
     <div className="space-y-6">
@@ -675,29 +724,34 @@ export default function HomePage() {
                 </div>
               ) : (
                 <>
+                  <p className="text-xs text-muted-foreground mb-2">Tap a position to see your players</p>
                   <StrengthBar 
                     position="QB" 
                     value={dashboardData.rosterStrength.QB} 
                     rank={dashboardData.positionRanks.QB?.rank || 0}
                     total={dashboardData.positionRanks.QB?.total || 0}
+                    onClick={() => setSelectedPosition("QB")}
                   />
                   <StrengthBar 
                     position="RB" 
                     value={dashboardData.rosterStrength.RB} 
                     rank={dashboardData.positionRanks.RB?.rank || 0}
                     total={dashboardData.positionRanks.RB?.total || 0}
+                    onClick={() => setSelectedPosition("RB")}
                   />
                   <StrengthBar 
                     position="WR" 
                     value={dashboardData.rosterStrength.WR} 
                     rank={dashboardData.positionRanks.WR?.rank || 0}
                     total={dashboardData.positionRanks.WR?.total || 0}
+                    onClick={() => setSelectedPosition("WR")}
                   />
                   <StrengthBar 
                     position="TE" 
                     value={dashboardData.rosterStrength.TE} 
                     rank={dashboardData.positionRanks.TE?.rank || 0}
                     total={dashboardData.positionRanks.TE?.total || 0}
+                    onClick={() => setSelectedPosition("TE")}
                   />
                 </>
               )
@@ -1005,6 +1059,66 @@ export default function HomePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Position Players Modal */}
+      <Dialog open={!!selectedPosition} onOpenChange={(open) => !open && setSelectedPosition(null)}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className={`px-2 py-0.5 rounded text-white text-sm ${
+                selectedPosition === "QB" ? "bg-red-500" :
+                selectedPosition === "RB" ? "bg-green-500" :
+                selectedPosition === "WR" ? "bg-blue-500" :
+                "bg-yellow-500"
+              }`}>
+                {selectedPosition}
+              </span>
+              <span>Players</span>
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              List of your {selectedPosition} players sorted by dynasty value
+            </DialogDescription>
+          </DialogHeader>
+          
+          {rosterLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => <Skeleton key={i} className="h-12" />)}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {rosterData?.players
+                ?.filter(p => p.position === selectedPosition)
+                .sort((a, b) => b.dynastyValue - a.dynastyValue)
+                .map((player, idx) => (
+                  <div 
+                    key={player.playerId} 
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                    data-testid={`modal-player-${idx}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-muted-foreground text-sm w-5">{idx + 1}.</span>
+                      <div>
+                        <p className="font-medium text-sm">{player.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {player.team} • Age {player.age}
+                          {player.injuryStatus && <span className="ml-1 text-yellow-500">({player.injuryStatus})</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {player.dynastyValue.toFixed(0)} DV
+                    </Badge>
+                  </div>
+                ))}
+              {rosterData?.players?.filter(p => p.position === selectedPosition).length === 0 && (
+                <p className="text-center py-6 text-muted-foreground">
+                  No {selectedPosition} players on your roster
+                </p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
