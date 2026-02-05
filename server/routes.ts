@@ -2340,6 +2340,66 @@ Return ONLY valid JSON, no other text.`;
     }
   });
 
+  // Get multi-source devy players with consensus rankings
+  app.get("/api/sleeper/devy/multi-source", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const devyDataSources = await import('./devy-data-sources');
+      const players = await devyDataSources.getMultiSourceDevyPlayers();
+      
+      res.json({
+        players,
+        sources: await devyDataSources.getDataSourceStatus(),
+        lastUpdated: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching multi-source devy players:", error);
+      res.status(500).json({ message: "Failed to fetch multi-source devy data" });
+    }
+  });
+
+  // Get data source status for devy rankings
+  app.get("/api/sleeper/devy/sources", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const devyDataSources = await import('./devy-data-sources');
+      const sources = await devyDataSources.getDataSourceStatus();
+      
+      res.json({ sources });
+    } catch (error) {
+      console.error("Error fetching data source status:", error);
+      res.status(500).json({ message: "Failed to fetch data source status" });
+    }
+  });
+
+  // Refresh all devy data sources
+  app.post("/api/sleeper/devy/refresh-sources", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const devyDataSources = await import('./devy-data-sources');
+      const result = await devyDataSources.refreshAllSources();
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error refreshing data sources:", error);
+      res.status(500).json({ message: "Failed to refresh data sources" });
+    }
+  });
+
+  // Get Dynasty Process NFL player values (for trade calculator enhancement)
+  app.get("/api/sleeper/dynasty-process/values", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const devyDataSources = await import('./devy-data-sources');
+      const values = await devyDataSources.getDynastyProcessNFLValues();
+      
+      res.json({
+        players: values,
+        count: values.length,
+        fetchedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching Dynasty Process values:", error);
+      res.status(500).json({ message: "Failed to fetch Dynasty Process values" });
+    }
+  });
+
   // Helper function to format game log stats based on position
   function formatGameLogStats(stats: Record<string, any>, position: string): string {
     const parts: string[] = [];

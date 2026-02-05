@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CACHE_TIMES } from "@/lib/queryClient";
+import { CACHE_TIMES, apiRequest, queryClient } from "@/lib/queryClient";
 import { abbreviateName, getPositionColorClass } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight, Sparkles, Target, Zap, AlertTriangle } from "lucide-react";
+import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight, Sparkles, Target, Zap, AlertTriangle, Database, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DevyProfileModal } from "@/components/devy-profile-modal";
+import { useMutation } from "@tanstack/react-query";
+
+interface DataSourceStatus {
+  sourceId: string;
+  sourceName: string;
+  lastUpdated: string;
+  playerCount: number;
+  status: 'active' | 'stale' | 'error';
+}
 
 interface DevyComp {
   name: string;
@@ -79,10 +88,26 @@ export default function DevyPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedPlayer, setSelectedPlayer] = useState<DevyPlayer | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [showSources, setShowSources] = useState(false);
 
   const { data, isLoading, error } = useQuery<DevyData>({
     queryKey: ["/api/sleeper/devy"],
     ...CACHE_TIMES.STABLE,
+  });
+
+  const { data: sourcesData } = useQuery<{ sources: DataSourceStatus[] }>({
+    queryKey: ["/api/sleeper/devy/sources"],
+    ...CACHE_TIMES.STABLE,
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", "/api/sleeper/devy/refresh-sources");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sleeper/devy"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sleeper/devy/sources"] });
+    },
   });
 
   if (isLoading) {
@@ -216,12 +241,86 @@ export default function DevyPage() {
             </CardTitle>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Click a player for details</span>
-              <Badge variant="outline" data-testid="badge-source">
-                Source: DT Dynasty
-              </Badge>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setShowSources(!showSources)}
+                    data-testid="button-toggle-sources"
+                  >
+                    <Database className="h-3.5 w-3.5" />
+                    <span>{sourcesData?.sources?.length || 1} Sources</span>
+                    {sourcesData?.sources?.every(s => s.status === 'active') ? (
+                      <CheckCircle className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <AlertCircle className="h-3 w-3 text-yellow-500" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Click to view data sources</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </CardHeader>
+        
+        {showSources && sourcesData?.sources && (
+          <div className="border-b px-6 py-4 bg-muted/30" data-testid="panel-data-sources">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                Data Sources
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refreshMutation.mutate()}
+                disabled={refreshMutation.isPending}
+                className="gap-1.5"
+                data-testid="button-refresh-sources"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {sourcesData.sources.map((source) => (
+                <div
+                  key={source.sourceId}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-background"
+                  data-testid={`source-${source.sourceId}`}
+                >
+                  <div className="flex items-center gap-2">
+                    {source.status === 'active' ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : source.status === 'stale' ? (
+                      <AlertCircle className="h-4 w-4 text-yellow-500" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-red-500" />
+                    )}
+                    <div>
+                      <p className="font-medium text-sm">{source.sourceName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {source.playerCount} players • Updated {source.lastUpdated}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={source.status === 'active' ? 'default' : 'secondary'} className="capitalize">
+                    {source.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Rankings are aggregated from multiple sources for more accurate consensus values. 
+              Data is refreshed automatically from external sources when available.
+            </p>
+          </div>
+        )}
+
         <CardContent className="p-0">
           {/* Desktop Table View */}
           <div className="hidden md:block overflow-x-auto">
