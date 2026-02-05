@@ -315,8 +315,8 @@ export default function DevyPage() {
               ))}
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Rankings are aggregated from multiple sources for more accurate consensus values. 
-              Data is refreshed automatically from external sources when available.
+              Devy rankings are curated by DT Dynasty with values, tiers, draft projections, and player comparisons. 
+              Dynasty Process provides NFL player values for the trade calculator (not college prospects).
             </p>
           </div>
         )}

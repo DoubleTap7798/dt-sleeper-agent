@@ -166,13 +166,16 @@ function findHotTake(sources: MultiSourceDevyPlayer['sources'], consensusRank: n
   let biggestDiff = 0;
   let hotTake: MultiSourceDevyPlayer['hotTake'] = undefined;
 
+  const sourceLabels: Record<string, string> = {
+    dtDynasty: 'DT Dynasty'
+  };
+
   for (const [source, data] of sourceEntries) {
     const diff = Math.abs(data.rank - consensusRank);
     if (diff > biggestDiff && diff >= 5) {
       biggestDiff = diff;
       hotTake = {
-        source: source === 'ktc' ? 'KeepTradeCut' : 
-                source === 'dynastyProcess' ? 'Dynasty Process' : 'FantasyPros',
+        source: sourceLabels[source] || source,
         direction: data.rank < consensusRank ? 'higher' : 'lower',
         difference: diff
       };

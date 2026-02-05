@@ -62,6 +62,10 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **`useSelectedLeague` Hook**: Centralized league selection state management.
 - **Dynasty Value Engine**: Custom algorithm calculating player values (0-100 scale) based on multi-year VOR, age, role security, injury risk, production ceiling, volatility, draft capital, team context, scarcity bonus, and market calibration.
 - **Consolidation Premium**: Trade calculator applies a star player premium (similar to KTC's "Value Adjustment") when trading fewer, higher-value assets for multiple pieces. Elite players (93+) receive ~35-42% boost, scaling down for lower tiers. Premium considers piece differential and value concentration.
+- **Multi-Source Data Architecture**: Extensible system designed for future aggregation of player data from multiple sources. Currently uses a single curated source for devy rankings:
+  - **DT Dynasty (Curated)**: Primary source for devy rankings with hand-curated college prospect data, values, tiers, draft projections, and player comparisons.
+  - **Dynasty Process (NFL Values)**: GitHub-hosted CSV with NFL player dynasty values, fetched with 24-hour cache. Weekly updates. Used for NFL player values in trade calculator, NOT for devy prospects.
+  - **Future Expansion**: Infrastructure ready for additional sources (e.g., FantasyPros consensus) when legitimate APIs become available. Most devy ranking sites (247Sports, Rivals) don't offer public APIs.
 
 ## External Dependencies
 
