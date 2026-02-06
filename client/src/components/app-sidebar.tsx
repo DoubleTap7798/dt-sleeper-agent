@@ -149,8 +149,8 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
   const { user, logout } = useAuth();
   const { isPremium, isGrandfathered, isLoading: subLoading } = useSubscription();
   
-  // Track which groups are open
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["League", "My Team"]));
+  const [userClosedGroups, setUserClosedGroups] = useState<Set<string>>(new Set());
   
   const urlParams = new URLSearchParams(searchString);
   const leagueId = isAllLeagues ? null : (urlParams.get("id") || selectedLeague?.league_id);
@@ -159,6 +159,15 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
     setOpenGroups(prev => {
       const next = new Set(prev);
       if (isOpen) {
+        next.add(groupTitle);
+      } else {
+        next.delete(groupTitle);
+      }
+      return next;
+    });
+    setUserClosedGroups(prev => {
+      const next = new Set(prev);
+      if (!isOpen) {
         next.add(groupTitle);
       } else {
         next.delete(groupTitle);
@@ -295,7 +304,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
           return (
             <SidebarGroup key={group.title}>
               <SidebarGroupContent className="px-2">
-                <Collapsible open={isOpen || hasActiveItem} onOpenChange={(open) => toggleGroup(group.title, open)}>
+                <Collapsible open={userClosedGroups.has(group.title) ? false : (isOpen || hasActiveItem)} onOpenChange={(open) => toggleGroup(group.title, open)}>
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <CollapsibleTrigger asChild>
@@ -305,7 +314,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                         >
                           <group.icon className="h-4 w-4" />
                           <span className="font-medium">{group.title}</span>
-                          <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${isOpen || hasActiveItem ? "rotate-90" : ""}`} />
+                          <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${(userClosedGroups.has(group.title) ? false : (isOpen || hasActiveItem)) ? "rotate-90" : ""}`} />
                         </SidebarMenuButton>
                       </CollapsibleTrigger>
                       <CollapsibleContent>

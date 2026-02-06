@@ -71,6 +71,19 @@ interface SeasonStats {
     recYds?: number;
     recTd?: number;
     receptions?: number;
+    tackles?: number;
+    soloTackles?: number;
+    astTackles?: number;
+    sacks?: number;
+    tfl?: number;
+    passDeflect?: number;
+    passInt?: number;
+    defInt?: number;
+    ff?: number;
+    fr?: number;
+    defTd?: number;
+    qbHurries?: number;
+    [key: string]: number | undefined;
   };
 }
 
@@ -355,96 +368,55 @@ export function DraftProfileModal({
                     <Card>
                       <CardContent className="p-0">
                         <div className="overflow-x-auto">
-                          <table
-                            className="w-full text-sm"
-                            data-testid="table-college-stats"
-                          >
-                            <thead className="border-b">
-                              <tr className="text-left text-muted-foreground">
-                                <th className="p-2">Year</th>
-                                <th className="p-2">G</th>
-                                {data.collegeStats.seasons.some(
-                                  (s) => s.stats.passYds !== undefined
-                                ) && (
-                                  <>
-                                    <th className="p-2">Pass Yds</th>
-                                    <th className="p-2">Pass TD</th>
-                                  </>
-                                )}
-                                {data.collegeStats.seasons.some(
-                                  (s) => s.stats.rushYds !== undefined
-                                ) && (
-                                  <>
-                                    <th className="p-2">Rush Yds</th>
-                                    <th className="p-2">Rush TD</th>
-                                  </>
-                                )}
-                                {data.collegeStats.seasons.some(
-                                  (s) => s.stats.recYds !== undefined
-                                ) && (
-                                  <>
-                                    <th className="p-2">Rec</th>
-                                    <th className="p-2">Rec Yds</th>
-                                    <th className="p-2">Rec TD</th>
-                                  </>
-                                )}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {data.collegeStats.seasons.map((season, i) => (
-                                <tr
-                                  key={i}
-                                  className={
-                                    i % 2 === 0 ? "bg-muted/30" : ""
-                                  }
-                                >
-                                  <td className="p-2 font-medium">
-                                    {season.year}
-                                  </td>
-                                  <td className="p-2">{season.games}</td>
-                                  {data.collegeStats.seasons.some(
-                                    (s) => s.stats.passYds !== undefined
-                                  ) && (
-                                    <>
-                                      <td className="p-2">
-                                        {season.stats.passYds ?? "-"}
-                                      </td>
-                                      <td className="p-2">
-                                        {season.stats.passTd ?? "-"}
-                                      </td>
-                                    </>
-                                  )}
-                                  {data.collegeStats.seasons.some(
-                                    (s) => s.stats.rushYds !== undefined
-                                  ) && (
-                                    <>
-                                      <td className="p-2">
-                                        {season.stats.rushYds ?? "-"}
-                                      </td>
-                                      <td className="p-2">
-                                        {season.stats.rushTd ?? "-"}
-                                      </td>
-                                    </>
-                                  )}
-                                  {data.collegeStats.seasons.some(
-                                    (s) => s.stats.recYds !== undefined
-                                  ) && (
-                                    <>
-                                      <td className="p-2">
-                                        {season.stats.receptions ?? "-"}
-                                      </td>
-                                      <td className="p-2">
-                                        {season.stats.recYds ?? "-"}
-                                      </td>
-                                      <td className="p-2">
-                                        {season.stats.recTd ?? "-"}
-                                      </td>
-                                    </>
-                                  )}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                          {(() => {
+                            const hasPass = data.collegeStats.seasons.some(s => s.stats.passYds !== undefined);
+                            const hasRush = data.collegeStats.seasons.some(s => s.stats.rushYds !== undefined);
+                            const hasRec = data.collegeStats.seasons.some(s => s.stats.recYds !== undefined);
+                            const hasTackles = data.collegeStats.seasons.some(s => s.stats.tackles !== undefined || s.stats.soloTackles !== undefined);
+                            const hasSacks = data.collegeStats.seasons.some(s => s.stats.sacks !== undefined);
+                            const hasTfl = data.collegeStats.seasons.some(s => s.stats.tfl !== undefined);
+                            const hasPD = data.collegeStats.seasons.some(s => s.stats.passDeflect !== undefined);
+                            const hasINT = data.collegeStats.seasons.some(s => s.stats.passInt !== undefined && data.player.side === "defense");
+                            const hasFF = data.collegeStats.seasons.some(s => s.stats.ff !== undefined);
+                            const isDefensive = hasTackles || hasSacks;
+
+                            return (
+                              <table className="w-full text-sm" data-testid="table-college-stats">
+                                <thead className="border-b">
+                                  <tr className="text-left text-muted-foreground">
+                                    <th className="p-2">Year</th>
+                                    <th className="p-2">G</th>
+                                    {hasPass && <><th className="p-2">Pass Yds</th><th className="p-2">Pass TD</th></>}
+                                    {hasRush && <><th className="p-2">Rush Yds</th><th className="p-2">Rush TD</th></>}
+                                    {hasRec && <><th className="p-2">Rec</th><th className="p-2">Rec Yds</th><th className="p-2">Rec TD</th></>}
+                                    {hasTackles && <><th className="p-2">Tkl</th><th className="p-2">Solo</th></>}
+                                    {hasSacks && <th className="p-2">Sack</th>}
+                                    {hasTfl && <th className="p-2">TFL</th>}
+                                    {hasPD && <th className="p-2">PD</th>}
+                                    {hasINT && <th className="p-2">INT</th>}
+                                    {hasFF && <th className="p-2">FF</th>}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {data.collegeStats.seasons.map((season, i) => (
+                                    <tr key={i} className={i % 2 === 0 ? "bg-muted/30" : ""}>
+                                      <td className="p-2 font-medium">{season.year}</td>
+                                      <td className="p-2">{season.games}</td>
+                                      {hasPass && <><td className="p-2">{season.stats.passYds ?? "-"}</td><td className="p-2">{season.stats.passTd ?? "-"}</td></>}
+                                      {hasRush && <><td className="p-2">{season.stats.rushYds ?? "-"}</td><td className="p-2">{season.stats.rushTd ?? "-"}</td></>}
+                                      {hasRec && <><td className="p-2">{season.stats.receptions ?? "-"}</td><td className="p-2">{season.stats.recYds ?? "-"}</td><td className="p-2">{season.stats.recTd ?? "-"}</td></>}
+                                      {hasTackles && <><td className="p-2">{season.stats.tackles ?? "-"}</td><td className="p-2">{season.stats.soloTackles ?? "-"}</td></>}
+                                      {hasSacks && <td className="p-2">{season.stats.sacks ?? "-"}</td>}
+                                      {hasTfl && <td className="p-2">{season.stats.tfl ?? "-"}</td>}
+                                      {hasPD && <td className="p-2">{season.stats.passDeflect ?? "-"}</td>}
+                                      {hasINT && <td className="p-2">{season.stats.passInt ?? "-"}</td>}
+                                      {hasFF && <td className="p-2">{season.stats.ff ?? "-"}</td>}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            );
+                          })()}
                         </div>
                       </CardContent>
                     </Card>

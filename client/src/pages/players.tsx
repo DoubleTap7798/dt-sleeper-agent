@@ -392,9 +392,9 @@ export default function PlayersPage() {
                 </div>
 
                 <div className="text-right shrink-0">
-                  <div className="text-xs text-muted-foreground">FPTS</div>
-                  <div className="text-lg font-bold font-mono">
-                    {leagueId ? player.fantasyPoints.toFixed(1) : (player.stats.passTd * 4 + player.stats.rushTd * 6 + player.stats.recTd * 6 + Math.floor(player.stats.passYd / 25) + Math.floor((player.stats.rushYd + player.stats.recYd) / 10)).toFixed(0)}
+                  <div className="text-xs text-muted-foreground">Ranking</div>
+                  <div className="text-lg font-bold font-mono text-primary">
+                    {player.position}{player.positionRank}
                   </div>
                 </div>
               </div>

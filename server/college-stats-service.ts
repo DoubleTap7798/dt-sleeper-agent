@@ -323,19 +323,16 @@ async function fetchCollegePlayerBio(espnId: string): Promise<CollegePlayerBio |
 // Normalize ESPN stat names to our internal format
 function normalizeStatName(espnName: string): string {
   const nameMap: Record<string, string> = {
-    // Receiving
     "receptions": "receptions",
     "receivingYards": "recYds",
     "yardsPerReception": "recAvg",
     "receivingTouchdowns": "recTd",
     "longReception": "recLong",
-    // Rushing
     "rushingAttempts": "rushAtt",
     "rushingYards": "rushYds",
     "yardsPerRushAttempt": "rushAvg",
     "rushingTouchdowns": "rushTd",
     "longRushing": "rushLong",
-    // Passing
     "passingAttempts": "passAtt",
     "completions": "passComp",
     "passingYards": "passYds",
@@ -344,7 +341,21 @@ function normalizeStatName(espnName: string): string {
     "longPassing": "passLong",
     "completionPct": "passPct",
     "passerRating": "passRtg",
-    "adjustedQBR": "qbr"
+    "adjustedQBR": "qbr",
+    "totalTackles": "tackles",
+    "soloTackles": "soloTackles",
+    "assistedTackles": "astTackles",
+    "sacks": "sacks",
+    "tacklesForLoss": "tfl",
+    "passesDefended": "passDeflect",
+    "QBHurries": "qbHurries",
+    "forcedFumbles": "ff",
+    "fumbleRecoveries": "fr",
+    "defensiveTouchdowns": "defTd",
+    "safeties": "safeties",
+    "stuffs": "tfl",
+    "passesDeflected": "passDeflect",
+    "qbHits": "qbHurries",
   };
   return nameMap[espnName] || espnName;
 }

@@ -371,6 +371,161 @@ async function fetchPlayerStats(espnId: string): Promise<{ career: CareerStats |
   }
 }
 
+const ESPN_IDP_STAT_MAP: Record<string, string> = {
+  totalTackles: "TOT",
+  soloTackles: "SOLO",
+  assistedTackles: "AST",
+  sacks: "SACK",
+  tacklesForLoss: "TFL",
+  QBHurries: "QB HUR",
+  passesDefended: "PD",
+  interceptions: "INT",
+  forcedFumbles: "FF",
+  fumbleRecoveries: "FR",
+  defensiveTouchdowns: "TD",
+  safeties: "SAF",
+  stuffs: "TFL",
+  passesDeflected: "PD",
+  qbHits: "QB HUR",
+};
+
+function mapESPNDefensiveStats(stats: Record<string, number | string>): Record<string, number | string> {
+  const mapped: Record<string, number | string> = {};
+  for (const [key, value] of Object.entries(stats)) {
+    const mappedKey = ESPN_IDP_STAT_MAP[key];
+    if (mappedKey) {
+      const existing = mapped[mappedKey];
+      if (existing !== undefined && typeof existing === "number" && typeof value === "number") {
+        mapped[mappedKey] = existing + value;
+      } else {
+        mapped[mappedKey] = value;
+      }
+    } else {
+      mapped[key] = value;
+    }
+  }
+  return mapped;
+}
+
+const sleeperWeeklyCache: Map<string, { data: any; time: number }> = new Map();
+const WEEKLY_CACHE_DURATION = 60 * 60 * 1000;
+
+async function fetchSleeperWeekStats(season: string, week: number): Promise<any> {
+  const cacheKey = `sleeper-week-${season}-${week}`;
+  const cached = sleeperWeeklyCache.get(cacheKey);
+  if (cached && Date.now() - cached.time < WEEKLY_CACHE_DURATION) {
+    return cached.data;
+  }
+  try {
+    const response = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${season}/${week}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    sleeperWeeklyCache.set(cacheKey, { data, time: Date.now() });
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchIDPWeeklyGameLogs(sleeperPlayerId: string, position: string, team?: string): Promise<GameLog[]> {
+  const currentYear = new Date().getFullYear();
+  const seasons = [currentYear, currentYear - 1];
+  const gameLogs: GameLog[] = [];
+
+  for (const season of seasons) {
+    try {
+      const maxWeeks = 18;
+      const weekPromises = [];
+      for (let week = 1; week <= maxWeeks; week++) {
+        weekPromises.push(fetchSleeperWeekStats(season.toString(), week));
+      }
+      const weeklyResults = await Promise.all(weekPromises);
+
+      for (let w = 0; w < weeklyResults.length; w++) {
+        const weekData = weeklyResults[w];
+        if (!weekData) continue;
+        const playerWeek = weekData[sleeperPlayerId];
+        if (!playerWeek) continue;
+        const gp = playerWeek.gp || 0;
+        if (gp === 0) continue;
+
+        const stats: Record<string, number | string> = {
+          TOT: playerWeek.idp_tkl || 0,
+          SOLO: playerWeek.idp_tkl_solo || 0,
+          AST: playerWeek.idp_tkl_ast || 0,
+          SACK: playerWeek.idp_sack || 0,
+          TFL: playerWeek.idp_tkl_loss || 0,
+          "QB HUR": playerWeek.idp_qb_hit || 0,
+          INT: playerWeek.idp_int || 0,
+          PD: playerWeek.idp_pass_def || 0,
+          FF: playerWeek.idp_ff || 0,
+          FR: playerWeek.idp_fum_rec || 0,
+          TD: playerWeek.idp_def_td || 0,
+        };
+
+        gameLogs.push({
+          week: w + 1,
+          date: "",
+          opponent: playerWeek.opp || "OPP",
+          homeAway: "home",
+          result: "",
+          score: "",
+          stats,
+          season: season.toString(),
+        });
+      }
+    } catch (error) {
+      console.error(`Error fetching IDP weekly data for season ${season}:`, error);
+    }
+  }
+
+  gameLogs.sort((a, b) => {
+    const seasonDiff = parseInt(b.season) - parseInt(a.season);
+    if (seasonDiff !== 0) return seasonDiff;
+    return b.week - a.week;
+  });
+
+  console.log(`[IDP Game Logs] Fetched ${gameLogs.length} weekly game logs for player ${sleeperPlayerId}`);
+  return gameLogs;
+}
+
+function generateIDPSplits(gameLogs: GameLog[]): PlayerSplits | null {
+  if (gameLogs.length === 0) return null;
+
+  const currentYear = new Date().getFullYear().toString();
+  const currentSeasonLogs = gameLogs.filter(g => g.season === currentYear);
+  if (currentSeasonLogs.length === 0) return null;
+
+  const idpStatKeys = ["TOT", "SOLO", "SACK", "TFL", "INT", "PD", "FF", "FR"];
+
+  const avgStats = (logs: GameLog[]): Record<string, number | string> => {
+    if (logs.length === 0) return {};
+    const totals: Record<string, number> = {};
+    for (const log of logs) {
+      for (const key of idpStatKeys) {
+        const val = Number(log.stats[key] || 0);
+        totals[key] = (totals[key] || 0) + val;
+      }
+    }
+    const result: Record<string, number | string> = {};
+    for (const key of idpStatKeys) {
+      result[key] = Math.round((totals[key] || 0) / logs.length * 10) / 10;
+    }
+    return result;
+  };
+
+  const firstHalf = currentSeasonLogs.filter(g => g.week <= 9);
+  const secondHalf = currentSeasonLogs.filter(g => g.week > 9);
+
+  return {
+    home: avgStats(currentSeasonLogs.slice(0, Math.ceil(currentSeasonLogs.length / 2))),
+    away: avgStats(currentSeasonLogs.slice(Math.ceil(currentSeasonLogs.length / 2))),
+    wins: avgStats(firstHalf),
+    losses: avgStats(secondHalf),
+    byMonth: {},
+  };
+}
+
 // Fetch game logs from ESPN for a specific season
 async function fetchGameLogsForSeason(espnId: string, season: string): Promise<GameLog[]> {
   try {
@@ -608,7 +763,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
     let seasonStats: SeasonStats[] = [];
     
     if (isIDPPosition(sleeperData.position)) {
-      const idpStats = await fetchIDPSeasonHistory(playerId, sleeperData.position, sleeperData.team);
+      const idpStats = await fetchIDPSeasonHistory(playerId, sleeperData.position, sleeperData.team || undefined);
       careerStats = idpStats.career;
       seasonStats = idpStats.seasons;
     }
@@ -671,7 +826,7 @@ async function createProfileFromSleeper(playerId: string, playerName: string): P
 
 // Main function to get comprehensive player profile
 export async function getPlayerProfile(sleeperPlayerId: string, playerName: string): Promise<PlayerProfile | null> {
-  const cacheKey = `profile-v18-${sleeperPlayerId}`;
+  const cacheKey = `profile-v19-${sleeperPlayerId}`;
   const cached = playerStatsCache.get(cacheKey);
   
   if (cached && Date.now() - cached.time < CACHE_DURATION) {
@@ -770,16 +925,32 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
       const sleeperProfile = await createProfileFromSleeper(sleeperPlayerId, playerName);
       console.log(`[PROFILE DEBUG] ${playerName}: ESPN bio null, using Sleeper bio. position=${sleeperProfile.bio.position}`);
       
-      // For IDP players, use the IDP stats already fetched in sleeperProfile
       if (isIDPPosition(sleeperProfile.bio.position) && sleeperProfile.seasonStats.length > 0) {
         console.log(`[IDP PROFILE] ${playerName}: Using IDP stats from Sleeper profile for position ${sleeperProfile.bio.position}`);
+        
+        let idpGameLogs = gameLogs;
+        if (idpGameLogs.length === 0) {
+          idpGameLogs = await fetchIDPWeeklyGameLogs(sleeperPlayerId, sleeperProfile.bio.position, sleeperProfile.bio.teamAbbr);
+        } else {
+          idpGameLogs = idpGameLogs.map(g => ({ ...g, stats: mapESPNDefensiveStats(g.stats) }));
+        }
+        
+        const idpSplits = splits ? {
+          home: mapESPNDefensiveStats(splits.home),
+          away: mapESPNDefensiveStats(splits.away),
+          wins: mapESPNDefensiveStats(splits.wins),
+          losses: mapESPNDefensiveStats(splits.losses),
+          byMonth: Object.fromEntries(
+            Object.entries(splits.byMonth).map(([k, v]) => [k, mapESPNDefensiveStats(v)])
+          ),
+        } : generateIDPSplits(idpGameLogs);
         
         const profile: PlayerProfile = {
           bio: sleeperProfile.bio,
           careerStats: sleeperProfile.careerStats,
           seasonStats: sleeperProfile.seasonStats,
-          recentGameLogs: sleeperProfile.recentGameLogs,
-          splits: splits || sleeperProfile.splits,
+          recentGameLogs: idpGameLogs,
+          splits: idpSplits,
           espnId,
         };
         playerStatsCache.set(cacheKey, { data: profile, time: Date.now() });
@@ -814,19 +985,34 @@ export async function getPlayerProfile(sleeperPlayerId: string, playerName: stri
     
     console.log(`[PROFILE DEBUG] ${playerName}: bio.position=${bio.position}, gameLogs.length=${gameLogs.length}`);
     
-    // For IDP players, use Sleeper IDP stats (ESPN often doesn't return defensive stats properly)
     if (isIDPPosition(bio.position)) {
       console.log(`[IDP PROFILE] ${playerName}: Fetching IDP stats from Sleeper for position ${bio.position}`);
       const idpStats = await fetchIDPSeasonHistory(sleeperPlayerId, bio.position, bio.teamAbbr || bio.team);
       
-      // If we got IDP stats from Sleeper, use those
       if (idpStats.seasons.length > 0) {
+        let idpGameLogs = gameLogs;
+        if (idpGameLogs.length === 0) {
+          idpGameLogs = await fetchIDPWeeklyGameLogs(sleeperPlayerId, bio.position, bio.teamAbbr || bio.team);
+        } else {
+          idpGameLogs = idpGameLogs.map(g => ({ ...g, stats: mapESPNDefensiveStats(g.stats) }));
+        }
+        
+        const idpSplits = splits ? {
+          home: mapESPNDefensiveStats(splits.home),
+          away: mapESPNDefensiveStats(splits.away),
+          wins: mapESPNDefensiveStats(splits.wins),
+          losses: mapESPNDefensiveStats(splits.losses),
+          byMonth: Object.fromEntries(
+            Object.entries(splits.byMonth).map(([k, v]) => [k, mapESPNDefensiveStats(v)])
+          ),
+        } : generateIDPSplits(idpGameLogs);
+        
         const profile: PlayerProfile = {
           bio,
           careerStats: idpStats.career,
           seasonStats: idpStats.seasons,
-          recentGameLogs: gameLogs,
-          splits,
+          recentGameLogs: idpGameLogs,
+          splits: idpSplits,
           espnId,
         };
         playerStatsCache.set(cacheKey, { data: profile, time: Date.now() });
