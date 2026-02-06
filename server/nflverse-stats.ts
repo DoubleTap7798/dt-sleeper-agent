@@ -83,6 +83,16 @@ interface StatsCache {
 let statsCache: StatsCache | null = null;
 const STATS_CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
 
+function getMostRecentNFLSeason(): number {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  if (month >= 9) {
+    return year;
+  }
+  return year - 1;
+}
+
 function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = '';
@@ -275,7 +285,7 @@ export async function getNFLVerseStats(season?: number): Promise<{
   fetchedAt: Date;
   seasonYear: number;
 }> {
-  const targetSeason = season || 2024;
+  const targetSeason = season || getMostRecentNFLSeason();
 
   if (
     statsCache &&
@@ -290,21 +300,40 @@ export async function getNFLVerseStats(season?: number): Promise<{
     };
   }
 
-  const weeklyData = await fetchNFLVerseStats(targetSeason);
+  let weeklyData: NFLVersePlayerStats[];
+  let usedSeason = targetSeason;
+
+  try {
+    weeklyData = await fetchNFLVerseStats(targetSeason);
+    if (weeklyData.length === 0 && !season) {
+      console.log(`[nflverse] No data for ${targetSeason}, falling back to ${targetSeason - 1}`);
+      weeklyData = await fetchNFLVerseStats(targetSeason - 1);
+      usedSeason = targetSeason - 1;
+    }
+  } catch (err) {
+    if (!season) {
+      console.log(`[nflverse] Failed to fetch ${targetSeason}, falling back to ${targetSeason - 1}`);
+      weeklyData = await fetchNFLVerseStats(targetSeason - 1);
+      usedSeason = targetSeason - 1;
+    } else {
+      throw err;
+    }
+  }
+
   const seasonData = aggregateToSeason(weeklyData);
 
   statsCache = {
     weeklyData,
     seasonData,
     fetchedAt: new Date(),
-    season: targetSeason,
+    season: usedSeason,
   };
 
   return {
     weekly: weeklyData,
     season: seasonData,
     fetchedAt: statsCache.fetchedAt,
-    seasonYear: targetSeason,
+    seasonYear: usedSeason,
   };
 }
 
