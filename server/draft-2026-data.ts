@@ -1,3 +1,14 @@
+export interface CombineData {
+  fortyYard: number | null;
+  benchPress: number | null;
+  vertical: number | null;
+  broadJump: number | null;
+  threeCone: number | null;
+  shuttle: number | null;
+  armLength: number | null;
+  handSize: number | null;
+}
+
 export interface Draft2026Player {
   id: string;
   rank: number;
@@ -8,6 +19,11 @@ export interface Draft2026Player {
   weight: number;
   side: 'offense' | 'defense';
   positionGroup: string;
+  stockStatus: 'rising' | 'falling' | 'steady';
+  stockChange: number;
+  combine: CombineData | null;
+  intangibles: string[];
+  scoutingNotes: string | null;
 }
 
 const OFFENSE_POSITIONS = new Set(['QB', 'RB', 'WR', 'WRS', 'TE', 'FB']);
@@ -36,7 +52,14 @@ function getPositionGroup(position: string): string {
   }
 }
 
-function p(rank: number, name: string, college: string, position: string, height: string, weight: number): Draft2026Player {
+function p(
+  rank: number, name: string, college: string, position: string,
+  height: string, weight: number,
+  stockStatus: 'rising' | 'falling' | 'steady' = 'steady',
+  stockChange: number = 0,
+  intangibles: string[] = [],
+  scoutingNotes: string | null = null
+): Draft2026Player {
   return {
     id: `draft2026-${rank}`,
     rank,
@@ -47,51 +70,56 @@ function p(rank: number, name: string, college: string, position: string, height
     weight,
     side: getSide(position),
     positionGroup: getPositionGroup(position),
+    stockStatus,
+    stockChange,
+    combine: null,
+    intangibles,
+    scoutingNotes,
   };
 }
 
 export const DRAFT_2026_PLAYERS: Draft2026Player[] = [
-  p(1, "Fernando Mendoza", "Indiana", "QB", "6'5\"", 225),
-  p(2, "Caleb Downs", "Ohio State", "S", "6'0\"", 205),
-  p(3, "Rueben Bain Jr.", "Miami (FL)", "EDGE", "6'3\"", 275),
-  p(7, "Jeremiyah Love", "Notre Dame", "RB", "6'0\"", 210),
+  p(1, "Fernando Mendoza", "Indiana", "QB", "6'5\"", 225, 'rising', 12, ["Arm Talent", "Pocket Presence"], "Elite arm strength with improving accuracy"),
+  p(2, "Caleb Downs", "Ohio State", "S", "6'0\"", 205, 'rising', 8, ["Playmaker", "Football IQ", "Versatility"], "Rare safety talent with ball skills"),
+  p(3, "Rueben Bain Jr.", "Miami (FL)", "EDGE", "6'3\"", 275, 'steady', 0, ["Motor", "Bend", "Competitive Toughness"], "Relentless pass rusher with elite bend"),
+  p(7, "Jeremiyah Love", "Notre Dame", "RB", "6'0\"", 210, 'rising', 15, ["Explosiveness", "Vision"], "Dynamic playmaker with breakaway speed"),
   p(8, "Jermod McCoy", "Tennessee", "CB", "5'11\"", 193),
-  p(9, "Carnell Tate", "Ohio State", "WR", "6'1\"", 191),
-  p(10, "Makai Lemon", "USC", "WR", "5'11\"", 190),
-  p(11, "Keldric Faulk", "Auburn", "DL5T", "6'5\"", 288),
+  p(9, "Carnell Tate", "Ohio State", "WR", "6'1\"", 191, 'rising', 10, ["Route Running", "Hands"], "Smooth route runner with reliable hands"),
+  p(10, "Makai Lemon", "USC", "WR", "5'11\"", 190, 'steady', 0, ["Competitiveness", "YAC Ability"], "Physical receiver who wins after the catch"),
+  p(11, "Keldric Faulk", "Auburn", "DL5T", "6'5\"", 288, 'steady', 0, ["Power", "Anchor"], "Dominant run defender with pass rush upside"),
   p(12, "David Bailey", "Texas Tech", "EDGE", "6'3\"", 250),
   p(13, "Mansoor Delane", "LSU", "CB", "6'1\"", 187),
-  p(14, "Jordyn Tyson", "Arizona State", "WR", "6'1\"", 195),
-  p(15, "Peter Woods", "Clemson", "DL3T", "6'3\"", 315),
+  p(14, "Jordyn Tyson", "Arizona State", "WR", "6'1\"", 195, 'steady', 0, ["Speed", "Route Running"], "Smooth separator with deep speed"),
+  p(15, "Peter Woods", "Clemson", "DL3T", "6'3\"", 315, 'steady', 0, ["Strength", "Disruption"], "Interior monster who collapses the pocket"),
   p(17, "Cashius Howell", "Texas A&M", "EDGE", "6'4\"", 245),
-  p(18, "Denzel Boston", "Washington", "WR", "6'3\"", 209),
-  p(19, "T.J. Parker", "Clemson", "EDGE", "6'3\"", 265),
+  p(18, "Denzel Boston", "Washington", "WR", "6'3\"", 209, 'rising', 7, ["Size-Speed", "Contested Catches"], "Dominant contested catch winner"),
+  p(19, "T.J. Parker", "Clemson", "EDGE", "6'3\"", 265, 'steady', 0, ["Length", "Motor"], "High-floor pass rusher with technique"),
   p(23, "Lee Hunter", "Texas Tech", "DL1T", "6'4\"", 320),
   p(24, "Colton Hood", "Tennessee", "CB", "5'11\"", 195),
   p(26, "Caleb Banks", "Florida", "DL1T", "6'6\"", 325),
-  p(27, "Kenyon Sadiq", "Oregon", "TE", "6'3\"", 235),
-  p(28, "Ty Simpson", "Alabama", "QB", "6'2\"", 208),
+  p(27, "Kenyon Sadiq", "Oregon", "TE", "6'3\"", 235, 'steady', 0, ["Athleticism", "Red Zone Threat"], "Matchup nightmare at tight end"),
+  p(28, "Ty Simpson", "Alabama", "QB", "6'2\"", 208, 'steady', 0, ["Mobility", "Arm Talent"], "Dual-threat upside with improving pocket skills"),
   p(29, "Christen Miller", "Georgia", "DL3T", "6'4\"", 305),
   p(31, "Akheem Mesidor", "Miami (FL)", "DL5T", "6'2\"", 280),
   p(32, "Kevin Concepcion", "Texas A&M", "WR", "5'11\"", 187),
   p(33, "Emmanuel McNeil-Warren", "Toledo", "S", "6'2\"", 202),
   p(34, "Chris Bell", "Louisville", "WR", "6'2\"", 220),
-  p(35, "Anthony Hill Jr.", "Texas", "ILB", "6'3\"", 235),
+  p(35, "Anthony Hill Jr.", "Texas", "ILB", "6'3\"", 235, 'steady', 0, ["Instincts", "Tackling", "Leadership"], "Leader of the defense, sideline-to-sideline"),
   p(36, "Brandon Cisse", "South Carolina", "CB", "6'0\"", 190),
   p(37, "Kayden McDonald", "Ohio State", "DL1T", "6'2\"", 326),
-  p(38, "Dillon Thieneman", "Oregon", "S", "6'0\"", 207),
+  p(38, "Dillon Thieneman", "Oregon", "S", "6'0\"", 207, 'rising', 18, ["Range", "Tackling", "Instincts"], "Do-it-all safety rising fast"),
   p(39, "L.T. Overton", "Alabama", "DL5T", "6'4\"", 283),
   p(40, "Romello Height", "Texas Tech", "EDGE", "6'3\"", 240),
   p(42, "Gabe Jacas", "Illinois", "EDGE", "6'2\"", 275),
-  p(43, "Zachariah Branch", "Georgia", "WR", "5'10\"", 175),
+  p(43, "Zachariah Branch", "Georgia", "WR", "5'10\"", 175, 'rising', 6, ["Speed", "Elusiveness"], "Electric playmaker in open space"),
   p(44, "Eli Stowers", "Vanderbilt", "TE", "6'4\"", 235),
   p(47, "Joshua Josephs", "Tennessee", "EDGE", "6'3\"", 245),
   p(48, "Kamari Ramsey", "USC", "S", "6'0\"", 204),
-  p(50, "Deontae Lawson", "Alabama", "ILB", "6'2\"", 239),
+  p(50, "Deontae Lawson", "Alabama", "ILB", "6'2\"", 239, 'steady', 0, ["Football IQ", "Communication"], "QB of the defense, elite play recognition"),
   p(51, "R Mason Thomas", "Oklahoma", "EDGE", "6'2\"", 243),
   p(53, "Dani Dennis-Sutton", "Penn State", "EDGE", "6'4\"", 266),
   p(54, "Ja'Kobi Lane", "USC", "WR", "6'4\"", 195),
-  p(56, "Davison Igbinosun", "Ohio State", "CB", "6'2\"", 193),
+  p(56, "Davison Igbinosun", "Ohio State", "CB", "6'2\"", 193, 'rising', 14, ["Length", "Ball Skills"], "Long corner with elite ball skills"),
   p(57, "Keith Abney II", "Arizona State", "CB", "5'10\"", 195),
   p(58, "Zion Young", "Missouri", "EDGE", "6'5\"", 265),
   p(59, "Domonique Orange", "Iowa State", "DL1T", "6'3\"", 325),
@@ -101,13 +129,13 @@ export const DRAFT_2026_PLAYERS: Draft2026Player[] = [
   p(64, "Chris Brazzell II", "Tennessee", "WR", "6'5\"", 200),
   p(65, "Domani Jackson", "Alabama", "CB", "6'1\"", 201),
   p(67, "Germie Bernard", "Alabama", "WR", "6'0\"", 209),
-  p(68, "Carson Beck", "Miami (FL)", "QB", "6'4\"", 220),
+  p(68, "Carson Beck", "Miami (FL)", "QB", "6'4\"", 220, 'falling', -15, ["Arm Talent"], "Injury concerns after ACL tear"),
   p(69, "Chris Johnson", "San Diego State", "CB", "6'0\"", 195),
   p(71, "Malachi Fields", "Notre Dame", "WR", "6'4\"", 220),
   p(72, "Jacob Rodriguez", "Texas Tech", "ILB", "6'1\"", 230),
   p(74, "Jadarian Price", "Notre Dame", "RB", "5'11\"", 210),
   p(76, "Daylen Everette", "Georgia", "CB", "6'1\"", 190),
-  p(77, "Garrett Nussmeier", "LSU", "QB", "6'2\"", 200),
+  p(77, "Garrett Nussmeier", "LSU", "QB", "6'2\"", 200, 'falling', -8, ["Competitiveness"], "Turnover-prone tendencies"),
   p(78, "Michael Taaffe", "Texas", "S", "6'0\"", 195),
   p(79, "Bud Clark", "TCU", "S", "6'2\"", 185),
   p(80, "Jonah Coleman", "Washington", "RB", "5'9\"", 229),
@@ -130,7 +158,7 @@ export const DRAFT_2026_PLAYERS: Draft2026Player[] = [
   p(102, "Taurean York", "Texas A&M", "ILB", "5'11\"", 235),
   p(103, "Ted Hurst", "Georgia State", "WR", "6'2\"", 194),
   p(104, "Tacario Davis", "Washington", "CB", "6'3\"", 190),
-  p(105, "Drew Allar", "Penn State", "QB", "6'5\"", 235),
+  p(105, "Drew Allar", "Penn State", "QB", "6'5\"", 235, 'falling', -10, ["Arm Strength"], "Inconsistent decision-making in 2025"),
   p(106, "Jack Endries", "Texas", "TE", "6'4\"", 240),
   p(107, "Gracen Halton", "Oklahoma", "DL3T", "6'2\"", 285),
   p(109, "Devin Moore", "Florida", "CB", "6'3\"", 198),
@@ -141,8 +169,8 @@ export const DRAFT_2026_PLAYERS: Draft2026Player[] = [
   p(115, "Omar Cooper Jr.", "Indiana", "WR", "6'0\"", 204),
   p(116, "Tim Keenan III", "Alabama", "DL1T", "6'2\"", 326),
   p(117, "Max Llewellyn", "Iowa", "EDGE", "6'4\"", 263),
-  p(118, "Cade Klubnik", "Clemson", "QB", "6'2\"", 210),
-  p(119, "Nick Singleton", "Penn State", "RB", "6'0\"", 226),
+  p(118, "Cade Klubnik", "Clemson", "QB", "6'2\"", 210, 'rising', 20, ["Poise", "Leadership", "Mobility"], "Stock skyrocketing after breakout 2025"),
+  p(119, "Nick Singleton", "Penn State", "RB", "6'0\"", 226, 'falling', -7, ["Power"], "Limited receiving role hurts dynasty value"),
   p(120, "Demond Claiborne", "Wake Forest", "RB", "5'9\"", 195),
   p(122, "T.J.Hall", "Iowa", "CB", "6'0\"", 190),
   p(125, "Aaron Anderson", "LSU", "WRS", "5'8\"", 187),
@@ -169,7 +197,7 @@ export const DRAFT_2026_PLAYERS: Draft2026Player[] = [
   p(151, "Caden Curry", "Ohio State", "EDGE", "6'3\"", 260),
   p(152, "Ephesians Prysock", "Washington", "CB", "6'4\"", 195),
   p(153, "Bryce Boettcher", "Oregon", "ILB", "6'2\"", 225),
-  p(154, "Taylen Green", "Arkansas", "QB", "6'6\"", 230),
+  p(154, "Taylen Green", "Arkansas", "QB", "6'6\"", 230, 'falling', -12, ["Athleticism"], "Raw passer struggling with accuracy"),
   p(155, "Louis Moore", "Indiana", "S", "5'11\"", 200),
   p(156, "Thaddeus Dixon", "North Carolina", "CB", "6'0\"", 186),
   p(157, "Seth McGowan", "Kentucky", "RB", "6'1\"", 215),
@@ -460,4 +488,10 @@ export function getDraft2026Stats(): { total: number; offense: number; defense: 
     defense,
     byPosition,
   };
+}
+
+export function getDraft2026StockMovers(): { rising: Draft2026Player[]; falling: Draft2026Player[] } {
+  const rising = DRAFT_2026_PLAYERS.filter(p => p.stockStatus === 'rising').sort((a, b) => b.stockChange - a.stockChange);
+  const falling = DRAFT_2026_PLAYERS.filter(p => p.stockStatus === 'falling').sort((a, b) => a.stockChange - b.stockChange);
+  return { rising, falling };
 }

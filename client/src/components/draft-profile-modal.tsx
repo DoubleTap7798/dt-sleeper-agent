@@ -14,13 +14,34 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import {
   GraduationCap,
   Ruler,
   User,
   Activity,
   BarChart3,
   MapPin,
+  TrendingUp,
+  TrendingDown,
+  Sparkles,
+  Timer,
+  Dumbbell,
 } from "lucide-react";
+
+interface CombineData {
+  fortyYard: number | null;
+  benchPress: number | null;
+  vertical: number | null;
+  broadJump: number | null;
+  threeCone: number | null;
+  shuttle: number | null;
+  armLength: number | null;
+  handSize: number | null;
+}
 
 interface Draft2026Player {
   id: string;
@@ -30,8 +51,13 @@ interface Draft2026Player {
   position: string;
   height: string;
   weight: number;
-  side: 'offense' | 'defense';
+  side: "offense" | "defense";
   positionGroup: string;
+  stockStatus: "rising" | "falling" | "steady";
+  stockChange: number;
+  combine: CombineData | null;
+  intangibles: string[];
+  scoutingNotes: string | null;
 }
 
 interface SeasonStats {
@@ -106,22 +132,36 @@ interface DraftProfileModalProps {
   player: Draft2026Player | null;
 }
 
-export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileModalProps) {
+export function DraftProfileModal({
+  open,
+  onOpenChange,
+  player,
+}: DraftProfileModalProps) {
   const { data, isLoading } = useQuery<DraftProfileData>({
-    queryKey: [`/api/draft/2026/${encodeURIComponent(player?.name || '')}/profile`],
+    queryKey: [
+      `/api/draft/2026/${encodeURIComponent(player?.name || "")}/profile`,
+    ],
     enabled: !!player?.name && open,
     staleTime: 1000 * 60 * 10,
   });
 
   if (!player) return null;
 
+  const profilePlayer = data?.player || player;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden [&>button]:hidden" data-testid="modal-draft-profile">
+      <DialogContent
+        className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden [&>button]:hidden"
+        data-testid="modal-draft-profile"
+      >
         <DialogHeader className="p-4 pb-2 border-b shrink-0">
-          <div className="flex items-start justify-between gap-2 pr-8">
+          <div className="flex items-start justify-between gap-2 flex-wrap pr-8">
             <div className="flex items-start gap-3">
-              <Avatar className="h-14 w-14 shrink-0" data-testid="avatar-draft-player">
+              <Avatar
+                className="h-14 w-14 shrink-0"
+                data-testid="avatar-draft-player"
+              >
                 <AvatarImage
                   src={data?.player?.headshot || undefined}
                   alt={player.name}
@@ -131,21 +171,68 @@ export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileMo
                 </AvatarFallback>
               </Avatar>
               <div>
-                <DialogTitle className="text-xl" data-testid="text-draft-player-name">
+                <DialogTitle
+                  className="text-xl"
+                  data-testid="text-draft-player-name"
+                >
                   {player.name}
                 </DialogTitle>
                 <DialogDescription asChild>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid="badge-draft-position">
-                      {player.position}
-                    </Badge>
-                    <Badge variant="outline" data-testid="badge-draft-college">
-                      <GraduationCap className="h-3 w-3 mr-1" />
-                      {player.college}
-                    </Badge>
-                    <Badge variant="outline" data-testid="badge-draft-rank">
-                      #{player.rank}
-                    </Badge>
+                  <div className="space-y-1.5 mt-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge
+                        variant="outline"
+                        className={getPositionColorClass(player.position)}
+                        data-testid="badge-draft-position"
+                      >
+                        {player.position}
+                      </Badge>
+                      <Badge variant="outline" data-testid="badge-draft-college">
+                        <GraduationCap className="h-3 w-3 mr-1" />
+                        {player.college}
+                      </Badge>
+                      <Badge variant="outline" data-testid="badge-draft-rank">
+                        #{player.rank}
+                      </Badge>
+                      {player.stockStatus === "rising" && (
+                        <Badge
+                          variant="outline"
+                          className="text-green-600 border-green-600/30 bg-green-500/10"
+                          data-testid="badge-stock-rising"
+                        >
+                          <TrendingUp className="h-3 w-3 mr-1" />
+                          Rising +{player.stockChange}
+                        </Badge>
+                      )}
+                      {player.stockStatus === "falling" && (
+                        <Badge
+                          variant="outline"
+                          className="text-red-600 border-red-600/30 bg-red-500/10"
+                          data-testid="badge-stock-falling"
+                        >
+                          <TrendingDown className="h-3 w-3 mr-1" />
+                          Falling -{Math.abs(player.stockChange)}
+                        </Badge>
+                      )}
+                    </div>
+                    {player.intangibles && player.intangibles.length > 0 && (
+                      <div
+                        className="flex items-center gap-1.5 flex-wrap"
+                        data-testid="intangibles-list"
+                      >
+                        {player.intangibles.map((trait, i) => (
+                          <Badge
+                            key={i}
+                            variant="secondary"
+                            className="text-xs"
+                            data-testid={`badge-intangible-${i}`}
+                          >
+                            <Sparkles className="h-2.5 w-2.5 mr-1" />
+                            {trait}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </DialogDescription>
               </div>
@@ -155,37 +242,6 @@ export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileMo
 
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Card data-testid="stat-height">
-                <CardContent className="p-3 text-center">
-                  <Ruler className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
-                  <div className="text-sm font-medium">{player.height}</div>
-                  <div className="text-xs text-muted-foreground">Height</div>
-                </CardContent>
-              </Card>
-              <Card data-testid="stat-weight">
-                <CardContent className="p-3 text-center">
-                  <User className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
-                  <div className="text-sm font-medium">{player.weight} lbs</div>
-                  <div className="text-xs text-muted-foreground">Weight</div>
-                </CardContent>
-              </Card>
-              <Card data-testid="stat-side">
-                <CardContent className="p-3 text-center">
-                  <Activity className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
-                  <div className="text-sm font-medium capitalize">{player.side}</div>
-                  <div className="text-xs text-muted-foreground">Side</div>
-                </CardContent>
-              </Card>
-              <Card data-testid="stat-group">
-                <CardContent className="p-3 text-center">
-                  <BarChart3 className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
-                  <div className="text-sm font-medium">{player.positionGroup}</div>
-                  <div className="text-xs text-muted-foreground">Pos Group</div>
-                </CardContent>
-              </Card>
-            </div>
-
             {isLoading ? (
               <div className="space-y-3" data-testid="loading-profile">
                 <Skeleton className="h-32 w-full" />
@@ -194,11 +250,36 @@ export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileMo
             ) : data ? (
               <Tabs defaultValue="bio" className="w-full">
                 <TabsList className="w-full" data-testid="tabs-profile">
-                  <TabsTrigger value="bio" className="flex-1" data-testid="tab-bio">Bio</TabsTrigger>
-                  <TabsTrigger value="stats" className="flex-1" data-testid="tab-stats">Stats</TabsTrigger>
+                  <TabsTrigger
+                    value="bio"
+                    className="flex-1"
+                    data-testid="tab-bio"
+                  >
+                    Bio
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="stats"
+                    className="flex-1"
+                    data-testid="tab-stats"
+                  >
+                    Stats
+                  </TabsTrigger>
                   {data.cfbdAdvanced && (
-                    <TabsTrigger value="advanced" className="flex-1" data-testid="tab-advanced">Advanced</TabsTrigger>
+                    <TabsTrigger
+                      value="advanced"
+                      className="flex-1"
+                      data-testid="tab-advanced"
+                    >
+                      Advanced
+                    </TabsTrigger>
                   )}
+                  <TabsTrigger
+                    value="combine"
+                    className="flex-1"
+                    data-testid="tab-combine"
+                  >
+                    Combine
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="bio" className="space-y-3 mt-3">
@@ -206,29 +287,66 @@ export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileMo
                     <Card>
                       <CardContent className="p-4 space-y-2">
                         {data.bio.hometown && (
-                          <div className="flex items-center gap-2 text-sm">
+                          <div
+                            className="flex items-center gap-2 text-sm"
+                            data-testid="text-bio-hometown"
+                          >
                             <MapPin className="h-4 w-4 text-muted-foreground" />
                             <span>{data.bio.hometown}</span>
                           </div>
                         )}
                         {data.bio.conference && (
-                          <div className="flex items-center gap-2 text-sm">
+                          <div
+                            className="flex items-center gap-2 text-sm"
+                            data-testid="text-bio-conference"
+                          >
                             <GraduationCap className="h-4 w-4 text-muted-foreground" />
                             <span>{data.bio.conference}</span>
                           </div>
                         )}
                         {data.bio.class && (
-                          <div className="text-sm text-muted-foreground">Class: {data.bio.class}</div>
+                          <div
+                            className="text-sm text-muted-foreground"
+                            data-testid="text-bio-class"
+                          >
+                            Class: {data.bio.class}
+                          </div>
                         )}
                         {data.bio.highSchoolRank && (
-                          <div className="text-sm text-muted-foreground">HS Rank: {data.bio.highSchoolRank}</div>
+                          <div
+                            className="text-sm text-muted-foreground"
+                            data-testid="text-bio-hs-rank"
+                          >
+                            HS Rank: {data.bio.highSchoolRank}
+                          </div>
                         )}
                       </CardContent>
                     </Card>
                   ) : (
-                    <div className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-bio">
-                      No bio data available
+                    <div
+                      className="text-sm text-muted-foreground text-center p-4"
+                      data-testid="text-no-bio"
+                    >
+                      Bio data loading from ESPN. Some prospects may not have
+                      ESPN profiles yet.
                     </div>
+                  )}
+
+                  {profilePlayer.scoutingNotes && (
+                    <Card data-testid="card-scouting-report">
+                      <CardContent className="p-4">
+                        <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                          <Activity className="h-4 w-4 text-muted-foreground" />
+                          Scouting Report
+                        </h4>
+                        <p
+                          className="text-sm text-muted-foreground leading-relaxed"
+                          data-testid="text-scouting-notes"
+                        >
+                          {profilePlayer.scoutingNotes}
+                        </p>
+                      </CardContent>
+                    </Card>
                   )}
                 </TabsContent>
 
@@ -237,24 +355,33 @@ export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileMo
                     <Card>
                       <CardContent className="p-0">
                         <div className="overflow-x-auto">
-                          <table className="w-full text-sm" data-testid="table-college-stats">
+                          <table
+                            className="w-full text-sm"
+                            data-testid="table-college-stats"
+                          >
                             <thead className="border-b">
                               <tr className="text-left text-muted-foreground">
                                 <th className="p-2">Year</th>
                                 <th className="p-2">G</th>
-                                {data.collegeStats.seasons.some(s => s.stats.passYds !== undefined) && (
+                                {data.collegeStats.seasons.some(
+                                  (s) => s.stats.passYds !== undefined
+                                ) && (
                                   <>
                                     <th className="p-2">Pass Yds</th>
                                     <th className="p-2">Pass TD</th>
                                   </>
                                 )}
-                                {data.collegeStats.seasons.some(s => s.stats.rushYds !== undefined) && (
+                                {data.collegeStats.seasons.some(
+                                  (s) => s.stats.rushYds !== undefined
+                                ) && (
                                   <>
                                     <th className="p-2">Rush Yds</th>
                                     <th className="p-2">Rush TD</th>
                                   </>
                                 )}
-                                {data.collegeStats.seasons.some(s => s.stats.recYds !== undefined) && (
+                                {data.collegeStats.seasons.some(
+                                  (s) => s.stats.recYds !== undefined
+                                ) && (
                                   <>
                                     <th className="p-2">Rec</th>
                                     <th className="p-2">Rec Yds</th>
@@ -265,26 +392,53 @@ export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileMo
                             </thead>
                             <tbody>
                               {data.collegeStats.seasons.map((season, i) => (
-                                <tr key={i} className={i % 2 === 0 ? "bg-muted/30" : ""}>
-                                  <td className="p-2 font-medium">{season.year}</td>
+                                <tr
+                                  key={i}
+                                  className={
+                                    i % 2 === 0 ? "bg-muted/30" : ""
+                                  }
+                                >
+                                  <td className="p-2 font-medium">
+                                    {season.year}
+                                  </td>
                                   <td className="p-2">{season.games}</td>
-                                  {data.collegeStats.seasons.some(s => s.stats.passYds !== undefined) && (
+                                  {data.collegeStats.seasons.some(
+                                    (s) => s.stats.passYds !== undefined
+                                  ) && (
                                     <>
-                                      <td className="p-2">{season.stats.passYds ?? '-'}</td>
-                                      <td className="p-2">{season.stats.passTd ?? '-'}</td>
+                                      <td className="p-2">
+                                        {season.stats.passYds ?? "-"}
+                                      </td>
+                                      <td className="p-2">
+                                        {season.stats.passTd ?? "-"}
+                                      </td>
                                     </>
                                   )}
-                                  {data.collegeStats.seasons.some(s => s.stats.rushYds !== undefined) && (
+                                  {data.collegeStats.seasons.some(
+                                    (s) => s.stats.rushYds !== undefined
+                                  ) && (
                                     <>
-                                      <td className="p-2">{season.stats.rushYds ?? '-'}</td>
-                                      <td className="p-2">{season.stats.rushTd ?? '-'}</td>
+                                      <td className="p-2">
+                                        {season.stats.rushYds ?? "-"}
+                                      </td>
+                                      <td className="p-2">
+                                        {season.stats.rushTd ?? "-"}
+                                      </td>
                                     </>
                                   )}
-                                  {data.collegeStats.seasons.some(s => s.stats.recYds !== undefined) && (
+                                  {data.collegeStats.seasons.some(
+                                    (s) => s.stats.recYds !== undefined
+                                  ) && (
                                     <>
-                                      <td className="p-2">{season.stats.receptions ?? '-'}</td>
-                                      <td className="p-2">{season.stats.recYds ?? '-'}</td>
-                                      <td className="p-2">{season.stats.recTd ?? '-'}</td>
+                                      <td className="p-2">
+                                        {season.stats.receptions ?? "-"}
+                                      </td>
+                                      <td className="p-2">
+                                        {season.stats.recYds ?? "-"}
+                                      </td>
+                                      <td className="p-2">
+                                        {season.stats.recTd ?? "-"}
+                                      </td>
                                     </>
                                   )}
                                 </tr>
@@ -295,7 +449,10 @@ export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileMo
                       </CardContent>
                     </Card>
                   ) : (
-                    <div className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-stats">
+                    <div
+                      className="text-sm text-muted-foreground text-center p-4"
+                      data-testid="text-no-stats"
+                    >
                       No college stats available
                     </div>
                   )}
@@ -306,19 +463,42 @@ export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileMo
                     {data.cfbdAdvanced.usage && (
                       <Card>
                         <CardContent className="p-4">
-                          <h4 className="font-semibold mb-2 text-sm">Usage Rates</h4>
+                          <h4 className="font-semibold mb-2 text-sm">
+                            Usage Rates
+                          </h4>
                           <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Overall</span>
-                              <span className="font-medium">{(data.cfbdAdvanced.usage.overall * 100).toFixed(1)}%</span>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground">
+                                Overall
+                              </span>
+                              <span className="font-medium">
+                                {(
+                                  data.cfbdAdvanced.usage.overall * 100
+                                ).toFixed(1)}
+                                %
+                              </span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Pass</span>
-                              <span className="font-medium">{(data.cfbdAdvanced.usage.pass * 100).toFixed(1)}%</span>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground">
+                                Pass
+                              </span>
+                              <span className="font-medium">
+                                {(data.cfbdAdvanced.usage.pass * 100).toFixed(
+                                  1
+                                )}
+                                %
+                              </span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Rush</span>
-                              <span className="font-medium">{(data.cfbdAdvanced.usage.rush * 100).toFixed(1)}%</span>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground">
+                                Rush
+                              </span>
+                              <span className="font-medium">
+                                {(data.cfbdAdvanced.usage.rush * 100).toFixed(
+                                  1
+                                )}
+                                %
+                              </span>
                             </div>
                           </div>
                         </CardContent>
@@ -327,19 +507,35 @@ export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileMo
                     {data.cfbdAdvanced.ppa && (
                       <Card>
                         <CardContent className="p-4">
-                          <h4 className="font-semibold mb-2 text-sm">PPA (Predicted Points Added)</h4>
+                          <h4 className="font-semibold mb-2 text-sm">
+                            PPA (Predicted Points Added)
+                          </h4>
                           <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Avg PPA</span>
-                              <span className="font-medium">{data.cfbdAdvanced.ppa.averagePPA.all.toFixed(3)}</span>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground">
+                                Avg PPA
+                              </span>
+                              <span className="font-medium">
+                                {data.cfbdAdvanced.ppa.averagePPA.all.toFixed(
+                                  3
+                                )}
+                              </span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Total PPA</span>
-                              <span className="font-medium">{data.cfbdAdvanced.ppa.totalPPA.all.toFixed(1)}</span>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground">
+                                Total PPA
+                              </span>
+                              <span className="font-medium">
+                                {data.cfbdAdvanced.ppa.totalPPA.all.toFixed(1)}
+                              </span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Plays</span>
-                              <span className="font-medium">{data.cfbdAdvanced.ppa.countablePlays}</span>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-muted-foreground">
+                                Plays
+                              </span>
+                              <span className="font-medium">
+                                {data.cfbdAdvanced.ppa.countablePlays}
+                              </span>
                             </div>
                           </div>
                         </CardContent>
@@ -347,9 +543,189 @@ export function DraftProfileModal({ open, onOpenChange, player }: DraftProfileMo
                     )}
                   </TabsContent>
                 )}
+
+                <TabsContent value="combine" className="space-y-3 mt-3">
+                  {profilePlayer.combine ? (
+                    <div
+                      className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+                      data-testid="combine-metrics-grid"
+                    >
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Card data-testid="combine-forty-yard">
+                            <CardContent className="p-3 text-center">
+                              <Timer className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                              <div className="text-sm font-medium">
+                                {profilePlayer.combine.fortyYard != null
+                                  ? `${profilePlayer.combine.fortyYard}s`
+                                  : "N/A"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                40-Yard Dash
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TooltipTrigger>
+                        <TooltipContent>40-Yard Dash Time</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Card data-testid="combine-bench-press">
+                            <CardContent className="p-3 text-center">
+                              <Dumbbell className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                              <div className="text-sm font-medium">
+                                {profilePlayer.combine.benchPress != null
+                                  ? profilePlayer.combine.benchPress
+                                  : "N/A"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Bench Press
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TooltipTrigger>
+                        <TooltipContent>Bench Press Reps</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Card data-testid="combine-vertical">
+                            <CardContent className="p-3 text-center">
+                              <Ruler className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                              <div className="text-sm font-medium">
+                                {profilePlayer.combine.vertical != null
+                                  ? `${profilePlayer.combine.vertical}"`
+                                  : "N/A"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Vertical Jump
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TooltipTrigger>
+                        <TooltipContent>Vertical Jump Height</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Card data-testid="combine-broad-jump">
+                            <CardContent className="p-3 text-center">
+                              <Activity className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                              <div className="text-sm font-medium">
+                                {profilePlayer.combine.broadJump != null
+                                  ? `${profilePlayer.combine.broadJump}"`
+                                  : "N/A"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Broad Jump
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TooltipTrigger>
+                        <TooltipContent>Broad Jump Distance</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Card data-testid="combine-three-cone">
+                            <CardContent className="p-3 text-center">
+                              <BarChart3 className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                              <div className="text-sm font-medium">
+                                {profilePlayer.combine.threeCone != null
+                                  ? `${profilePlayer.combine.threeCone}s`
+                                  : "N/A"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                3-Cone Drill
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TooltipTrigger>
+                        <TooltipContent>3-Cone Drill Time</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Card data-testid="combine-shuttle">
+                            <CardContent className="p-3 text-center">
+                              <Timer className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                              <div className="text-sm font-medium">
+                                {profilePlayer.combine.shuttle != null
+                                  ? `${profilePlayer.combine.shuttle}s`
+                                  : "N/A"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                20-Yard Shuttle
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TooltipTrigger>
+                        <TooltipContent>20-Yard Shuttle Time</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Card data-testid="combine-arm-length">
+                            <CardContent className="p-3 text-center">
+                              <Ruler className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                              <div className="text-sm font-medium">
+                                {profilePlayer.combine.armLength != null
+                                  ? `${profilePlayer.combine.armLength}"`
+                                  : "N/A"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Arm Length
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TooltipTrigger>
+                        <TooltipContent>Arm Length</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Card data-testid="combine-hand-size">
+                            <CardContent className="p-3 text-center">
+                              <User className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                              <div className="text-sm font-medium">
+                                {profilePlayer.combine.handSize != null
+                                  ? `${profilePlayer.combine.handSize}"`
+                                  : "N/A"}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Hand Size
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TooltipTrigger>
+                        <TooltipContent>Hand Size</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ) : (
+                    <div
+                      className="flex flex-col items-center justify-center py-8 text-center space-y-3"
+                      data-testid="combine-coming-soon"
+                    >
+                      <Timer className="h-10 w-10 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">
+                          NFL Combine data will be available after the combine
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Check back for 40-yard dash, bench press, vertical,
+                          broad jump, 3-cone, and shuttle times
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
               </Tabs>
             ) : (
-              <div className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-profile-data">
+              <div
+                className="text-sm text-muted-foreground text-center p-4"
+                data-testid="text-no-profile-data"
+              >
                 No additional profile data available
               </div>
             )}

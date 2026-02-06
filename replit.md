@@ -45,7 +45,7 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Player Comparison**: Side-by-side comparison for trade evaluation.
 - **ROS Projections**: Advanced rest-of-season projections with AI outlooks.
 - **Devy Rankings**: College prospects (2027+ draft eligible) with dynasty-specific metrics, AI scouting analysis, and CFBD advanced stats. Separated from current draft class.
-- **2026 Draft Board**: Standalone page for current NFL Draft class (~360 prospects) with offense/defense/IDP filtering, sortable columns, position groups, and CFBD-integrated player profiles.
+- **2026 Draft Board**: Comprehensive draft page (merged Draft Board + War Room) for current NFL Draft class (~360 prospects) with Full Board tab (offense/defense/IDP filtering, sortable columns, position groups, stock movement indicators, intangibles) and Stock Watch tab (rising/falling prospects). Player profiles include bio, college stats, CFBD advanced analytics, combine data (TBD), intangibles, and scouting notes. Stored in `server/draft-2026-data.ts`.
 - **Trade Calculator**: Custom dynasty value calculations with AI analysis.
 - **Trade History**: Historical trades with AI insights.
 - **Trophy Room**: League achievements.

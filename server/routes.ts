@@ -2414,7 +2414,7 @@ Return ONLY valid JSON, no other text.`;
 
   app.get("/api/draft/2026", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const { getDraft2026Players, getDraft2026Stats, getDraft2026PositionGroups } = await import('./draft-2026-data');
+      const { getDraft2026Players, getDraft2026Stats, getDraft2026PositionGroups, getDraft2026StockMovers } = await import('./draft-2026-data');
       
       const side = req.query.side as string | undefined;
       const positionGroup = req.query.positionGroup as string | undefined;
@@ -2423,11 +2423,13 @@ Return ONLY valid JSON, no other text.`;
       const players = getDraft2026Players({ side, positionGroup, search });
       const stats = getDraft2026Stats();
       const positionGroups = getDraft2026PositionGroups();
+      const stockMovers = getDraft2026StockMovers();
       
       res.json({
         players,
         stats,
         positionGroups,
+        stockMovers,
         draftYear: 2026,
       });
     } catch (error) {
