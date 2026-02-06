@@ -32,6 +32,7 @@ import LeagueInfoPage from "@/pages/league-info";
 import DepthChartPage from "@/pages/depth-chart";
 import WatchlistPage from "@/pages/watchlist";
 import DraftWarRoomPage from "@/pages/draft-war-room";
+import DraftBoardPage from "@/pages/draft-board";
 import UpgradePage from "@/pages/upgrade";
 import AdminPage from "@/pages/admin";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -141,6 +142,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <DevyPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/draft-board">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DraftBoardPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

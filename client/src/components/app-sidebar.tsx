@@ -123,6 +123,7 @@ const navigationGroups: NavGroup[] = [
       { title: "Player Trends", url: "/league/trends", icon: Activity },
       { title: "Compare", url: "/league/compare", icon: GitCompare },
       { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true },
+      { title: "2026 Draft Board", url: "/league/draft-board", icon: Target },
       { title: "Devy Rankings", url: "/league/devy", icon: GraduationCap },
       { title: "Depth Charts", url: "/league/depth-chart", icon: Layers },
     ],

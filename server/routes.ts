@@ -1977,16 +1977,18 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
         }
       });
 
-      // Filter to only include TRUE devy players (college players not in NFL)
+      const currentDraftYear = currentYear;
+      
       const trueDevyPlayers = devyPlayers.filter(player => {
-        // Look up by name (KTC IDs may not match Sleeper IDs)
+        if (player.draftEligibleYear <= currentDraftYear) {
+          return false;
+        }
+        
         const nameKey = player.name.toLowerCase().trim();
         const nflPlayer = nflPlayersByName.get(nameKey);
         
         if (nflPlayer) {
-          // Check if they have an NFL team or have experience
           if (nflPlayer.team || nflPlayer.years_exp > 0) {
-            console.log(`[Devy Filter] Excluding ${player.name} - now in NFL (team: ${nflPlayer.team}, exp: ${nflPlayer.years_exp})`);
             return false;
           }
         }
@@ -2407,6 +2409,94 @@ Return ONLY valid JSON, no other text.`;
     } catch (error) {
       console.error("Error refreshing data sources:", error);
       res.status(500).json({ message: "Failed to refresh data sources" });
+    }
+  });
+
+  app.get("/api/draft/2026", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { getDraft2026Players, getDraft2026Stats, getDraft2026PositionGroups } = await import('./draft-2026-data');
+      
+      const side = req.query.side as string | undefined;
+      const positionGroup = req.query.positionGroup as string | undefined;
+      const search = req.query.search as string | undefined;
+      
+      const players = getDraft2026Players({ side, positionGroup, search });
+      const stats = getDraft2026Stats();
+      const positionGroups = getDraft2026PositionGroups();
+      
+      res.json({
+        players,
+        stats,
+        positionGroups,
+        draftYear: 2026,
+      });
+    } catch (error) {
+      console.error("Error fetching 2026 draft data:", error);
+      res.status(500).json({ message: "Failed to fetch 2026 draft data" });
+    }
+  });
+
+  app.get("/api/draft/2026/:playerName/profile", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const playerName = decodeURIComponent(req.params.playerName);
+      const { DRAFT_2026_PLAYERS } = await import('./draft-2026-data');
+      
+      const player = DRAFT_2026_PLAYERS.find(p => p.name.toLowerCase() === playerName.toLowerCase());
+      if (!player) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+
+      const cfbd = await import('./cfbd-service');
+      const { getCollegePlayerProfile, getCollegePlayerHeadshotUrl } = await import('./college-stats-service');
+
+      const [espnProfile, cfbdProfile] = await Promise.all([
+        getCollegePlayerProfile(player.name, player.college).catch(() => null),
+        cfbd.getFullPlayerProfile(player.name, player.college, player.position).catch(() => null),
+      ]);
+
+      let collegeStats = { seasons: [] as any[], careerTotals: {} as Record<string, any> };
+      if (espnProfile) {
+        collegeStats = { seasons: espnProfile.seasons, careerTotals: espnProfile.careerTotals };
+      }
+
+      let headshot: string | null = null;
+      if (espnProfile?.espnId) {
+        headshot = getCollegePlayerHeadshotUrl(espnProfile.espnId);
+      }
+
+      const cfbdAdvanced = cfbdProfile ? {
+        seasonStats: cfbdProfile.seasonStats,
+        usage: cfbdProfile.usage ? {
+          overall: cfbdProfile.usage.usage.overall,
+          pass: cfbdProfile.usage.usage.pass,
+          rush: cfbdProfile.usage.usage.rush,
+          firstDown: cfbdProfile.usage.usage.firstDown,
+          secondDown: cfbdProfile.usage.usage.secondDown,
+          thirdDown: cfbdProfile.usage.usage.thirdDown,
+          standardDowns: cfbdProfile.usage.usage.standardDowns,
+          passingDowns: cfbdProfile.usage.usage.passingDowns,
+        } : null,
+        ppa: cfbdProfile.ppa ? {
+          countablePlays: cfbdProfile.ppa.countablePlays,
+          averagePPA: cfbdProfile.ppa.averagePPA,
+          totalPPA: cfbdProfile.ppa.totalPPA,
+        } : null,
+      } : null;
+
+      res.json({
+        player: {
+          ...player,
+          headshot,
+        },
+        bio: espnProfile?.bio || null,
+        collegeStats,
+        cfbdAdvanced,
+        espnId: espnProfile?.espnId || null,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error fetching draft player profile:", error);
+      res.status(500).json({ message: "Failed to fetch player profile" });
     }
   });
 

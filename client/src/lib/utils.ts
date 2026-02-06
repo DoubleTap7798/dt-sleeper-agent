@@ -25,25 +25,34 @@ export function getPositionColorClass(position?: string): string {
     case "FB":
       return "position-rb";
     case "WR":
+    case "WRS":
       return "position-wr";
     case "TE":
       return "position-te";
     case "K":
     case "PK":
       return "position-k";
-    case "DEF":
-    case "DL":
+    case "EDGE":
     case "DE":
+      return "position-edge";
+    case "DL":
     case "DT":
+    case "DL1T":
+    case "DL3T":
+    case "DL5T":
+    case "DEF":
+      return "position-dl";
     case "LB":
     case "ILB":
     case "OLB":
-    case "DB":
+      return "position-lb";
     case "CB":
+    case "DB":
+      return "position-cb";
     case "S":
     case "FS":
     case "SS":
-      return "position-def";
+      return "position-s";
     case "FLEX":
     case "REC_FLEX":
     case "WRRB_FLEX":

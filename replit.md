@@ -16,7 +16,7 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Persistent League Selector**: Always visible for quick league switching.
 - **Consolidated Navigation**: Grouped collapsible sections (League, My Team, Players, Trades).
 - **Design Theme**: Modern tech theme with black background and electric blue/cyan accent color, featuring glow effects, cyan-tinted borders, and accent highlights.
-- **Position Colors**: Distinct colors for player positions - QB (red), RB (green), WR (blue), TE (orange), K (purple), DEF (brown), FLEX (pink), SUPERFLEX (teal), DL (yellow), LB (cyan), DB (pink secondary).
+- **Position Colors**: Distinct colors for player positions - QB (red), RB (green), WR/WRS (blue/cyan), TE (yellow), K (orange), EDGE (rose), DL/DL1T/DL3T/DL5T (amber/yellow), LB/ILB (cyan), CB (purple), S (pink), FLEX (pink), SUPERFLEX (teal).
 - **League Breakdown**: Uniform grid layout showing League Name, Record, Place, Status, and Movement columns. Movement indicator shows "--" placeholder until accurate data source is available.
 
 ### Technical Implementations
@@ -44,7 +44,8 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Player Trends**: Multi-season performance tracking.
 - **Player Comparison**: Side-by-side comparison for trade evaluation.
 - **ROS Projections**: Advanced rest-of-season projections with AI outlooks.
-- **Devy Rankings**: College prospects with AI scouting analysis.
+- **Devy Rankings**: College prospects (2027+ draft eligible) with dynasty-specific metrics, AI scouting analysis, and CFBD advanced stats. Separated from current draft class.
+- **2026 Draft Board**: Standalone page for current NFL Draft class (~360 prospects) with offense/defense/IDP filtering, sortable columns, position groups, and CFBD-integrated player profiles.
 - **Trade Calculator**: Custom dynasty value calculations with AI analysis.
 - **Trade History**: Historical trades with AI insights.
 - **Trophy Room**: League achievements.
@@ -62,11 +63,13 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **`useSelectedLeague` Hook**: Centralized league selection state management.
 - **Dynasty Value Engine**: Custom algorithm calculating player values (0-100 scale) based on multi-year VOR, age, role security, injury risk, production ceiling, volatility, draft capital, team context, scarcity bonus, and market calibration.
 - **Consolidation Premium**: Trade calculator applies a star player premium (similar to KTC's "Value Adjustment") when trading fewer, higher-value assets for multiple pieces. Elite players (93+) receive ~35-42% boost, scaling down for lower tiers. Premium considers piece differential and value concentration.
-- **Multi-Source Data Architecture**: Extensible system designed for future aggregation of player data from multiple sources. Currently uses a single curated source for devy rankings:
-  - **DT Dynasty (Curated)**: Primary source for devy rankings with hand-curated college prospect data, values, tiers, draft projections, and player comparisons.
+- **Multi-Source Data Architecture**: Extensible system designed for future aggregation of player data from multiple sources:
+  - **DT Dynasty (Curated Devy)**: Primary source for devy rankings (2027+ eligible) with hand-curated college prospect data, values, tiers, draft projections, and player comparisons.
+  - **DT Draft 2026 (Curated)**: Current NFL Draft class data (~360 prospects) including IDP positions (EDGE, DL1T/DL3T/DL5T, ILB/LB, CB, S). Stored in `server/draft-2026-data.ts`.
   - **Dynasty Process (NFL Values)**: GitHub-hosted CSV with NFL player dynasty values, fetched with 24-hour cache. Weekly updates. Used for NFL player values in trade calculator, NOT for devy prospects.
   - **Dynasty Process ECR**: Expert Consensus Rankings aggregated from FantasyPros data, integrated into trade calculator's Market Comparison panel.
   - **nflverse (Production Stats)**: Open-source NFL play-by-play data from GitHub releases. Provides advanced metrics (target share, air yards share, WOPR, PPG, catch rate, yards per carry) for player profile Analytics tab. 24-hour cache.
+  - **CFBD (College Advanced Stats)**: College Football Data API providing PPA metrics, usage rates by down/situation, and detailed season stats. Integrated into devy profile modal (Advanced tab) and draft profile modal. 24-hour cache, API key in secrets.
   - **Future Expansion**: Infrastructure ready for additional sources (e.g., FantasyPros consensus) when legitimate APIs become available. Most devy ranking sites (247Sports, Rivals) don't offer public APIs.
 
 ## External Dependencies
@@ -74,6 +77,7 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 ### Third-Party APIs
 - **Sleeper API**: For fantasy football league data.
 - **ESPN API**: For player statistics, game logs, and career data.
+- **CFBD API**: College Football Data API for advanced college metrics (PPA, usage rates, season stats). API key stored in secrets.
 - **OpenAI API**: Integrated via Replit AI Integrations for advanced AI analysis (trade, news, lineup, projections).
 
 ### Database
