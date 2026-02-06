@@ -2145,9 +2145,16 @@ Format your response with clear section headers using markdown. Be concise but i
 
       // Import college stats service
       const { getCollegePlayerProfile, getCollegePlayerHeadshotUrl } = await import("./college-stats-service");
+      const cfbd = await import('./cfbd-service');
       
-      // Fetch real ESPN college stats
-      const espnProfile = await getCollegePlayerProfile(player.name, player.college);
+      // Fetch real ESPN college stats and CFBD advanced data in parallel
+      const [espnProfile, cfbdProfile] = await Promise.all([
+        getCollegePlayerProfile(player.name, player.college),
+        cfbd.getFullPlayerProfile(player.name, player.college, player.position).catch(err => {
+          console.error(`[CFBD] Profile fetch failed for ${player.name}:`, err);
+          return null;
+        }),
+      ]);
       
       // Format ESPN stats to our structure
       let collegeStats = { seasons: [] as any[], careerTotals: {} as Record<string, any> };
@@ -2310,6 +2317,25 @@ Return ONLY valid JSON, no other text.`;
         teamLogo = getCollegeTeamLogo(player.college);
       }
 
+      const cfbdAdvanced = cfbdProfile ? {
+        seasonStats: cfbdProfile.seasonStats,
+        usage: cfbdProfile.usage ? {
+          overall: cfbdProfile.usage.usage.overall,
+          pass: cfbdProfile.usage.usage.pass,
+          rush: cfbdProfile.usage.usage.rush,
+          firstDown: cfbdProfile.usage.usage.firstDown,
+          secondDown: cfbdProfile.usage.usage.secondDown,
+          thirdDown: cfbdProfile.usage.usage.thirdDown,
+          standardDowns: cfbdProfile.usage.usage.standardDowns,
+          passingDowns: cfbdProfile.usage.usage.passingDowns,
+        } : null,
+        ppa: cfbdProfile.ppa ? {
+          countablePlays: cfbdProfile.ppa.countablePlays,
+          averagePPA: cfbdProfile.ppa.averagePPA,
+          totalPPA: cfbdProfile.ppa.totalPPA,
+        } : null,
+      } : null;
+
       res.json({
         player: {
           id: player.id,
@@ -2328,9 +2354,10 @@ Return ONLY valid JSON, no other text.`;
         bio,
         collegeStats,
         gameLogs,
+        cfbdAdvanced,
         analysisNotes: scoutingData.analysisNotes || [],
         scoutingReport: scoutingData.scoutingReport || { strengths: [], weaknesses: [], nflComparison: "N/A", draftProjection: "N/A", fantasyOutlook: "N/A" },
-        news: [], // Backward compatibility
+        news: [],
         espnId: espnProfile?.espnId || null,
         generatedAt: new Date().toISOString(),
       });
@@ -2498,6 +2525,59 @@ Return ONLY valid JSON, no other text.`;
     } catch (error) {
       console.error("Error fetching player profile stats:", error);
       res.status(500).json({ message: "Failed to fetch player profile" });
+    }
+  });
+
+  // === CFBD (College Football Data) API Routes ===
+  
+  app.get("/api/cfbd/player/:playerName", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const cfbd = await import('./cfbd-service');
+      const playerName = decodeURIComponent(req.params.playerName);
+      const team = req.query.team as string | undefined;
+      const position = (req.query.position as string) || 'WR';
+
+      const profile = await cfbd.getFullPlayerProfile(playerName, team || '', position);
+
+      res.json({
+        playerName,
+        team,
+        ...profile,
+        source: 'College Football Data API',
+      });
+    } catch (error) {
+      console.error("Error fetching CFBD player:", error);
+      res.status(500).json({ message: "Failed to fetch college football data" });
+    }
+  });
+
+  app.get("/api/cfbd/team/:team/stats", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const cfbd = await import('./cfbd-service');
+      const team = decodeURIComponent(req.params.team);
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+
+      const stats = await cfbd.getTeamPlayerStats(team, year);
+
+      res.json({
+        team,
+        year,
+        ...stats,
+        source: 'College Football Data API',
+      });
+    } catch (error) {
+      console.error("Error fetching CFBD team stats:", error);
+      res.status(500).json({ message: "Failed to fetch team stats" });
+    }
+  });
+
+  app.get("/api/cfbd/status", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const cfbd = await import('./cfbd-service');
+      const status = cfbd.getCFBDCacheStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get CFBD status" });
     }
   });
 

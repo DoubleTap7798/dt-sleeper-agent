@@ -27,6 +27,8 @@ import {
   Star,
   User,
   X,
+  Zap,
+  Activity,
 } from "lucide-react";
 
 interface DevyPlayer {
@@ -88,6 +90,47 @@ interface ScoutingReport {
   fantasyOutlook: string;
 }
 
+interface CFBDUsage {
+  overall: number;
+  pass: number;
+  rush: number;
+  firstDown: number;
+  secondDown: number;
+  thirdDown: number;
+  standardDowns: number;
+  passingDowns: number;
+}
+
+interface CFBDPPA {
+  countablePlays: number;
+  averagePPA: {
+    all: number;
+    pass: number;
+    rush: number;
+    firstDown: number;
+    secondDown: number;
+    thirdDown: number;
+    standardDowns: number;
+    passingDowns: number;
+  };
+  totalPPA: {
+    all: number;
+    pass: number;
+    rush: number;
+    firstDown: number;
+    secondDown: number;
+    thirdDown: number;
+    standardDowns: number;
+    passingDowns: number;
+  };
+}
+
+interface CFBDAdvanced {
+  seasonStats: Record<string, Record<string, number>>;
+  usage: CFBDUsage | null;
+  ppa: CFBDPPA | null;
+}
+
 interface DevyProfileData {
   player: DevyPlayer;
   bio: Bio;
@@ -96,6 +139,7 @@ interface DevyProfileData {
     careerTotals: Record<string, number>;
   };
   gameLogs: GameLog[];
+  cfbdAdvanced: CFBDAdvanced | null;
   analysisNotes: AnalysisNote[];
   scoutingReport: ScoutingReport;
   generatedAt: string;
@@ -307,6 +351,10 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
             <TabsTrigger value="games" className="text-xs sm:text-sm" data-testid="tab-games">
               <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
               Games
+            </TabsTrigger>
+            <TabsTrigger value="advanced" className="text-xs sm:text-sm" data-testid="tab-advanced">
+              <Activity className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Advanced
             </TabsTrigger>
             <TabsTrigger value="analysis" className="text-xs sm:text-sm" data-testid="tab-analysis">
               <Newspaper className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
@@ -610,6 +658,168 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       </CardContent>
                     </Card>
                   )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="advanced" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-advanced">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
+                      {data.cfbdAdvanced ? (
+                        <>
+                          {data.cfbdAdvanced.ppa && (
+                            <Card>
+                              <CardContent className="p-4">
+                                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                                  <Zap className="h-4 w-4" />
+                                  Predicted Points Added (PPA)
+                                </h3>
+                                <p className="text-xs text-muted-foreground mb-3">
+                                  PPA measures how much each play contributes to scoring. Higher is better.
+                                </p>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                  <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-ppa-overall">
+                                    <div className={`text-xl font-bold ${data.cfbdAdvanced.ppa.averagePPA.all > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                      {data.cfbdAdvanced.ppa.averagePPA.all.toFixed(3)}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">Avg PPA</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-ppa-total">
+                                    <div className={`text-xl font-bold ${data.cfbdAdvanced.ppa.totalPPA.all > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                      {data.cfbdAdvanced.ppa.totalPPA.all.toFixed(1)}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">Total PPA</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-ppa-pass">
+                                    <div className="text-xl font-bold">
+                                      {data.cfbdAdvanced.ppa.averagePPA.pass.toFixed(3)}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">Pass PPA</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-ppa-rush">
+                                    <div className="text-xl font-bold">
+                                      {data.cfbdAdvanced.ppa.averagePPA.rush.toFixed(3)}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">Rush PPA</div>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-3 mt-3">
+                                  <div className="text-center p-2 bg-muted/50 rounded">
+                                    <div className="text-sm font-bold">{data.cfbdAdvanced.ppa.countablePlays}</div>
+                                    <div className="text-xs text-muted-foreground">Plays</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-muted/50 rounded">
+                                    <div className="text-sm font-bold">{data.cfbdAdvanced.ppa.averagePPA.standardDowns.toFixed(3)}</div>
+                                    <div className="text-xs text-muted-foreground">Std Downs</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-muted/50 rounded">
+                                    <div className="text-sm font-bold">{data.cfbdAdvanced.ppa.averagePPA.passingDowns.toFixed(3)}</div>
+                                    <div className="text-xs text-muted-foreground">Pass Downs</div>
+                                  </div>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-2 italic">Source: College Football Data API</p>
+                              </CardContent>
+                            </Card>
+                          )}
+
+                          {data.cfbdAdvanced.usage && (
+                            <Card>
+                              <CardContent className="p-4">
+                                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                                  <Target className="h-4 w-4" />
+                                  Usage Rate
+                                </h3>
+                                <p className="text-xs text-muted-foreground mb-3">
+                                  How often the player is involved in plays. Higher usage = bigger role.
+                                </p>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                  <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-usage-overall">
+                                    <div className="text-xl font-bold">{(data.cfbdAdvanced.usage.overall * 100).toFixed(1)}%</div>
+                                    <div className="text-xs text-muted-foreground">Overall</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-usage-pass">
+                                    <div className="text-xl font-bold">{(data.cfbdAdvanced.usage.pass * 100).toFixed(1)}%</div>
+                                    <div className="text-xs text-muted-foreground">Pass Plays</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-usage-rush">
+                                    <div className="text-xl font-bold">{(data.cfbdAdvanced.usage.rush * 100).toFixed(1)}%</div>
+                                    <div className="text-xs text-muted-foreground">Rush Plays</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-muted/50 rounded">
+                                    <div className="text-xl font-bold">{(data.cfbdAdvanced.usage.firstDown * 100).toFixed(1)}%</div>
+                                    <div className="text-xs text-muted-foreground">1st Down</div>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-3 mt-3">
+                                  <div className="text-center p-2 bg-muted/50 rounded">
+                                    <div className="text-sm font-bold">{(data.cfbdAdvanced.usage.secondDown * 100).toFixed(1)}%</div>
+                                    <div className="text-xs text-muted-foreground">2nd Down</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-muted/50 rounded">
+                                    <div className="text-sm font-bold">{(data.cfbdAdvanced.usage.thirdDown * 100).toFixed(1)}%</div>
+                                    <div className="text-xs text-muted-foreground">3rd Down</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-muted/50 rounded">
+                                    <div className="text-sm font-bold">{(data.cfbdAdvanced.usage.passingDowns * 100).toFixed(1)}%</div>
+                                    <div className="text-xs text-muted-foreground">Pass Downs</div>
+                                  </div>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-2 italic">Source: College Football Data API</p>
+                              </CardContent>
+                            </Card>
+                          )}
+
+                          {data.cfbdAdvanced.seasonStats && Object.keys(data.cfbdAdvanced.seasonStats).length > 0 && (
+                            <Card>
+                              <CardContent className="p-4">
+                                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                                  <BarChart3 className="h-4 w-4" />
+                                  CFBD Season Stats
+                                </h3>
+                                <div className="space-y-3">
+                                  {Object.entries(data.cfbdAdvanced.seasonStats).map(([category, stats]) => (
+                                    <div key={category}>
+                                      <h4 className="text-sm font-medium capitalize mb-2">{category}</h4>
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                        {Object.entries(stats).map(([stat, value]) => (
+                                          <div key={stat} className="text-center p-1.5 bg-muted/50 rounded">
+                                            <div className="text-sm font-bold">{typeof value === 'number' ? (Number.isInteger(value) ? value.toLocaleString() : value.toFixed(1)) : value}</div>
+                                            <div className="text-[10px] text-muted-foreground capitalize">{stat.replace(/_/g, ' ')}</div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-2 italic">Source: College Football Data API</p>
+                              </CardContent>
+                            </Card>
+                          )}
+
+                          {!data.cfbdAdvanced.ppa && !data.cfbdAdvanced.usage && Object.keys(data.cfbdAdvanced.seasonStats || {}).length === 0 && (
+                            <Card>
+                              <CardContent className="p-6 text-center">
+                                <Activity className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                                <h3 className="font-semibold mb-2">Advanced Data Not Available</h3>
+                                <p className="text-sm text-muted-foreground">
+                                  Advanced metrics for {player.name} from the College Football Data API are not available.
+                                  This may be because the player hasn't logged enough snaps yet.
+                                </p>
+                              </CardContent>
+                            </Card>
+                          )}
+                        </>
+                      ) : (
+                        <Card>
+                          <CardContent className="p-6 text-center">
+                            <Activity className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                            <h3 className="font-semibold mb-2">Advanced Analytics</h3>
+                            <p className="text-sm text-muted-foreground">
+                              College Football Data API metrics are not available for {player.name} at this time.
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )}
                     </div>
                   </ScrollArea>
                 </TabsContent>

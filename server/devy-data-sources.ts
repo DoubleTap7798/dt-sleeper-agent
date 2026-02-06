@@ -302,6 +302,26 @@ export async function getDataSourceStatus(): Promise<DataSourceStatus[]> {
     });
   }
 
+  try {
+    const cfbd = await import('./cfbd-service');
+    const cfbdStatus = cfbd.getCFBDCacheStatus();
+    sources.push({
+      sourceId: 'cfbd',
+      sourceName: 'College Football Data API',
+      lastUpdated: cfbdStatus.apiKeyConfigured ? new Date().toISOString().split('T')[0] : 'N/A',
+      playerCount: cfbdStatus.entryCount,
+      status: cfbdStatus.apiKeyConfigured ? 'active' : 'inactive'
+    });
+  } catch {
+    sources.push({
+      sourceId: 'cfbd',
+      sourceName: 'College Football Data API',
+      lastUpdated: 'N/A',
+      playerCount: 0,
+      status: 'inactive'
+    });
+  }
+
   return sources;
 }
 
