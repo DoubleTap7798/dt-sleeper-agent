@@ -31,7 +31,7 @@ export interface MultiSourceDevyPlayer extends KTCDevyPlayer {
 
 const DYNASTY_PROCESS_VALUES_URL = 'https://raw.githubusercontent.com/dynastyprocess/data/master/files/values.csv';
 
-interface DynastyProcessPlayer {
+export interface DynastyProcessPlayer {
   player: string;
   pos: string;
   team: string;
@@ -39,8 +39,10 @@ interface DynastyProcessPlayer {
   draft_year: string;
   ecr_1qb: string;
   ecr_2qb: string;
+  ecr_pos: string;
   value_1qb: string;
   value_2qb: string;
+  fantasypros_id: string;
 }
 
 let dynastyProcessCache: {
@@ -223,6 +225,39 @@ export async function getDynastyProcessNFLValues(): Promise<DynastyProcessPlayer
   return fetchDynastyProcessValues();
 }
 
+export async function getDynastyProcessPlayerByName(playerName: string): Promise<DynastyProcessPlayer | null> {
+  const players = await fetchDynastyProcessValues();
+  const normalized = playerName.toLowerCase().trim();
+  return players.find(p => p.player.toLowerCase().trim() === normalized) || null;
+}
+
+export async function getDynastyProcessECRRankings(format: '1qb' | '2qb' = '1qb'): Promise<{
+  player: string;
+  pos: string;
+  team: string;
+  age: number;
+  ecr: number;
+  value: number;
+  fantasypros_id: string;
+}[]> {
+  const players = await fetchDynastyProcessValues();
+  const ecrField = format === '2qb' ? 'ecr_2qb' : 'ecr_1qb';
+  const valueField = format === '2qb' ? 'value_2qb' : 'value_1qb';
+
+  return players
+    .filter(p => p[ecrField] && parseFloat(p[ecrField]) > 0)
+    .map(p => ({
+      player: p.player,
+      pos: p.pos,
+      team: p.team,
+      age: parseFloat(p.age) || 0,
+      ecr: parseFloat(p[ecrField]) || 999,
+      value: parseInt(p[valueField]) || 0,
+      fantasypros_id: p.fantasypros_id || '',
+    }))
+    .sort((a, b) => a.ecr - b.ecr);
+}
+
 export interface DataSourceStatus {
   sourceId: string;
   sourceName: string;
@@ -232,6 +267,9 @@ export interface DataSourceStatus {
 }
 
 export async function getDataSourceStatus(): Promise<DataSourceStatus[]> {
+  const { getNFLVerseCacheStatus } = await import('./nflverse-stats');
+  const nflverseStatus = getNFLVerseCacheStatus();
+
   const sources: DataSourceStatus[] = [
     {
       sourceId: 'dtDynasty',
@@ -246,9 +284,20 @@ export async function getDataSourceStatus(): Promise<DataSourceStatus[]> {
     const ageHours = (Date.now() - dynastyProcessCache.fetchedAt.getTime()) / (1000 * 60 * 60);
     sources.push({
       sourceId: 'dynastyProcess',
-      sourceName: 'Dynasty Process (NFL Values)',
+      sourceName: 'Dynasty Process (NFL Values & ECR)',
       lastUpdated: dynastyProcessCache.fetchedAt.toISOString().split('T')[0],
       playerCount: dynastyProcessCache.data.length,
+      status: ageHours < 48 ? 'active' : 'stale'
+    });
+  }
+
+  if (nflverseStatus.cached && nflverseStatus.fetchedAt) {
+    const ageHours = (Date.now() - nflverseStatus.fetchedAt.getTime()) / (1000 * 60 * 60);
+    sources.push({
+      sourceId: 'nflverse',
+      sourceName: `nflverse Player Stats (${nflverseStatus.season})`,
+      lastUpdated: nflverseStatus.fetchedAt.toISOString().split('T')[0],
+      playerCount: nflverseStatus.playerCount,
       status: ageHours < 48 ? 'active' : 'stale'
     });
   }
@@ -258,11 +307,14 @@ export async function getDataSourceStatus(): Promise<DataSourceStatus[]> {
 
 export async function refreshAllSources(): Promise<{ success: boolean; message: string }> {
   try {
+    const { getNFLVerseStats } = await import('./nflverse-stats');
+    
     await fetchDynastyProcessValues();
+    await getNFLVerseStats(2024);
     
     return {
       success: true,
-      message: `Successfully refreshed data sources`
+      message: `Successfully refreshed all data sources`
     };
   } catch (error) {
     return {

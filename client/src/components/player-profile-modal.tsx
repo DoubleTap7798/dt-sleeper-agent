@@ -31,8 +31,74 @@ import {
   Ruler,
   Scale,
   Activity,
+  Zap,
+  Target,
+  TrendingUp,
 } from "lucide-react";
 import { getNFLTeamLogo } from "@/lib/team-logos";
+
+interface NFLVerseProfile {
+  playerName: string;
+  seasonStats: {
+    player_name: string;
+    position: string;
+    team: string;
+    season: number;
+    games_played: number;
+    completions: number;
+    attempts: number;
+    passing_yards: number;
+    passing_tds: number;
+    interceptions: number;
+    carries: number;
+    rushing_yards: number;
+    rushing_tds: number;
+    receptions: number;
+    targets: number;
+    receiving_yards: number;
+    receiving_tds: number;
+    target_share: number;
+    air_yards_share: number;
+    wopr: number;
+    fantasy_points: number;
+    fantasy_points_ppr: number;
+    ppg: number;
+    ppg_ppr: number;
+    yards_per_carry: number;
+    yards_per_reception: number;
+    catch_rate: number;
+    td_rate: number;
+  } | null;
+  weeklyStats: Array<{
+    week: number;
+    opponent_team: string;
+    completions: number;
+    attempts: number;
+    passing_yards: number;
+    passing_tds: number;
+    interceptions: number;
+    carries: number;
+    rushing_yards: number;
+    rushing_tds: number;
+    receptions: number;
+    targets: number;
+    receiving_yards: number;
+    receiving_tds: number;
+    target_share: number;
+    air_yards_share: number;
+    wopr: number;
+    fantasy_points_ppr: number;
+  }>;
+  dynastyProcess: {
+    value_1qb: number;
+    value_2qb: number;
+    ecr_1qb: number | null;
+    ecr_2qb: number | null;
+    ecr_pos: number | null;
+    age: number | null;
+    team: string;
+  } | null;
+}
 
 interface PlayerProfileModalProps {
   open: boolean;
@@ -239,6 +305,17 @@ export function PlayerProfileModal({
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: nflverseProfile } = useQuery<NFLVerseProfile>({
+    queryKey: ["/api/nflverse/stats", playerName, "profile"],
+    queryFn: async () => {
+      const res = await fetch(`/api/nflverse/stats/${encodeURIComponent(playerName)}/profile`);
+      if (!res.ok) throw new Error("Failed to fetch nflverse stats");
+      return res.json();
+    },
+    enabled: open && !!playerName && ['QB', 'RB', 'WR', 'TE'].includes((position || '').toUpperCase()),
+    staleTime: 10 * 60 * 1000,
+  });
+
   const bio = profile?.bio;
   const displayPosition = bio?.position || position;
 
@@ -286,24 +363,36 @@ export function PlayerProfileModal({
           </div>
         ) : (
           <Tabs defaultValue="bio" className="w-full">
-            <TabsList className="grid w-full grid-cols-4" data-testid="player-profile-tabs">
-              <TabsTrigger value="bio" className="text-xs sm:text-sm" data-testid="tab-bio">
-                <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                <span className="hidden sm:inline">Bio</span>
-              </TabsTrigger>
-              <TabsTrigger value="stats" className="text-xs sm:text-sm" data-testid="tab-stats">
-                <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                <span className="hidden sm:inline">Stats</span>
-              </TabsTrigger>
-              <TabsTrigger value="games" className="text-xs sm:text-sm" data-testid="tab-games">
-                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                <span className="hidden sm:inline">Games</span>
-              </TabsTrigger>
-              <TabsTrigger value="splits" className="text-xs sm:text-sm" data-testid="tab-splits">
-                <SplitSquareHorizontal className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                <span className="hidden sm:inline">Splits</span>
-              </TabsTrigger>
-            </TabsList>
+            {(() => {
+              const safePos = (displayPosition || '').toUpperCase();
+              const isOffensive = ['QB', 'RB', 'WR', 'TE'].includes(safePos);
+              return (
+                <TabsList className={isOffensive ? "grid w-full grid-cols-5 gap-1" : "grid w-full grid-cols-4 gap-1"} data-testid="player-profile-tabs">
+                  <TabsTrigger value="bio" className="text-xs sm:text-sm" data-testid="tab-bio">
+                    <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                    <span className="hidden sm:inline">Bio</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="stats" className="text-xs sm:text-sm" data-testid="tab-stats">
+                    <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                    <span className="hidden sm:inline">Stats</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="games" className="text-xs sm:text-sm" data-testid="tab-games">
+                    <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                    <span className="hidden sm:inline">Games</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="splits" className="text-xs sm:text-sm" data-testid="tab-splits">
+                    <SplitSquareHorizontal className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                    <span className="hidden sm:inline">Splits</span>
+                  </TabsTrigger>
+                  {isOffensive && (
+                    <TabsTrigger value="analytics" className="text-xs sm:text-sm" data-testid="tab-analytics">
+                      <Zap className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                      <span className="hidden sm:inline">Analytics</span>
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+              );
+            })()}
 
             <div className="h-[400px] mt-4 overflow-y-auto">
               <TabsContent value="bio" className="mt-0 space-y-4">
@@ -331,6 +420,15 @@ export function PlayerProfileModal({
                   position={displayPosition}
                 />
               </TabsContent>
+
+              {['QB', 'RB', 'WR', 'TE'].includes((displayPosition || '').toUpperCase()) && (
+                <TabsContent value="analytics" className="mt-0 space-y-4">
+                  <AnalyticsTab
+                    nflverseProfile={nflverseProfile || null}
+                    position={displayPosition}
+                  />
+                </TabsContent>
+              )}
             </div>
           </Tabs>
         )}
@@ -602,5 +700,210 @@ function SplitsTab({ splits, position }: { splits: PlayerProfile["splits"]; posi
       </Table>
       <StatLegend position={position} stats={statsToShow} />
     </Card>
+  );
+}
+
+function AnalyticsTab({
+  nflverseProfile,
+  position,
+}: {
+  nflverseProfile: NFLVerseProfile | null;
+  position: string;
+}) {
+  if (!nflverseProfile?.seasonStats) {
+    return (
+      <div className="text-center text-muted-foreground py-8">
+        No advanced analytics available for this player
+      </div>
+    );
+  }
+
+  const s = nflverseProfile.seasonStats;
+  const dp = nflverseProfile.dynastyProcess;
+  const pos = (position || '').toUpperCase();
+
+  const formatPct = (val: number | null | undefined) => val != null ? `${(val * 100).toFixed(1)}%` : "-";
+  const formatNum = (val: number | null | undefined, decimals = 1) => val != null ? val.toFixed(decimals) : "-";
+
+  const getQBMetrics = () => [
+    { label: "Fantasy PPG (PPR)", value: formatNum(s.ppg_ppr), icon: Zap },
+    { label: "Total Fantasy Pts", value: formatNum(s.fantasy_points_ppr, 0), icon: TrendingUp },
+    { label: "Pass Yards", value: s.passing_yards.toLocaleString(), icon: BarChart3 },
+    { label: "Pass TD", value: String(s.passing_tds), icon: Target },
+    { label: "INT", value: String(s.interceptions), icon: Activity },
+    { label: "Rush Yards", value: s.rushing_yards.toLocaleString(), icon: BarChart3 },
+    { label: "Rush TD", value: String(s.rushing_tds), icon: Target },
+    { label: "Games", value: String(s.games_played), icon: Calendar },
+  ];
+
+  const getRBMetrics = () => [
+    { label: "Fantasy PPG (PPR)", value: formatNum(s.ppg_ppr), icon: Zap },
+    { label: "Total Fantasy Pts", value: formatNum(s.fantasy_points_ppr, 0), icon: TrendingUp },
+    { label: "Yards/Carry", value: formatNum(s.yards_per_carry), icon: BarChart3 },
+    { label: "Target Share", value: formatPct(s.target_share), icon: Target },
+    { label: "Catch Rate", value: formatPct(s.catch_rate), icon: Activity },
+    { label: "WOPR", value: formatNum(s.wopr, 3), icon: Zap },
+    { label: "TD Rate", value: formatPct(s.td_rate), icon: Target },
+    { label: "Games", value: String(s.games_played), icon: Calendar },
+  ];
+
+  const getWRTEMetrics = () => [
+    { label: "Fantasy PPG (PPR)", value: formatNum(s.ppg_ppr), icon: Zap },
+    { label: "Total Fantasy Pts", value: formatNum(s.fantasy_points_ppr, 0), icon: TrendingUp },
+    { label: "Target Share", value: formatPct(s.target_share), icon: Target },
+    { label: "Air Yards Share", value: formatPct(s.air_yards_share), icon: TrendingUp },
+    { label: "WOPR", value: formatNum(s.wopr, 3), icon: Zap },
+    { label: "Catch Rate", value: formatPct(s.catch_rate), icon: Activity },
+    { label: "Yards/Reception", value: formatNum(s.yards_per_reception), icon: BarChart3 },
+    { label: "Games", value: String(s.games_played), icon: Calendar },
+  ];
+
+  const metrics = pos === 'QB' ? getQBMetrics() :
+    pos === 'RB' ? getRBMetrics() : getWRTEMetrics();
+
+  const weeklyStats = nflverseProfile.weeklyStats || [];
+
+  return (
+    <div className="space-y-4" data-testid="container-analytics">
+      <Card className="p-4" data-testid="card-advanced-analytics">
+        <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+          <Zap className="h-4 w-4" /> {s.season} Advanced Analytics
+        </h4>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {metrics.map((m, i) => (
+            <div key={i} data-testid={`stat-${m.label.replace(/\s+/g, '-').toLowerCase()}`}>
+              <p className="text-xs text-muted-foreground">{m.label}</p>
+              <p className="text-lg font-bold" data-testid={`value-${m.label.replace(/\s+/g, '-').toLowerCase()}`}>{m.value}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {dp && (
+        <Card className="p-4" data-testid="card-dynasty-market-value">
+          <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+            <BarChart3 className="h-4 w-4" /> Dynasty Market Value
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground">1QB Value</p>
+              <p className="text-lg font-bold" data-testid="value-1qb">{dp.value_1qb.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">SF Value</p>
+              <p className="text-lg font-bold" data-testid="value-2qb">{dp.value_2qb.toLocaleString()}</p>
+            </div>
+            {dp.ecr_1qb && (
+              <div>
+                <p className="text-xs text-muted-foreground">ECR (1QB)</p>
+                <p className="text-lg font-bold">#{Math.round(dp.ecr_1qb)}</p>
+              </div>
+            )}
+            {dp.ecr_pos && (
+              <div>
+                <p className="text-xs text-muted-foreground">Pos Rank</p>
+                <p className="text-lg font-bold">{pos}{Math.round(dp.ecr_pos)}</p>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 italic">Source: dynastyprocess.com</p>
+        </Card>
+      )}
+
+      {weeklyStats.length > 0 && (
+        <Card className="p-3" data-testid="card-weekly-efficiency">
+          <h4 className="font-semibold mb-2 text-sm flex items-center gap-2">
+            <Target className="h-4 w-4" /> Weekly Efficiency ({s.season})
+          </h4>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-7 text-xs px-1.5">Wk</TableHead>
+                <TableHead className="w-9 text-xs px-1.5">Opp</TableHead>
+                <TableHead className="text-right text-xs px-1.5">PPR</TableHead>
+                {(pos === 'WR' || pos === 'TE') && (
+                  <>
+                    <TableHead className="text-right text-xs px-1.5">Tgt%</TableHead>
+                    <TableHead className="text-right text-xs px-1.5">AY%</TableHead>
+                  </>
+                )}
+                {pos === 'RB' && (
+                  <>
+                    <TableHead className="text-right text-xs px-1.5">Tgt%</TableHead>
+                    <TableHead className="text-right text-xs px-1.5">YPC</TableHead>
+                  </>
+                )}
+                {pos === 'QB' && (
+                  <>
+                    <TableHead className="text-right text-xs px-1.5">C/A</TableHead>
+                    <TableHead className="text-right text-xs px-1.5">PY</TableHead>
+                  </>
+                )}
+                <TableHead className="text-right text-xs px-1.5">WOPR</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {weeklyStats.slice(0, 18).map((w, i) => (
+                <TableRow key={i}>
+                  <TableCell className="font-medium text-xs px-1.5">{w.week}</TableCell>
+                  <TableCell className="text-xs px-1.5">{w.opponent_team}</TableCell>
+                  <TableCell className="text-right text-xs px-1.5 font-medium">
+                    {w.fantasy_points_ppr?.toFixed(1) || "-"}
+                  </TableCell>
+                  {(pos === 'WR' || pos === 'TE') && (
+                    <>
+                      <TableCell className="text-right text-xs px-1.5">
+                        {formatPct(w.target_share)}
+                      </TableCell>
+                      <TableCell className="text-right text-xs px-1.5">
+                        {formatPct(w.air_yards_share)}
+                      </TableCell>
+                    </>
+                  )}
+                  {pos === 'RB' && (
+                    <>
+                      <TableCell className="text-right text-xs px-1.5">
+                        {formatPct(w.target_share)}
+                      </TableCell>
+                      <TableCell className="text-right text-xs px-1.5">
+                        {w.carries > 0 ? (w.rushing_yards / w.carries).toFixed(1) : "-"}
+                      </TableCell>
+                    </>
+                  )}
+                  {pos === 'QB' && (
+                    <>
+                      <TableCell className="text-right text-xs px-1.5">
+                        {w.completions}/{w.attempts}
+                      </TableCell>
+                      <TableCell className="text-right text-xs px-1.5">
+                        {w.passing_yards}
+                      </TableCell>
+                    </>
+                  )}
+                  <TableCell className="text-right text-xs px-1.5">
+                    {w.wopr ? w.wopr.toFixed(3) : "-"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="mt-2 text-[10px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5 px-2">
+            <span><span className="font-medium">PPR</span> = Fantasy Points (PPR)</span>
+            <span><span className="font-medium">Tgt%</span> = Target Share</span>
+            {(pos === 'WR' || pos === 'TE') && (
+              <span><span className="font-medium">AY%</span> = Air Yards Share</span>
+            )}
+            {pos === 'RB' && (
+              <span><span className="font-medium">YPC</span> = Yards Per Carry</span>
+            )}
+            <span><span className="font-medium">WOPR</span> = Weighted Opportunity Rating</span>
+          </div>
+        </Card>
+      )}
+
+      <p className="text-xs text-muted-foreground text-center italic">
+        Data from nflverse (open-source NFL data) and dynastyprocess.com
+      </p>
+    </div>
   );
 }

@@ -40,7 +40,7 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Player Watchlist**: Track players and dynasty value changes.
 - **Smart Trade Ideas**: AI-powered trade suggestions and fairness scoring.
 - **NFL Players**: Player rankings and profiles.
-- **Player Profile Modal**: Comprehensive player stats, bio, career history, game logs.
+- **Player Profile Modal**: Comprehensive player stats, bio, career history, game logs. Analytics tab with nflverse advanced metrics (target share, air yards share, WOPR, PPG) for offensive players, plus Dynasty Process market values and ECR rankings.
 - **Player Trends**: Multi-season performance tracking.
 - **Player Comparison**: Side-by-side comparison for trade evaluation.
 - **ROS Projections**: Advanced rest-of-season projections with AI outlooks.
@@ -65,6 +65,8 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Multi-Source Data Architecture**: Extensible system designed for future aggregation of player data from multiple sources. Currently uses a single curated source for devy rankings:
   - **DT Dynasty (Curated)**: Primary source for devy rankings with hand-curated college prospect data, values, tiers, draft projections, and player comparisons.
   - **Dynasty Process (NFL Values)**: GitHub-hosted CSV with NFL player dynasty values, fetched with 24-hour cache. Weekly updates. Used for NFL player values in trade calculator, NOT for devy prospects.
+  - **Dynasty Process ECR**: Expert Consensus Rankings aggregated from FantasyPros data, integrated into trade calculator's Market Comparison panel.
+  - **nflverse (Production Stats)**: Open-source NFL play-by-play data from GitHub releases. Provides advanced metrics (target share, air yards share, WOPR, PPG, catch rate, yards per carry) for player profile Analytics tab. 24-hour cache.
   - **Future Expansion**: Infrastructure ready for additional sources (e.g., FantasyPros consensus) when legitimate APIs become available. Most devy ranking sites (247Sports, Rivals) don't offer public APIs.
 
 ## External Dependencies

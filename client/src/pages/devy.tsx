@@ -316,7 +316,8 @@ export default function DevyPage() {
             </div>
             <p className="text-xs text-muted-foreground mt-3">
               Devy rankings are curated by DT Dynasty with values, tiers, draft projections, and player comparisons. 
-              Dynasty Process provides NFL player values for the trade calculator (not college prospects).
+              Dynasty Process provides NFL player values and ECR for the trade calculator. 
+              nflverse powers advanced analytics (target share, WOPR, air yards) in player profiles.
             </p>
           </div>
         )}

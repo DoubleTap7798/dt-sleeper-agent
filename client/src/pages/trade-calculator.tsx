@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ArrowLeftRight, Plus, X, Loader2, Sparkles, Scale, Info, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeftRight, Plus, X, Loader2, Sparkles, Scale, Info, ChevronDown, ChevronUp, BarChart3, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -39,6 +39,23 @@ interface TradeData {
   availablePicks: TradeAsset[];
 }
 
+interface ECRPlayer {
+  player: string;
+  pos: string;
+  team: string;
+  age: number;
+  ecr: number;
+  value: number;
+  fantasypros_id: string;
+}
+
+interface ECRData {
+  rankings: ECRPlayer[];
+  format: string;
+  count: number;
+  source: string;
+}
+
 export default function TradeCalculatorPage() {
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
@@ -55,6 +72,11 @@ export default function TradeCalculatorPage() {
   const { data, isLoading: dataLoading } = useQuery<TradeData>({
     queryKey: ["/api/sleeper/rosters", leagueId],
     enabled: !!leagueId,
+  });
+
+  const { data: ecrData } = useQuery<ECRData>({
+    queryKey: ["/api/sleeper/dynasty-process/ecr"],
+    staleTime: 1000 * 60 * 60,
   });
 
   const analyzeMutation = useMutation({
@@ -367,11 +389,145 @@ export default function TradeCalculatorPage() {
                 </p>
               </div>
             )}
+
+            {ecrData?.rankings && ecrData.rankings.length > 0 && (
+              <MarketComparison
+                teamAAssets={teamAAssets}
+                teamBAssets={teamBAssets}
+                teamAName={teamA?.ownerName || "Team A"}
+                teamBName={teamB?.ownerName || "Team B"}
+                ecrRankings={ecrData.rankings}
+              />
+            )}
           </CardContent>
         </Card>
       )}
     </div>
     </PremiumGate>
+  );
+}
+
+function MarketComparison({
+  teamAAssets,
+  teamBAssets,
+  teamAName,
+  teamBName,
+  ecrRankings,
+}: {
+  teamAAssets: TradeAsset[];
+  teamBAssets: TradeAsset[];
+  teamAName: string;
+  teamBName: string;
+  ecrRankings: ECRPlayer[];
+}) {
+  const findECR = (assetName: string): ECRPlayer | undefined => {
+    const normalized = assetName.toLowerCase().trim();
+    return ecrRankings.find(p => p.player.toLowerCase().trim() === normalized);
+  };
+
+  const teamAWithECR = teamAAssets
+    .filter(a => a.type === 'player')
+    .map(a => ({ asset: a, ecr: findECR(a.name) }))
+    .filter(a => a.ecr);
+
+  const teamBWithECR = teamBAssets
+    .filter(a => a.type === 'player')
+    .map(a => ({ asset: a, ecr: findECR(a.name) }))
+    .filter(a => a.ecr);
+
+  if (teamAWithECR.length === 0 && teamBWithECR.length === 0) return null;
+
+  const totalDPValueA = teamAWithECR.reduce((s, a) => s + (a.ecr?.value || 0), 0);
+  const totalDPValueB = teamBWithECR.reduce((s, a) => s + (a.ecr?.value || 0), 0);
+  const dpDiff = totalDPValueB - totalDPValueA;
+
+  const renderPlayerRow = (item: { asset: TradeAsset; ecr: ECRPlayer | undefined }) => {
+    if (!item.ecr) return null;
+    const dpNormalized = Math.round((item.ecr.value / 100) * 10) / 10;
+    const diff = dpNormalized - item.asset.value;
+
+    return (
+      <div key={item.asset.id} className="flex items-center justify-between gap-2 py-1.5">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <Badge variant="outline" className={`text-xs shrink-0 ${getPositionColorClass(item.asset.position)}`}>
+            {item.asset.position}
+          </Badge>
+          <span className="text-sm truncate">{item.asset.name}</span>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-xs text-muted-foreground font-mono">
+            ECR #{Math.round(item.ecr.ecr)}
+          </span>
+          <span className="text-xs font-mono w-16 text-right">
+            DP: {item.ecr.value.toLocaleString()}
+          </span>
+          <span className={`text-xs font-mono w-12 text-right ${
+            diff > 3 ? 'text-green-500' : diff < -3 ? 'text-red-500' : 'text-muted-foreground'
+          }`}>
+            {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Collapsible>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground" data-testid="button-toggle-market-comparison">
+          <BarChart3 className="h-4 w-4" />
+          <span>Market Comparison (Dynasty Process ECR)</span>
+          <ChevronDown className="h-4 w-4" />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="p-4 rounded-lg bg-muted/30 border mt-2 space-y-4" data-testid="container-market-comparison">
+          <p className="text-xs text-muted-foreground">
+            Comparing your league values with Dynasty Process consensus rankings and trade values from FantasyPros ECR data.
+          </p>
+
+          {teamAWithECR.length > 0 && (
+            <div>
+              <p className="text-sm font-medium mb-1">{teamAName} trades away:</p>
+              <div className="divide-y divide-border/50">
+                {teamAWithECR.map(renderPlayerRow)}
+              </div>
+            </div>
+          )}
+
+          {teamBWithECR.length > 0 && (
+            <div>
+              <p className="text-sm font-medium mb-1">{teamBName} trades away:</p>
+              <div className="divide-y divide-border/50">
+                {teamBWithECR.map(renderPlayerRow)}
+              </div>
+            </div>
+          )}
+
+          {(totalDPValueA > 0 || totalDPValueB > 0) && (
+            <div className="flex items-center justify-between pt-2 border-t text-sm">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <BarChart3 className="h-3.5 w-3.5" />
+                Dynasty Process Market View:
+              </span>
+              <span className="font-medium flex items-center gap-1">
+                {dpDiff > 500 ? (
+                  <><TrendingUp className="h-3.5 w-3.5 text-green-500" /> Favors {teamAName}</>
+                ) : dpDiff < -500 ? (
+                  <><TrendingDown className="h-3.5 w-3.5 text-red-500" /> Favors {teamBName}</>
+                ) : (
+                  <><Minus className="h-3.5 w-3.5 text-muted-foreground" /> Roughly Even</>
+                )}
+              </span>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground italic">
+            Source: dynastyprocess.com (open-source dynasty data). DP values use a different scale than DT Dynasty values.
+          </p>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

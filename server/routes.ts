@@ -2400,6 +2400,107 @@ Return ONLY valid JSON, no other text.`;
     }
   });
 
+  app.get("/api/sleeper/dynasty-process/ecr", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const devyDataSources = await import('./devy-data-sources');
+      const format = (req.query.format === '2qb' ? '2qb' : '1qb') as '1qb' | '2qb';
+      const rankings = await devyDataSources.getDynastyProcessECRRankings(format);
+      
+      res.json({
+        rankings,
+        format,
+        count: rankings.length,
+        source: 'Dynasty Process (FantasyPros ECR aggregation)',
+        fetchedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching Dynasty Process ECR:", error);
+      res.status(500).json({ message: "Failed to fetch ECR rankings" });
+    }
+  });
+
+  app.get("/api/nflverse/stats", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { getNFLVerseStats } = await import('./nflverse-stats');
+      const season = req.query.season ? parseInt(req.query.season as string) : 2024;
+      const stats = await getNFLVerseStats(season);
+      
+      res.json({
+        players: stats.season,
+        count: stats.season.length,
+        season: stats.seasonYear,
+        fetchedAt: stats.fetchedAt.toISOString(),
+        source: 'nflverse (open-source NFL data)'
+      });
+    } catch (error) {
+      console.error("Error fetching nflverse stats:", error);
+      res.status(500).json({ message: "Failed to fetch player stats" });
+    }
+  });
+
+  app.get("/api/nflverse/stats/:playerName", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { getPlayerSeasonStats, getPlayerWeeklyStats } = await import('./nflverse-stats');
+      const playerName = decodeURIComponent(req.params.playerName);
+      const season = req.query.season ? parseInt(req.query.season as string) : 2024;
+      const includeWeekly = req.query.weekly === 'true';
+
+      const seasonStats = await getPlayerSeasonStats(playerName, season);
+      const weeklyStats = includeWeekly ? await getPlayerWeeklyStats(playerName, season) : [];
+
+      if (!seasonStats) {
+        return res.status(404).json({ message: `No stats found for ${playerName}` });
+      }
+
+      res.json({
+        season: seasonStats,
+        weekly: weeklyStats,
+        source: 'nflverse (open-source NFL data)'
+      });
+    } catch (error) {
+      console.error("Error fetching player stats:", error);
+      res.status(500).json({ message: "Failed to fetch player stats" });
+    }
+  });
+
+  app.get("/api/nflverse/stats/:playerName/profile", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { getPlayerSeasonStats, getPlayerWeeklyStats } = await import('./nflverse-stats');
+      const devyDataSources = await import('./devy-data-sources');
+      const playerName = decodeURIComponent(req.params.playerName);
+
+      const [seasonStats, weeklyStats, dpData] = await Promise.all([
+        getPlayerSeasonStats(playerName),
+        getPlayerWeeklyStats(playerName),
+        devyDataSources.getDynastyProcessPlayerByName(playerName),
+      ]);
+
+      const dpValue1qb = dpData ? parseInt(dpData.value_1qb) || 0 : null;
+      const dpValue2qb = dpData ? parseInt(dpData.value_2qb) || 0 : null;
+      const dpEcr1qb = dpData ? parseFloat(dpData.ecr_1qb) || null : null;
+      const dpEcr2qb = dpData ? parseFloat(dpData.ecr_2qb) || null : null;
+
+      res.json({
+        playerName,
+        seasonStats,
+        weeklyStats,
+        dynastyProcess: dpData ? {
+          value_1qb: dpValue1qb,
+          value_2qb: dpValue2qb,
+          ecr_1qb: dpEcr1qb,
+          ecr_2qb: dpEcr2qb,
+          ecr_pos: dpData.ecr_pos ? parseFloat(dpData.ecr_pos) : null,
+          age: parseFloat(dpData.age) || null,
+          team: dpData.team,
+        } : null,
+        sources: ['nflverse', 'Dynasty Process'],
+      });
+    } catch (error) {
+      console.error("Error fetching player profile stats:", error);
+      res.status(500).json({ message: "Failed to fetch player profile" });
+    }
+  });
+
   // Helper function to format game log stats based on position
   function formatGameLogStats(stats: Record<string, any>, position: string): string {
     const parts: string[] = [];
