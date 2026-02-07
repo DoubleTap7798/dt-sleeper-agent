@@ -27,13 +27,13 @@ export interface CFBDPlayerSearchResult {
 }
 
 export interface CFBDPlayerSeasonStat {
-  playerId: number;
+  playerId: number | string;
   player: string;
   team: string;
   conference: string;
   category: string;
   statType: string;
-  stat: number;
+  stat: number | string;
 }
 
 export interface CFBDPlayerUsage {
@@ -267,8 +267,12 @@ function normalizeTeamName(college: string): string {
     'SMU': 'SMU',
     'TCU': 'TCU',
     'BYU': 'BYU',
+    'Miami (FL)': 'Miami',
+    'Miami (OH)': 'Miami (OH)',
+    'Pittsburgh': 'Pittsburgh',
   };
-  return mappings[college] || college;
+  const stripped = college.replace(/\s*\([^)]*\)\s*$/, '');
+  return mappings[college] || stripped;
 }
 
 export async function getFullPlayerProfile(
@@ -297,7 +301,12 @@ export async function getFullPlayerProfile(
     console.error(`[CFBD] Player search failed for ${playerName}:`, err);
   }
 
-  const categories = position === 'QB' 
+  const defensivePositions = ['EDGE', 'DL', 'DL1T', 'DL3T', 'DL5T', 'LB', 'ILB', 'CB', 'S', 'DE', 'DT', 'NT', 'OLB', 'MLB', 'FS', 'SS', 'DB', 'IDL'];
+  const isDefensive = defensivePositions.includes(position.toUpperCase());
+
+  const categories = isDefensive
+    ? ['defensive', 'fumbles', 'interceptions']
+    : position === 'QB' 
     ? ['passing', 'rushing']
     : position === 'RB' 
     ? ['rushing', 'receiving']
@@ -313,7 +322,8 @@ export async function getFullPlayerProfile(
       
       if (!seasonStats[category]) seasonStats[category] = {};
       for (const stat of playerStats) {
-        seasonStats[category][stat.statType] = stat.stat;
+        const val = typeof stat.stat === 'string' ? parseFloat(stat.stat) || 0 : stat.stat;
+        seasonStats[category][stat.statType] = val;
       }
     } catch (err) {
       console.error(`[CFBD] Stats fetch failed for ${playerName} (${category}):`, err);
@@ -371,6 +381,89 @@ export async function getTeamPlayerStats(
   ]);
 
   return { passing, rushing, receiving };
+}
+
+export async function getDefensivePlayerStats(
+  playerName: string,
+  college: string,
+  position: string,
+  years?: number[]
+): Promise<{ seasons: Array<{ year: string; games: number; stats: Record<string, number> }>; careerTotals: Record<string, number> }> {
+  const cacheKey = `def-stats:${playerName}:${college}`;
+  const cached = getCached<any>(cacheKey);
+  if (cached) return cached;
+
+  const team = normalizeTeamName(college);
+  const currentSeason = getMostRecentCFBSeason();
+  const seasonsToFetch = years || [currentSeason, currentSeason - 1, currentSeason - 2, currentSeason - 3];
+  
+  const defCategories = ['defensive', 'fumbles', 'interceptions'];
+  const seasons: Array<{ year: string; games: number; stats: Record<string, number> }> = [];
+  const careerTotals: Record<string, number> = {};
+
+  const cfbdToNormalized: Record<string, string> = {
+    'TOT': 'tackles',
+    'SOLO': 'soloTackles',
+    'AST': 'astTackles',
+    'TFL': 'tfl',
+    'SACKS': 'sacks',
+    'QBH': 'qbHurries',
+    'PD': 'passDeflect',
+    'TD': 'defTd',
+    'INT': 'passInt',
+    'YDS': 'intYds',
+    'FF': 'ff',
+    'FR': 'fr',
+    'FUM': 'fr',
+    'REC': 'fr',
+    'SACK': 'sacks',
+    'QB HUR': 'qbHurries',
+  };
+  const skipStatTypes = new Set(['AVG', 'LONG', 'LNG']);
+
+  for (const year of seasonsToFetch) {
+    const seasonStats: Record<string, number> = {};
+    
+    for (const category of defCategories) {
+      try {
+        const stats = await getPlayerSeasonStats(year, { team, category });
+        const playerStats = stats.filter(s => {
+          const nameParts = playerName.toLowerCase().split(' ');
+          const first = nameParts[0] || '';
+          const last = nameParts[nameParts.length - 1] || '';
+          return s.player.toLowerCase().includes(last) && s.player.toLowerCase().includes(first);
+        });
+        
+        for (const stat of playerStats) {
+          const upperType = stat.statType.toUpperCase();
+          if (skipStatTypes.has(upperType)) continue;
+          const key = cfbdToNormalized[upperType] || stat.statType;
+          const val = typeof stat.stat === 'string' ? parseFloat(stat.stat) || 0 : stat.stat;
+          seasonStats[key] = (seasonStats[key] || 0) + val;
+        }
+      } catch (err) {
+        // Silently skip - season may not exist
+      }
+    }
+
+    if (Object.keys(seasonStats).length > 0) {
+      seasons.push({
+        year: String(year),
+        games: 0,
+        stats: seasonStats,
+      });
+      
+      for (const [key, value] of Object.entries(seasonStats)) {
+        careerTotals[key] = (careerTotals[key] || 0) + value;
+      }
+    }
+  }
+
+  seasons.sort((a, b) => Number(b.year) - Number(a.year));
+  
+  const result = { seasons, careerTotals };
+  setCache(cacheKey, result);
+  return result;
 }
 
 export function getCFBDCacheStatus(): { 

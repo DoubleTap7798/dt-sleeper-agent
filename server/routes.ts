@@ -2451,14 +2451,70 @@ Return ONLY valid JSON, no other text.`;
       const cfbd = await import('./cfbd-service');
       const { getCollegePlayerProfile, getCollegePlayerHeadshotUrl } = await import('./college-stats-service');
 
-      const [espnProfile, cfbdProfile] = await Promise.all([
+      const defensivePositions = ['EDGE', 'DL', 'DL1T', 'DL3T', 'DL5T', 'LB', 'ILB', 'CB', 'S', 'DE', 'DT', 'NT', 'OLB', 'MLB', 'FS', 'SS', 'DB', 'IDL'];
+      const isDefensive = defensivePositions.includes(player.position.toUpperCase());
+
+      const [espnProfile, cfbdProfile, cfbdDefStats] = await Promise.all([
         getCollegePlayerProfile(player.name, player.college).catch(() => null),
         cfbd.getFullPlayerProfile(player.name, player.college, player.position).catch(() => null),
+        isDefensive ? cfbd.getDefensivePlayerStats(player.name, player.college, player.position).catch(() => null) : null,
       ]);
 
       let collegeStats = { seasons: [] as any[], careerTotals: {} as Record<string, any> };
       if (espnProfile) {
         collegeStats = { seasons: espnProfile.seasons, careerTotals: espnProfile.careerTotals };
+      }
+
+      if (isDefensive && cfbdDefStats && cfbdDefStats.seasons.length > 0) {
+        const defStatKeys = ['tackles', 'soloTackles', 'astTackles', 'sacks', 'tfl', 'passDeflect', 'passInt', 'ff', 'fr', 'qbHurries', 'defTd'];
+        const espnDefStatCount = collegeStats.seasons.reduce((count: number, s: any) => {
+          return count + defStatKeys.filter(k => s.stats[k] !== undefined).length;
+        }, 0);
+        const cfbdDefStatCount = cfbdDefStats.seasons.reduce((count: number, s: any) => {
+          return count + defStatKeys.filter(k => s.stats[k] !== undefined).length;
+        }, 0);
+
+        if (collegeStats.seasons.length === 0 || cfbdDefStatCount > espnDefStatCount) {
+          if (collegeStats.seasons.length === 0) {
+            collegeStats.seasons = cfbdDefStats.seasons;
+            collegeStats.careerTotals = cfbdDefStats.careerTotals;
+          } else {
+            for (const cfbdSeason of cfbdDefStats.seasons) {
+              const existing = collegeStats.seasons.find((s: any) => s.year === cfbdSeason.year);
+              if (existing) {
+                for (const [key, value] of Object.entries(cfbdSeason.stats)) {
+                  if (existing.stats[key] === undefined || existing.stats[key] === 0) {
+                    existing.stats[key] = value;
+                  }
+                }
+              } else {
+                collegeStats.seasons.push(cfbdSeason);
+              }
+            }
+            for (const [key, value] of Object.entries(cfbdDefStats.careerTotals)) {
+              if (collegeStats.careerTotals[key] === undefined || collegeStats.careerTotals[key] === 0) {
+                collegeStats.careerTotals[key] = value;
+              }
+            }
+            collegeStats.seasons.sort((a: any, b: any) => Number(b.year) - Number(a.year));
+          }
+        } else {
+          for (const cfbdSeason of cfbdDefStats.seasons) {
+            const existing = collegeStats.seasons.find((s: any) => s.year === cfbdSeason.year);
+            if (existing) {
+              for (const [key, value] of Object.entries(cfbdSeason.stats)) {
+                if (existing.stats[key] === undefined) {
+                  existing.stats[key] = value;
+                }
+              }
+            }
+          }
+          for (const [key, value] of Object.entries(cfbdDefStats.careerTotals)) {
+            if (collegeStats.careerTotals[key] === undefined) {
+              collegeStats.careerTotals[key] = value;
+            }
+          }
+        }
       }
 
       let headshot: string | null = null;
