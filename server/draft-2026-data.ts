@@ -9,6 +9,14 @@ export interface CombineData {
   handSize: number | null;
 }
 
+export interface DraftScoutingReport {
+  strengths: string[];
+  weaknesses: string[];
+  nflComparison: string;
+  draftProjection: string;
+  fantasyOutlook: string;
+}
+
 export interface Draft2026Player {
   id: string;
   rank: number;
@@ -24,6 +32,7 @@ export interface Draft2026Player {
   combine: CombineData | null;
   intangibles: string[];
   scoutingNotes: string | null;
+  scouting: DraftScoutingReport | null;
 }
 
 const OFFENSE_POSITIONS = new Set(['QB', 'RB', 'WR', 'WRS', 'TE', 'FB']);
@@ -75,6 +84,7 @@ function p(
     combine: null,
     intangibles,
     scoutingNotes,
+    scouting: null,
   };
 }
 
@@ -440,6 +450,260 @@ export const DRAFT_2026_PLAYERS: Draft2026Player[] = [
   p(497, "Blake Shapen", "Mississippi State", "QB", "6'1\"", 210),
   p(499, "Caleb Offord", "Kennesaw", "CB", "6'2\"", 198),
 ];
+
+const SCOUTING_DATA: Record<string, DraftScoutingReport> = {
+  "Fernando Mendoza": {
+    strengths: ["elite arm strength with ability to make every throw", "improved pocket presence and reads", "strong leadership qualities", "excels under pressure"],
+    weaknesses: ["accuracy can be inconsistent on intermediate routes", "limited mobility outside the pocket", "one-year starter with smaller sample size"],
+    nflComparison: "Justin Herbert",
+    draftProjection: "Top 5 Pick",
+    fantasyOutlook: "Highest ceiling QB in the class. If he lands with a good offensive line, he has QB1 upside from Year 1. His arm talent is special and translates immediately to the NFL."
+  },
+  "Caleb Downs": {
+    strengths: ["elite ball skills and range", "versatile enough to play multiple secondary positions", "high football IQ and instincts", "sure tackler in run support"],
+    weaknesses: ["slightly undersized for a box safety role", "can be aggressive on double moves"],
+    nflComparison: "Derwin James",
+    draftProjection: "Top 5 Pick",
+    fantasyOutlook: "Generational safety prospect. In IDP leagues, Downs projects as a DB1 immediately with his combination of tackles and splash plays. One of the safest picks in the draft."
+  },
+  "Rueben Bain Jr.": {
+    strengths: ["relentless motor that never quits", "elite bend and flexibility", "disruptive against both run and pass", "quick first step"],
+    weaknesses: ["could add more mass to hold up against NFL tackles", "limited pass rush repertoire beyond speed"],
+    nflComparison: "Myles Garrett",
+    draftProjection: "Top 5 Pick",
+    fantasyOutlook: "Premium IDP asset with elite pass rush upside. Projects as a double-digit sack artist in the NFL. Top-3 EDGE prospect in recent memory for dynasty IDP leagues."
+  },
+  "Jeremiyah Love": {
+    strengths: ["explosive speed with breakaway ability", "excellent vision and cutback ability", "dangerous in open field", "improving as a pass catcher"],
+    weaknesses: ["slight frame may limit early-down work", "ball security needs improvement", "pass protection is a work in progress"],
+    nflComparison: "Alvin Kamara",
+    draftProjection: "Top 10 Pick",
+    fantasyOutlook: "Dynamic playmaker who could be the RB1 in dynasty rookie drafts. His speed and receiving ability give him three-down potential. Landing spot is critical for Year 1 value."
+  },
+  "Carnell Tate": {
+    strengths: ["smooth route runner with natural separation ability", "reliable hands and catch radius", "polished route tree", "competitive at the catch point"],
+    weaknesses: ["not a burner deep threat", "slight frame could limit contested catch ability at NFL level"],
+    nflComparison: "Keenan Allen",
+    draftProjection: "Top 15 Pick",
+    fantasyOutlook: "High-floor WR prospect with WR1 upside in the right offense. His route-running ability will translate immediately. Could be a PPR monster from Day 1."
+  },
+  "Makai Lemon": {
+    strengths: ["physical receiver who wins after the catch", "excellent competitiveness and contested catches", "YAC ability is elite", "strong hands"],
+    weaknesses: ["lacks top-end speed", "limited route tree development"],
+    nflComparison: "Deebo Samuel",
+    draftProjection: "Round 1 (15-25)",
+    fantasyOutlook: "Versatile weapon who can be used in multiple ways. His YAC ability makes him a PPR darling. Could have WR2 value as a rookie with WR1 upside long-term."
+  },
+  "Jordyn Tyson": {
+    strengths: ["smooth route runner with deep speed", "clean release off the line", "consistent hands", "good body control on sideline catches"],
+    weaknesses: ["slight build may struggle with physical corners", "needs to improve run-after-catch ability"],
+    nflComparison: "Chris Olave",
+    draftProjection: "Round 1 (15-25)",
+    fantasyOutlook: "Polished receiver who can contribute immediately. His route running and deep speed combo is rare. Projects as a high-floor WR2 with WR1 upside in the right system."
+  },
+  "Denzel Boston": {
+    strengths: ["dominant contested catch ability", "excellent size-speed combination", "red zone weapon", "physical at the catch point"],
+    weaknesses: ["route running needs refinement", "can be slow off the line"],
+    nflComparison: "Mike Evans",
+    draftProjection: "Round 1 (15-25)",
+    fantasyOutlook: "His size and contested catch ability make him a red zone weapon. Could be a TD-dependent WR2 early but has WR1 ceiling. Think Mike Evans lite."
+  },
+  "Kenyon Sadiq": {
+    strengths: ["athletic freak at tight end", "red zone matchup nightmare", "improving route running", "dangerous after the catch"],
+    weaknesses: ["blocking needs significant improvement", "inconsistent effort on non-target plays"],
+    nflComparison: "Kyle Pitts",
+    draftProjection: "Round 1 (20-32)",
+    fantasyOutlook: "Best TE prospect in the class with massive upside. If he lands with a pass-happy offense, he could be an immediate TE1. His athleticism at the position is rare."
+  },
+  "Ty Simpson": {
+    strengths: ["dual-threat ability with strong legs", "improving arm talent", "competitive mentality", "can extend plays with mobility"],
+    weaknesses: ["accuracy issues persist on deep balls", "decision-making under pressure needs work", "inconsistent pocket mechanics"],
+    nflComparison: "Jalen Hurts",
+    draftProjection: "Round 1 (25-32)",
+    fantasyOutlook: "His rushing ability gives him a high floor in fantasy. If he develops as a passer, he has QB1 ceiling. Dynasty leagues should target him for his dual-threat upside."
+  },
+  "Anthony Hill Jr.": {
+    strengths: ["sideline-to-sideline range", "instinctive linebacker with elite tackling", "strong leadership and communication", "versatile in coverage"],
+    weaknesses: ["not a premium pass rusher", "can get washed out by bigger blockers"],
+    nflComparison: "Roquan Smith",
+    draftProjection: "Round 1 (15-25)",
+    fantasyOutlook: "Elite IDP linebacker prospect. Projects as an immediate LB1 in tackle-heavy schemes. His range and instincts translate perfectly to the NFL. Top IDP pick."
+  },
+  "Dillon Thieneman": {
+    strengths: ["elite range as a centerfield safety", "sure tackler in the open field", "instinctive ball hawk", "rapidly improving player"],
+    weaknesses: ["can be too aggressive reading routes", "needs to refine technique in man coverage"],
+    nflComparison: "Jessie Bates III",
+    draftProjection: "Round 1 (20-32)",
+    fantasyOutlook: "Rising fast on draft boards. His range and tackling ability make him an IDP goldmine. Could be a top-3 safety in IDP within two years."
+  },
+  "Peter Woods": {
+    strengths: ["dominant interior presence", "collapses the pocket from the inside", "strong anchor against double teams", "high motor"],
+    weaknesses: ["limited pass rush moves", "can be slow off the snap at times"],
+    nflComparison: "Chris Jones",
+    draftProjection: "Top 15 Pick",
+    fantasyOutlook: "Premium IDP interior defender. His disruption ability translates to sacks and TFLs at the NFL level. DL1 upside in deeper IDP formats."
+  },
+  "Keldric Faulk": {
+    strengths: ["powerful run defender with pass rush upside", "excellent anchor and leverage", "long arms create problems for offensive linemen"],
+    weaknesses: ["limited burst as a pass rusher", "needs to develop counter moves"],
+    nflComparison: "Arik Armstead",
+    draftProjection: "Top 15 Pick",
+    fantasyOutlook: "Solid IDP prospect who will contribute in multiple categories. His run defense is elite and he adds pass rush value. DL2 floor with DL1 potential."
+  },
+  "T.J. Parker": {
+    strengths: ["long arms and excellent technique", "high-floor pass rusher", "strong motor and effort", "good in run defense"],
+    weaknesses: ["lacks elite bend", "not a dynamic athlete"],
+    nflComparison: "Bud Dupree",
+    draftProjection: "Round 1 (20-32)",
+    fantasyOutlook: "Safe EDGE prospect with 8+ sack potential annually. Won't wow you but provides consistent IDP production. EDGE2 with sneaky upside."
+  },
+  "Cade Klubnik": {
+    strengths: ["poise under pressure", "strong leadership on and off the field", "improved accuracy and decision-making", "good mobility"],
+    weaknesses: ["arm strength is just average", "can struggle against elite pass rushes"],
+    nflComparison: "Dak Prescott",
+    draftProjection: "Round 1 (25-32)",
+    fantasyOutlook: "Stock skyrocketing after breakout 2025 season. His improvement arc is impressive. Could be a QB1 in the right system. Dynasty sleeper at the QB position."
+  },
+  "Zachariah Branch": {
+    strengths: ["electric speed and elusiveness", "dangerous in open space", "dynamic return ability", "creates explosive plays"],
+    weaknesses: ["very slight frame", "limited route tree", "durability concerns at his size"],
+    nflComparison: "Tyreek Hill (lite)",
+    draftProjection: "Round 2 (35-50)",
+    fantasyOutlook: "His speed is game-changing but the slight frame is a concern. In the right offense, he could be a WR2 with boom weeks. Think Tyreek Hill with less polish."
+  },
+  "Carson Beck": {
+    strengths: ["elite arm talent when healthy", "strong pre-snap reads", "experience in SEC"],
+    weaknesses: ["coming off ACL tear", "turnover-prone tendencies", "medical concerns cloud outlook"],
+    nflComparison: "Sam Darnold",
+    draftProjection: "Round 2-3",
+    fantasyOutlook: "Massive talent but the ACL injury and turnovers create significant risk. Could be a dynasty value if he falls in the draft. High ceiling, low floor."
+  },
+  "Garrett Nussmeier": {
+    strengths: ["competitive fire and toughness", "good arm talent", "willing to take shots downfield"],
+    weaknesses: ["turnover-prone decision-making", "tries to force throws into tight windows", "pocket awareness needs improvement"],
+    nflComparison: "Baker Mayfield",
+    draftProjection: "Round 2-3",
+    fantasyOutlook: "Has the arm but the turnovers are a real concern. Could develop into a solid starter or flame out. Dynasty dart throw with potential."
+  },
+  "Drew Allar": {
+    strengths: ["prototypical size and arm strength", "can make every throw"],
+    weaknesses: ["inconsistent decision-making", "struggled against top competition in 2025", "mechanical issues under pressure"],
+    nflComparison: "Paxton Lynch",
+    draftProjection: "Round 2-3",
+    fantasyOutlook: "The tools are all there but the tape doesn't match the measurables. Falling stock means he could be a value pick. High risk, high reward dynasty QB."
+  },
+  "Davison Igbinosun": {
+    strengths: ["exceptional length for the position", "elite ball skills and ball tracking", "physical at the line of scrimmage", "improving technique"],
+    weaknesses: ["can get beat by quick routes underneath", "hip stiffness in transitions"],
+    nflComparison: "Sauce Gardner",
+    draftProjection: "Round 1 (15-25)",
+    fantasyOutlook: "Top corner prospect with CB1 IDP potential. His length and ball skills create turnover opportunities. Premium IDP asset in leagues that value corners."
+  },
+  "Deontae Lawson": {
+    strengths: ["elite play recognition and communication", "QB of the defense", "consistent tackler", "good in coverage for his size"],
+    weaknesses: ["not elite athletically", "can struggle in space against dynamic backs"],
+    nflComparison: "Zack Baun",
+    draftProjection: "Round 1-2",
+    fantasyOutlook: "High-floor IDP linebacker. Will rack up tackles from Day 1. Think 100+ tackle guy annually. LB2 floor with LB1 upside in the right scheme."
+  },
+  "Nick Singleton": {
+    strengths: ["powerful runner between the tackles", "good vision", "durable build"],
+    weaknesses: ["limited receiving role hurts dynasty value", "not explosive in open field", "one-dimensional running style"],
+    nflComparison: "Josh Jacobs",
+    draftProjection: "Round 2-3",
+    fantasyOutlook: "Power back who may be drafted higher than his fantasy value suggests. Limited passing game involvement caps his ceiling. RB2 range in dynasty."
+  },
+  "Eli Stowers": {
+    strengths: ["solid all-around tight end", "reliable blocker", "improving route runner"],
+    weaknesses: ["not a dynamic athlete", "limited big-play ability"],
+    nflComparison: "Austin Hooper",
+    draftProjection: "Round 2-3",
+    fantasyOutlook: "Solid TE prospect but not a fantasy difference-maker. Will be a better NFL player than fantasy player. TE2 range at best."
+  },
+  "Mansoor Delane": {
+    strengths: ["physical corner with good ball skills", "aggressive tackler", "good length"],
+    weaknesses: ["can be grabby in coverage", "needs to clean up technique"],
+    nflComparison: "Marshon Lattimore",
+    draftProjection: "Round 1-2",
+    fantasyOutlook: "Solid IDP corner prospect. His physicality translates well. CB2 with CB1 upside if he cleans up the penalties."
+  },
+  "Christen Miller": {
+    strengths: ["disruptive interior lineman", "quick first step for his size", "good motor"],
+    weaknesses: ["inconsistent effort at times", "needs to develop more pass rush moves"],
+    nflComparison: "Javon Kinlaw",
+    draftProjection: "Round 1-2",
+    fantasyOutlook: "Interior DL with pass rush upside. Could be a sneaky IDP pick if he develops his pass rush. DL2 range with upside."
+  },
+  "Demond Claiborne": {
+    strengths: ["explosive speed and quickness", "dynamic in the passing game", "dangerous return man"],
+    weaknesses: ["very small frame", "durability is a major concern", "limited between-the-tackles ability"],
+    nflComparison: "Nyheim Hines",
+    draftProjection: "Round 3-4",
+    fantasyOutlook: "Electric playmaker in space but size limits his role. Could carve out a receiving back niche. PPR value as a flex option."
+  },
+  "Jonah Coleman": {
+    strengths: ["powerful compact runner", "excellent balance and contact balance", "productive in multiple systems"],
+    weaknesses: ["short stature limits vision behind the line", "not a burner", "durability questions with his running style"],
+    nflComparison: "Marshawn Lynch (lite)",
+    draftProjection: "Round 2-3",
+    fantasyOutlook: "Fun runner to watch with good contact balance. Could be an early-down grinder. RB2 range in dynasty with goal-line upside."
+  },
+  "Jadarian Price": {
+    strengths: ["balanced runner with good vision", "reliable pass catcher", "patient in the hole"],
+    weaknesses: ["not explosive", "lacks top-end speed", "average size"],
+    nflComparison: "David Montgomery",
+    draftProjection: "Round 3-4",
+    fantasyOutlook: "Steady back who does everything well but nothing elite. Could be a late-round dynasty value. RB3 with flex appeal."
+  },
+  "Kaytron Allen": {
+    strengths: ["powerful between the tackles", "good short-yardage back", "durable build"],
+    weaknesses: ["limited in the passing game", "not explosive", "pedestrian speed"],
+    nflComparison: "Damien Harris",
+    draftProjection: "Round 3-4",
+    fantasyOutlook: "Early-down grinder with TD upside near the goal line. Limited ceiling in PPR formats. Best suited as a dynasty RB3/flex."
+  },
+  "Chris Brazzell II": {
+    strengths: ["excellent size at 6'5\"", "deep threat ability", "physical at the catch point", "improving route running"],
+    weaknesses: ["can body catch too much", "routes are still raw", "concentration drops"],
+    nflComparison: "DK Metcalf (lite)",
+    draftProjection: "Round 2-3",
+    fantasyOutlook: "Physical freak with deep threat ability. If he refines his route running, he could be a steal. WR3 range with WR1 ceiling long-term."
+  },
+  "Max Klare": {
+    strengths: ["good size and athleticism", "improving blocker", "red zone target"],
+    weaknesses: ["raw as a route runner", "inconsistent hands"],
+    nflComparison: "Hayden Hurst",
+    draftProjection: "Round 2-3",
+    fantasyOutlook: "Developmental TE with athletic upside. Could emerge as a TE2 option in Year 2-3. Patient dynasty stash."
+  },
+  "Oscar Delp": {
+    strengths: ["smooth athlete at tight end", "natural hands", "good route runner for the position"],
+    weaknesses: ["needs to add strength", "blocking is below average"],
+    nflComparison: "Evan Engram",
+    draftProjection: "Round 2-3",
+    fantasyOutlook: "Move tight end who can create mismatches. If he lands in a TE-friendly offense, he has TE1 upside. Top-3 TE in the class."
+  },
+  "Diego Pavia": {
+    strengths: ["incredible dual-threat ability", "competitor and winner", "improvisation skills"],
+    weaknesses: ["undersized for an NFL QB", "arm strength is limited", "older prospect"],
+    nflComparison: "Russell Wilson (early career)",
+    draftProjection: "Round 3-5",
+    fantasyOutlook: "His rushing ability gives him a fantasy floor but the lack of arm talent limits his ceiling. Could be a fun backup/spot starter with rushing upside."
+  },
+  "Desmond Reid": {
+    strengths: ["explosive speed", "excellent receiving ability", "dynamic playmaker in space", "return game value"],
+    weaknesses: ["tiny frame at 5'8\" 175 lbs", "durability is a major concern", "can't handle heavy workloads between the tackles"],
+    nflComparison: "Deuce Vaughn / Tarik Cohen",
+    draftProjection: "Round 4-5",
+    fantasyOutlook: "Electric player but his size severely limits his NFL role. PPR specialist who could have value as a pass-catching back. High risk dynasty pick."
+  },
+};
+
+for (const player of DRAFT_2026_PLAYERS) {
+  if (SCOUTING_DATA[player.name]) {
+    player.scouting = SCOUTING_DATA[player.name];
+  }
+}
 
 export function getDraft2026Players(filters?: { side?: string; positionGroup?: string; search?: string }): Draft2026Player[] {
   let result = [...DRAFT_2026_PLAYERS];
