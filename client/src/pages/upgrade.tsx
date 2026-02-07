@@ -3,11 +3,12 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Check, Crown, Zap, LineChart, Users, Trophy, ArrowLeft, CreditCard } from "lucide-react";
+import { Loader2, Check, Crown, Zap, LineChart, Users, Trophy, ArrowLeft, CreditCard, AlertCircle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useEffect } from "react";
+import { useSubscription } from "@/hooks/use-subscription";
 
 interface SubscriptionStatus {
   hasSubscription: boolean;
@@ -39,10 +40,16 @@ export default function UpgradePage() {
   const success = searchParams.get("success");
   const canceled = searchParams.get("canceled");
 
-  const { data: subStatus, isLoading: statusLoading } = useQuery<SubscriptionStatus>({
+  const { isPremium: hookIsPremium, isGrandfathered: hookIsGrandfathered } = useSubscription();
+
+  const { data: subStatus, isLoading: statusLoading, error: statusError } = useQuery<SubscriptionStatus>({
     queryKey: ["/api/subscription/status"],
-    retry: 1,
+    retry: 2,
+    retryDelay: 1000,
   });
+
+  const effectiveHasSubscription = subStatus?.hasSubscription || hookIsPremium;
+  const effectiveIsGrandfathered = subStatus?.isGrandfathered || hookIsGrandfathered;
 
 
   const checkoutMutation = useMutation({
@@ -51,14 +58,19 @@ export default function UpgradePage() {
       return res.json();
     },
     onSuccess: (data) => {
+      if (data.alreadyPremium) {
+        queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
+        toast({ title: "You already have premium access!" });
+        return;
+      }
       if (data.url) {
         window.location.href = data.url;
       }
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to start checkout",
+        title: "Checkout Unavailable",
+        description: "Unable to connect to payment processor. Please try again later.",
         variant: "destructive",
       });
     },
@@ -121,8 +133,8 @@ export default function UpgradePage() {
     );
   }
 
-  if (subStatus?.hasSubscription) {
-    if (subStatus.isGrandfathered) {
+  if (effectiveHasSubscription) {
+    if (effectiveIsGrandfathered) {
       return (
         <div className="p-6 max-w-2xl mx-auto">
           <Button 
@@ -196,14 +208,14 @@ export default function UpgradePage() {
             <div className="flex items-center justify-between p-4 bg-card/50 rounded-lg border border-border/30">
               <div>
                 <p className="font-medium">Status</p>
-                <p className="text-sm text-muted-foreground capitalize">{subStatus.status}</p>
+                <p className="text-sm text-muted-foreground capitalize">{subStatus?.status || 'active'}</p>
               </div>
               <Badge variant="outline" className="text-primary border-primary">
                 Active
               </Badge>
             </div>
 
-            {subStatus.subscriptionId && (
+            {subStatus?.subscriptionId && (
               <div className="flex items-center justify-between p-4 bg-card/50 rounded-lg border border-border/30">
                 <div>
                   <p className="font-medium">Payment Method</p>
@@ -215,7 +227,7 @@ export default function UpgradePage() {
               </div>
             )}
             
-            {subStatus.periodEnd && (
+            {subStatus?.periodEnd && (
               <div className="p-4 bg-card/50 rounded-lg border border-border/30">
                 <p className="font-medium">Next billing date</p>
                 <p className="text-sm text-muted-foreground">
@@ -224,7 +236,7 @@ export default function UpgradePage() {
               </div>
             )}
             
-            {subStatus.subscriptionId ? (
+            {subStatus?.subscriptionId ? (
               <Button 
                 variant="outline" 
                 className="w-full"

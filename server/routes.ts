@@ -335,6 +335,11 @@ ${urls}
         return res.status(400).json({ error: "Price ID required" });
       }
 
+      const existingProfile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      if (existingProfile[0]?.isGrandfathered) {
+        return res.json({ alreadyPremium: true });
+      }
+
       const stripe = await getUncachableStripeClient();
 
       // Get or create user profile
