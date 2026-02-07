@@ -4432,6 +4432,7 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
       }
 
       const rivalryMap = new Map<string, RivalryRecord>();
+      const seasonsWithMatchups = new Set<string>();
       
       const seasonDataResults = await Promise.all(
         leagueHistory.map(async (historyEntry) => {
@@ -4533,6 +4534,7 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
               roster2Points: m2.points || 0,
               winner,
             });
+            seasonsWithMatchups.add(historyEntry.season);
           }
         }
       }
@@ -4659,12 +4661,17 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
           return bWinPct - aWinPct;
         });
 
+      const playedSeasons = leagueHistory
+        .filter(h => seasonsWithMatchups.has(h.season))
+        .map(h => h.season)
+        .sort((a, b) => b.localeCompare(a));
+
       const responseData = {
         rivalries,
         teamRecords,
         leagueName: league.name,
-        totalSeasons: leagueHistory.length,
-        seasons: leagueHistory.map(h => h.season).sort((a, b) => b.localeCompare(a)),
+        totalSeasons: playedSeasons.length,
+        seasons: playedSeasons,
       };
       rivalryCache.set(leagueId, { data: responseData, timestamp: Date.now() });
       res.json(responseData);
