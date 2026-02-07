@@ -654,6 +654,85 @@ ${urls}
     }
   });
 
+  app.get("/api/admin/users", isAuthenticated, requireAdmin, async (req: any, res: Response) => {
+    try {
+      const allUsers = await db.select({
+        userId: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        createdAt: users.createdAt,
+      }).from(users).orderBy(users.createdAt);
+
+      const allProfiles = await db.select().from(schema.userProfiles);
+      const profileMap = new Map(allProfiles.map(p => [p.userId, p]));
+
+      const result = allUsers.map(u => {
+        const profile = profileMap.get(u.userId);
+        return {
+          userId: u.userId,
+          email: u.email || 'Unknown',
+          name: [u.firstName, u.lastName].filter(Boolean).join(' ') || 'Unknown',
+          sleeperUsername: profile?.sleeperUsername || null,
+          isPremium: profile?.subscriptionStatus === 'active' || profile?.isGrandfathered === true,
+          isGrandfathered: profile?.isGrandfathered === true,
+          subscriptionStatus: profile?.subscriptionStatus || null,
+          subscriptionSource: profile?.subscriptionSource || null,
+          joinedAt: u.createdAt ? u.createdAt.toISOString() : null,
+        };
+      });
+
+      res.json({
+        users: result,
+        totalUsers: result.length,
+        premiumUsers: result.filter(u => u.isPremium).length,
+      });
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.post("/api/admin/toggle-premium", isAuthenticated, requireAdmin, async (req: any, res: Response) => {
+    try {
+      const { userId, makePremium } = req.body;
+      if (!userId || typeof makePremium !== 'boolean') {
+        return res.status(400).json({ error: "userId and makePremium (boolean) required" });
+      }
+
+      const existingProfile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+
+      if (existingProfile[0]) {
+        if (makePremium) {
+          await db.update(schema.userProfiles)
+            .set({ subscriptionStatus: 'active', subscriptionSource: 'manual', isGrandfathered: false })
+            .where(eq(schema.userProfiles.userId, userId));
+        } else {
+          await db.update(schema.userProfiles)
+            .set({ subscriptionStatus: null, subscriptionSource: null, isGrandfathered: false })
+            .where(eq(schema.userProfiles.userId, userId));
+        }
+      } else {
+        const { nanoid } = await import('nanoid');
+        if (makePremium) {
+          await db.insert(schema.userProfiles).values({
+            id: nanoid(),
+            userId,
+            subscriptionStatus: 'active',
+            subscriptionSource: 'manual',
+            isGrandfathered: false,
+          });
+        }
+      }
+
+      console.log(`[admin] User ${userId} premium set to ${makePremium}`);
+      res.json({ success: true, userId, isPremium: makePremium });
+    } catch (error) {
+      console.error("Error toggling premium:", error);
+      res.status(500).json({ error: "Failed to toggle premium" });
+    }
+  });
+
   // User Profile Routes
   app.get("/api/user/profile", isAuthenticated, async (req: any, res: Response) => {
     try {
