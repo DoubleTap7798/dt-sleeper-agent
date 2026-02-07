@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { DraftProfileModal } from "@/components/draft-profile-modal";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { InfoTooltip } from "@/components/metric-tooltip";
 
 interface CombineData {
   fortyYard: number | null;
@@ -355,7 +356,10 @@ export default function DraftBoardPage() {
                         <SortButton field="weight" label="Weight" />
                       </th>
                       <th className="p-3 w-20">
-                        <SortButton field="stock" label="Stock" />
+                        <span className="flex items-center gap-1">
+                          <SortButton field="stock" label="Stock" />
+                          <InfoTooltip title="Stock Movement" description="How a prospect's draft stock has changed recently. Rising means they're gaining buzz, falling means concerns are growing. Based on scouting reports and mock drafts." />
+                        </span>
                       </th>
                     </tr>
                   </thead>

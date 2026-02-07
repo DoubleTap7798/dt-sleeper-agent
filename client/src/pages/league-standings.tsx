@@ -17,6 +17,7 @@ import {
 import { Trophy, TrendingUp, Users, ChevronRight, Star, Zap, Crown } from "lucide-react";
 import type { StandingsTeam } from "@/lib/sleeper-types";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { InfoTooltip } from "@/components/metric-tooltip";
 
 interface StandingsData {
   standings: StandingsTeam[];
@@ -123,9 +124,27 @@ export default function LeagueStandingsPage() {
           <div className="flex items-center text-xs text-muted-foreground uppercase tracking-wider px-2 py-2 border-b">
             <span className="w-8 text-center">RANK</span>
             <span className="flex-1 ml-2">NAME</span>
-            <span className="w-20 text-center hidden sm:block">WAIVER</span>
-            <span className="w-12 text-center hidden sm:block">PF</span>
-            <span className="w-12 text-center hidden sm:block">PA</span>
+            <span className="w-20 text-center hidden sm:flex items-center justify-center gap-0.5">
+              WAIVER
+              <InfoTooltip
+                title="Waiver Priority"
+                description="Your remaining FAAB budget and waiver claim priority. Lower waiver position = higher priority for claiming free agents."
+              />
+            </span>
+            <span className="w-12 text-center hidden sm:flex items-center justify-center gap-0.5">
+              PF
+              <InfoTooltip
+                title="Points For"
+                description="Total fantasy points scored by your team this season. Higher PF indicates a stronger-performing roster."
+              />
+            </span>
+            <span className="w-12 text-center hidden sm:flex items-center justify-center gap-0.5">
+              PA
+              <InfoTooltip
+                title="Points Against"
+                description="Total fantasy points scored against your team by opponents. High PA relative to PF can indicate bad luck in scheduling."
+              />
+            </span>
             <span className="w-6"></span>
           </div>
           
@@ -212,6 +231,10 @@ export default function LeagueStandingsPage() {
               <CardTitle className="text-lg flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
                 Playoff Predictions
+                <InfoTooltip
+                  title="Playoff Predictions"
+                  description="Estimated chance each team makes the playoffs based on current record, remaining schedule strength, and points scored. Updates weekly as the season progresses."
+                />
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -311,7 +334,13 @@ export default function LeagueStandingsPage() {
                   <p className="text-lg font-bold font-mono" data-testid="text-points-against">{teamDetail.record.pointsAgainst.toFixed(1)}</p>
                 </Card>
                 <Card className="p-3 text-center" data-testid="card-max-points">
-                  <p className="text-xs text-muted-foreground">Max Points</p>
+                  <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                    Max Points
+                    <InfoTooltip
+                      title="Max Points"
+                      description="The most points this team could have scored if the optimal lineup was set each week. Compares to actual Points For to show coaching efficiency."
+                    />
+                  </p>
                   <p className="text-lg font-bold font-mono" data-testid="text-max-points">{teamDetail.record.maxPoints.toFixed(1)}</p>
                 </Card>
               </div>

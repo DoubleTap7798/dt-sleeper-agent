@@ -36,6 +36,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { getNFLTeamLogo } from "@/lib/team-logos";
+import { InfoTooltip } from "@/components/metric-tooltip";
 
 interface NFLVerseProfile {
   playerName: string;
@@ -726,7 +727,7 @@ function AnalyticsTab({
   const formatNum = (val: number | null | undefined, decimals = 1) => val != null ? val.toFixed(decimals) : "-";
 
   const getQBMetrics = () => [
-    { label: "Fantasy PPG (PPR)", value: formatNum(s.ppg_ppr), icon: Zap },
+    { label: "Fantasy PPG (PPR)", value: formatNum(s.ppg_ppr), icon: Zap, tip: "Average fantasy points per game in PPR scoring. Key indicator of weekly production." },
     { label: "Total Fantasy Pts", value: formatNum(s.fantasy_points_ppr, 0), icon: TrendingUp },
     { label: "Pass Yards", value: s.passing_yards.toLocaleString(), icon: BarChart3 },
     { label: "Pass TD", value: String(s.passing_tds), icon: Target },
@@ -737,24 +738,24 @@ function AnalyticsTab({
   ];
 
   const getRBMetrics = () => [
-    { label: "Fantasy PPG (PPR)", value: formatNum(s.ppg_ppr), icon: Zap },
+    { label: "Fantasy PPG (PPR)", value: formatNum(s.ppg_ppr), icon: Zap, tip: "Average fantasy points per game in PPR scoring. Key indicator of weekly production." },
     { label: "Total Fantasy Pts", value: formatNum(s.fantasy_points_ppr, 0), icon: TrendingUp },
-    { label: "Yards/Carry", value: formatNum(s.yards_per_carry), icon: BarChart3 },
-    { label: "Target Share", value: formatPct(s.target_share), icon: Target },
-    { label: "Catch Rate", value: formatPct(s.catch_rate), icon: Activity },
-    { label: "WOPR", value: formatNum(s.wopr, 3), icon: Zap },
-    { label: "TD Rate", value: formatPct(s.td_rate), icon: Target },
+    { label: "Yards/Carry", value: formatNum(s.yards_per_carry), icon: BarChart3, tip: "Average rushing yards per carry attempt. Measures rushing efficiency." },
+    { label: "Target Share", value: formatPct(s.target_share), icon: Target, tip: "Percentage of team passing targets going to this player. Higher share = more passing game involvement." },
+    { label: "Catch Rate", value: formatPct(s.catch_rate), icon: Activity, tip: "Percentage of targets caught. Measures hands and route running reliability." },
+    { label: "WOPR", value: formatNum(s.wopr, 3), icon: Zap, tip: "Weighted Opportunity Rating. Combines target share (1.5x weight) and air yards share (0.7x weight). Higher WOPR = more valuable role in the passing game." },
+    { label: "TD Rate", value: formatPct(s.td_rate), icon: Target, tip: "Percentage of touches resulting in touchdowns. High TD rate may regress to the mean." },
     { label: "Games", value: String(s.games_played), icon: Calendar },
   ];
 
   const getWRTEMetrics = () => [
-    { label: "Fantasy PPG (PPR)", value: formatNum(s.ppg_ppr), icon: Zap },
+    { label: "Fantasy PPG (PPR)", value: formatNum(s.ppg_ppr), icon: Zap, tip: "Average fantasy points per game in PPR scoring. Key indicator of weekly production." },
     { label: "Total Fantasy Pts", value: formatNum(s.fantasy_points_ppr, 0), icon: TrendingUp },
-    { label: "Target Share", value: formatPct(s.target_share), icon: Target },
-    { label: "Air Yards Share", value: formatPct(s.air_yards_share), icon: TrendingUp },
-    { label: "WOPR", value: formatNum(s.wopr, 3), icon: Zap },
-    { label: "Catch Rate", value: formatPct(s.catch_rate), icon: Activity },
-    { label: "Yards/Reception", value: formatNum(s.yards_per_reception), icon: BarChart3 },
+    { label: "Target Share", value: formatPct(s.target_share), icon: Target, tip: "Percentage of team passing targets going to this player. Higher share = more receiving opportunity." },
+    { label: "Air Yards Share", value: formatPct(s.air_yards_share), icon: TrendingUp, tip: "Percentage of team air yards directed at this player. Measures downfield usage and big-play potential." },
+    { label: "WOPR", value: formatNum(s.wopr, 3), icon: Zap, tip: "Weighted Opportunity Rating. Combines target share (1.5x weight) and air yards share (0.7x weight). Higher WOPR = more valuable role in the passing game." },
+    { label: "Catch Rate", value: formatPct(s.catch_rate), icon: Activity, tip: "Percentage of targets caught. Measures hands and route running reliability." },
+    { label: "Yards/Reception", value: formatNum(s.yards_per_reception), icon: BarChart3, tip: "Average yards gained per reception. Higher values indicate big-play ability." },
     { label: "Games", value: String(s.games_played), icon: Calendar },
   ];
 
@@ -772,7 +773,12 @@ function AnalyticsTab({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {metrics.map((m, i) => (
             <div key={i} data-testid={`stat-${m.label.replace(/\s+/g, '-').toLowerCase()}`}>
-              <p className="text-xs text-muted-foreground">{m.label}</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                {m.label}
+                {m.tip && (
+                  <InfoTooltip title={m.label} description={m.tip} />
+                )}
+              </p>
               <p className="text-lg font-bold" data-testid={`value-${m.label.replace(/\s+/g, '-').toLowerCase()}`}>{m.value}</p>
             </div>
           ))}
@@ -783,25 +789,41 @@ function AnalyticsTab({
         <Card className="p-4" data-testid="card-dynasty-market-value">
           <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm">
             <BarChart3 className="h-4 w-4" /> Dynasty Market Value
+            <InfoTooltip
+              title="Dynasty Market Value"
+              description="Trade values from Dynasty Process, an open-source dynasty ranking system. Values represent what the market consensus says a player is worth in dynasty trades."
+            />
           </h4>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <p className="text-xs text-muted-foreground">1QB Value</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                1QB Value
+                <InfoTooltip title="1QB Value" description="Dynasty trade value in standard 1-QB leagues. Higher number = more valuable in trades." />
+              </p>
               <p className="text-lg font-bold" data-testid="value-1qb">{dp.value_1qb.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">SF Value</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                SF Value
+                <InfoTooltip title="Superflex Value" description="Dynasty trade value in Superflex/2QB leagues. QBs are worth significantly more in this format." />
+              </p>
               <p className="text-lg font-bold" data-testid="value-2qb">{dp.value_2qb.toLocaleString()}</p>
             </div>
             {dp.ecr_1qb && (
               <div>
-                <p className="text-xs text-muted-foreground">ECR (1QB)</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  ECR (1QB)
+                  <InfoTooltip title="Expert Consensus Ranking" description="Average ranking from fantasy experts aggregated by FantasyPros. Lower number = higher ranked player." />
+                </p>
                 <p className="text-lg font-bold">#{Math.round(dp.ecr_1qb)}</p>
               </div>
             )}
             {dp.ecr_pos && (
               <div>
-                <p className="text-xs text-muted-foreground">Pos Rank</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Pos Rank
+                  <InfoTooltip title="Position Rank" description="Player's ranking among others at the same position. e.g., WR5 means the 5th-ranked wide receiver." />
+                </p>
                 <p className="text-lg font-bold">{pos}{Math.round(dp.ecr_pos)}</p>
               </div>
             )}

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/collapsible";
 import type { TradeAsset, TradeAnalysisResult } from "@/lib/sleeper-types";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { InfoTooltip } from "@/components/metric-tooltip";
 
 interface RosterWithOwner {
   rosterId: number;
@@ -255,9 +256,15 @@ export default function TradeCalculatorPage() {
                 <Sparkles className="h-5 w-5" />
                 Trade Analysis
               </CardTitle>
-              <Badge className={`text-2xl px-4 py-1 ${getGradeColor(analysis.grade)}`}>
-                {analysis.grade}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <InfoTooltip
+                  title="Trade Grade"
+                  description="Overall letter grade (A+ to F) based on fairness, value balance, and positional impact. A+ means both sides benefit roughly equally."
+                />
+                <Badge className={`text-2xl px-4 py-1 ${getGradeColor(analysis.grade)}`}>
+                  {analysis.grade}
+                </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -268,11 +275,23 @@ export default function TradeCalculatorPage() {
                 </p>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Trading Away (Raw):</span>
+                    <span className="text-sm text-muted-foreground flex items-center gap-1">
+                      Trading Away (Raw)
+                      <InfoTooltip
+                        title="Raw Value"
+                        description="The combined dynasty value of all assets being traded away, before any adjustments for consolidation or piece count."
+                      />
+                    </span>
                     <span className="font-mono text-muted-foreground">-{analysis.teamA.totalValue.toFixed(1)}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Trading Away (Adj):</span>
+                    <span className="text-sm text-muted-foreground flex items-center gap-1">
+                      Trading Away (Adj)
+                      <InfoTooltip
+                        title="Adjusted Value"
+                        description="Value after applying the consolidation premium. When trading fewer elite pieces for multiple assets, the elite side gets a value boost because star players are harder to acquire."
+                      />
+                    </span>
                     <span className="font-mono text-muted-foreground">-{(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue).toFixed(1)}</span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -321,7 +340,13 @@ export default function TradeCalculatorPage() {
             <div className="space-y-3" data-testid="container-fairness-bar">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium" data-testid="text-fairness-team-a">{teamA?.ownerName || "Team A"}</span>
-                <span className="text-muted-foreground">Fairness</span>
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  Fairness
+                  <InfoTooltip
+                    title="Fairness Score"
+                    description="Compares the adjusted dynasty value of both sides. Trades within ±5% are considered fair. The bar shows which side gets more value based on the adjusted totals."
+                  />
+                </span>
                 <span className="font-medium" data-testid="text-fairness-team-b">{teamB?.ownerName || "Team B"}</span>
               </div>
               
@@ -484,8 +509,12 @@ function MarketComparison({
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="p-4 rounded-lg bg-muted/30 border mt-2 space-y-4" data-testid="container-market-comparison">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
             Comparing your league values with Dynasty Process consensus rankings and trade values from FantasyPros ECR data.
+            <InfoTooltip
+              title="Market Comparison"
+              description="Dynasty Process uses industry-wide consensus data from FantasyPros. Their scale differs from DT Dynasty values. A positive difference means DT values the player higher than the market."
+            />
           </p>
 
           {teamAWithECR.length > 0 && (
@@ -606,7 +635,13 @@ function TradeSide({
               ))}
             </div>
             <div className="flex justify-between items-center pt-2 border-t">
-              <span className="text-sm font-medium">Total Value:</span>
+              <span className="text-sm font-medium flex items-center gap-1">
+                Total Value
+                <InfoTooltip
+                  title="Total Dynasty Value"
+                  description="Sum of all dynasty values for players and picks being traded. Values are on a 0-100 scale based on production, age, role security, and market consensus."
+                />
+              </span>
               <span className="font-bold font-mono text-primary">{totalValue.toFixed(1)}</span>
             </div>
           </div>

@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { useMutation } from "@tanstack/react-query";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { InfoTooltip } from "@/components/metric-tooltip";
 
 interface DataSourceStatus {
   sourceId: string;
@@ -348,16 +349,28 @@ export default function DevyPage() {
                     <SortButton field="year" label="Draft" />
                   </th>
                   <th className="p-3 w-28 text-center">
-                    <span className="font-medium">Pick Value</span>
+                    <span className="font-medium flex items-center justify-center gap-1">
+                      Pick Value
+                      <InfoTooltip title="Pick Value" description="How many draft picks this prospect is worth. A 1.5x multiplier means they're worth 1.5 first-round picks in a trade." />
+                    </span>
                   </th>
                   <th className="p-3 w-32 text-center">
-                    <span className="font-medium">Hit Rate</span>
+                    <span className="font-medium flex items-center justify-center gap-1">
+                      Hit Rate
+                      <InfoTooltip title="Hit Rate" description="Elite % shows chances of becoming a fantasy star. Bust % shows risk of being a non-contributor. Based on historical data for similar prospects." />
+                    </span>
                   </th>
                   <th className="p-3 w-28 text-center">
-                    <span className="font-medium">Draft Capital</span>
+                    <span className="font-medium flex items-center justify-center gap-1">
+                      Draft Capital
+                      <InfoTooltip title="Draft Capital" description="Projected NFL draft position. Shows probability of being a top-10 pick, 1st rounder, or later. Higher draft capital usually means more opportunity." />
+                    </span>
                   </th>
                   <th className="p-3 w-20 text-center">
-                    <span className="font-medium">Trend</span>
+                    <span className="font-medium flex items-center justify-center gap-1">
+                      Trend
+                      <InfoTooltip title="Value Trend" description="How this prospect's dynasty value has changed recently. Green arrow = rising stock, Red arrow = falling stock." />
+                    </span>
                   </th>
                   <th className="p-3 w-16 text-center">
                     <span className="font-medium">Age</span>

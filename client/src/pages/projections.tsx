@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { getNFLTeamLogo } from "@/lib/team-logos";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { InfoTooltip } from "@/components/metric-tooltip";
 
 interface MatchupProjection {
   playerId: string;
@@ -275,8 +276,14 @@ export default function ProjectionsPage() {
                     <div className="mt-4 pt-3 border-t border-border space-y-3" data-testid={`expanded-${player.playerId}`}>
                       <div>
                         <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="text-muted-foreground">Floor</span>
-                          <span className="text-muted-foreground">Ceiling</span>
+                          <span className="text-muted-foreground flex items-center gap-1">
+                            Floor
+                            <InfoTooltip title="Floor" description="The minimum points you can reasonably expect from this player. Based on their worst-case usage and game script." />
+                          </span>
+                          <span className="text-muted-foreground flex items-center gap-1">
+                            Ceiling
+                            <InfoTooltip title="Ceiling" description="The maximum points this player could reach in a best-case scenario. Based on their peak usage and big-play potential." />
+                          </span>
                         </div>
                         <div className="relative h-2 bg-muted rounded-full overflow-hidden">
                           <div 
@@ -318,7 +325,10 @@ export default function ProjectionsPage() {
                       
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">Confidence</span>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            Confidence
+                            <InfoTooltip title="Confidence Score" description="How confident the projection is, based on matchup predictability, player consistency, and data quality. Higher % means more reliable." />
+                          </span>
                           <Progress value={player.confidence} className="w-20 h-1.5" />
                           <span className="text-xs font-medium">{player.confidence}%</span>
                         </div>

@@ -106,3 +106,34 @@ export function SimpleTooltip({ title, description, className, children }: Simpl
     </Tooltip>
   );
 }
+
+interface InfoTooltipProps {
+  title: string;
+  description: string;
+  className?: string;
+  size?: "sm" | "md";
+}
+
+export function InfoTooltip({ title, description, className, size = "sm" }: InfoTooltipProps) {
+  const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const circleSize = size === "sm" ? "h-4 w-4" : "h-5 w-5";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className={`inline-flex items-center justify-center shrink-0 rounded-full border border-muted-foreground/30 cursor-help bg-transparent p-0 ${circleSize} ${className || ""}`}
+          aria-label={`Info: ${title}`}
+          data-testid={`info-tooltip-${title.replace(/\s+/g, '-').toLowerCase()}`}
+        >
+          <Info className={`${iconSize} text-muted-foreground`} aria-hidden="true" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[280px]">
+        <p className="font-medium text-sm">{title}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}

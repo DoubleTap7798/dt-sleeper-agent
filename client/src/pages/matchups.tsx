@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/collapsible";
 import { ChevronLeft, ChevronRight, ChevronDown, Zap, Clock, CheckCircle2, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { InfoTooltip } from "@/components/metric-tooltip";
 
 interface PlayerScore {
   playerId: string;
@@ -511,6 +512,10 @@ function MedianTrackerCard({ medianData, showDetails, onToggleDetails, gamesInPr
                 <div>
                   <CardTitle className="text-base flex items-center gap-2" data-testid="text-median-title">
                     Median Tracker
+                    <InfoTooltip
+                      title="Median Tracker"
+                      description="In median leagues, you get an extra win/loss each week based on whether your score is above or below the league median (middle score). This tracks your record against the median all season."
+                    />
                     {isMedianLeague && (
                       <Badge variant="outline" className="text-xs" data-testid="badge-median-league">
                         Median League

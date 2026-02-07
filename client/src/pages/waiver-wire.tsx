@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Search, TrendingUp, Users, Sparkles, Target, AlertCircle } from "lucide-react";
-import { MetricTooltip } from "@/components/metric-tooltip";
+import { MetricTooltip, InfoTooltip } from "@/components/metric-tooltip";
 import { usePageTitle } from "@/hooks/use-page-title";
 
 interface WaiverPlayer {
@@ -157,6 +157,10 @@ export default function WaiverWirePage() {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
                 <CardTitle className="text-lg">Recommended for You</CardTitle>
+                <InfoTooltip
+                  title="Waiver Recommendations"
+                  description="AI-analyzed players that fill gaps on your roster. Fit Score combines dynasty value with how much your team needs that position. Higher score = better pickup for your team."
+                />
               </div>
               <Button 
                 variant="ghost" 
@@ -302,11 +306,26 @@ export default function WaiverWirePage() {
                   <TableHead>Player</TableHead>
                   <TableHead className="text-center">Pos</TableHead>
                   <TableHead className="text-center">Team</TableHead>
-                  <TableHead className="text-right">Avg</TableHead>
+                  <TableHead className="text-right">
+                    <span className="flex items-center justify-end gap-1">
+                      Avg
+                      <InfoTooltip title="Average Points" description="Average fantasy points per game this season. Primary indicator of a player's weekly floor." />
+                    </span>
+                  </TableHead>
                   <TableHead className="text-right">Season</TableHead>
                   <TableHead className="text-right hidden md:table-cell">Last Wk</TableHead>
-                  <TableHead className="text-right hidden md:table-cell">Proj</TableHead>
-                  <TableHead className="text-right hidden lg:table-cell">% Rostered</TableHead>
+                  <TableHead className="text-right hidden md:table-cell">
+                    <span className="flex items-center justify-end gap-1">
+                      Proj
+                      <InfoTooltip title="Projected Points" description="Estimated fantasy points for next week based on matchup, usage trends, and recent performance." />
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-right hidden lg:table-cell">
+                    <span className="flex items-center justify-end gap-1">
+                      % Rostered
+                      <InfoTooltip title="Roster Percentage" description="How many leagues have this player rostered. Low % means they're likely available in your league." />
+                    </span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
