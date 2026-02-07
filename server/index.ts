@@ -3,41 +3,135 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { runMigrations } from 'stripe-replit-sync';
-import { getStripeSync, getUncachableStripeClient } from './stripeClient';
+import { getStripeSync, getUncachableStripeClient, getLiveStripeClient } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
 import { db } from "./db";
 import * as schema from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 
 async function syncSubscriptionToProfile(customerId: string) {
-  const subResult = await db.execute(sql`
-    SELECT id, status, current_period_end 
-    FROM stripe.subscriptions 
-    WHERE customer = ${customerId}
-    ORDER BY created DESC
-    LIMIT 1
-  `);
+  console.log(`[syncSub] Starting sync for Stripe customer: ${customerId}`);
+  
+  let subscription: any = null;
+  let workingStripe: any = null;
 
-  let subscription = subResult.rows[0] as any;
+  const stripeClients: { stripe: any; label: string }[] = [];
+  try {
+    const connectorStripe = await getUncachableStripeClient();
+    stripeClients.push({ stripe: connectorStripe, label: 'connector' });
+  } catch (e) {}
+  const liveStripe = await getLiveStripeClient();
+  if (liveStripe) {
+    stripeClients.push({ stripe: liveStripe, label: 'live' });
+  }
 
-  if (!subscription) {
-    const stripe = await getUncachableStripeClient();
-    const stripeSubs = await stripe.subscriptions.list({ customer: customerId, limit: 1 });
-    if (stripeSubs.data.length > 0) {
-      const s = stripeSubs.data[0] as any;
-      subscription = { id: s.id, status: s.status, current_period_end: s.current_period_end };
+  for (const { stripe, label } of stripeClients) {
+    try {
+      const stripeSubs = await stripe.subscriptions.list({ customer: customerId, limit: 1 });
+      if (stripeSubs.data.length > 0) {
+        const s = stripeSubs.data[0] as any;
+        subscription = { id: s.id, status: s.status, current_period_end: s.current_period_end };
+        workingStripe = stripe;
+        console.log(`[syncSub] Found subscription via ${label}: ${s.id}, status: ${s.status}`);
+        break;
+      }
+    } catch (e: any) {
+      console.log(`[syncSub] Could not query ${label} Stripe for customer ${customerId}: ${e.message}`);
     }
   }
 
-  if (!subscription) return;
+  if (!subscription) {
+    const subResult = await db.execute(sql`
+      SELECT id, status, current_period_end 
+      FROM stripe.subscriptions 
+      WHERE customer = ${customerId}
+      ORDER BY created DESC
+      LIMIT 1
+    `);
+    subscription = subResult.rows[0] as any;
+  }
 
-  await db.update(schema.userProfiles)
-    .set({
+  if (!subscription) {
+    console.log(`[syncSub] No subscription found for customer ${customerId}`);
+    return;
+  }
+
+  console.log(`[syncSub] Found subscription: ${subscription.id}, status: ${subscription.status}`);
+
+  const profileByCustomer = await db.select().from(schema.userProfiles)
+    .where(eq(schema.userProfiles.stripeCustomerId, customerId)).limit(1);
+
+  if (profileByCustomer[0]) {
+    console.log(`[syncSub] Matched profile by stripeCustomerId, userId: ${profileByCustomer[0].userId}`);
+    await db.update(schema.userProfiles)
+      .set({
+        stripeSubscriptionId: subscription.id,
+        subscriptionStatus: subscription.status,
+        subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null,
+        subscriptionSource: 'stripe'
+      })
+      .where(eq(schema.userProfiles.stripeCustomerId, customerId));
+    return;
+  }
+
+  console.log(`[syncSub] No profile matched by stripeCustomerId, trying email lookup...`);
+  let customerEmail: string | null = null;
+
+  for (const { stripe, label } of stripeClients) {
+    try {
+      const customer = await stripe.customers.retrieve(customerId) as any;
+      if (customer?.email) {
+        customerEmail = customer.email;
+        console.log(`[syncSub] Got email from ${label} Stripe: ${customerEmail}`);
+        break;
+      }
+    } catch (e: any) {
+      console.log(`[syncSub] Could not retrieve customer from ${label}: ${e.message}`);
+    }
+  }
+
+  if (!customerEmail) {
+    console.log(`[syncSub] Stripe customer ${customerId} has no email, cannot link to user`);
+    return;
+  }
+
+  const userByEmail = await db.select().from(schema.users)
+    .where(eq(schema.users.email, customerEmail.toLowerCase())).limit(1);
+
+  if (!userByEmail[0]) {
+    console.log(`[syncSub] No user found with email: ${customerEmail}`);
+    return;
+  }
+
+  const matchedUserId = userByEmail[0].id;
+  console.log(`[syncSub] Found user by email, userId: ${matchedUserId}`);
+
+  const profileByUser = await db.select().from(schema.userProfiles)
+    .where(eq(schema.userProfiles.userId, matchedUserId)).limit(1);
+
+  if (profileByUser[0]) {
+    await db.update(schema.userProfiles)
+      .set({
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: subscription.id,
+        subscriptionStatus: subscription.status,
+        subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null,
+        subscriptionSource: 'stripe'
+      })
+      .where(eq(schema.userProfiles.userId, matchedUserId));
+    console.log(`[syncSub] Updated existing profile for userId: ${matchedUserId}`);
+  } else {
+    await db.insert(schema.userProfiles).values({
+      id: crypto.randomUUID(),
+      userId: matchedUserId,
+      stripeCustomerId: customerId,
       stripeSubscriptionId: subscription.id,
       subscriptionStatus: subscription.status,
-      subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null
-    })
-    .where(eq(schema.userProfiles.stripeCustomerId, customerId));
+      subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null,
+      subscriptionSource: 'stripe'
+    });
+    console.log(`[syncSub] Created new profile for userId: ${matchedUserId}`);
+  }
 }
 
 const app = express();

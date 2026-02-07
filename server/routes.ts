@@ -15,7 +15,7 @@ import { z } from "zod";
 import { db } from "./db";
 import * as schema from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { getUncachableStripeClient, getStripePublishableKey, getLiveStripeClient } from "./stripeClient";
 
 // Validation schemas
 const connectSleeperSchema = z.object({
@@ -484,52 +484,87 @@ ${urls}
   app.post("/api/subscription/sync-my-subscription", isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
+      console.log(`[sync-sub] Manual sync requested for userId: ${userId}`);
+      
       const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const user = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+      const userEmail = user[0]?.email;
       
-      if (!profile[0]?.stripeCustomerId) {
-        return res.json({ synced: false, message: "No Stripe customer found" });
+      let customerId = profile[0]?.stripeCustomerId;
+
+      const stripeClients: { stripe: any; label: string }[] = [];
+      try {
+        const connectorStripe = await getUncachableStripeClient();
+        stripeClients.push({ stripe: connectorStripe, label: 'connector' });
+      } catch (e) {
+        console.log('[sync-sub] Connector Stripe not available');
       }
-
-      const customerId = profile[0].stripeCustomerId;
-
-      const subResult = await db.execute(sql`
-        SELECT id, status, current_period_end 
-        FROM stripe.subscriptions 
-        WHERE customer = ${customerId}
-        ORDER BY created DESC
-        LIMIT 1
-      `);
-
-      const subscription = subResult.rows[0] as any;
-      
-      if (!subscription) {
-        const stripe = await getUncachableStripeClient();
-        const stripeSubs = await stripe.subscriptions.list({ customer: customerId, limit: 1, status: 'active' });
-        
-        if (stripeSubs.data.length > 0) {
-          const activeSub = stripeSubs.data[0] as any;
-          await db.update(schema.userProfiles)
-            .set({
-              stripeSubscriptionId: activeSub.id,
-              subscriptionStatus: activeSub.status,
-              subscriptionPeriodEnd: activeSub.current_period_end ? new Date(activeSub.current_period_end * 1000) : null
-            })
-            .where(eq(schema.userProfiles.userId, userId));
-          return res.json({ synced: true, source: "stripe-api" });
+      const liveStripe = await getLiveStripeClient();
+      if (liveStripe) {
+        const alreadyHasLive = stripeClients.some(c => c.label === 'connector' && process.env.STRIPE_SECRET_KEY);
+        if (!alreadyHasLive || stripeClients.length === 0) {
+          stripeClients.push({ stripe: liveStripe, label: 'live' });
+        } else {
+          stripeClients.push({ stripe: liveStripe, label: 'live' });
         }
-        
-        return res.json({ synced: false, message: "No active subscription found" });
       }
 
-      await db.update(schema.userProfiles)
-        .set({
-          stripeSubscriptionId: subscription.id,
-          subscriptionStatus: subscription.status,
-          subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null
-        })
-        .where(eq(schema.userProfiles.userId, userId));
+      if (stripeClients.length === 0) {
+        return res.json({ synced: false, message: "Stripe not configured" });
+      }
 
-      res.json({ synced: true, source: "stripe-db" });
+      if (!customerId && userEmail) {
+        console.log(`[sync-sub] No stripeCustomerId, searching Stripe by email: ${userEmail}`);
+        for (const { stripe, label } of stripeClients) {
+          try {
+            const customers = await stripe.customers.list({ email: userEmail.toLowerCase(), limit: 10 });
+            if (customers.data.length > 0) {
+              customerId = customers.data[0].id;
+              console.log(`[sync-sub] Found customer ${customerId} via ${label} Stripe by email`);
+              break;
+            }
+          } catch (e: any) {
+            console.log(`[sync-sub] Error searching ${label} Stripe: ${e.message}`);
+          }
+        }
+
+        if (customerId && profile[0]) {
+          await db.update(schema.userProfiles)
+            .set({ stripeCustomerId: customerId })
+            .where(eq(schema.userProfiles.userId, userId));
+        }
+      }
+      
+      if (!customerId) {
+        console.log(`[sync-sub] No Stripe customer found for userId: ${userId}`);
+        return res.json({ synced: false, message: "No Stripe customer found for your email. Make sure you used the same email to pay as you used to register." });
+      }
+
+      for (const { stripe, label } of stripeClients) {
+        try {
+          const stripeSubs = await stripe.subscriptions.list({ customer: customerId, limit: 5 });
+          const activeSub = stripeSubs.data.find((s: any) => s.status === 'active' || s.status === 'trialing') || stripeSubs.data[0];
+          
+          if (activeSub) {
+            await db.update(schema.userProfiles)
+              .set({
+                stripeCustomerId: customerId,
+                stripeSubscriptionId: activeSub.id,
+                subscriptionStatus: activeSub.status,
+                subscriptionPeriodEnd: (activeSub as any).current_period_end ? new Date((activeSub as any).current_period_end * 1000) : null,
+                subscriptionSource: 'stripe'
+              })
+              .where(eq(schema.userProfiles.userId, userId));
+
+            console.log(`[sync-sub] Successfully synced subscription ${activeSub.id} (${activeSub.status}) via ${label} for userId: ${userId}`);
+            return res.json({ synced: true, source: label, status: activeSub.status });
+          }
+        } catch (e: any) {
+          console.log(`[sync-sub] Error checking subscriptions via ${label}: ${e.message}`);
+        }
+      }
+
+      return res.json({ synced: false, message: "No active subscription found for your account" });
     } catch (error) {
       console.error("Error syncing subscription:", error);
       res.status(500).json({ error: "Failed to sync subscription" });

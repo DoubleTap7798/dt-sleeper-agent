@@ -122,6 +122,28 @@ export default function UpgradePage() {
       const res = await apiRequest("POST", "/api/subscription/sync-my-subscription");
       return res.json();
     },
+    onSuccess: (data) => {
+      if (data.synced) {
+        queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
+        toast({
+          title: "Subscription Synced",
+          description: "Your premium access has been activated!",
+        });
+      } else {
+        toast({
+          title: "No Subscription Found",
+          description: data.message || "We couldn't find a subscription linked to your account. Make sure you used the same email address.",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Sync Failed",
+        description: "There was a problem syncing your subscription. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   useEffect(() => {
@@ -411,6 +433,24 @@ export default function UpgradePage() {
 
             <div className="space-y-3 pt-2" data-testid="stripe-buy-button-container">
               <StripeBuyButton email={user?.email} />
+            </div>
+
+            <div className="pt-4 border-t border-border mt-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground"
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending}
+                data-testid="button-sync-subscription"
+              >
+                {syncMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Already paid? Sync your subscription
+              </Button>
             </div>
           </CardContent>
         </Card>

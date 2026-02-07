@@ -91,6 +91,14 @@ export async function getUncachableStripeClient() {
   });
 }
 
+export async function getLiveStripeClient(): Promise<Stripe | null> {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) return null;
+  return new Stripe(secretKey, {
+    apiVersion: '2025-11-17.clover',
+  });
+}
+
 export async function getStripePublishableKey() {
   const { publishableKey } = await getCredentials();
   return publishableKey;
