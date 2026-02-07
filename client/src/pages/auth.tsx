@@ -40,6 +40,7 @@ export default function AuthPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
       setLocation("/");
     },
     onError: (err: Error) => {
@@ -63,6 +64,7 @@ export default function AuthPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
       toast({
         title: "Account created",
         description: "Welcome to DT Sleeper Agent!",

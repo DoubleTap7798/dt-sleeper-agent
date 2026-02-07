@@ -9,17 +9,6 @@ import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useEffect } from "react";
 
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'stripe-buy-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement> & {
-        'buy-button-id': string;
-        'publishable-key': string;
-      }, HTMLElement>;
-    }
-  }
-}
-
 interface SubscriptionStatus {
   hasSubscription: boolean;
   status: string | null;
@@ -29,6 +18,7 @@ interface SubscriptionStatus {
   subscriptionId?: string | null;
 }
 
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/3cIbIT1Oj8kH8lX4AA3ZK00";
 
 const PREMIUM_FEATURES = [
   { icon: LineChart, text: "Trade Calculator with AI Analysis" },
@@ -40,9 +30,6 @@ const PREMIUM_FEATURES = [
   { icon: Check, text: "Trophy Room & Rivalries" },
   { icon: Check, text: "Player Trends & ROS Projections" },
 ];
-
-const STRIPE_BUY_BUTTON_ID = "buy_btn_1SwjYp0hkUkkdElKZJqH1I3S";
-const STRIPE_PUBLISHABLE_KEY = "pk_live_51Sw3SH0hkUkkdElKiXuWGdheNun9WXSGX0fa6yugemJERMI3jx6vqVYktyPcIvtbUT5USAVUxbTk66dWtjok1uQa00rJRkTTaR";
 
 export default function UpgradePage() {
   const [, setLocation] = useLocation();
@@ -57,15 +44,6 @@ export default function UpgradePage() {
     retry: 1,
   });
 
-  useEffect(() => {
-    const existingScript = document.querySelector('script[src="https://js.stripe.com/v3/buy-button.js"]');
-    if (!existingScript) {
-      const script = document.createElement("script");
-      script.src = "https://js.stripe.com/v3/buy-button.js";
-      script.async = true;
-      document.body.appendChild(script);
-    }
-  }, []);
 
   const portalMutation = useMutation({
     mutationFn: async () => {
@@ -310,10 +288,14 @@ export default function UpgradePage() {
             </ul>
 
             <div className="space-y-3 pt-2">
-              <stripe-buy-button
-                buy-button-id={STRIPE_BUY_BUTTON_ID}
-                publishable-key={STRIPE_PUBLISHABLE_KEY}
-              />
+              <Button 
+                className="w-full bg-gradient-to-r from-primary to-cyan-400"
+                onClick={() => window.open(STRIPE_PAYMENT_LINK, "_blank")}
+                data-testid="button-subscribe"
+              >
+                <CreditCard className="w-4 h-4 mr-2" />
+                Subscribe Now
+              </Button>
             </div>
           </CardContent>
         </Card>

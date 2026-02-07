@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "./use-auth";
 
 interface SubscriptionStatus {
   hasSubscription: boolean;
@@ -9,10 +10,13 @@ interface SubscriptionStatus {
 }
 
 export function useSubscription() {
+  const { isAuthenticated } = useAuth();
+  
   const { data, isLoading, error, refetch } = useQuery<SubscriptionStatus>({
     queryKey: ["/api/subscription/status"],
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    staleTime: 1000 * 60 * 5,
     retry: false,
+    enabled: isAuthenticated,
   });
 
   return {
@@ -20,7 +24,7 @@ export function useSubscription() {
     isGrandfathered: data?.isGrandfathered ?? false,
     status: data?.status ?? null,
     periodEnd: data?.periodEnd ?? null,
-    isLoading,
+    isLoading: isAuthenticated ? isLoading : false,
     error,
     refetch,
   };
