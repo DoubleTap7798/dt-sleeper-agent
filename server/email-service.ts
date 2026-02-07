@@ -1,40 +1,18 @@
-// Email service using Resend integration
-// Per Resend integration requirements: Never cache the client - always get fresh credentials
+// Email service using Resend
+// Uses RESEND_API_KEY secret directly for reliable authentication
 import { Resend } from 'resend';
 
-async function getResendClient() {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
-
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY not configured');
   }
-
-  const connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
-    }
-  ).then(res => res.json()).then(data => data.items?.[0]);
-
-  if (!connectionSettings || (!connectionSettings.settings.api_key)) {
-    throw new Error('Resend not connected');
-  }
-  
   return {
-    client: new Resend(connectionSettings.settings.api_key),
-    fromEmail: connectionSettings.settings.from_email
+    client: new Resend(apiKey),
+    fromEmail: 'DT Sleeper Agent <onboarding@resend.dev>'
   };
 }
 
-// Admin email for notifications - can be configured via environment variable
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || 'admin@example.com';
 
 export interface NewUserNotification {
@@ -47,14 +25,13 @@ export interface NewUserNotification {
 
 export async function sendNewUserNotification(user: NewUserNotification): Promise<boolean> {
   try {
-    // Get fresh client per integration requirements
-    const { client, fromEmail } = await getResendClient();
+    const { client, fromEmail } = getResendClient();
     
     const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Unknown';
     const userEmail = user.email || 'No email provided';
     
-    await client.emails.send({
-      from: fromEmail || 'DT Sleeper Agent <noreply@resend.dev>',
+    const result = await client.emails.send({
+      from: fromEmail,
       to: ADMIN_EMAIL,
       subject: `New User Signup: ${userName}`,
       html: `
@@ -84,7 +61,12 @@ export async function sendNewUserNotification(user: NewUserNotification): Promis
       `
     });
     
-    console.log(`[Email] New user notification sent for ${userEmail}`);
+    if (result.error) {
+      console.error('[Email] Resend API error for admin notification:', result.error);
+      return false;
+    }
+    
+    console.log(`[Email] New user notification sent for ${userEmail} (id: ${result.data?.id})`);
     return true;
   } catch (error) {
     console.error('[Email] Failed to send new user notification:', error);
@@ -94,11 +76,10 @@ export async function sendNewUserNotification(user: NewUserNotification): Promis
 
 export async function sendWelcomeEmail(userEmail: string, userName: string): Promise<boolean> {
   try {
-    // Get fresh client per integration requirements
-    const { client, fromEmail } = await getResendClient();
+    const { client, fromEmail } = getResendClient();
     
-    await client.emails.send({
-      from: fromEmail || 'DT Sleeper Agent <noreply@resend.dev>',
+    const result = await client.emails.send({
+      from: fromEmail,
       to: userEmail,
       subject: 'Welcome to DT Sleeper Agent!',
       html: `
@@ -122,7 +103,12 @@ export async function sendWelcomeEmail(userEmail: string, userName: string): Pro
       `
     });
     
-    console.log(`[Email] Welcome email sent to ${userEmail}`);
+    if (result.error) {
+      console.error('[Email] Resend API error for welcome email:', result.error);
+      return false;
+    }
+    
+    console.log(`[Email] Welcome email sent to ${userEmail} (id: ${result.data?.id})`);
     return true;
   } catch (error) {
     console.error('[Email] Failed to send welcome email:', error);
