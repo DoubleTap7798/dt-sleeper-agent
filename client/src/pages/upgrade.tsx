@@ -18,7 +18,7 @@ interface SubscriptionStatus {
   subscriptionId?: string | null;
 }
 
-const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/3cIbIT1Oj8kH8lX4AA3ZK00";
+const WEEKLY_PRICE_ID = "price_1Sw0jYAfG2ju3f0JF1Vafcuz";
 
 const PREMIUM_FEATURES = [
   { icon: LineChart, text: "Trade Calculator with AI Analysis" },
@@ -45,6 +45,25 @@ export default function UpgradePage() {
   });
 
 
+  const checkoutMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/subscription/create-checkout", { priceId: WEEKLY_PRICE_ID });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to start checkout",
+        variant: "destructive",
+      });
+    },
+  });
+
   const portalMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/subscription/create-portal");
@@ -64,14 +83,25 @@ export default function UpgradePage() {
     },
   });
 
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/subscription/sync-my-subscription");
+      return res.json();
+    },
+  });
+
   useEffect(() => {
     if (success) {
-      queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
-      toast({
-        title: "Welcome to Premium!",
-        description: "Your subscription is now active. Enjoy all features!",
+      syncMutation.mutate(undefined, {
+        onSettled: () => {
+          queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
+          toast({
+            title: "Welcome to Premium!",
+            description: "Your subscription is now active. Enjoy all features!",
+          });
+          window.history.replaceState({}, document.title, "/upgrade");
+        },
       });
-      window.history.replaceState({}, document.title, "/upgrade");
     }
     if (canceled) {
       toast({
@@ -290,11 +320,16 @@ export default function UpgradePage() {
             <div className="space-y-3 pt-2">
               <Button 
                 className="w-full bg-gradient-to-r from-primary to-cyan-400"
-                onClick={() => window.open(STRIPE_PAYMENT_LINK, "_blank")}
+                onClick={() => checkoutMutation.mutate()}
+                disabled={checkoutMutation.isPending}
                 data-testid="button-subscribe"
               >
-                <CreditCard className="w-4 h-4 mr-2" />
-                Subscribe Now
+                {checkoutMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <CreditCard className="w-4 h-4 mr-2" />
+                )}
+                {checkoutMutation.isPending ? "Preparing checkout..." : "Subscribe Now"}
               </Button>
             </div>
           </CardContent>

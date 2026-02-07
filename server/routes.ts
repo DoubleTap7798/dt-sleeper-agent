@@ -470,6 +470,61 @@ ${urls}
     }
   });
 
+  app.post("/api/subscription/sync-my-subscription", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      
+      if (!profile[0]?.stripeCustomerId) {
+        return res.json({ synced: false, message: "No Stripe customer found" });
+      }
+
+      const customerId = profile[0].stripeCustomerId;
+
+      const subResult = await db.execute(sql`
+        SELECT id, status, current_period_end 
+        FROM stripe.subscriptions 
+        WHERE customer = ${customerId}
+        ORDER BY created DESC
+        LIMIT 1
+      `);
+
+      const subscription = subResult.rows[0] as any;
+      
+      if (!subscription) {
+        const stripe = await getUncachableStripeClient();
+        const stripeSubs = await stripe.subscriptions.list({ customer: customerId, limit: 1, status: 'active' });
+        
+        if (stripeSubs.data.length > 0) {
+          const activeSub = stripeSubs.data[0] as any;
+          await db.update(schema.userProfiles)
+            .set({
+              stripeSubscriptionId: activeSub.id,
+              subscriptionStatus: activeSub.status,
+              subscriptionPeriodEnd: activeSub.current_period_end ? new Date(activeSub.current_period_end * 1000) : null
+            })
+            .where(eq(schema.userProfiles.userId, userId));
+          return res.json({ synced: true, source: "stripe-api" });
+        }
+        
+        return res.json({ synced: false, message: "No active subscription found" });
+      }
+
+      await db.update(schema.userProfiles)
+        .set({
+          stripeSubscriptionId: subscription.id,
+          subscriptionStatus: subscription.status,
+          subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null
+        })
+        .where(eq(schema.userProfiles.userId, userId));
+
+      res.json({ synced: true, source: "stripe-db" });
+    } catch (error) {
+      console.error("Error syncing subscription:", error);
+      res.status(500).json({ error: "Failed to sync subscription" });
+    }
+  });
+
   // Admin middleware - check if user is admin (by Sleeper username)
   const ADMIN_SLEEPER_USERNAMES = ['doubletap7798'];
   

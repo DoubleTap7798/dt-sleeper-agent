@@ -3,8 +3,42 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { runMigrations } from 'stripe-replit-sync';
-import { getStripeSync } from './stripeClient';
+import { getStripeSync, getUncachableStripeClient } from './stripeClient';
 import { WebhookHandlers } from './webhookHandlers';
+import { db } from "./db";
+import * as schema from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
+
+async function syncSubscriptionToProfile(customerId: string) {
+  const subResult = await db.execute(sql`
+    SELECT id, status, current_period_end 
+    FROM stripe.subscriptions 
+    WHERE customer = ${customerId}
+    ORDER BY created DESC
+    LIMIT 1
+  `);
+
+  let subscription = subResult.rows[0] as any;
+
+  if (!subscription) {
+    const stripe = await getUncachableStripeClient();
+    const stripeSubs = await stripe.subscriptions.list({ customer: customerId, limit: 1 });
+    if (stripeSubs.data.length > 0) {
+      const s = stripeSubs.data[0] as any;
+      subscription = { id: s.id, status: s.status, current_period_end: s.current_period_end };
+    }
+  }
+
+  if (!subscription) return;
+
+  await db.update(schema.userProfiles)
+    .set({
+      stripeSubscriptionId: subscription.id,
+      subscriptionStatus: subscription.status,
+      subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null
+    })
+    .where(eq(schema.userProfiles.stripeCustomerId, customerId));
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -75,6 +109,22 @@ app.post(
       }
 
       await WebhookHandlers.processWebhook(req.body as Buffer, sig);
+
+      // After processing webhook, try to sync subscription data to user profiles
+      try {
+        const event = JSON.parse(req.body.toString());
+        if (event.type?.startsWith('customer.subscription.') || event.type === 'checkout.session.completed') {
+          const customerId = event.data?.object?.customer;
+          if (customerId) {
+            // Async sync - don't block webhook response
+            syncSubscriptionToProfile(customerId).catch(err => 
+              console.error('Auto-sync after webhook failed:', err.message)
+            );
+          }
+        }
+      } catch (syncErr) {
+        // Don't fail the webhook if sync fails
+      }
 
       res.status(200).json({ received: true });
     } catch (error: any) {
