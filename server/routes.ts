@@ -6456,23 +6456,42 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         return valueResult.value;
       };
 
+      // Detect IDP league from roster positions
+      const idpSlotTypes = ["DL", "LB", "DB", "DE", "DT", "CB", "S", "IDP_FLEX", "ILB", "OLB", "MLB", "NT", "FS", "SS", "ED", "EDGE"];
+      const isIDPLeague = rosterPositions.some((pos: string) => idpSlotTypes.includes(pos));
+
+      // Determine which positions to rank - always include offense, add IDP groups if IDP league
+      const offensePositions = ["QB", "RB", "WR", "TE"];
+      const idpPositions = ["DL", "LB", "DB"];
+      const idpPlayerPositionMap: Record<string, string> = {
+        DE: "DL", DT: "DL", NT: "DL", EDGE: "DL", ED: "DL",
+        ILB: "LB", OLB: "LB", MLB: "LB", LB: "LB",
+        CB: "DB", S: "DB", FS: "DB", SS: "DB", DB: "DB",
+      };
+      const positionsToRank = isIDPLeague ? [...offensePositions, ...idpPositions] : offensePositions;
+
       // Calculate position group values for ALL teams
-      const teamPositionValues: Record<string, { QB: number; RB: number; WR: number; TE: number }> = {};
+      const teamPositionValues: Record<string, Record<string, number>> = {};
       
       for (const roster of rosters) {
         const ownerId = roster.owner_id;
         const rosterPlayers = roster.players || [];
         
-        const posValues = { QB: 0, RB: 0, WR: 0, TE: 0 };
+        const posValues: Record<string, number> = {};
+        for (const p of positionsToRank) posValues[p] = 0;
         
         for (const pid of rosterPlayers) {
           const player = allPlayers[pid];
           if (!player) continue;
           
-          const pos = player.position as "QB" | "RB" | "WR" | "TE";
+          const pos = player.position;
+          const idpGroup = idpPlayerPositionMap[pos];
           if (pos in posValues) {
             const value = getBlendedValue(pid, player);
             posValues[pos] += value;
+          } else if (idpGroup && idpGroup in posValues) {
+            const value = getBlendedValue(pid, player);
+            posValues[idpGroup] += value;
           }
         }
         
@@ -6480,12 +6499,11 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       }
 
       // Rank each position group
-      const positions = ["QB", "RB", "WR", "TE"] as const;
       const positionRankings: Record<string, { rank: number; total: number; value: number }> = {};
       
-      for (const pos of positions) {
+      for (const pos of positionsToRank) {
         const sorted = Object.entries(teamPositionValues)
-          .map(([oid, vals]) => ({ ownerId: oid, value: vals[pos] }))
+          .map(([oid, vals]) => ({ ownerId: oid, value: vals[pos] || 0 }))
           .sort((a, b) => b.value - a.value);
         
         const userIndex = sorted.findIndex(t => t.ownerId === userProfile.sleeperUserId);
@@ -6558,6 +6576,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         starters,
         positionRankings,
         leagueSize,
+        isIDPLeague,
       });
     } catch (error) {
       console.error("Error fetching roster:", error);

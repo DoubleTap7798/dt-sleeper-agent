@@ -277,7 +277,7 @@ export function DraftProfileModal({
                   >
                     Stats
                   </TabsTrigger>
-                  {data.cfbdAdvanced && (
+                  {(data.cfbdAdvanced || (data.collegeStats?.careerTotals && (data.collegeStats.careerTotals.tackles || data.collegeStats.careerTotals.sacks || data.collegeStats.careerTotals.passInt || data.collegeStats.careerTotals.passDeflect || data.collegeStats.careerTotals.ff || data.collegeStats.careerTotals.qbHurries || data.collegeStats.careerTotals.tfl))) && (
                     <TabsTrigger
                       value="advanced"
                       className="flex-1"
@@ -430,9 +430,9 @@ export function DraftProfileModal({
                   )}
                 </TabsContent>
 
-                {data.cfbdAdvanced && (
+                {(data.cfbdAdvanced || (data.collegeStats?.careerTotals && (data.collegeStats.careerTotals.tackles || data.collegeStats.careerTotals.sacks || data.collegeStats.careerTotals.passInt || data.collegeStats.careerTotals.passDeflect || data.collegeStats.careerTotals.ff || data.collegeStats.careerTotals.qbHurries || data.collegeStats.careerTotals.tfl))) && (
                   <TabsContent value="advanced" className="space-y-3 mt-3">
-                    {data.cfbdAdvanced.usage && (
+                    {data.cfbdAdvanced?.usage && (
                       <Card>
                         <CardContent className="p-4">
                           <h4 className="font-semibold mb-2 text-sm">
@@ -476,7 +476,7 @@ export function DraftProfileModal({
                         </CardContent>
                       </Card>
                     )}
-                    {data.cfbdAdvanced.ppa && (
+                    {data.cfbdAdvanced?.ppa && (
                       <Card>
                         <CardContent className="p-4">
                           <h4 className="font-semibold mb-2 text-sm">
@@ -513,6 +513,85 @@ export function DraftProfileModal({
                         </CardContent>
                       </Card>
                     )}
+                    {!data.cfbdAdvanced?.usage && !data.cfbdAdvanced?.ppa && data.collegeStats && (() => {
+                      const ct = data.collegeStats.careerTotals;
+                      const numSeasons = data.collegeStats.seasons.length || 1;
+                      const hasDefStats = ct.tackles || ct.sacks || ct.soloTackles || ct.tfl || ct.passInt || ct.passDeflect || ct.ff || ct.qbHurries;
+                      if (!hasDefStats) return (
+                        <div className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-advanced">
+                          No advanced metrics available for this player
+                        </div>
+                      );
+
+                      const statItems: Array<{ label: string; value: string; perSeason?: string }> = [];
+                      if (ct.tackles) statItems.push({ label: "Total Tackles", value: String(ct.tackles), perSeason: (ct.tackles / numSeasons).toFixed(1) });
+                      if (ct.soloTackles) statItems.push({ label: "Solo Tackles", value: String(ct.soloTackles), perSeason: (ct.soloTackles / numSeasons).toFixed(1) });
+                      if (ct.sacks) statItems.push({ label: "Sacks", value: String(ct.sacks), perSeason: (ct.sacks / numSeasons).toFixed(1) });
+                      if (ct.tfl) statItems.push({ label: "Tackles for Loss", value: String(ct.tfl), perSeason: (ct.tfl / numSeasons).toFixed(1) });
+                      if (ct.qbHurries) statItems.push({ label: "QB Hurries", value: String(ct.qbHurries), perSeason: (ct.qbHurries / numSeasons).toFixed(1) });
+                      if (ct.passDeflect) statItems.push({ label: "Pass Deflections", value: String(ct.passDeflect), perSeason: (ct.passDeflect / numSeasons).toFixed(1) });
+                      if (ct.passInt) statItems.push({ label: "Interceptions", value: String(ct.passInt), perSeason: (ct.passInt / numSeasons).toFixed(1) });
+                      if (ct.ff) statItems.push({ label: "Forced Fumbles", value: String(ct.ff), perSeason: (ct.ff / numSeasons).toFixed(1) });
+                      if (ct.fr) statItems.push({ label: "Fumble Recoveries", value: String(ct.fr) });
+                      if (ct.defTd) statItems.push({ label: "Defensive TDs", value: String(ct.defTd) });
+
+                      const tackleEff = ct.tackles && ct.soloTackles ? ((ct.soloTackles / ct.tackles) * 100).toFixed(1) : null;
+                      const sackToTflRatio = ct.sacks && ct.tfl ? ((ct.sacks / ct.tfl) * 100).toFixed(1) : null;
+
+                      return (
+                        <>
+                          <Card>
+                            <CardContent className="p-4">
+                              <h4 className="font-semibold mb-2 text-sm" data-testid="heading-def-career">
+                                Career Defensive Totals ({numSeasons} season{numSeasons !== 1 ? "s" : ""})
+                              </h4>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                {statItems.map((item) => (
+                                  <div key={item.label} className="flex justify-between gap-2">
+                                    <span className="text-muted-foreground">{item.label}</span>
+                                    <span className="font-medium" data-testid={`stat-def-${item.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                                      {item.value}
+                                      {item.perSeason && (
+                                        <span className="text-muted-foreground text-xs ml-1">({item.perSeason}/szn)</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                          {(tackleEff || sackToTflRatio) && (
+                            <Card>
+                              <CardContent className="p-4">
+                                <h4 className="font-semibold mb-2 text-sm" data-testid="heading-def-efficiency">
+                                  Efficiency Metrics
+                                </h4>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  {tackleEff && (
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-muted-foreground">Solo Tackle Rate</span>
+                                      <span className="font-medium" data-testid="stat-solo-tackle-rate">{tackleEff}%</span>
+                                    </div>
+                                  )}
+                                  {sackToTflRatio && (
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-muted-foreground">Sack/TFL Rate</span>
+                                      <span className="font-medium" data-testid="stat-sack-tfl-rate">{sackToTflRatio}%</span>
+                                    </div>
+                                  )}
+                                  {ct.tackles && ct.sacks && (
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-muted-foreground">Tackles/Sack Ratio</span>
+                                      <span className="font-medium" data-testid="stat-tkl-sack-ratio">{(ct.tackles / ct.sacks).toFixed(1)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+                        </>
+                      );
+                    })()}
                   </TabsContent>
                 )}
 

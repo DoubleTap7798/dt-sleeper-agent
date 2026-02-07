@@ -44,10 +44,17 @@ interface RosterResponse {
   starters: string[];
   positionRankings?: Record<string, PositionRanking>;
   leagueSize?: number;
+  isIDPLeague?: boolean;
 }
 
+const IDP_POSITION_GROUP: Record<string, string> = {
+  DE: "DL", DT: "DL", NT: "DL", EDGE: "DL", ED: "DL", DL: "DL",
+  ILB: "LB", OLB: "LB", MLB: "LB", LB: "LB",
+  CB: "DB", S: "DB", FS: "DB", SS: "DB", DB: "DB",
+};
+
 const positionOrder: Record<string, number> = {
-  QB: 1, RB: 2, WR: 3, TE: 4, K: 5, DEF: 6, FLEX: 7, BN: 8, IR: 9
+  QB: 1, RB: 2, WR: 3, TE: 4, K: 5, DEF: 6, DL: 7, LB: 8, DB: 9, FLEX: 10, BN: 11, IR: 12
 };
 
 export default function RosterPage() {
@@ -129,7 +136,12 @@ function RosterContent({ leagueId }: { leagueId: string }) {
   };
 
   const filteredPlayers = (data?.players || [])
-    .filter(p => positionFilter === "all" || p.position === positionFilter);
+    .filter(p => {
+      if (positionFilter === "all") return true;
+      if (p.position === positionFilter) return true;
+      if (IDP_POSITION_GROUP[p.position] === positionFilter) return true;
+      return false;
+    });
 
   // Starters maintain Sleeper's lineup order (already sorted by starterIndex from server)
   // Bench sorted by natural position (already sorted by position then dynasty value from server)
@@ -277,8 +289,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
 
       {data?.positionRankings && Object.keys(data.positionRankings).length > 0 && (
         <div className="flex flex-wrap gap-2" data-testid="position-rankings">
-          {(["QB", "RB", "WR", "TE"] as const).map((pos) => {
-            const ranking = data.positionRankings![pos];
+          {Object.entries(data.positionRankings).map(([pos, ranking]) => {
             if (!ranking || ranking.rank === 0 || ranking.total === 0) return null;
             const isTop = ranking.rank === 1;
             const isBottom = ranking.rank === ranking.total;
@@ -305,6 +316,13 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           <TabsTrigger value="RB" data-testid="tab-rb" className="text-xs sm:text-sm">RB</TabsTrigger>
           <TabsTrigger value="WR" data-testid="tab-wr" className="text-xs sm:text-sm">WR</TabsTrigger>
           <TabsTrigger value="TE" data-testid="tab-te" className="text-xs sm:text-sm">TE</TabsTrigger>
+          {data?.isIDPLeague && (
+            <>
+              <TabsTrigger value="DL" data-testid="tab-dl" className="text-xs sm:text-sm">DL</TabsTrigger>
+              <TabsTrigger value="LB" data-testid="tab-lb" className="text-xs sm:text-sm">LB</TabsTrigger>
+              <TabsTrigger value="DB" data-testid="tab-db" className="text-xs sm:text-sm">DB</TabsTrigger>
+            </>
+          )}
         </TabsList>
       </Tabs>
 
