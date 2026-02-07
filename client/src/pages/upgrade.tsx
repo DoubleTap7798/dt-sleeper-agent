@@ -7,7 +7,7 @@ import { Loader2, Check, Crown, Zap, LineChart, Users, Trophy, ArrowLeft, Credit
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -33,6 +33,24 @@ const PREMIUM_FEATURES = [
   { icon: Check, text: "Player Trends & ROS Projections" },
 ];
 
+function StripeBuyButton({ email }: { email?: string | null }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    containerRef.current.innerHTML = '';
+    const el = document.createElement('stripe-buy-button');
+    el.setAttribute('buy-button-id', 'buy_btn_1SwjYp0hkUkkdElKZJqH1I3S');
+    el.setAttribute('publishable-key', 'pk_live_51Sw3SH0hkUkkdElKiXuWGdheNun9WXSGX0fa6yugemJERMI3jx6vqVYktyPcIvtbUT5USAVUxbTk66dWtjok1uQa00rJRkTTaR');
+    if (email) {
+      el.setAttribute('customer-email', email);
+    }
+    containerRef.current.appendChild(el);
+  }, [email]);
+
+  return <div ref={containerRef} />;
+}
+
 export default function UpgradePage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -40,7 +58,7 @@ export default function UpgradePage() {
   const searchParams = new URLSearchParams(window.location.search);
   const success = searchParams.get("success");
   const canceled = searchParams.get("canceled");
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const { isPremium: hookIsPremium, isGrandfathered: hookIsGrandfathered } = useSubscription();
 
@@ -105,6 +123,15 @@ export default function UpgradePage() {
       return res.json();
     },
   });
+
+  useEffect(() => {
+    if (!document.querySelector('script[src="https://js.stripe.com/v3/buy-button.js"]')) {
+      const script = document.createElement('script');
+      script.src = 'https://js.stripe.com/v3/buy-button.js';
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  }, []);
 
   useEffect(() => {
     if (success) {
@@ -382,20 +409,8 @@ export default function UpgradePage() {
               </li>
             </ul>
 
-            <div className="space-y-3 pt-2">
-              <Button 
-                className="w-full bg-gradient-to-r from-primary to-cyan-400"
-                onClick={() => checkoutMutation.mutate()}
-                disabled={checkoutMutation.isPending}
-                data-testid="button-subscribe"
-              >
-                {checkoutMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <CreditCard className="w-4 h-4 mr-2" />
-                )}
-                {checkoutMutation.isPending ? "Preparing checkout..." : "Subscribe Now"}
-              </Button>
+            <div className="space-y-3 pt-2" data-testid="stripe-buy-button-container">
+              <StripeBuyButton email={user?.email} />
             </div>
           </CardContent>
         </Card>

@@ -44,6 +44,7 @@ export function getSession() {
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     cookie: {
       httpOnly: true,
       secure: true,
@@ -121,13 +122,14 @@ export async function setupAuth(app: Express) {
       (req.session as any).userId = user.id;
       req.session.save((err) => {
         if (err) {
-          console.error("Session save error:", err);
+          console.error("[auth/login] Session save error:", err);
           return res.status(500).json({ message: "Failed to create session" });
         }
+        console.log(`[auth/login] Success for ${email}, userId: ${user.id}, host: ${req.get('host')}, secure: ${req.secure}, protocol: ${req.protocol}`);
         res.json({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName });
       });
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("[auth/login] Error:", error);
       res.status(500).json({ message: "Login failed" });
     }
   });
@@ -147,6 +149,10 @@ export async function setupAuth(app: Express) {
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const userId = (req.session as any)?.userId;
   if (!userId) {
+    const hasCookie = !!req.headers.cookie?.includes('connect.sid');
+    if (req.path.includes('subscription') || req.path.includes('auth/user')) {
+      console.log(`[auth] 401 on ${req.path} - no userId in session, hasCookie: ${hasCookie}, host: ${req.get('host')}, secure: ${req.secure}`);
+    }
     return res.status(401).json({ message: "Unauthorized" });
   }
 

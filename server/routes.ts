@@ -368,8 +368,10 @@ ${urls}
         }
       }
 
-      // Create checkout session
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      // Create checkout session - use request host for correct domain (custom domain support)
+      const host = req.get('host') || process.env.REPLIT_DOMAINS?.split(',')[0];
+      const protocol = req.protocol || 'https';
+      const baseUrl = `${protocol}://${host}`;
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         payment_method_types: ['card'],
@@ -398,7 +400,9 @@ ${urls}
       }
 
       const stripe = await getUncachableStripeClient();
-      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      const host = req.get('host') || process.env.REPLIT_DOMAINS?.split(',')[0];
+      const protocol = req.protocol || 'https';
+      const baseUrl = `${protocol}://${host}`;
       
       const session = await stripe.billingPortal.sessions.create({
         customer: profile[0].stripeCustomerId,
