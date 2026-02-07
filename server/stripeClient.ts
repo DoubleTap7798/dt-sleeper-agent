@@ -1,5 +1,9 @@
 import Stripe from 'stripe';
 
+function sanitizeKey(key: string): string {
+  return key.replace(/[^a-zA-Z0-9_]/g, '');
+}
+
 let connectionSettings: any;
 
 async function getCredentialsFromConnector(targetEnvironment: string) {
@@ -55,13 +59,15 @@ async function getCredentials() {
     
     // Fallback to manual secrets if connector not available
     // Only use if keys look valid (start with correct prefixes)
-    const secretKey = process.env.STRIPE_SECRET_KEY;
-    const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
-    if (secretKey && publishableKey && 
-        secretKey.startsWith('sk_live_') && 
-        publishableKey.startsWith('pk_live_')) {
-      console.log('Using manual Stripe secrets for production');
-      return { publishableKey, secretKey };
+    const rawSecretKey = process.env.STRIPE_SECRET_KEY;
+    const rawPublishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+    if (rawSecretKey && rawPublishableKey) {
+      const secretKey = sanitizeKey(rawSecretKey);
+      const publishableKey = sanitizeKey(rawPublishableKey);
+      if (secretKey.startsWith('sk_live_') && publishableKey.startsWith('pk_live_')) {
+        console.log('Using manual Stripe secrets for production');
+        return { publishableKey, secretKey };
+      }
     }
     
     // Last resort: use development connector in production (test mode)
@@ -92,8 +98,10 @@ export async function getUncachableStripeClient() {
 }
 
 export async function getLiveStripeClient(): Promise<Stripe | null> {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-  if (!secretKey) return null;
+  const rawKey = process.env.STRIPE_SECRET_KEY;
+  if (!rawKey) return null;
+  const secretKey = sanitizeKey(rawKey);
+  if (!secretKey.startsWith('sk_live_') && !secretKey.startsWith('sk_test_')) return null;
   return new Stripe(secretKey, {
     apiVersion: '2025-11-17.clover',
   });
