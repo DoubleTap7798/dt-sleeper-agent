@@ -3,12 +3,13 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Check, Crown, Zap, LineChart, Users, Trophy, ArrowLeft, CreditCard, AlertCircle } from "lucide-react";
+import { Loader2, Check, Crown, Zap, LineChart, Users, Trophy, ArrowLeft, CreditCard, AlertCircle, RefreshCw } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useEffect } from "react";
 import { useSubscription } from "@/hooks/use-subscription";
+import { useAuth } from "@/hooks/use-auth";
 
 interface SubscriptionStatus {
   hasSubscription: boolean;
@@ -39,13 +40,16 @@ export default function UpgradePage() {
   const searchParams = new URLSearchParams(window.location.search);
   const success = searchParams.get("success");
   const canceled = searchParams.get("canceled");
+  const { isAuthenticated } = useAuth();
 
   const { isPremium: hookIsPremium, isGrandfathered: hookIsGrandfathered } = useSubscription();
 
-  const { data: subStatus, isLoading: statusLoading, error: statusError } = useQuery<SubscriptionStatus>({
+  const { data: subStatus, isLoading: statusLoading, error: statusError, refetch: refetchStatus, isFetching: statusFetching } = useQuery<SubscriptionStatus>({
     queryKey: ["/api/subscription/status"],
-    retry: 2,
-    retryDelay: 1000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+    enabled: isAuthenticated,
+    staleTime: 0,
   });
 
   const effectiveHasSubscription = subStatus?.hasSubscription || hookIsPremium;
@@ -125,10 +129,59 @@ export default function UpgradePage() {
     }
   }, [success, canceled]);
 
-  if (statusLoading) {
+  if (statusLoading || (statusFetching && !subStatus && !statusError)) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (statusError && !effectiveHasSubscription) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <Button 
+          variant="ghost" 
+          onClick={() => setLocation("/")} 
+          className="mb-4"
+          data-testid="button-back"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+        
+        <Card className="border-destructive/30">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-6 h-6 text-destructive" />
+              <CardTitle>Unable to Load Subscription</CardTitle>
+            </div>
+            <CardDescription>
+              We couldn't verify your subscription status. This is usually temporary.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Please try refreshing. If this keeps happening, try logging out and back in.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button 
+                onClick={() => refetchStatus()}
+                data-testid="button-retry-status"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Try Again
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => setLocation("/")}
+                data-testid="button-go-home"
+              >
+                Go to Dashboard
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

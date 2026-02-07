@@ -283,9 +283,11 @@ ${urls}
   app.get("/api/subscription/status", isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
+      console.log(`[subscription/status] Checking for userId: ${userId}`);
       const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
       
       if (!profile[0]) {
+        console.log(`[subscription/status] No profile found for userId: ${userId}`);
         return res.json({ 
           hasSubscription: false,
           status: null,
@@ -295,8 +297,8 @@ ${urls}
       }
 
       const { subscriptionStatus, subscriptionPeriodEnd, stripeSubscriptionId, subscriptionSource, isGrandfathered } = profile[0];
+      console.log(`[subscription/status] userId: ${userId}, grandfathered: ${isGrandfathered}, subStatus: ${subscriptionStatus}`);
       
-      // Grandfathered users have lifetime premium access
       if (isGrandfathered) {
         return res.json({
           hasSubscription: true,
@@ -321,7 +323,7 @@ ${urls}
         isGrandfathered: false
       });
     } catch (error) {
-      console.error("Error checking subscription:", error);
+      console.error("[subscription/status] Error:", error);
       res.status(500).json({ error: "Failed to check subscription" });
     }
   });
