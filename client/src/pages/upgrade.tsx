@@ -1,13 +1,13 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Check, Crown, Zap, LineChart, Users, Trophy, ArrowLeft, CreditCard, AlertCircle, RefreshCw } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -20,8 +20,6 @@ interface SubscriptionStatus {
   subscriptionId?: string | null;
 }
 
-const WEEKLY_PRICE_ID = "price_1Sw0jYAfG2ju3f0JF1Vafcuz";
-
 const PREMIUM_FEATURES = [
   { icon: LineChart, text: "Trade Calculator with AI Analysis" },
   { icon: Zap, text: "Draft War Room & Smart Recommendations" },
@@ -32,24 +30,6 @@ const PREMIUM_FEATURES = [
   { icon: Check, text: "Trophy Room & Rivalries" },
   { icon: Check, text: "Player Trends & ROS Projections" },
 ];
-
-function StripeBuyButton({ email }: { email?: string | null }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = '';
-    const el = document.createElement('stripe-buy-button');
-    el.setAttribute('buy-button-id', 'buy_btn_1SwjYp0hkUkkdElKZJqH1I3S');
-    el.setAttribute('publishable-key', 'pk_live_51Sw3SH0hkUkkdElKiXuWGdheNun9WXSGX0fa6yugemJERMI3jx6vqVYktyPcIvtbUT5USAVUxbTk66dWtjok1uQa00rJRkTTaR');
-    if (email) {
-      el.setAttribute('customer-email', email);
-    }
-    containerRef.current.appendChild(el);
-  }, [email]);
-
-  return <div ref={containerRef} />;
-}
 
 export default function UpgradePage() {
   const [, setLocation] = useLocation();
@@ -74,99 +54,15 @@ export default function UpgradePage() {
   const effectiveIsGrandfathered = subStatus?.isGrandfathered || hookIsGrandfathered;
 
 
-  const checkoutMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/subscription/create-checkout", { priceId: WEEKLY_PRICE_ID });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      if (data.alreadyPremium) {
-        queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
-        toast({ title: "You already have premium access!" });
-        return;
-      }
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Checkout Unavailable",
-        description: "Unable to connect to payment processor. Please try again later.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const portalMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/subscription/create-portal");
-      return res.json();
-    },
-    onSuccess: (data) => {
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to open portal",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const syncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/subscription/sync-my-subscription");
-      return res.json();
-    },
-    onSuccess: (data) => {
-      if (data.synced) {
-        queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
-        toast({
-          title: "Subscription Synced",
-          description: "Your premium access has been activated!",
-        });
-      } else {
-        toast({
-          title: "No Subscription Found",
-          description: data.message || "We couldn't find a subscription linked to your account. Make sure you used the same email address.",
-          variant: "destructive",
-        });
-      }
-    },
-    onError: () => {
-      toast({
-        title: "Sync Failed",
-        description: "There was a problem syncing your subscription. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  useEffect(() => {
-    if (!document.querySelector('script[src="https://js.stripe.com/v3/buy-button.js"]')) {
-      const script = document.createElement('script');
-      script.src = 'https://js.stripe.com/v3/buy-button.js';
-      script.async = true;
-      document.head.appendChild(script);
-    }
-  }, []);
 
   useEffect(() => {
     if (success) {
-      syncMutation.mutate(undefined, {
-        onSettled: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
-          toast({
-            title: "Welcome to Premium!",
-            description: "Your subscription is now active. Enjoy all features!",
-          });
-          window.history.replaceState({}, document.title, "/upgrade");
-        },
+      queryClient.invalidateQueries({ queryKey: ["/api/subscription/status"] });
+      toast({
+        title: "Payment Received!",
+        description: "Your premium access will be activated within 1 hour.",
       });
+      window.history.replaceState({}, document.title, "/upgrade");
     }
     if (canceled) {
       toast({
@@ -338,26 +234,11 @@ export default function UpgradePage() {
               </div>
             )}
             
-            {subStatus?.subscriptionId ? (
-              <Button 
-                variant="outline" 
-                className="w-full"
-                onClick={() => portalMutation.mutate()}
-                disabled={portalMutation.isPending}
-                data-testid="button-manage-subscription"
-              >
-                {portalMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : null}
-                Manage Subscription
-              </Button>
-            ) : (
-              <div className="p-4 bg-primary/10 rounded-lg border border-primary/30">
-                <p className="text-sm text-center">
-                  Your premium access was activated manually. Enjoy all features!
-                </p>
-              </div>
-            )}
+            <div className="p-4 bg-primary/10 rounded-lg border border-primary/30">
+              <p className="text-sm text-center">
+                Your premium access is active. Enjoy all features!
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -432,25 +313,21 @@ export default function UpgradePage() {
             </ul>
 
             <div className="space-y-3 pt-2" data-testid="stripe-buy-button-container">
-              <StripeBuyButton email={user?.email} />
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={() => window.open('https://buy.stripe.com/3cIbIT1Oj8kH8lX4AA3ZK00', '_blank')}
+                data-testid="button-subscribe"
+              >
+                <CreditCard className="w-4 h-4 mr-2" />
+                Subscribe Now - $3.99/week
+              </Button>
             </div>
 
-            <div className="pt-4 border-t border-border mt-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full text-muted-foreground"
-                onClick={() => syncMutation.mutate()}
-                disabled={syncMutation.isPending}
-                data-testid="button-sync-subscription"
-              >
-                {syncMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                )}
-                Already paid? Sync your subscription
-              </Button>
+            <div className="mt-4 rounded-md bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground text-center">
+                After payment, your premium access will be activated within 1 hour. If you need immediate access, reach out and we'll get you set up right away.
+              </p>
             </div>
           </CardContent>
         </Card>
