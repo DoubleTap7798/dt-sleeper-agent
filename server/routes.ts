@@ -4387,10 +4387,18 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
     }
   });
 
-  // Rivalry Head-to-Head Records (Premium)
+  // Rivalry Head-to-Head Records (Premium) - with in-memory cache
+  const rivalryCache = new Map<string, { data: any; timestamp: number }>();
+  const RIVALRY_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
   app.get("/api/sleeper/rivalries/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;
+
+      const cached = rivalryCache.get(leagueId);
+      if (cached && Date.now() - cached.timestamp < RIVALRY_CACHE_TTL) {
+        return res.json(cached.data);
+      }
       
       const league = await sleeperApi.getLeague(leagueId);
       if (!league) {
@@ -4425,11 +4433,18 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
 
       const rivalryMap = new Map<string, RivalryRecord>();
       
-      for (const historyEntry of leagueHistory) {
-        const rosters = await sleeperApi.getLeagueRosters(historyEntry.leagueId);
-        const users = await sleeperApi.getLeagueUsers(historyEntry.leagueId);
-        const seasonLeague = await sleeperApi.getLeague(historyEntry.leagueId);
-        
+      const seasonDataResults = await Promise.all(
+        leagueHistory.map(async (historyEntry) => {
+          const [rosters, users, seasonLeague] = await Promise.all([
+            sleeperApi.getLeagueRosters(historyEntry.leagueId),
+            sleeperApi.getLeagueUsers(historyEntry.leagueId),
+            sleeperApi.getLeague(historyEntry.leagueId),
+          ]);
+          return { historyEntry, rosters, users, seasonLeague };
+        })
+      );
+
+      for (const { historyEntry, rosters, users, seasonLeague } of seasonDataResults) {
         if (!rosters || !users || !seasonLeague) continue;
 
         const userMap = new Map(users.map(u => [u.user_id, u]));
@@ -4447,8 +4462,12 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
           ? seasonLeague.settings.playoff_week_start - 1 
           : 14;
 
-        for (let week = 1; week <= regularSeasonWeeks; week++) {
-          const matchups = await sleeperApi.getMatchups(historyEntry.leagueId, week);
+        const weekNumbers = Array.from({ length: regularSeasonWeeks }, (_, i) => i + 1);
+        const allWeekMatchups = await Promise.all(
+          weekNumbers.map(week => sleeperApi.getMatchups(historyEntry.leagueId, week).then(m => ({ week, matchups: m })))
+        );
+
+        for (const { week, matchups } of allWeekMatchups) {
           if (!matchups || matchups.length === 0) continue;
 
           const matchupGroups = new Map<number, sleeperApi.SleeperMatchup[]>();
@@ -4640,13 +4659,15 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
           return bWinPct - aWinPct;
         });
 
-      res.json({
+      const responseData = {
         rivalries,
         teamRecords,
         leagueName: league.name,
         totalSeasons: leagueHistory.length,
         seasons: leagueHistory.map(h => h.season).sort((a, b) => b.localeCompare(a)),
-      });
+      };
+      rivalryCache.set(leagueId, { data: responseData, timestamp: Date.now() });
+      res.json(responseData);
     } catch (error) {
       console.error("Error fetching rivalries:", error);
       res.status(500).json({ message: "Failed to fetch rivalry data" });
@@ -6091,7 +6112,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             continue;
           }
           
-          const rosters = await sleeperApi.getLeagueRosters(currentLeagueId);
+          const [rosters, bracket] = await Promise.all([
+            sleeperApi.getLeagueRosters(currentLeagueId),
+            sleeperApi.getPlayoffBracket(currentLeagueId).catch(() => [] as sleeperApi.PlayoffBracketMatch[]),
+          ]);
           
           // Find user's roster in this season
           const userRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
@@ -6125,7 +6149,6 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             let isRunnerUp = false;
             
             try {
-              const bracket = await sleeperApi.getPlayoffBracket(currentLeagueId);
               if (bracket && bracket.length > 0) {
                 const champMatch = bracket.reduce((max, match) => 
                   (match.r > (max?.r || 0)) ? match : max, bracket[0]);
