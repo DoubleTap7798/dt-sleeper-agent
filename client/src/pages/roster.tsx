@@ -12,6 +12,7 @@ import { Users, AlertCircle, User, ChevronDown, ChevronUp, BarChart3 } from "luc
 import { PlayerProfileModal } from "@/components/player-profile-modal";
 import { getNFLTeamLogo } from "@/lib/team-logos";
 import { MetricTooltip } from "@/components/metric-tooltip";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface RosterPlayer {
   playerId: string;
@@ -60,6 +61,7 @@ const positionOrder: Record<string, number> = {
 export default function RosterPage() {
   const { league, isLoading: isLoadingLeagues } = useSelectedLeague();
   const leagueId = league?.league_id;
+  usePageTitle("My Roster");
 
   // Show loading while leagues are being fetched
   if (isLoadingLeagues) {

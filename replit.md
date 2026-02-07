@@ -88,3 +88,11 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 
 ### Monetization
 - **Stripe**: Payment gateway for premium subscriptions ($3.99/week).
+- **PremiumGate Component**: Wraps premium page content; shows upgrade prompt for free users.
+- **Sidebar Crown Icons**: Premium features show a small crown icon for non-subscribers.
+- **Free Features**: Dashboard, Standings, Matchups (basic), Roster, Schedule, Playoff Bracket, Trophy Room, Rivalries, League Info, NFL Players, Depth Charts.
+- **Premium Features ($3.99/week)**: Trade Calculator, Trade History, Lineup Advice, Waiver Wire, Player Trends, Player Comparison, ROS Projections, 2026 Draft Board, Devy Rankings, Fantasy News, Watchlist.
+
+### SEO
+- **Static SEO**: index.html has meta description, keywords, Open Graph tags, Twitter cards, JSON-LD structured data, canonical URL, robots meta, and pre-rendered HTML content visible to crawlers.
+- **Dynamic Page Titles**: `usePageTitle` hook in `client/src/hooks/use-page-title.ts` sets per-page document titles (e.g., "Trade Calculator | DT Sleeper Agent").

@@ -48,19 +48,23 @@ export function PremiumGate({ children, featureName = "This feature" }: PremiumG
             <ul className="text-sm text-muted-foreground space-y-1">
               <li className="flex items-center gap-2">
                 <Sparkles className="w-3 h-3 text-primary" />
-                Trade Calculator with AI Analysis
+                Dynasty Trade Calculator with AI Analysis
               </li>
               <li className="flex items-center gap-2">
                 <Sparkles className="w-3 h-3 text-primary" />
-                Draft War Room
+                AI Lineup Advice & ROS Projections
               </li>
               <li className="flex items-center gap-2">
                 <Sparkles className="w-3 h-3 text-primary" />
-                AI-Powered Recommendations
+                2026 Draft Board & Devy Rankings
               </li>
               <li className="flex items-center gap-2">
                 <Sparkles className="w-3 h-3 text-primary" />
-                All Premium Features
+                Waiver Wire, Player Trends & Comparison
+              </li>
+              <li className="flex items-center gap-2">
+                <Sparkles className="w-3 h-3 text-primary" />
+                AI Fantasy News & Watchlist
               </li>
             </ul>
           </div>

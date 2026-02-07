@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
 import { abbreviateName, getPositionColorClass } from "@/lib/utils";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { GitCompare, Search, Plus, X, ArrowRight, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface PlayerStats {
   games: number;
@@ -69,6 +71,7 @@ interface PlayersResponse {
 export default function PlayerComparePage() {
   const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
+  usePageTitle("Player Comparison");
   const [selectedPlayers, setSelectedPlayers] = useState<ComparePlayer[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -153,6 +156,7 @@ export default function PlayerComparePage() {
   const scoringSettings = data?.scoringSettings;
   
   return (
+    <PremiumGate featureName="Player Comparison">
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 flex-wrap">
@@ -349,5 +353,6 @@ export default function PlayerComparePage() {
         />
       )}
     </div>
+    </PremiumGate>
   );
 }

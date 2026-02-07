@@ -77,6 +77,7 @@ interface NavItem {
   icon: any;
   description?: string;
   requiresLeague?: boolean;
+  premium?: boolean;
 }
 
 interface NavGroup {
@@ -106,10 +107,10 @@ const navigationGroups: NavGroup[] = [
     requiresLeague: true,
     items: [
       { title: "Roster", url: "/league/roster", icon: Users, requiresLeague: true },
-      { title: "Lineup Advice", url: "/league/lineup", icon: Target, requiresLeague: true },
+      { title: "Lineup Advice", url: "/league/lineup", icon: Target, requiresLeague: true, premium: true },
       { title: "Matchups", url: "/league/matchups", icon: Gamepad2, requiresLeague: true },
       { title: "Schedule", url: "/league/schedule", icon: CalendarDays, requiresLeague: true },
-      { title: "Watchlist", url: "/league/watchlist", icon: Eye },
+      { title: "Watchlist", url: "/league/watchlist", icon: Eye, premium: true },
     ],
   },
   {
@@ -117,12 +118,12 @@ const navigationGroups: NavGroup[] = [
     icon: Search,
     items: [
       { title: "NFL Players", url: "/league/players", icon: UserCircle },
-      { title: "Waiver Wire", url: "/league/waivers", icon: UserCog, requiresLeague: true },
-      { title: "Player Trends", url: "/league/trends", icon: Activity },
-      { title: "Compare", url: "/league/compare", icon: GitCompare },
-      { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true },
-      { title: "2026 Draft Board", url: "/league/draft-board", icon: Target },
-      { title: "Devy Rankings", url: "/league/devy", icon: GraduationCap },
+      { title: "Waiver Wire", url: "/league/waivers", icon: UserCog, requiresLeague: true, premium: true },
+      { title: "Player Trends", url: "/league/trends", icon: Activity, premium: true },
+      { title: "Compare", url: "/league/compare", icon: GitCompare, premium: true },
+      { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true, premium: true },
+      { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
+      { title: "Devy Rankings", url: "/league/devy", icon: GraduationCap, premium: true },
       { title: "Depth Charts", url: "/league/depth-chart", icon: Layers },
     ],
   },
@@ -131,8 +132,8 @@ const navigationGroups: NavGroup[] = [
     icon: RefreshCw,
     requiresLeague: true,
     items: [
-      { title: "Trade Calculator", url: "/league/trade", icon: RefreshCw, requiresLeague: true },
-      { title: "Trade History", url: "/league/history", icon: History, requiresLeague: true },
+      { title: "Trade Calculator", url: "/league/trade", icon: RefreshCw, requiresLeague: true, premium: true },
+      { title: "Trade History", url: "/league/history", icon: History, requiresLeague: true, premium: true },
     ],
   },
 ];
@@ -140,7 +141,7 @@ const navigationGroups: NavGroup[] = [
 // Standalone items (not grouped)
 const standaloneItems: NavItem[] = [
   { title: "Home", url: "/league", icon: LayoutDashboard, description: "Dashboard & actions" },
-  { title: "News", url: "/league/news", icon: Newspaper, description: "Fantasy news & analysis" },
+  { title: "News", url: "/league/news", icon: Newspaper, description: "Fantasy news & analysis", premium: true },
 ];
 
 export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChange }: AppSidebarProps) {
@@ -283,7 +284,10 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                     >
                       <Link href={linkUrl}>
                         <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
+                        <span className="flex-1">{item.title}</span>
+                        {item.premium && !isPremium && (
+                          <Crown className="h-3 w-3 text-primary/60 shrink-0" data-testid={`icon-premium-${item.title.toLowerCase().replace(/\s/g, "-")}`} />
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -331,7 +335,10 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                                 >
                                   <Link href={linkUrl}>
                                     <item.icon className="h-4 w-4" />
-                                    <span>{item.title}</span>
+                                    <span className="flex-1">{item.title}</span>
+                                    {item.premium && !isPremium && (
+                                      <Crown className="h-3 w-3 text-primary/60 shrink-0" data-testid={`icon-premium-${item.title.toLowerCase().replace(/\s/g, "-")}`} />
+                                    )}
                                   </Link>
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>

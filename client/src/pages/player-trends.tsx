@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TrendingUp, TrendingDown, Minus, Search, BarChart3, Activity, UserPlus, UserMinus } from "lucide-react";
 import { getNFLTeamLogo } from "@/lib/team-logos";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface SeasonStats {
   season: string;
@@ -67,6 +68,7 @@ function getInitials(name: string): string {
 export default function PlayerTrendsPage() {
   const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
+  usePageTitle("Player Trends");
   const [activeTab, setActiveTab] = useState<TabType>("added");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerTrend | null>(null);

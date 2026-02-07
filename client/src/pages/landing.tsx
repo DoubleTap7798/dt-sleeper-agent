@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { PwaInstallButton } from "@/components/pwa-install-button";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { 
   ArrowRight, 
   Users, 
@@ -20,6 +21,7 @@ import {
 
 export default function LandingPage() {
   const { isLoading } = useAuth();
+  usePageTitle();
 
   const features = [
     {

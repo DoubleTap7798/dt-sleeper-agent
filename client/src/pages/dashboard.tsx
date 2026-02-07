@@ -5,6 +5,7 @@ import { Logo } from "@/components/logo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
+import { usePageTitle } from "@/hooks/use-page-title";
 import type { SleeperLeague } from "@/lib/sleeper-types";
 
 interface UserProfile {
@@ -26,6 +27,8 @@ export default function DashboardPage() {
     queryKey: ["/api/sleeper/leagues"],
     enabled: !!profile?.sleeperUserId,
   });
+
+  usePageTitle("Dashboard");
 
   useEffect(() => {
     if (!authLoading && !profileLoading) {

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Newspaper, RefreshCw, Search, ExternalLink, AlertTriangle, TrendingUp, Zap, DollarSign } from "lucide-react";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface NewsItem {
   id: string;
@@ -59,6 +60,7 @@ interface OddsResponse {
 export default function NewsFeedPage() {
   const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
+  usePageTitle("Fantasy News");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<string>("all");
 

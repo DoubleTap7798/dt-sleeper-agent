@@ -19,6 +19,7 @@ import {
   Zap,
   RefreshCw 
 } from "lucide-react";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface Matchup {
   opponent: string;
@@ -60,6 +61,7 @@ export default function LineupAdvicePage() {
   const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
   const [activeTab, setActiveTab] = useState("starters");
+  usePageTitle("Lineup Advice");
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<LineupAdvice>({
     queryKey: [`/api/fantasy/lineup-advice${leagueId ? `?leagueId=${leagueId}` : ""}`],

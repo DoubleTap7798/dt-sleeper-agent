@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { CACHE_TIMES } from "@/lib/queryClient";
 import { abbreviateName } from "@/lib/utils";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +17,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { ArrowLeftRight, Calendar, Trophy, Sparkles, TrendingUp } from "lucide-react";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface TradeAssetDisplay {
   id: string;
@@ -77,6 +79,7 @@ export default function TradeHistoryPage() {
   const urlParams = new URLSearchParams(searchString);
   const leagueId = urlParams.get("id");
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
+  usePageTitle("Trade History");
 
   const { data, isLoading, error } = useQuery<TradeHistoryData>({
     queryKey: ["/api/sleeper/trades", leagueId],
@@ -110,6 +113,7 @@ export default function TradeHistoryPage() {
     : data.seasonTrades.find(s => s.season === selectedSeason)?.trades || [];
 
   return (
+    <PremiumGate featureName="Trade History">
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight" data-testid="text-history-title">
@@ -276,6 +280,7 @@ export default function TradeHistoryPage() {
         </div>
       </div>
     </div>
+    </PremiumGate>
   );
 }
 

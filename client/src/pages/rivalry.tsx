@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { CACHE_TIMES } from "@/lib/queryClient";
-import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +12,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Swords, Calendar, ChevronRight } from "lucide-react";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface OpponentRecord {
   opponentRosterId: number;
@@ -54,6 +54,8 @@ export default function RivalryPage() {
     ...CACHE_TIMES.STABLE,
   });
 
+  usePageTitle("Rivalries");
+
   if (isLoading) {
     return <RivalrySkeleton />;
   }
@@ -73,7 +75,6 @@ export default function RivalryPage() {
   const totalMatchups = data.teamRecords.reduce((sum, t) => sum + t.totalGames, 0) / 2;
 
   return (
-    <PremiumGate featureName="Rivalries">
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2" data-testid="text-page-title">
@@ -254,7 +255,6 @@ export default function RivalryPage() {
         </CardContent>
       </Card>
     </div>
-    </PremiumGate>
   );
 }
 

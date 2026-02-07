@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CACHE_TIMES, apiRequest, queryClient } from "@/lib/queryClient";
 import { abbreviateName, getPositionColorClass } from "@/lib/utils";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +18,7 @@ import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRi
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { useMutation } from "@tanstack/react-query";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface DataSourceStatus {
   sourceId: string;
@@ -82,6 +84,7 @@ type SortField = "rank" | "name" | "position" | "year" | "college" | "value" | "
 type SortDirection = "asc" | "desc";
 
 export default function DevyPage() {
+  usePageTitle("Devy Rankings");
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [yearFilter, setYearFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("rank");
@@ -186,6 +189,7 @@ export default function DevyPage() {
   );
 
   return (
+    <PremiumGate featureName="Devy Rankings">
     <div className="space-y-6" data-testid="devy-page">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
@@ -599,6 +603,7 @@ export default function DevyPage() {
         player={selectedPlayer}
       />
     </div>
+    </PremiumGate>
   );
 }
 

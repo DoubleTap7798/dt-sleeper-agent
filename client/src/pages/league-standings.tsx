@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sheet";
 import { Trophy, TrendingUp, Users, ChevronRight, Star, Zap, Crown } from "lucide-react";
 import type { StandingsTeam } from "@/lib/sleeper-types";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface StandingsData {
   standings: StandingsTeam[];
@@ -77,6 +78,7 @@ export default function LeagueStandingsPage() {
   const leagueId = urlParams.get("id");
 
   const [selectedTeam, setSelectedTeam] = useState<{ rosterId: number; ownerName: string } | null>(null);
+  usePageTitle("Standings");
 
   const { data: profile } = useQuery<UserProfile>({
     queryKey: ["/api/user/profile"],

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Search, TrendingUp, Users, Sparkles, Target, AlertCircle } from "lucide-react";
 import { MetricTooltip } from "@/components/metric-tooltip";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface WaiverPlayer {
   playerId: string;
@@ -79,6 +80,7 @@ export default function WaiverWirePage() {
   const leagueId = urlParams.get("id");
   const presetPosition = urlParams.get("position");
 
+  usePageTitle("Waiver Wire");
   const [searchQuery, setSearchQuery] = useState("");
   const [positionFilter, setPositionFilter] = useState(presetPosition || "All");
   const [sortBy, setSortBy] = useState<"avgPoints" | "seasonPoints" | "projectedPoints">("avgPoints");

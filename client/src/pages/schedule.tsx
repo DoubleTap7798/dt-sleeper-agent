@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Trophy, XCircle, Minus, Clock, CircleDot } from "lucide-react";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface Opponent {
   rosterId: number;
@@ -51,6 +52,8 @@ export default function SchedulePage() {
     },
     enabled: !!leagueId,
   });
+
+  usePageTitle("Schedule");
 
   if (isLoading) {
     return <ScheduleSkeleton />;

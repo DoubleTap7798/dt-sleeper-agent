@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Eye, TrendingUp, TrendingDown, Minus, Trash2, Plus, Search, StickyNote } from "lucide-react";
 import { MetricTooltip } from "@/components/metric-tooltip";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface WatchlistItem {
   id: string;
@@ -47,6 +48,7 @@ interface WatchlistData {
 
 export default function WatchlistPage() {
   const { toast } = useToast();
+  usePageTitle("Watchlist");
   const [searchQuery, setSearchQuery] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [playerSearch, setPlayerSearch] = useState("");

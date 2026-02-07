@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CACHE_TIMES } from "@/lib/queryClient";
 import { getPositionColorClass } from "@/lib/utils";
+import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +35,7 @@ import {
   Target,
 } from "lucide-react";
 import { DraftProfileModal } from "@/components/draft-profile-modal";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface CombineData {
   fortyYard: number | null;
@@ -122,6 +124,7 @@ function StockBadge({ status, change }: { status: string; change: number }) {
 }
 
 export default function DraftBoardPage() {
+  usePageTitle("2026 Draft Board");
   const [sideFilter, setSideFilter] = useState<string>("all");
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -221,6 +224,7 @@ export default function DraftBoardPage() {
   const fallingPlayers = stockMovers?.falling || [];
 
   return (
+    <PremiumGate featureName="2026 Draft Board">
     <div className="space-y-6" data-testid="draft-board-page">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
@@ -601,6 +605,7 @@ export default function DraftBoardPage() {
         player={selectedPlayer}
       />
     </div>
+    </PremiumGate>
   );
 }
 

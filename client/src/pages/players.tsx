@@ -26,6 +26,7 @@ import { Users, Search, TrendingUp, AlertCircle, Loader2, BarChart3 } from "luci
 import { PlayerProfileModal } from "@/components/player-profile-modal";
 import { getNFLTeamLogo } from "@/lib/team-logos";
 import { MetricTooltip } from "@/components/metric-tooltip";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface Player {
   id: string;
@@ -224,6 +225,7 @@ export default function PlayersPage() {
   const urlParams = new URLSearchParams(searchString);
   const leagueId = urlParams.get("id");
 
+  usePageTitle("NFL Players");
   const [searchTerm, setSearchTerm] = useState("");
   const [positionFilter, setPositionFilter] = useState<string>("ALL");
   const [selectedYear, setSelectedYear] = useState<string>("2025");

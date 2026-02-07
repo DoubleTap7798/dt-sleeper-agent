@@ -25,6 +25,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { TradeAsset, TradeAnalysisResult } from "@/lib/sleeper-types";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface RosterWithOwner {
   rosterId: number;
@@ -62,6 +63,7 @@ export default function TradeCalculatorPage() {
   const leagueId = urlParams.get("id");
   const { toast } = useToast();
 
+  usePageTitle("Trade Calculator");
   const [teamAId, setTeamAId] = useState<string>("");
   const [teamBId, setTeamBId] = useState<string>("");
   const [teamAAssets, setTeamAAssets] = useState<TradeAsset[]>([]);

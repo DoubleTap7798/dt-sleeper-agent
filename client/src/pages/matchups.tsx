@@ -13,6 +13,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ChevronLeft, ChevronRight, ChevronDown, Zap, Clock, CheckCircle2, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface PlayerScore {
   playerId: string;
@@ -80,6 +81,7 @@ export default function MatchupsPage() {
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [expandedMatchup, setExpandedMatchup] = useState<number | null>(null);
   const [showMedianDetails, setShowMedianDetails] = useState(false);
+  usePageTitle("Matchups");
 
   const { data, isLoading, error } = useQuery<MatchupsData>({
     queryKey: selectedWeek 

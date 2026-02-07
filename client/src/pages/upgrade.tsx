@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Check, Crown, Zap, LineChart, Users, Trophy, ArrowLeft, CreditCard } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { usePageTitle } from "@/hooks/use-page-title";
 import { useEffect } from "react";
 
 declare global {
@@ -46,6 +47,7 @@ const STRIPE_PUBLISHABLE_KEY = "pk_live_51Sw3SH0hkUkkdElKiXuWGdheNun9WXSGX0fa6yu
 export default function UpgradePage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  usePageTitle("Upgrade to Premium");
   const searchParams = new URLSearchParams(window.location.search);
   const success = searchParams.get("success");
   const canceled = searchParams.get("canceled");

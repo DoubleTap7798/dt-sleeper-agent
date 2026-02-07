@@ -22,6 +22,7 @@ import {
   Shield
 } from "lucide-react";
 import { getNFLTeamLogo } from "@/lib/team-logos";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 interface MatchupProjection {
   playerId: string;
@@ -53,6 +54,7 @@ const POSITION_TABS = ["ALL", "QB", "RB", "WR", "TE"];
 export default function ProjectionsPage() {
   const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
+  usePageTitle("ROS Projections");
   const [positionFilter, setPositionFilter] = useState<string>("ALL");
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string>("projected");
