@@ -34,6 +34,7 @@ import WatchlistPage from "@/pages/watchlist";
 import DraftBoardPage from "@/pages/draft-board";
 import UpgradePage from "@/pages/upgrade";
 import AdminPage from "@/pages/admin";
+import AuthPage from "@/pages/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -77,6 +78,9 @@ function Router() {
     <Switch>
       <Route path="/">
         {isAuthenticated ? <DashboardPage /> : <LandingPage />}
+      </Route>
+      <Route path="/auth">
+        {isAuthenticated ? <DashboardPage /> : <AuthPage />}
       </Route>
       <Route path="/setup">
         <AuthenticatedRoute>

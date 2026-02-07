@@ -84,7 +84,7 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **PostgreSQL**: Primary database.
 
 ### Authentication
-- **Replit Auth**: OpenID Connect authentication.
+- **Custom Email/Password Auth**: bcrypt password hashing, express-session with PostgreSQL store. Users register with email/password (no third-party auth dependency). Migrated users from Replit Auth can claim their account by registering with the same email.
 
 ### Monetization
 - **Stripe**: Payment gateway for premium subscriptions ($3.99/week).

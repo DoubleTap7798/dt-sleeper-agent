@@ -84,14 +84,14 @@ export default function LandingPage() {
             <PwaInstallButton />
             <Button
               variant="ghost"
-              onClick={() => (window.location.href = "/api/login")}
+              onClick={() => (window.location.href = "/auth")}
               disabled={isLoading}
               data-testid="button-login"
             >
               Sign In
             </Button>
             <Button
-              onClick={() => (window.location.href = "/api/login")}
+              onClick={() => (window.location.href = "/auth")}
               disabled={isLoading}
               data-testid="button-get-started"
             >
@@ -135,11 +135,11 @@ export default function LandingPage() {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button
                   size="lg"
-                  onClick={() => (window.location.href = "/api/login")}
+                  onClick={() => (window.location.href = "/auth")}
                   disabled={isLoading}
                   data-testid="button-hero-cta"
                 >
-                  Connect Your Sleeper Account
+                  Get Started Free
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </div>
@@ -206,8 +206,8 @@ export default function LandingPage() {
                 {[
                   {
                     step: "1",
-                    title: "Sign In",
-                    description: "Quick sign-in with your Replit account - no passwords to remember",
+                    title: "Create Account",
+                    description: "Sign up with your email in seconds - quick and easy",
                   },
                   {
                     step: "2",
@@ -332,7 +332,7 @@ export default function LandingPage() {
             </p>
             <Button
               size="lg"
-              onClick={() => (window.location.href = "/api/login")}
+              onClick={() => (window.location.href = "/auth")}
               disabled={isLoading}
               data-testid="button-footer-cta"
             >
