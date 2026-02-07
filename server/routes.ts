@@ -55,15 +55,18 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   // SEO Routes - serve before auth to ensure crawlers can access
-  app.get("/robots.txt", (_req: Request, res: Response) => {
+  app.get("/robots.txt", (req: Request, res: Response) => {
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+    const host = req.headers["x-forwarded-host"] || req.headers.host || "dt-sleeper-agent.replit.app";
+    const baseUrl = `${protocol}://${host}`;
     const robotsTxt = `# DT Sleeper Agent - robots.txt
-# https://dt-sleeper-agent.replit.app
+# ${baseUrl}
 
 User-agent: *
 Allow: /
 
 # Sitemap location
-Sitemap: https://dt-sleeper-agent.replit.app/sitemap.xml
+Sitemap: ${baseUrl}/sitemap.xml
 
 # Disallow API routes from indexing
 Disallow: /api/
@@ -182,94 +185,46 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     res.type("text/plain").send(appInfo);
   });
 
-  app.get("/sitemap.xml", (_req: Request, res: Response) => {
+  app.get("/sitemap.xml", (req: Request, res: Response) => {
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+    const host = req.headers["x-forwarded-host"] || req.headers.host || "dt-sleeper-agent.replit.app";
+    const baseUrl = `${protocol}://${host}`;
+    const today = new Date().toISOString().split("T")[0];
+    const pages = [
+      { path: "/", changefreq: "daily", priority: "1.0" },
+      { path: "/dashboard", changefreq: "daily", priority: "0.9" },
+      { path: "/upgrade", changefreq: "monthly", priority: "0.7" },
+      { path: "/league/standings", changefreq: "daily", priority: "0.8" },
+      { path: "/league/matchups", changefreq: "daily", priority: "0.8" },
+      { path: "/league/roster", changefreq: "daily", priority: "0.8" },
+      { path: "/league/schedule", changefreq: "weekly", priority: "0.6" },
+      { path: "/league/bracket", changefreq: "weekly", priority: "0.7" },
+      { path: "/league/trophies", changefreq: "weekly", priority: "0.6" },
+      { path: "/league/rivalries", changefreq: "weekly", priority: "0.6" },
+      { path: "/league/info", changefreq: "weekly", priority: "0.5" },
+      { path: "/league/players", changefreq: "daily", priority: "0.7" },
+      { path: "/league/depth-chart", changefreq: "weekly", priority: "0.6" },
+      { path: "/league/trade", changefreq: "weekly", priority: "0.9" },
+      { path: "/league/history", changefreq: "weekly", priority: "0.6" },
+      { path: "/league/waivers", changefreq: "daily", priority: "0.7" },
+      { path: "/league/lineup", changefreq: "daily", priority: "0.8" },
+      { path: "/league/projections", changefreq: "weekly", priority: "0.7" },
+      { path: "/league/news", changefreq: "hourly", priority: "0.8" },
+      { path: "/league/watchlist", changefreq: "daily", priority: "0.6" },
+      { path: "/league/trends", changefreq: "weekly", priority: "0.6" },
+      { path: "/league/compare", changefreq: "weekly", priority: "0.6" },
+      { path: "/league/devy", changefreq: "weekly", priority: "0.7" },
+      { path: "/league/draft-board", changefreq: "weekly", priority: "0.7" },
+    ];
+    const urls = pages.map(p => `  <url>
+    <loc>${baseUrl}${p.path}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>${p.changefreq}</changefreq>
+    <priority>${p.priority}</priority>
+  </url>`).join("\n");
     const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/standings</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/matchups</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/roster</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/trade</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/devy</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/players</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/waiver</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/news</loc>
-    <changefreq>hourly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/lineup</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/trophies</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/rivalries</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/schedule</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/playoff-bracket</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/trends</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/projections</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://dt-sleeper-agent.replit.app/compare</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
+${urls}
 </urlset>`;
     res.type("application/xml").send(sitemapXml);
   });
