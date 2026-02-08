@@ -52,18 +52,23 @@ const openai = new OpenAI({
 
 // Parse commissioner notes on placeholder players to detect devy picks
 // Common formats: "Husan Longstreet QB LSU", "J. Smith WR Alabama", "Player Name - QB - Georgia"
-const VALID_POSITIONS = new Set(["QB", "RB", "WR", "TE", "K", "EDGE", "DL", "DL1T", "DL3T", "DL5T", "ILB", "LB", "CB", "S", "DE", "DT", "OLB", "DB", "FB", "WRS"]);
+const VALID_POSITIONS = new Set(["QB", "RB", "WR", "TE", "K", "EDGE", "DL", "DL1T", "DL3T", "DL5T", "ILB", "LB", "CB", "S", "DE", "DT", "OLB", "DB", "FB", "WRS", "IDP"]);
 
 function parseDevyNote(note: string): { devyName: string; devyPosition: string; devySchool: string } | null {
-  if (!note || note.length < 3) return null;
+  if (!note || note.length < 2) return null;
   
-  // Clean up the note
-  const cleaned = note.replace(/[-–—]/g, ' ').replace(/\s+/g, ' ').trim();
+  // Strip emojis, special characters, dashes, and extra whitespace
+  // eslint-disable-next-line no-control-regex
+  const cleaned = note
+    .replace(/[^\x20-\x7E\xC0-\xFF]/g, '')
+    .replace(/[-–—]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
   const parts = cleaned.split(' ').filter(p => p.length > 0);
   
-  if (parts.length < 2) return null;
+  if (parts.length < 1) return null;
   
-  // Try to find a position token in the note
   let positionIndex = -1;
   for (let i = 0; i < parts.length; i++) {
     if (VALID_POSITIONS.has(parts[i].toUpperCase())) {
@@ -72,23 +77,37 @@ function parseDevyNote(note: string): { devyName: string; devyPosition: string; 
     }
   }
   
-  if (positionIndex === -1) {
-    // No position found - could still be "FirstName LastName School" 
-    // but we can't reliably parse without a position marker
-    return null;
+  if (positionIndex !== -1) {
+    const nameParts = parts.slice(0, positionIndex);
+    const position = parts[positionIndex].toUpperCase();
+    const schoolParts = parts.slice(positionIndex + 1);
+    
+    if (nameParts.length > 0) {
+      return {
+        devyName: nameParts.join(' '),
+        devyPosition: position,
+        devySchool: schoolParts.length > 0 ? schoolParts.join(' ') : "Unknown",
+      };
+    }
+    
+    if (schoolParts.length > 0) {
+      return {
+        devyName: schoolParts.join(' '),
+        devyPosition: position,
+        devySchool: "Unknown",
+      };
+    }
   }
   
-  // Everything before position = name, everything after = school
-  const nameParts = parts.slice(0, positionIndex);
-  const position = parts[positionIndex].toUpperCase();
-  const schoolParts = parts.slice(positionIndex + 1);
+  if (parts.length >= 1) {
+    return {
+      devyName: parts.join(' '),
+      devyPosition: "?",
+      devySchool: "Unknown",
+    };
+  }
   
-  if (nameParts.length === 0) return null;
-  
-  const devyName = nameParts.join(' ');
-  const devySchool = schoolParts.length > 0 ? schoolParts.join(' ') : "Unknown";
-  
-  return { devyName, devyPosition: position, devySchool };
+  return null;
 }
 
 export async function registerRoutes(
@@ -6734,7 +6753,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       const hasRosterPlayers = playerIds.length > 0;
       
       if (hasRosterPlayers) {
-        // Scan ALL rosters in the league for p_nick_ entries
+        // Scan ALL rosters in the league for p_nick_ and p_note_ entries
         // This catches devy notes set by any owner or the commissioner
         for (const roster of rosters) {
           const meta = roster.metadata || {};
@@ -6748,14 +6767,14 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
               targetPlayerId = key.replace('p_note_', '');
             }
             
-            // Map devy notes for players on the USER's roster
-            if (targetPlayerId && noteValue.trim().length > 2 && playerIds.includes(targetPlayerId)) {
+            if (targetPlayerId && noteValue.trim().length >= 2 && playerIds.includes(targetPlayerId)) {
               const parsed = parseDevyNote(noteValue.trim());
               if (parsed && !devyNoteMap.has(targetPlayerId)) {
                 devyNoteMap.set(targetPlayerId, parsed);
               }
             }
           }
+
         }
       }
 
@@ -6802,8 +6821,20 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
 
           if (devyInfo) {
             const normalizedName = devyInfo.devyName.toLowerCase().trim();
-            const matchedDevy = devyPlayers.find((dp: any) => dp.name.toLowerCase().trim() === normalizedName);
+            let matchedDevy = devyPlayers.find((dp: any) => dp.name.toLowerCase().trim() === normalizedName);
+            if (!matchedDevy) {
+              matchedDevy = devyPlayers.find((dp: any) => {
+                const dpName = dp.name.toLowerCase().trim();
+                return dpName.includes(normalizedName) || normalizedName.includes(dpName);
+              });
+            }
             if (matchedDevy) {
+              if (devyInfo.devyPosition === "?") {
+                devyInfo.devyPosition = matchedDevy.position;
+              }
+              if (devyInfo.devySchool === "Unknown") {
+                devyInfo.devySchool = matchedDevy.college;
+              }
               devyPlayerData = {
                 playerId: matchedDevy.id,
                 name: matchedDevy.name,
