@@ -33,7 +33,18 @@ const POSITION_COLORS: Record<string, string> = {
   QB: "bg-red-500/20 text-red-400 border-red-500/30",
   RB: "bg-green-500/20 text-green-400 border-green-500/30",
   WR: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  WRS: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
   TE: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  K: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  EDGE: "bg-rose-500/20 text-rose-400 border-rose-500/30",
+  DL: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  DL1T: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  DL3T: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  DL5T: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  ILB: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  LB: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  CB: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  S: "bg-pink-500/20 text-pink-400 border-pink-500/30",
 };
 
 interface PlayerRecommendation {
@@ -45,6 +56,11 @@ interface PlayerRecommendation {
   value: number;
   needFit: string;
   ppg: number;
+  draftRank?: number;
+  college?: string;
+  stockStatus?: 'rising' | 'falling' | 'steady';
+  stockChange?: number;
+  intangibles?: string[];
 }
 
 interface DraftBoardPick {
@@ -58,6 +74,8 @@ interface DraftBoardPick {
     position: string;
     team: string;
   };
+  isDevy?: boolean;
+  originalPlayer?: string;
 }
 
 interface ValueDrop extends PlayerRecommendation {
@@ -105,11 +123,13 @@ interface DraftRecommendationsResponse {
 function PlayerRecommendationCard({ 
   player, 
   rank, 
-  showReason 
+  showReason,
+  isRookieMode 
 }: { 
   player: PlayerRecommendation; 
   rank: number;
   showReason?: string;
+  isRookieMode?: boolean;
 }) {
   return (
     <div 
@@ -117,7 +137,7 @@ function PlayerRecommendationCard({
       data-testid={`recommendation-player-${player.playerId}`}
     >
       <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 text-primary font-bold text-sm">
-        {rank}
+        {isRookieMode && player.draftRank ? player.draftRank : rank}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
@@ -125,11 +145,32 @@ function PlayerRecommendationCard({
           <Badge variant="outline" className={POSITION_COLORS[player.position] || ""}>
             {player.position}
           </Badge>
+          {isRookieMode && player.stockStatus === 'rising' && (
+            <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px] px-1.5 py-0">
+              <TrendingUp className="w-3 h-3 mr-0.5" />
+              +{player.stockChange}
+            </Badge>
+          )}
+          {isRookieMode && player.stockStatus === 'falling' && (
+            <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30 text-[10px] px-1.5 py-0">
+              <TrendingDown className="w-3 h-3 mr-0.5" />
+              -{player.stockChange}
+            </Badge>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mt-0.5">
-          <span>{player.team}</span>
-          {player.age && <span>Age {player.age}</span>}
-          <span>{player.ppg} PPG</span>
+          {isRookieMode && player.college ? (
+            <span>{player.college}</span>
+          ) : (
+            <>
+              <span>{player.team}</span>
+              {player.age && <span>Age {player.age}</span>}
+              <span>{player.ppg} PPG</span>
+            </>
+          )}
+          {isRookieMode && player.draftRank && (
+            <span className="text-primary/70">Board #{player.draftRank}</span>
+          )}
         </div>
       </div>
       <div className="text-right">
@@ -321,7 +362,16 @@ function DraftBoard({ picks, currentPick }: {
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {pick.round}.{String(pick.slot).padStart(2, "0")}
                   </TableCell>
-                  <TableCell className="font-medium">{pick.player.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="flex items-center gap-1.5 flex-wrap">
+                      {pick.player.name}
+                      {pick.isDevy && (
+                        <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[9px] px-1 py-0">
+                          DEVY
+                        </Badge>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-center">
                     <Badge variant="outline" className={`text-xs ${POSITION_COLORS[pick.player.position] || ""}`}>
                       {pick.player.position}
@@ -506,7 +556,7 @@ export default function DraftWarRoomPage() {
                 <TabsContent value="value" className="space-y-2">
                   {recommendations.bestValue.length > 0 ? (
                     recommendations.bestValue.map((player, i) => (
-                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} />
+                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={mode === "rookie"} />
                     ))
                   ) : (
                     <p className="text-center text-muted-foreground py-4" data-testid="empty-state-best-value">
@@ -518,7 +568,7 @@ export default function DraftWarRoomPage() {
                 <TabsContent value="needs" className="space-y-2">
                   {recommendations.bestForNeeds.length > 0 ? (
                     recommendations.bestForNeeds.map((player, i) => (
-                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} />
+                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={mode === "rookie"} />
                     ))
                   ) : (
                     <p className="text-center text-muted-foreground py-4" data-testid="empty-state-best-needs">
@@ -530,11 +580,11 @@ export default function DraftWarRoomPage() {
                 <TabsContent value="upside" className="space-y-2">
                   {recommendations.bestUpside.length > 0 ? (
                     recommendations.bestUpside.map((player, i) => (
-                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} />
+                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={mode === "rookie"} />
                     ))
                   ) : (
                     <p className="text-center text-muted-foreground py-4" data-testid="empty-state-best-upside">
-                      No young upside players available
+                      {mode === "rookie" ? "No rising stock prospects available" : "No young upside players available"}
                     </p>
                   )}
                 </TabsContent>

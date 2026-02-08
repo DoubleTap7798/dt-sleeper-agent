@@ -45,7 +45,8 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Player Comparison**: Side-by-side comparison for trade evaluation.
 - **ROS Projections**: Advanced rest-of-season projections with AI outlooks.
 - **Devy Rankings**: College prospects (2027+ draft eligible) with dynasty-specific metrics, AI scouting analysis, and CFBD advanced stats. Separated from current draft class.
-- **2026 Draft Board**: Comprehensive draft page (merged Draft Board + War Room) for current NFL Draft class (~360 prospects) with Full Board tab (offense/defense/IDP filtering, sortable columns, position groups, stock movement indicators, intangibles) and Stock Watch tab (rising/falling prospects). Player profiles include bio, college stats, CFBD advanced analytics, combine data (TBD), intangibles, and scouting notes. Stored in `server/draft-2026-data.ts`.
+- **2026 Draft Board**: Comprehensive draft page for current NFL Draft class (~360 prospects) with Full Board tab (offense/defense/IDP filtering, sortable columns, position groups, stock movement indicators, intangibles) and Stock Watch tab (rising/falling prospects). Player profiles include bio, college stats, CFBD advanced analytics, combine data (TBD), intangibles, and scouting notes. Stored in `server/draft-2026-data.ts`.
+- **Draft War Room**: AI-powered draft assistant at `/league/war-room`. In rookie mode, pulls recommendations directly from the curated 2026 Draft Board (not Sleeper's generic player pool). Shows draft board rank, college, stock movement for each prospect. Includes Best Value, Roster Fit, and High Upside recommendation tabs, value drop alerts, positional run detection, draft board tracker, and My Picks section. Tailored to league-specific roster needs.
 - **Trade Calculator**: Custom dynasty value calculations with AI analysis.
 - **Trade History**: Historical trades with AI insights.
 - **Trophy Room**: League achievements.
@@ -58,6 +59,7 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Authentication Middleware**: `isAuthenticated` protects routes; `req.user.claims.sub` for user ID.
 - **Auth Upsert with Email Conflict**: Handles user data migration during email conflicts.
 - **Notification Sync Pattern**: Uses POST for notification sync due to complex data needs.
+- **Devy Placeholder Detection**: In devy leagues, commissioners use kickers/retired/defense players as placeholders with commissioner notes (e.g., "Husan Longstreet QB LSU"). The `parseDevyNote()` function in `server/routes.ts` parses these notes to extract devy player name, position, and school. Detected on roster and draft board views with purple "DEVY" badge overlay.
 - **Conditional Component Pattern**: Pages requiring `leagueId` ensure its validity before rendering child components.
 - **React Query Keys**: Uses array format for robust caching.
 - **`useSelectedLeague` Hook**: Centralized league selection state management.

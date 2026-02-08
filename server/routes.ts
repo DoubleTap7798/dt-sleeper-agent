@@ -50,6 +50,47 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+// Parse commissioner notes on placeholder players to detect devy picks
+// Common formats: "Husan Longstreet QB LSU", "J. Smith WR Alabama", "Player Name - QB - Georgia"
+const VALID_POSITIONS = new Set(["QB", "RB", "WR", "TE", "K", "EDGE", "DL", "DL1T", "DL3T", "DL5T", "ILB", "LB", "CB", "S", "DE", "DT", "OLB", "DB", "FB", "WRS"]);
+
+function parseDevyNote(note: string): { devyName: string; devyPosition: string; devySchool: string } | null {
+  if (!note || note.length < 3) return null;
+  
+  // Clean up the note
+  const cleaned = note.replace(/[-–—]/g, ' ').replace(/\s+/g, ' ').trim();
+  const parts = cleaned.split(' ').filter(p => p.length > 0);
+  
+  if (parts.length < 2) return null;
+  
+  // Try to find a position token in the note
+  let positionIndex = -1;
+  for (let i = 0; i < parts.length; i++) {
+    if (VALID_POSITIONS.has(parts[i].toUpperCase())) {
+      positionIndex = i;
+      break;
+    }
+  }
+  
+  if (positionIndex === -1) {
+    // No position found - could still be "FirstName LastName School" 
+    // but we can't reliably parse without a position marker
+    return null;
+  }
+  
+  // Everything before position = name, everything after = school
+  const nameParts = parts.slice(0, positionIndex);
+  const position = parts[positionIndex].toUpperCase();
+  const schoolParts = parts.slice(positionIndex + 1);
+  
+  if (nameParts.length === 0) return null;
+  
+  const devyName = nameParts.join(' ');
+  const devySchool = schoolParts.length > 0 ? schoolParts.join(' ') : "Unknown";
+  
+  return { devyName, devyPosition: position, devySchool };
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -6683,6 +6724,32 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
 
       const starters = userRoster.starters || [];
       const playerIds = userRoster.players || [];
+      
+      // Devy detection: Parse roster metadata for commissioner notes on placeholder players
+      // In devy leagues, commissioners use kickers/retired/defense as placeholders
+      // and add notes like "Husan Longstreet QB LSU" to indicate the actual devy player
+      const rosterMetadata = userRoster.metadata || {};
+      const devyNoteMap = new Map<string, { devyName: string; devyPosition: string; devySchool: string }>();
+      
+      // Check for player notes in metadata (Sleeper stores them as p_nick_<player_id> or similar keys)
+      for (const [key, noteValue] of Object.entries(rosterMetadata)) {
+        if (!noteValue || typeof noteValue !== 'string') continue;
+        
+        // Extract player ID from metadata key patterns
+        let targetPlayerId: string | null = null;
+        if (key.startsWith('p_nick_')) {
+          targetPlayerId = key.replace('p_nick_', '');
+        } else if (key.startsWith('p_note_')) {
+          targetPlayerId = key.replace('p_note_', '');
+        }
+        
+        if (targetPlayerId && noteValue.trim().length > 2) {
+          const parsed = parseDevyNote(noteValue.trim());
+          if (parsed) {
+            devyNoteMap.set(targetPlayerId, parsed);
+          }
+        }
+      }
 
       const players = playerIds.map(playerId => {
         const player = allPlayers[playerId];
@@ -6701,6 +6768,28 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         if (player?.espn_id) {
           headshot = `https://a.espncdn.com/i/headshots/nfl/players/full/${player.espn_id}.png`;
         }
+        
+        // Devy detection: Check if this player is a placeholder with a commissioner note
+        let devyInfo: { devyName: string; devyPosition: string; devySchool: string } | null = null;
+        const playerPos = player?.position || "?";
+        const isPlaceholderPosition = ["K", "DEF"].includes(playerPos);
+        const isRetired = !player?.team && (player?.status === "Inactive" || player?.active === false);
+        
+        // Check if roster metadata has a note for this player
+        if (devyNoteMap.has(playerId)) {
+          devyInfo = devyNoteMap.get(playerId)!;
+        } else if (isPlaceholderPosition || isRetired) {
+          // Also check all metadata values that might reference this player by other patterns
+          for (const [key, val] of Object.entries(rosterMetadata)) {
+            if (key.includes(playerId) && val && typeof val === 'string') {
+              const parsed = parseDevyNote(val);
+              if (parsed) {
+                devyInfo = parsed;
+                break;
+              }
+            }
+          }
+        }
 
         return {
           playerId,
@@ -6717,6 +6806,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           slotPosition,
           starterIndex: isStarter ? starterIndex : -1,
           headshot,
+          devyInfo,
         };
       }).sort((a, b) => {
         // Starters first, then bench
@@ -7410,46 +7500,104 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       const availablePlayers: any[] = [];
       const isRookieDraft = mode === "rookie";
       
-      for (const [playerId, player] of Object.entries(allPlayers)) {
-        if (draftedPlayerIds.has(playerId)) continue;
-        if (!player || !player.position) continue;
-        if (!["QB", "RB", "WR", "TE"].includes(player.position)) continue;
+      if (isRookieDraft) {
+        // ROOKIE DRAFT: Use curated 2026 Draft Board data instead of Sleeper's generic player pool
+        const { getDraft2026Players } = await import('./draft-2026-data');
+        const draftBoardPlayers = getDraft2026Players();
         
-        // For rookie draft, only include rookies (age <= 23 or experience < 1)
-        if (isRookieDraft && player.years_exp !== 0) continue;
-        // For startup, include all
+        // Build a map of drafted player names for matching (since draft board uses custom IDs)
+        const draftedPlayerNames = new Set<string>();
+        for (const pick of draftPicks) {
+          const p = allPlayers[pick.player_id];
+          if (p?.full_name) draftedPlayerNames.add(p.full_name.toLowerCase());
+          if (pick.metadata?.first_name && pick.metadata?.last_name) {
+            draftedPlayerNames.add(`${pick.metadata.first_name} ${pick.metadata.last_name}`.toLowerCase());
+          }
+        }
         
-        const playerStats = stats?.[playerId] || {};
-        const gamesPlayed = playerStats.gp || 0;
-        const ppg = gamesPlayed > 0 ? (playerStats.pts_ppr || 0) / gamesPlayed : 0;
+        // Also check roster players to exclude already-owned prospects
+        const ownedPlayerNames = new Set<string>();
+        if (userRoster?.players) {
+          for (const pid of userRoster.players) {
+            const p = allPlayers[pid];
+            if (p?.full_name) ownedPlayerNames.add(p.full_name.toLowerCase());
+          }
+        }
         
-        // Get dynasty value
-        const blendedValue = dynastyEngine.getBlendedPlayerValue(
-          playerId,
-          player.full_name || "",
-          player.position,
-          player.age || null,
-          player.years_exp || 0,
-          player.injury_status || null,
-          { points: playerStats.pts_ppr || 0, games: gamesPlayed, ppg },
-          1, // Assume starter for ranking
-          null,
-          null
-        );
-
-        if (blendedValue.value > 5) {
-          const needFit = needs.includes(player.position) ? "High" : "Medium";
+        for (const prospect of draftBoardPlayers) {
+          // Skip if already drafted or owned
+          if (draftedPlayerNames.has(prospect.name.toLowerCase())) continue;
+          if (ownedPlayerNames.has(prospect.name.toLowerCase())) continue;
+          
+          // Calculate a value score based on draft board rank (higher rank = higher value)
+          // Scale: Rank 1 = ~95 value, Rank 360 = ~10 value
+          const totalProspects = draftBoardPlayers.length;
+          const baseValue = Math.max(10, 95 - ((prospect.rank - 1) / Math.max(1, totalProspects - 1)) * 85);
+          
+          // Stock status bonus/penalty
+          let stockAdjust = 0;
+          if (prospect.stockStatus === 'rising') stockAdjust = prospect.stockChange * 0.3;
+          if (prospect.stockStatus === 'falling') stockAdjust = -prospect.stockChange * 0.3;
+          
+          const value = Math.round(Math.max(5, Math.min(99, baseValue + stockAdjust)));
+          
+          // Map position group for need fitting (IDP positions map to broader groups)
+          const mappedPos = prospect.positionGroup;
+          const needFit = needs.includes(mappedPos) ? "High" : "Medium";
           
           availablePlayers.push({
-            playerId,
-            name: player.full_name,
-            position: player.position,
-            team: player.team || "FA",
-            age: player.age,
-            value: blendedValue.value,
+            playerId: prospect.id,
+            name: prospect.name,
+            position: prospect.position,
+            team: prospect.college,
+            age: null,
+            value,
             needFit,
-            ppg: Math.round(ppg * 10) / 10,
+            ppg: 0,
+            draftRank: prospect.rank,
+            college: prospect.college,
+            stockStatus: prospect.stockStatus,
+            stockChange: prospect.stockChange,
+            scouting: prospect.scouting,
+            intangibles: prospect.intangibles,
           });
+        }
+      } else {
+        // STARTUP DRAFT: Use Sleeper player pool with dynasty values
+        for (const [playerId, player] of Object.entries(allPlayers)) {
+          if (draftedPlayerIds.has(playerId)) continue;
+          if (!player || !player.position) continue;
+          if (!["QB", "RB", "WR", "TE"].includes(player.position)) continue;
+          
+          const playerStats = stats?.[playerId] || {};
+          const gamesPlayed = playerStats.gp || 0;
+          const ppg = gamesPlayed > 0 ? (playerStats.pts_ppr || 0) / gamesPlayed : 0;
+          
+          const blendedValue = dynastyEngine.getBlendedPlayerValue(
+            playerId,
+            player.full_name || "",
+            player.position,
+            player.age || null,
+            player.years_exp || 0,
+            player.injury_status || null,
+            { points: playerStats.pts_ppr || 0, games: gamesPlayed, ppg },
+            1, null, null
+          );
+
+          if (blendedValue.value > 5) {
+            const needFit = needs.includes(player.position) ? "High" : "Medium";
+            
+            availablePlayers.push({
+              playerId,
+              name: player.full_name,
+              position: player.position,
+              team: player.team || "FA",
+              age: player.age,
+              value: blendedValue.value,
+              needFit,
+              ppg: Math.round(ppg * 10) / 10,
+            });
+          }
         }
       }
 
@@ -7458,10 +7606,11 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
 
       // Detect positional runs in last 6 picks
       const recentPicks = draftPicks.slice(-6);
-      const positionRuns: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+      const positionRuns: Record<string, number> = {};
       for (const pick of recentPicks) {
-        if (pick.metadata?.position) {
-          positionRuns[pick.metadata.position] = (positionRuns[pick.metadata.position] || 0) + 1;
+        const pos = pick.metadata?.position;
+        if (pos) {
+          positionRuns[pos] = (positionRuns[pos] || 0) + 1;
         }
       }
 
@@ -7476,66 +7625,51 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       // Get top recommendations by category
       const bestValue = availablePlayers.slice(0, 5);
       const bestForNeeds = availablePlayers
-        .filter(p => needs.includes(p.position))
+        .filter(p => needs.includes(p.position) || needs.includes(p.position === 'WRS' ? 'WR' : p.position))
         .slice(0, 5);
-      const bestUpside = availablePlayers
-        .filter(p => p.age && p.age <= 24)
-        .slice(0, 5);
+      const bestUpside = isRookieDraft
+        ? availablePlayers
+            .filter(p => p.stockStatus === 'rising' || p.draftRank <= 30)
+            .slice(0, 5)
+        : availablePlayers
+            .filter(p => p.age && p.age <= 24)
+            .slice(0, 5);
 
-      // Detect value drops (players who should have been picked earlier based on GLOBAL value rank)
-      // First, build a full player list with values (including drafted) for global ranking
-      const allPlayersWithValue: { playerId: string; value: number; drafted: boolean }[] = [];
-      
-      for (const [playerId, player] of Object.entries(allPlayers)) {
-        if (!player || !player.position) continue;
-        if (!["QB", "RB", "WR", "TE"].includes(player.position)) continue;
-        if (isRookieDraft && player.years_exp !== 0) continue;
-        
-        const playerStats = stats?.[playerId] || {};
-        const gamesPlayed = playerStats.gp || 0;
-        
-        const blendedValue = dynastyEngine.getBlendedPlayerValue(
-          playerId,
-          player.full_name || "",
-          player.position,
-          player.age || null,
-          player.years_exp || 0,
-          player.injury_status || null,
-          { points: playerStats.pts_ppr || 0, games: gamesPlayed, ppg: gamesPlayed > 0 ? (playerStats.pts_ppr || 0) / gamesPlayed : 0 },
-          1, null, null
-        );
-        
-        allPlayersWithValue.push({
-          playerId,
-          value: blendedValue.value,
-          drafted: draftedPlayerIds.has(playerId),
-        });
-      }
-      
-      // Sort ALL players by value to get global rank
-      allPlayersWithValue.sort((a, b) => b.value - a.value);
-      
-      // Create global rank map
-      const globalRankMap = new Map<string, number>();
-      allPlayersWithValue.forEach((p, idx) => {
-        globalRankMap.set(p.playerId, idx + 1);
-      });
-      
+      // Detect value drops - players whose draft board rank is much higher than current pick number
       const valueDrops: any[] = [];
       const pickNumber = draftPicks.length + 1;
       
-      // Find available players whose global rank suggests they should have been picked earlier
-      for (const player of availablePlayers.slice(0, 30)) {
-        const globalRank = globalRankMap.get(player.playerId) || 999;
-        const spotsFallen = pickNumber - globalRank;
+      if (isRookieDraft) {
+        // For rookie draft, compare draft board rank vs current pick
+        for (const player of availablePlayers.slice(0, 50)) {
+          const draftRank = player.draftRank || 999;
+          const spotsFallen = pickNumber - draftRank;
+          
+          if (spotsFallen >= 5 && draftRank <= 100) {
+            valueDrops.push({
+              ...player,
+              expectedPick: draftRank,
+              spotsFallen,
+            });
+          }
+        }
+      } else {
+        // For startup, use dynasty value ranking
+        const sortedAll = [...availablePlayers].sort((a, b) => b.value - a.value);
+        const globalRankMap = new Map<string, number>();
+        sortedAll.forEach((p, idx) => globalRankMap.set(p.playerId, idx + 1));
         
-        // If player has fallen 10+ spots past their expected position
-        if (spotsFallen >= 10 && globalRank <= 100) {
-          valueDrops.push({
-            ...player,
-            expectedPick: globalRank,
-            spotsFallen,
-          });
+        for (const player of availablePlayers.slice(0, 30)) {
+          const globalRank = globalRankMap.get(player.playerId) || 999;
+          const spotsFallen = pickNumber - globalRank;
+          
+          if (spotsFallen >= 10 && globalRank <= 100) {
+            valueDrops.push({
+              ...player,
+              expectedPick: globalRank,
+              spotsFallen,
+            });
+          }
         }
       }
 
@@ -7563,26 +7697,49 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           reversalRound: activeDraft.settings?.reversal_round || 1, // How many rounds before direction reverses
         } : null,
         draftBoard: draftPicks
-          .filter(p => p.player_id) // Only include completed picks (player_id is set when pick is made)
+          .filter(p => p.player_id)
           .map(p => {
-            // Use actual pick_no from API; fallback to computed linear order if missing
             const computedPickNo = (p.round - 1) * numTeams + p.draft_slot;
             const pickNo = p.pick_no ?? computedPickNo;
+            const playerData = allPlayers[p.player_id];
+            const playerName = p.metadata?.first_name ? `${p.metadata.first_name} ${p.metadata.last_name}` : playerData?.full_name || "Unknown";
+            const playerPos = p.metadata?.position || playerData?.position || "?";
+            const playerTeam = p.metadata?.team || playerData?.team || "FA";
+            
+            // Check if this is a devy placeholder (K/DEF/retired)
+            let devyInfo: { devyName: string; devyPosition: string; devySchool: string } | null = null;
+            if (["K", "DEF"].includes(playerPos) || (!playerData?.team && playerData?.status === "Inactive")) {
+              // Try to find devy note from the roster that drafted this player
+              const draftingRoster = rosters.find(r => r.roster_id === p.roster_id);
+              if (draftingRoster?.metadata) {
+                for (const [key, val] of Object.entries(draftingRoster.metadata)) {
+                  if (key.includes(p.player_id) && val && typeof val === 'string') {
+                    const parsed = parseDevyNote(val);
+                    if (parsed) {
+                      devyInfo = parsed;
+                      break;
+                    }
+                  }
+                }
+              }
+            }
             
             return {
               pickNo,
               round: p.round,
-              slot: calculateWithinRoundPick(p.round, p.draft_slot, numTeams), // Within-round pick position
+              slot: calculateWithinRoundPick(p.round, p.draft_slot, numTeams),
               rosterId: p.roster_id,
               player: {
                 id: p.player_id,
-                name: p.metadata?.first_name ? `${p.metadata.first_name} ${p.metadata.last_name}` : allPlayers[p.player_id]?.full_name || "Unknown",
-                position: p.metadata?.position || allPlayers[p.player_id]?.position || "?",
-                team: p.metadata?.team || allPlayers[p.player_id]?.team || "FA",
+                name: devyInfo ? devyInfo.devyName : playerName,
+                position: devyInfo ? devyInfo.devyPosition : playerPos,
+                team: devyInfo ? devyInfo.devySchool : playerTeam,
               },
+              isDevy: !!devyInfo,
+              originalPlayer: devyInfo ? playerName : undefined,
             };
           })
-          .sort((a, b) => a.pickNo - b.pickNo), // Sort by chronological pick order
+          .sort((a, b) => a.pickNo - b.pickNo),
         myPicks: userDraftPicks.sort((a, b) => a.pickNo - b.pickNo),
         mode,
       });

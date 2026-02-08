@@ -14,6 +14,12 @@ import { getNFLTeamLogo } from "@/lib/team-logos";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { usePageTitle } from "@/hooks/use-page-title";
 
+interface DevyInfo {
+  devyName: string;
+  devyPosition: string;
+  devySchool: string;
+}
+
 interface RosterPlayer {
   playerId: string;
   name: string;
@@ -29,6 +35,7 @@ interface RosterPlayer {
   slotPosition: string;
   starterIndex: number;
   headshot?: string | null;
+  devyInfo?: DevyInfo | null;
 }
 
 interface PositionRanking {
@@ -184,10 +191,16 @@ function RosterContent({ leagueId }: { leagueId: string }) {
     );
   }
 
-  const renderPlayer = (player: RosterPlayer) => (
+  const renderPlayer = (player: RosterPlayer) => {
+    const isDevy = !!player.devyInfo;
+    const displayName = isDevy ? player.devyInfo!.devyName : player.name;
+    const displayPosition = isDevy ? player.devyInfo!.devyPosition : player.position;
+    const displayTeam = isDevy ? player.devyInfo!.devySchool : player.team;
+    
+    return (
     <Card 
       key={player.playerId}
-      className="hover-elevate transition-all cursor-pointer"
+      className={`hover-elevate transition-all cursor-pointer ${isDevy ? "border-purple-500/30" : ""}`}
       onClick={() => setExpandedPlayer(expandedPlayer === player.playerId ? null : player.playerId)}
       data-testid={`player-card-${player.playerId}`}
     >
@@ -195,27 +208,44 @@ function RosterContent({ leagueId }: { leagueId: string }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Avatar className="h-10 w-10 shrink-0" data-testid={`avatar-${player.playerId}`}>
-              <AvatarImage 
-                src={getNFLTeamLogo(player.team) || undefined} 
-                alt={player.team}
-              />
-              <AvatarFallback className="text-xs bg-muted">
-                {player.team.slice(0, 2)}
-              </AvatarFallback>
+              {isDevy ? (
+                <AvatarFallback className="text-xs bg-purple-500/20 text-purple-400">
+                  DEV
+                </AvatarFallback>
+              ) : (
+                <>
+                  <AvatarImage 
+                    src={getNFLTeamLogo(player.team) || undefined} 
+                    alt={player.team}
+                  />
+                  <AvatarFallback className="text-xs bg-muted">
+                    {player.team.slice(0, 2)}
+                  </AvatarFallback>
+                </>
+              )}
             </Avatar>
-            <Badge variant="outline" className={`${getPositionColorClass(player.position)} text-xs shrink-0`} data-testid={`badge-pos-${player.playerId}`}>
-              {player.isStarter ? player.slotPosition : player.position}
+            <Badge variant="outline" className={`${getPositionColorClass(displayPosition)} text-xs shrink-0`} data-testid={`badge-pos-${player.playerId}`}>
+              {player.isStarter ? player.slotPosition : displayPosition}
             </Badge>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-sm sm:text-base truncate" data-testid={`text-name-${player.playerId}`}>
-                  <span className="sm:hidden">{abbreviateName(player.name)}</span>
-                  <span className="hidden sm:inline">{player.name}</span>
+                  <span className="sm:hidden">{abbreviateName(displayName)}</span>
+                  <span className="hidden sm:inline">{displayName}</span>
                 </span>
-                {player.injuryStatus && getInjuryBadge(player.injuryStatus)}
+                {isDevy && (
+                  <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] shrink-0">
+                    DEVY
+                  </Badge>
+                )}
+                {!isDevy && player.injuryStatus && getInjuryBadge(player.injuryStatus)}
               </div>
               <span className="text-xs text-muted-foreground" data-testid={`text-team-${player.playerId}`}>
-                {player.team} #{player.number}
+                {isDevy ? (
+                  <>{displayTeam} <span className="text-purple-400/70">(via {abbreviateName(player.name)})</span></>
+                ) : (
+                  <>{player.team} #{player.number}</>
+                )}
               </span>
             </div>
           </div>
@@ -279,6 +309,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
       </CardContent>
     </Card>
   );
+  };
 
   return (
     <div className="space-y-6">
