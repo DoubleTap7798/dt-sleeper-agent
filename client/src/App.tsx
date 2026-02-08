@@ -32,6 +32,7 @@ import LeagueInfoPage from "@/pages/league-info";
 import DepthChartPage from "@/pages/depth-chart";
 import WatchlistPage from "@/pages/watchlist";
 import DraftBoardPage from "@/pages/draft-board";
+import DraftWarRoomPage from "@/pages/draft-war-room";
 import UpgradePage from "@/pages/upgrade";
 import AdminPage from "@/pages/admin";
 import AuthPage from "@/pages/auth";
@@ -152,6 +153,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <DraftBoardPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/war-room">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DraftWarRoomPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

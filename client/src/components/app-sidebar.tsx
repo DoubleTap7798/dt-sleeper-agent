@@ -123,6 +123,7 @@ const navigationGroups: NavGroup[] = [
       { title: "Compare", url: "/league/compare", icon: GitCompare, premium: true },
       { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true, premium: true },
       { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
+      { title: "Draft War Room", url: "/league/war-room", icon: Swords, requiresLeague: true, premium: true },
       { title: "Devy Rankings", url: "/league/devy", icon: GraduationCap, premium: true },
       { title: "Depth Charts", url: "/league/depth-chart", icon: Layers },
     ],
