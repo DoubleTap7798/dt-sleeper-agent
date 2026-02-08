@@ -6759,6 +6759,8 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         }
       }
 
+      const devyPlayers = ktcValues.getDevyPlayers();
+
       const players = playerIds.map(playerId => {
         const player = allPlayers[playerId];
         const dynastyValue = getBlendedValue(playerId, player);
@@ -6780,6 +6782,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         // Devy detection: Check if this player is a placeholder with a devy note
         let devyInfo: { devyName: string; devyPosition: string; devySchool: string } | null = null;
         let isDevyPlaceholder = false;
+        let devyPlayerData: any = null;
         if (hasRosterPlayers) {
           const playerPos = player?.position || "?";
           const isKicker = playerPos === "K";
@@ -6792,9 +6795,46 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           
           if (devyNoteMap.has(playerId)) {
             devyInfo = devyNoteMap.get(playerId)!;
-          } else if (isPlaceholderByPosition || isRetired) {
-            // Mark as devy placeholder even without a note (so UI can show indicator)
             isDevyPlaceholder = true;
+          } else if (isPlaceholderByPosition || isRetired) {
+            isDevyPlaceholder = true;
+          }
+
+          if (devyInfo) {
+            const normalizedName = devyInfo.devyName.toLowerCase().trim();
+            const matchedDevy = devyPlayers.find((dp: any) => dp.name.toLowerCase().trim() === normalizedName);
+            if (matchedDevy) {
+              devyPlayerData = {
+                playerId: matchedDevy.id,
+                name: matchedDevy.name,
+                position: matchedDevy.position,
+                positionRank: matchedDevy.positionRank,
+                college: matchedDevy.college,
+                draftEligibleYear: matchedDevy.draftEligibleYear,
+                tier: matchedDevy.tier,
+                value: matchedDevy.value,
+                trend7Day: matchedDevy.trend7Day,
+                trend30Day: matchedDevy.trend30Day,
+                seasonChange: matchedDevy.seasonChange,
+                rank: (matchedDevy as any).rank || 0,
+                starterPct: matchedDevy.starterPct,
+                elitePct: matchedDevy.elitePct,
+                bustPct: matchedDevy.bustPct,
+                top10Pct: matchedDevy.top10Pct,
+                round1Pct: matchedDevy.round1Pct,
+                round2PlusPct: matchedDevy.round2PlusPct,
+                pickEquivalent: matchedDevy.pickEquivalent,
+                pickMultiplier: matchedDevy.pickMultiplier,
+                dominatorRating: matchedDevy.dominatorRating,
+                yardShare: matchedDevy.yardShare,
+                tdShare: matchedDevy.tdShare,
+                breakoutAge: matchedDevy.breakoutAge,
+                comps: matchedDevy.comps,
+                depthRole: matchedDevy.depthRole,
+                pathContext: matchedDevy.pathContext,
+                ageClass: matchedDevy.ageClass,
+              };
+            }
           }
         }
 
@@ -6814,7 +6854,8 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           starterIndex: isStarter ? starterIndex : -1,
           headshot,
           devyInfo,
-          isDevyPlaceholder: isDevyPlaceholder || !!devyInfo,
+          isDevyPlaceholder,
+          devyPlayerData,
         };
       }).sort((a, b) => {
         // Starters first, then bench

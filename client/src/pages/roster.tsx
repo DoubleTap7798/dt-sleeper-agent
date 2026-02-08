@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, AlertCircle, User, ChevronDown, ChevronUp, BarChart3 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
+import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { getNFLTeamLogo } from "@/lib/team-logos";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -37,6 +38,7 @@ interface RosterPlayer {
   headshot?: string | null;
   devyInfo?: DevyInfo | null;
   isDevyPlaceholder?: boolean;
+  devyPlayerData?: any | null;
 }
 
 interface PositionRanking {
@@ -119,6 +121,8 @@ function RosterContent({ leagueId }: { leagueId: string }) {
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null);
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [selectedPlayer, setSelectedPlayer] = useState<RosterPlayer | null>(null);
+  const [devyModalPlayer, setDevyModalPlayer] = useState<any | null>(null);
+  const [devyModalOpen, setDevyModalOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery<RosterResponse>({
     queryKey: ["/api/fantasy/roster", leagueId],
@@ -192,17 +196,22 @@ function RosterContent({ leagueId }: { leagueId: string }) {
     );
   }
 
+  const handleDevyClick = (e: React.MouseEvent, player: RosterPlayer) => {
+    e.stopPropagation();
+    if (player.devyPlayerData) {
+      setDevyModalPlayer(player.devyPlayerData);
+      setDevyModalOpen(true);
+    }
+  };
+
   const renderPlayer = (player: RosterPlayer) => {
     const isDevy = !!player.devyInfo;
-    const isPlaceholder = !isDevy && !!player.isDevyPlaceholder;
-    const displayName = isDevy ? player.devyInfo!.devyName : player.name;
-    const displayPosition = isDevy ? player.devyInfo!.devyPosition : player.position;
-    const displayTeam = isDevy ? player.devyInfo!.devySchool : player.team;
+    const isPlaceholder = player.isDevyPlaceholder || isDevy;
     
     return (
     <Card 
       key={player.playerId}
-      className={`hover-elevate transition-all cursor-pointer ${isDevy ? "border-purple-500/30" : ""} ${isPlaceholder ? "border-purple-500/20" : ""}`}
+      className={`hover-elevate transition-all cursor-pointer ${isPlaceholder ? "border-purple-500/30" : ""}`}
       onClick={() => setExpandedPlayer(expandedPlayer === player.playerId ? null : player.playerId)}
       data-testid={`player-card-${player.playerId}`}
     >
@@ -210,7 +219,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Avatar className="h-10 w-10 shrink-0" data-testid={`avatar-${player.playerId}`}>
-              {(isDevy || isPlaceholder) ? (
+              {isPlaceholder ? (
                 <AvatarFallback className="text-xs bg-purple-500/20 text-purple-400">
                   DEV
                 </AvatarFallback>
@@ -226,31 +235,50 @@ function RosterContent({ leagueId }: { leagueId: string }) {
                 </>
               )}
             </Avatar>
-            <Badge variant="outline" className={`${getPositionColorClass(displayPosition)} text-xs shrink-0`} data-testid={`badge-pos-${player.playerId}`}>
-              {player.isStarter ? player.slotPosition : displayPosition}
+            <Badge variant="outline" className={`${getPositionColorClass(isDevy ? player.devyInfo!.devyPosition : player.position)} text-xs shrink-0`} data-testid={`badge-pos-${player.playerId}`}>
+              {player.isStarter ? player.slotPosition : (isDevy ? player.devyInfo!.devyPosition : player.position)}
             </Badge>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-sm sm:text-base truncate" data-testid={`text-name-${player.playerId}`}>
-                  <span className="sm:hidden">{abbreviateName(displayName)}</span>
-                  <span className="hidden sm:inline">{displayName}</span>
+                <span className="font-semibold text-sm sm:text-base truncate text-muted-foreground/70" data-testid={`text-name-${player.playerId}`}>
+                  <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                  <span className="hidden sm:inline">{player.name}</span>
                 </span>
-                {(isDevy || isPlaceholder) && (
+                {isPlaceholder && (
                   <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] shrink-0">
                     DEVY
                   </Badge>
                 )}
-                {!isDevy && !isPlaceholder && player.injuryStatus && getInjuryBadge(player.injuryStatus)}
+                {!isPlaceholder && player.injuryStatus && getInjuryBadge(player.injuryStatus)}
               </div>
-              <span className="text-xs text-muted-foreground" data-testid={`text-team-${player.playerId}`}>
-                {isDevy ? (
-                  <>{displayTeam} <span className="text-purple-400/70">(via {abbreviateName(player.name)})</span></>
-                ) : isPlaceholder ? (
-                  <><span className="text-purple-400/70">Devy Placeholder</span> <span className="text-muted-foreground/60">(via {abbreviateName(player.name)})</span></>
-                ) : (
-                  <>{player.team} #{player.number}</>
-                )}
-              </span>
+              {isDevy ? (
+                <div className="flex items-center gap-1 flex-wrap" data-testid={`text-team-${player.playerId}`}>
+                  {player.devyPlayerData ? (
+                    <span
+                      className="text-xs text-purple-400 font-medium underline decoration-purple-400/40 cursor-pointer"
+                      onClick={(e) => handleDevyClick(e, player)}
+                      data-testid={`link-devy-${player.playerId}`}
+                    >
+                      {player.devyInfo!.devyName}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-purple-400 font-medium">
+                      {player.devyInfo!.devyName}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground/60">
+                    {player.devyInfo!.devySchool}
+                  </span>
+                </div>
+              ) : isPlaceholder ? (
+                <span className="text-xs text-purple-400/70" data-testid={`text-team-${player.playerId}`}>
+                  Devy Placeholder
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground" data-testid={`text-team-${player.playerId}`}>
+                  {player.team} #{player.number}
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
@@ -409,6 +437,15 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           team={selectedPlayer.team}
         />
       )}
+
+      <DevyProfileModal
+        open={devyModalOpen}
+        onOpenChange={(open) => {
+          setDevyModalOpen(open);
+          if (!open) setDevyModalPlayer(null);
+        }}
+        player={devyModalPlayer}
+      />
     </div>
   );
 }
