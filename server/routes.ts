@@ -6812,10 +6812,14 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           // Detect placeholder: K in league without K slots, DEF without DEF slots, IDP without IDP slots
           const isPlaceholderByPosition = (isKicker && !hasKickerSlot) || (isDef && !hasDefSlot) || (isIDPPlayer && !isIDPLeague);
           
+          // Additional heuristic: In leagues that use devy notes (any p_nick_ entries exist),
+          // FA kickers (no NFL team) are almost certainly devy placeholders even if the league has K slots
+          const isLikelyDevyPlaceholder = devyNoteMap.size > 0 && isKicker && !player?.team;
+          
           if (devyNoteMap.has(playerId)) {
             devyInfo = devyNoteMap.get(playerId)!;
             isDevyPlaceholder = true;
-          } else if (isPlaceholderByPosition || isRetired) {
+          } else if (isPlaceholderByPosition || isRetired || isLikelyDevyPlaceholder) {
             isDevyPlaceholder = true;
           }
 

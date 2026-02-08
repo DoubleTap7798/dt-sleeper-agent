@@ -323,19 +323,37 @@ function RosterContent({ leagueId }: { leagueId: string }) {
                 </span>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 w-full sm:w-auto"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedPlayer(player);
-              }}
-              data-testid={`button-view-stats-${player.playerId}`}
-            >
-              <BarChart3 className="h-4 w-4 mr-2" />
-              View Full Stats
-            </Button>
+            {isPlaceholder ? (
+              player.devyPlayerData ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 w-full sm:w-auto border-purple-500/30 text-purple-400"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDevyClick(e, player);
+                  }}
+                  data-testid={`button-view-devy-${player.playerId}`}
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  View Devy Profile
+                </Button>
+              ) : null
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 w-full sm:w-auto"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedPlayer(player);
+                }}
+                data-testid={`button-view-stats-${player.playerId}`}
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                View Full Stats
+              </Button>
+            )}
           </div>
         )}
       </CardContent>
