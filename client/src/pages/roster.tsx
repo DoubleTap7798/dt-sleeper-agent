@@ -36,6 +36,7 @@ interface RosterPlayer {
   starterIndex: number;
   headshot?: string | null;
   devyInfo?: DevyInfo | null;
+  isDevyPlaceholder?: boolean;
 }
 
 interface PositionRanking {
@@ -193,6 +194,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
 
   const renderPlayer = (player: RosterPlayer) => {
     const isDevy = !!player.devyInfo;
+    const isPlaceholder = !isDevy && !!player.isDevyPlaceholder;
     const displayName = isDevy ? player.devyInfo!.devyName : player.name;
     const displayPosition = isDevy ? player.devyInfo!.devyPosition : player.position;
     const displayTeam = isDevy ? player.devyInfo!.devySchool : player.team;
@@ -200,7 +202,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
     return (
     <Card 
       key={player.playerId}
-      className={`hover-elevate transition-all cursor-pointer ${isDevy ? "border-purple-500/30" : ""}`}
+      className={`hover-elevate transition-all cursor-pointer ${isDevy ? "border-purple-500/30" : ""} ${isPlaceholder ? "border-purple-500/20" : ""}`}
       onClick={() => setExpandedPlayer(expandedPlayer === player.playerId ? null : player.playerId)}
       data-testid={`player-card-${player.playerId}`}
     >
@@ -208,7 +210,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Avatar className="h-10 w-10 shrink-0" data-testid={`avatar-${player.playerId}`}>
-              {isDevy ? (
+              {(isDevy || isPlaceholder) ? (
                 <AvatarFallback className="text-xs bg-purple-500/20 text-purple-400">
                   DEV
                 </AvatarFallback>
@@ -233,16 +235,18 @@ function RosterContent({ leagueId }: { leagueId: string }) {
                   <span className="sm:hidden">{abbreviateName(displayName)}</span>
                   <span className="hidden sm:inline">{displayName}</span>
                 </span>
-                {isDevy && (
+                {(isDevy || isPlaceholder) && (
                   <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] shrink-0">
                     DEVY
                   </Badge>
                 )}
-                {!isDevy && player.injuryStatus && getInjuryBadge(player.injuryStatus)}
+                {!isDevy && !isPlaceholder && player.injuryStatus && getInjuryBadge(player.injuryStatus)}
               </div>
               <span className="text-xs text-muted-foreground" data-testid={`text-team-${player.playerId}`}>
                 {isDevy ? (
                   <>{displayTeam} <span className="text-purple-400/70">(via {abbreviateName(player.name)})</span></>
+                ) : isPlaceholder ? (
+                  <><span className="text-purple-400/70">Devy Placeholder</span> <span className="text-muted-foreground/60">(via {abbreviateName(player.name)})</span></>
                 ) : (
                   <>{player.team} #{player.number}</>
                 )}

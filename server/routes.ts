@@ -6725,30 +6725,35 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       const starters = userRoster.starters || [];
       const playerIds = userRoster.players || [];
       
-      // Devy detection: Parse roster metadata for commissioner notes on placeholder players
-      // In devy leagues, commissioners use kickers/retired/defense as placeholders
-      // and add notes like "Husan Longstreet QB LSU" to indicate the actual devy player
-      // Only apply devy overlays when the roster actually has players on it
-      const rosterMetadata = userRoster.metadata || {};
+      // Devy detection: Build a LEAGUE-WIDE devy note map by scanning ALL rosters' p_nick_ metadata
+      // Commissioners/owners use p_nick_ (player nickname) to label devy placeholder players
+      // Also detect placeholder positions (K/DEF/IDP) in leagues without those roster slots
+      const hasKickerSlot = rosterPositions.includes("K");
+      const hasDefSlot = rosterPositions.includes("DEF");
       const devyNoteMap = new Map<string, { devyName: string; devyPosition: string; devySchool: string }>();
       const hasRosterPlayers = playerIds.length > 0;
       
       if (hasRosterPlayers) {
-        for (const [key, noteValue] of Object.entries(rosterMetadata)) {
-          if (!noteValue || typeof noteValue !== 'string') continue;
-          
-          let targetPlayerId: string | null = null;
-          if (key.startsWith('p_nick_')) {
-            targetPlayerId = key.replace('p_nick_', '');
-          } else if (key.startsWith('p_note_')) {
-            targetPlayerId = key.replace('p_note_', '');
-          }
-          
-          // Only map devy notes to players actually on this roster
-          if (targetPlayerId && noteValue.trim().length > 2 && playerIds.includes(targetPlayerId)) {
-            const parsed = parseDevyNote(noteValue.trim());
-            if (parsed) {
-              devyNoteMap.set(targetPlayerId, parsed);
+        // Scan ALL rosters in the league for p_nick_ entries
+        // This catches devy notes set by any owner or the commissioner
+        for (const roster of rosters) {
+          const meta = roster.metadata || {};
+          for (const [key, noteValue] of Object.entries(meta)) {
+            if (!noteValue || typeof noteValue !== 'string') continue;
+            
+            let targetPlayerId: string | null = null;
+            if (key.startsWith('p_nick_')) {
+              targetPlayerId = key.replace('p_nick_', '');
+            } else if (key.startsWith('p_note_')) {
+              targetPlayerId = key.replace('p_note_', '');
+            }
+            
+            // Map devy notes for players on the USER's roster
+            if (targetPlayerId && noteValue.trim().length > 2 && playerIds.includes(targetPlayerId)) {
+              const parsed = parseDevyNote(noteValue.trim());
+              if (parsed && !devyNoteMap.has(targetPlayerId)) {
+                devyNoteMap.set(targetPlayerId, parsed);
+              }
             }
           }
         }
@@ -6772,25 +6777,24 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           headshot = `https://a.espncdn.com/i/headshots/nfl/players/full/${player.espn_id}.png`;
         }
         
-        // Devy detection: Check if this player is a placeholder with a commissioner note
+        // Devy detection: Check if this player is a placeholder with a devy note
         let devyInfo: { devyName: string; devyPosition: string; devySchool: string } | null = null;
+        let isDevyPlaceholder = false;
         if (hasRosterPlayers) {
           const playerPos = player?.position || "?";
-          const isPlaceholderPosition = ["K", "DEF"].includes(playerPos);
+          const isKicker = playerPos === "K";
+          const isDef = playerPos === "DEF";
           const isRetired = !player?.team && (player?.status === "Inactive" || player?.active === false);
+          const isIDPPlayer = ["CB", "S", "DB", "LB", "ILB", "OLB", "MLB", "DL", "DE", "DT", "NT", "EDGE", "ED", "FS", "SS"].includes(playerPos);
+          
+          // Detect placeholder: K in league without K slots, DEF without DEF slots, IDP without IDP slots
+          const isPlaceholderByPosition = (isKicker && !hasKickerSlot) || (isDef && !hasDefSlot) || (isIDPPlayer && !isIDPLeague);
           
           if (devyNoteMap.has(playerId)) {
             devyInfo = devyNoteMap.get(playerId)!;
-          } else if (isPlaceholderPosition || isRetired) {
-            for (const [key, val] of Object.entries(rosterMetadata)) {
-              if (key.includes(playerId) && val && typeof val === 'string') {
-                const parsed = parseDevyNote(val);
-                if (parsed) {
-                  devyInfo = parsed;
-                  break;
-                }
-              }
-            }
+          } else if (isPlaceholderByPosition || isRetired) {
+            // Mark as devy placeholder even without a note (so UI can show indicator)
+            isDevyPlaceholder = true;
           }
         }
 
@@ -6810,6 +6814,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           starterIndex: isStarter ? starterIndex : -1,
           headshot,
           devyInfo,
+          isDevyPlaceholder: isDevyPlaceholder || !!devyInfo,
         };
       }).sort((a, b) => {
         // Starters first, then bench
