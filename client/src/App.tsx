@@ -36,6 +36,7 @@ import DraftWarRoomPage from "@/pages/draft-war-room";
 import UpgradePage from "@/pages/upgrade";
 import AdminPage from "@/pages/admin";
 import AuthPage from "@/pages/auth";
+import AIChatPage from "@/pages/ai-chat";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -251,6 +252,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <WatchlistPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/ai-chat">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <AIChatPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

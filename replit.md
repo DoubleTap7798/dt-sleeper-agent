@@ -50,6 +50,7 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Trade Calculator**: Custom dynasty value calculations with AI analysis.
 - **Trade History**: Historical trades with AI insights.
 - **Trophy Room**: League achievements.
+- **AI Chat Assistant**: Personal AI fantasy football advisor at `/league/ai-chat`. Conversational interface with streaming responses, conversation history, suggested prompts. Context-aware — pulls user's roster, standings, and league settings from Sleeper API. Covers trades, start/sit, waivers, dynasty strategy, draft advice, and devy scouting. Premium feature.
 - **Real-Time Notifications**: Bell icon for trades, waivers, free agent pickups.
 
 ### System Design Choices

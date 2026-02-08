@@ -7883,5 +7883,233 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     }
   });
 
+  // ===== AI Chat Assistant Routes =====
+  const { chatStorage } = await import("./replit_integrations/chat/storage");
+
+  // Get all conversations for the current user
+  app.get("/api/ai-chat/conversations", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const convos = await chatStorage.getConversationsByUser(userId);
+      res.json(convos);
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+      res.status(500).json({ message: "Failed to fetch conversations" });
+    }
+  });
+
+  // Get single conversation with messages
+  app.get("/api/ai-chat/conversations/:id", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+      const conversation = await chatStorage.getConversation(id);
+      if (!conversation || conversation.userId !== userId) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      const msgs = await chatStorage.getMessagesByConversation(id);
+      res.json({ ...conversation, messages: msgs });
+    } catch (error) {
+      console.error("Error fetching conversation:", error);
+      res.status(500).json({ message: "Failed to fetch conversation" });
+    }
+  });
+
+  // Create new conversation
+  app.post("/api/ai-chat/conversations", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { title } = req.body;
+      const conversation = await chatStorage.createConversation(title || "New Chat", userId);
+      res.status(201).json(conversation);
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+      res.status(500).json({ message: "Failed to create conversation" });
+    }
+  });
+
+  // Delete conversation
+  app.delete("/api/ai-chat/conversations/:id", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+      const conversation = await chatStorage.getConversation(id);
+      if (!conversation || conversation.userId !== userId) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      await chatStorage.deleteConversation(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+      res.status(500).json({ message: "Failed to delete conversation" });
+    }
+  });
+
+  // Send a text message and get AI response (streaming)
+  app.post("/api/ai-chat/conversations/:id/messages", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const conversationId = parseInt(req.params.id);
+      const { message, leagueId } = req.body;
+
+      if (!message || typeof message !== "string" || message.trim().length === 0) {
+        return res.status(400).json({ message: "Message is required" });
+      }
+
+      const conversation = await chatStorage.getConversation(conversationId);
+      if (!conversation || conversation.userId !== userId) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      // Save user message
+      await chatStorage.createMessage(conversationId, "user", message.trim());
+
+      // Gather fantasy football context for the AI
+      let contextParts: string[] = [];
+
+      try {
+        const profile = await storage.getUserProfile(userId);
+        const targetLeagueId = leagueId || profile?.selectedLeagueId;
+
+        if (targetLeagueId && targetLeagueId !== "all") {
+          const [league, rosters, leagueUsers, state, allPlayers] = await Promise.all([
+            sleeperApi.getLeague(targetLeagueId),
+            sleeperApi.getLeagueRosters(targetLeagueId),
+            sleeperApi.getLeagueUsers(targetLeagueId),
+            sleeperApi.getState(),
+            sleeperApi.getAllPlayers(),
+          ]);
+
+          if (league) {
+            contextParts.push(`League: "${league.name}" (${league.roster_positions?.length || 0} roster spots, ${league.total_rosters || 0} teams, ${league.scoring_settings?.rec !== undefined ? `PPR: ${league.scoring_settings.rec}` : "Standard"} scoring, ${league.settings?.type === 2 ? "Dynasty" : league.settings?.type === 1 ? "Keeper" : "Redraft"})`);
+          }
+
+          // Find user's roster
+          const sleeperUserId = profile?.sleeperUserId;
+          if (sleeperUserId && rosters && allPlayers) {
+            const userRoster = rosters.find((r: any) => r.owner_id === sleeperUserId);
+
+            if (userRoster) {
+              const rosterPlayers = (userRoster.players || []).map((pid: string) => {
+                const p = allPlayers[pid];
+                if (!p) return null;
+                return `${p.full_name || p.first_name + " " + p.last_name} (${p.position}, ${p.team || "FA"})`;
+              }).filter(Boolean);
+
+              if (rosterPlayers.length > 0) {
+                contextParts.push(`User's roster (${rosterPlayers.length} players): ${rosterPlayers.join(", ")}`);
+              }
+
+              // Record and standings
+              if (userRoster.settings) {
+                const wins = userRoster.settings.wins || 0;
+                const losses = userRoster.settings.losses || 0;
+                const ties = userRoster.settings.ties || 0;
+                const fpts = userRoster.settings.fpts || 0;
+                contextParts.push(`Record: ${wins}-${losses}${ties > 0 ? `-${ties}` : ""}, Points: ${fpts}`);
+              }
+            }
+
+            // League standings summary
+            if (rosters.length > 0) {
+              const standings = rosters
+                .map((r: any) => {
+                  const owner = leagueUsers?.find((u: any) => u.user_id === r.owner_id);
+                  const w = r.settings?.wins || 0;
+                  const l = r.settings?.losses || 0;
+                  return { name: owner?.display_name || `Team ${r.roster_id}`, wins: w, losses: l, pts: r.settings?.fpts || 0 };
+                })
+                .sort((a: any, b: any) => b.wins - a.wins || b.pts - a.pts);
+              contextParts.push(`Standings: ${standings.map((s: any, i: number) => `${i + 1}. ${s.name} (${s.wins}-${s.losses})`).join(", ")}`);
+            }
+          }
+
+          if (state) {
+            contextParts.push(`Current NFL week: ${state.week || "offseason"}, Season: ${state.season || "2025"}`);
+          }
+        }
+      } catch (ctxError) {
+        // Context gathering is best-effort, don't fail the chat
+      }
+
+      // Get conversation history (last 20 messages for context window)
+      const existingMessages = await chatStorage.getMessagesByConversation(conversationId);
+      const recentMessages = existingMessages.slice(-20);
+      const chatHistory = recentMessages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+
+      const systemPrompt = `You are the DT Sleeper Agent AI Assistant — an expert dynasty fantasy football advisor. You help users with:
+- Start/sit decisions and lineup advice
+- Trade evaluations and dynasty value analysis  
+- Waiver wire recommendations
+- Roster construction and team building strategy
+- Player analysis, trends, and breakout candidates
+- Draft strategy (rookie drafts, startup drafts)
+- League strategy and playoff positioning
+- Devy (college prospect) scouting and rankings
+
+${contextParts.length > 0 ? `\nCurrent context about the user's fantasy situation:\n${contextParts.join("\n")}` : ""}
+
+Guidelines:
+- Be concise but thorough. Use bullet points for clarity.
+- When discussing trades, consider dynasty value, age, positional scarcity, and team construction.
+- For start/sit advice, consider matchups, recent performance, and usage trends.
+- Reference specific player data when available from the user's context.
+- If you don't have specific data, provide general expert advice and note any assumptions.
+- Be opinionated — give clear recommendations rather than wishy-washy answers.
+- Use fantasy football terminology naturally (PPR, FLEX, superflex, TEP, etc.).
+- Format responses with markdown for readability.`;
+
+      // Set up SSE for streaming
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...chatHistory,
+        ],
+        max_tokens: 1500,
+        temperature: 0.7,
+        stream: true,
+      });
+
+      let fullResponse = "";
+
+      for await (const chunk of stream) {
+        const content = chunk.choices?.[0]?.delta?.content;
+        if (content) {
+          fullResponse += content;
+          res.write(`data: ${JSON.stringify({ type: "content", data: content })}\n\n`);
+        }
+      }
+
+      // Save assistant message
+      await chatStorage.createMessage(conversationId, "assistant", fullResponse);
+
+      // Auto-title the conversation based on first message
+      if (recentMessages.length <= 1) {
+        const shortTitle = message.trim().slice(0, 50) + (message.length > 50 ? "..." : "");
+        await chatStorage.updateConversationTitle(conversationId, shortTitle);
+        res.write(`data: ${JSON.stringify({ type: "title", data: shortTitle })}\n\n`);
+      }
+
+      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+      res.end();
+    } catch (error) {
+      console.error("Error in AI chat:", error);
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ type: "error", data: "Failed to generate response" })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ message: "Failed to process message" });
+      }
+    }
+  });
+
   return httpServer;
 }

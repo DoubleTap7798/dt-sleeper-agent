@@ -29,6 +29,7 @@ import {
   Eye,
   Crown,
   Sparkles,
+  Bot,
 } from "lucide-react";
 import {
   Sidebar,
@@ -142,6 +143,7 @@ const navigationGroups: NavGroup[] = [
 // Standalone items (not grouped)
 const standaloneItems: NavItem[] = [
   { title: "Home", url: "/league", icon: LayoutDashboard, description: "Dashboard & actions" },
+  { title: "AI Assistant", url: "/league/ai-chat", icon: Bot, description: "AI fantasy football advisor", premium: true },
   { title: "News", url: "/league/news", icon: Newspaper, description: "Fantasy news & analysis", premium: true },
 ];
 

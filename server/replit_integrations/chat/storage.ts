@@ -1,14 +1,16 @@
 import { db } from "../../db";
 import { conversations, messages } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export interface IChatStorage {
   getConversation(id: number): Promise<typeof conversations.$inferSelect | undefined>;
   getAllConversations(): Promise<(typeof conversations.$inferSelect)[]>;
-  createConversation(title: string): Promise<typeof conversations.$inferSelect>;
+  getConversationsByUser(userId: string): Promise<(typeof conversations.$inferSelect)[]>;
+  createConversation(title: string, userId?: string): Promise<typeof conversations.$inferSelect>;
   deleteConversation(id: number): Promise<void>;
   getMessagesByConversation(conversationId: number): Promise<(typeof messages.$inferSelect)[]>;
   createMessage(conversationId: number, role: string, content: string): Promise<typeof messages.$inferSelect>;
+  updateConversationTitle(id: number, title: string): Promise<void>;
 }
 
 export const chatStorage: IChatStorage = {
@@ -21,8 +23,12 @@ export const chatStorage: IChatStorage = {
     return db.select().from(conversations).orderBy(desc(conversations.createdAt));
   },
 
-  async createConversation(title: string) {
-    const [conversation] = await db.insert(conversations).values({ title }).returning();
+  async getConversationsByUser(userId: string) {
+    return db.select().from(conversations).where(eq(conversations.userId, userId)).orderBy(desc(conversations.createdAt));
+  },
+
+  async createConversation(title: string, userId?: string) {
+    const [conversation] = await db.insert(conversations).values({ title, userId: userId || null }).returning();
     return conversation;
   },
 
@@ -39,5 +45,8 @@ export const chatStorage: IChatStorage = {
     const [message] = await db.insert(messages).values({ conversationId, role, content }).returning();
     return message;
   },
-};
 
+  async updateConversationTitle(id: number, title: string) {
+    await db.update(conversations).set({ title }).where(eq(conversations.id, id));
+  },
+};
