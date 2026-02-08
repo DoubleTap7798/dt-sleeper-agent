@@ -49,6 +49,14 @@ interface CombineData {
   handSize: number | null;
 }
 
+interface DraftScoutingReport {
+  strengths: string[];
+  weaknesses: string[];
+  nflComparison: string;
+  draftProjection: string;
+  fantasyOutlook: string;
+}
+
 interface Draft2026Player {
   id: string;
   rank: number;
@@ -64,6 +72,7 @@ interface Draft2026Player {
   combine: CombineData | null;
   intangibles: string[];
   scoutingNotes: string | null;
+  scouting: DraftScoutingReport | null;
 }
 
 interface DraftStats {
