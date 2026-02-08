@@ -6728,25 +6728,28 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       // Devy detection: Parse roster metadata for commissioner notes on placeholder players
       // In devy leagues, commissioners use kickers/retired/defense as placeholders
       // and add notes like "Husan Longstreet QB LSU" to indicate the actual devy player
+      // Only apply devy overlays when the roster actually has players on it
       const rosterMetadata = userRoster.metadata || {};
       const devyNoteMap = new Map<string, { devyName: string; devyPosition: string; devySchool: string }>();
+      const hasRosterPlayers = playerIds.length > 0;
       
-      // Check for player notes in metadata (Sleeper stores them as p_nick_<player_id> or similar keys)
-      for (const [key, noteValue] of Object.entries(rosterMetadata)) {
-        if (!noteValue || typeof noteValue !== 'string') continue;
-        
-        // Extract player ID from metadata key patterns
-        let targetPlayerId: string | null = null;
-        if (key.startsWith('p_nick_')) {
-          targetPlayerId = key.replace('p_nick_', '');
-        } else if (key.startsWith('p_note_')) {
-          targetPlayerId = key.replace('p_note_', '');
-        }
-        
-        if (targetPlayerId && noteValue.trim().length > 2) {
-          const parsed = parseDevyNote(noteValue.trim());
-          if (parsed) {
-            devyNoteMap.set(targetPlayerId, parsed);
+      if (hasRosterPlayers) {
+        for (const [key, noteValue] of Object.entries(rosterMetadata)) {
+          if (!noteValue || typeof noteValue !== 'string') continue;
+          
+          let targetPlayerId: string | null = null;
+          if (key.startsWith('p_nick_')) {
+            targetPlayerId = key.replace('p_nick_', '');
+          } else if (key.startsWith('p_note_')) {
+            targetPlayerId = key.replace('p_note_', '');
+          }
+          
+          // Only map devy notes to players actually on this roster
+          if (targetPlayerId && noteValue.trim().length > 2 && playerIds.includes(targetPlayerId)) {
+            const parsed = parseDevyNote(noteValue.trim());
+            if (parsed) {
+              devyNoteMap.set(targetPlayerId, parsed);
+            }
           }
         }
       }
@@ -6771,21 +6774,21 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         
         // Devy detection: Check if this player is a placeholder with a commissioner note
         let devyInfo: { devyName: string; devyPosition: string; devySchool: string } | null = null;
-        const playerPos = player?.position || "?";
-        const isPlaceholderPosition = ["K", "DEF"].includes(playerPos);
-        const isRetired = !player?.team && (player?.status === "Inactive" || player?.active === false);
-        
-        // Check if roster metadata has a note for this player
-        if (devyNoteMap.has(playerId)) {
-          devyInfo = devyNoteMap.get(playerId)!;
-        } else if (isPlaceholderPosition || isRetired) {
-          // Also check all metadata values that might reference this player by other patterns
-          for (const [key, val] of Object.entries(rosterMetadata)) {
-            if (key.includes(playerId) && val && typeof val === 'string') {
-              const parsed = parseDevyNote(val);
-              if (parsed) {
-                devyInfo = parsed;
-                break;
+        if (hasRosterPlayers) {
+          const playerPos = player?.position || "?";
+          const isPlaceholderPosition = ["K", "DEF"].includes(playerPos);
+          const isRetired = !player?.team && (player?.status === "Inactive" || player?.active === false);
+          
+          if (devyNoteMap.has(playerId)) {
+            devyInfo = devyNoteMap.get(playerId)!;
+          } else if (isPlaceholderPosition || isRetired) {
+            for (const [key, val] of Object.entries(rosterMetadata)) {
+              if (key.includes(playerId) && val && typeof val === 'string') {
+                const parsed = parseDevyNote(val);
+                if (parsed) {
+                  devyInfo = parsed;
+                  break;
+                }
               }
             }
           }
@@ -7493,6 +7496,12 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       if (positionCounts.WR < 5) needs.push("WR");
       if (positionCounts.TE < 2) needs.push("TE");
 
+      // Determine if league supports IDP positions based on roster_positions
+      const leagueRosterPositions = league?.roster_positions || [];
+      const IDP_ROSTER_SLOTS = ["DL", "LB", "DB", "IDP_FLEX", "EDGE", "DL1T", "DL3T", "DL5T", "ILB", "CB", "S"];
+      const IDP_POSITION_GROUPS = new Set(["EDGE", "DL", "LB", "CB", "S"]);
+      const hasIDPSlots = leagueRosterPositions.some((pos: string) => IDP_ROSTER_SLOTS.includes(pos));
+
       // Get available players (not drafted yet)
       const draftedPlayerIds = new Set(draftPicks.map(p => p.player_id));
       
@@ -7528,6 +7537,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           // Skip if already drafted or owned
           if (draftedPlayerNames.has(prospect.name.toLowerCase())) continue;
           if (ownedPlayerNames.has(prospect.name.toLowerCase())) continue;
+          
+          // Skip IDP prospects if league doesn't have IDP roster slots
+          if (!hasIDPSlots && IDP_POSITION_GROUPS.has(prospect.positionGroup)) continue;
           
           // Calculate a value score based on draft board rank (higher rank = higher value)
           // Scale: Rank 1 = ~95 value, Rank 360 = ~10 value
@@ -7605,13 +7617,22 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       availablePlayers.sort((a, b) => b.value - a.value);
 
       // Detect positional runs in last 6 picks
+      // Determine if league actually uses K/DEF roster slots
+      const hasKickerSlot = leagueRosterPositions.includes("K");
+      const hasDefSlot = leagueRosterPositions.includes("DEF");
+      
       const recentPicks = draftPicks.slice(-6);
       const positionRuns: Record<string, number> = {};
       for (const pick of recentPicks) {
         const pos = pick.metadata?.position;
-        if (pos) {
-          positionRuns[pos] = (positionRuns[pos] || 0) + 1;
-        }
+        if (!pos) continue;
+        
+        // Skip K/DEF from positional runs if league doesn't use those roster slots
+        // (they're likely devy placeholders in leagues without K/DEF slots)
+        if (pos === "K" && !hasKickerSlot) continue;
+        if (pos === "DEF" && !hasDefSlot) continue;
+        
+        positionRuns[pos] = (positionRuns[pos] || 0) + 1;
       }
 
       // Identify runs (3+ of same position in last 6)
