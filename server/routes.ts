@@ -7522,14 +7522,46 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           if (pick.metadata?.first_name && pick.metadata?.last_name) {
             draftedPlayerNames.add(`${pick.metadata.first_name} ${pick.metadata.last_name}`.toLowerCase());
           }
+          
+          // In devy leagues, K/DEF/retired players are placeholders - resolve the actual prospect name
+          // from commissioner notes on the roster that drafted the player
+          const pickPos = pick.metadata?.position || p?.position;
+          const isPlaceholder = ["K", "DEF"].includes(pickPos) || (!p?.team && p?.status === "Inactive");
+          if (isPlaceholder) {
+            const draftingRoster = rosters.find(r => r.roster_id === pick.roster_id);
+            if (draftingRoster?.metadata) {
+              for (const [key, val] of Object.entries(draftingRoster.metadata)) {
+                if (key.includes(pick.player_id) && val && typeof val === 'string') {
+                  const parsed = parseDevyNote(val);
+                  if (parsed) {
+                    draftedPlayerNames.add(parsed.devyName.toLowerCase());
+                    break;
+                  }
+                }
+              }
+            }
+          }
         }
         
-        // Also check roster players to exclude already-owned prospects
+        // Also check all roster players across all teams to exclude already-owned prospects
         const ownedPlayerNames = new Set<string>();
-        if (userRoster?.players) {
-          for (const pid of userRoster.players) {
+        for (const roster of rosters) {
+          if (!roster?.players) continue;
+          for (const pid of roster.players) {
             const p = allPlayers[pid];
             if (p?.full_name) ownedPlayerNames.add(p.full_name.toLowerCase());
+          }
+          // Also parse devy notes from all rosters to catch owned devy prospects
+          if (roster?.metadata) {
+            for (const [key, val] of Object.entries(roster.metadata)) {
+              if (!val || typeof val !== 'string') continue;
+              if (key.startsWith('p_nick_') || key.startsWith('p_note_')) {
+                const parsed = parseDevyNote(val.trim());
+                if (parsed) {
+                  ownedPlayerNames.add(parsed.devyName.toLowerCase());
+                }
+              }
+            }
           }
         }
         
