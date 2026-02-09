@@ -7919,11 +7919,22 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         
         // Build a map of drafted player names for matching (since draft board uses custom IDs)
         const draftedPlayerNames = new Set<string>();
+        const draftedLastNamePos = new Set<string>();
         for (const pick of draftPicks) {
           const p = allPlayers[pick.player_id];
-          if (p?.full_name) draftedPlayerNames.add(p.full_name.toLowerCase());
+          if (p?.full_name) {
+            draftedPlayerNames.add(p.full_name.toLowerCase());
+            const lastName = p.last_name || p.full_name.split(' ').slice(-1)[0];
+            if (lastName && p.position) {
+              draftedLastNamePos.add(`${lastName.toLowerCase()}|${p.position}`);
+            }
+          }
           if (pick.metadata?.first_name && pick.metadata?.last_name) {
             draftedPlayerNames.add(`${pick.metadata.first_name} ${pick.metadata.last_name}`.toLowerCase());
+            const pos = pick.metadata?.position || p?.position;
+            if (pos) {
+              draftedLastNamePos.add(`${pick.metadata.last_name.toLowerCase()}|${pos}`);
+            }
           }
           
           // In devy leagues, K/DEF/retired players are placeholders - resolve the actual prospect name
@@ -7938,6 +7949,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
                   const parsed = parseDevyNote(val);
                   if (parsed) {
                     draftedPlayerNames.add(parsed.devyName.toLowerCase());
+                    const devyLast = parsed.devyName.split(' ').slice(-1)[0];
+                    if (devyLast && parsed.devyPosition) {
+                      draftedLastNamePos.add(`${devyLast.toLowerCase()}|${parsed.devyPosition}`);
+                    }
                     break;
                   }
                 }
@@ -7948,13 +7963,19 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         
         // Also check all roster players across all teams to exclude already-owned prospects
         const ownedPlayerNames = new Set<string>();
+        const ownedLastNamePos = new Set<string>();
         for (const roster of rosters) {
           if (!roster?.players) continue;
           for (const pid of roster.players) {
             const p = allPlayers[pid];
-            if (p?.full_name) ownedPlayerNames.add(p.full_name.toLowerCase());
+            if (p?.full_name) {
+              ownedPlayerNames.add(p.full_name.toLowerCase());
+              const lastName = p.last_name || p.full_name.split(' ').slice(-1)[0];
+              if (lastName && p.position) {
+                ownedLastNamePos.add(`${lastName.toLowerCase()}|${p.position}`);
+              }
+            }
           }
-          // Also parse devy notes from all rosters to catch owned devy prospects
           if (roster?.metadata) {
             for (const [key, val] of Object.entries(roster.metadata)) {
               if (!val || typeof val !== 'string') continue;
@@ -7962,16 +7983,37 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
                 const parsed = parseDevyNote(val.trim());
                 if (parsed) {
                   ownedPlayerNames.add(parsed.devyName.toLowerCase());
+                  const devyLast = parsed.devyName.split(' ').slice(-1)[0];
+                  if (devyLast && parsed.devyPosition) {
+                    ownedLastNamePos.add(`${devyLast.toLowerCase()}|${parsed.devyPosition}`);
+                  }
                 }
               }
             }
           }
         }
         
+        const isProspectTaken = (prospectName: string, prospectPos: string) => {
+          const nameLower = prospectName.toLowerCase();
+          if (draftedPlayerNames.has(nameLower)) return true;
+          if (ownedPlayerNames.has(nameLower)) return true;
+          const lastName = prospectName.split(' ').slice(-1)[0]?.toLowerCase();
+          if (lastName) {
+            const posGroup = prospectPos.replace(/[0-9T]/g, '') || prospectPos;
+            const posVariants = [prospectPos, posGroup];
+            if (["WRS"].includes(prospectPos)) posVariants.push("WR");
+            if (["ILB"].includes(prospectPos)) posVariants.push("LB");
+            for (const pv of posVariants) {
+              if (draftedLastNamePos.has(`${lastName}|${pv}`)) return true;
+              if (ownedLastNamePos.has(`${lastName}|${pv}`)) return true;
+            }
+          }
+          return false;
+        };
+        
         for (const prospect of draftBoardPlayers) {
-          // Skip if already drafted or owned
-          if (draftedPlayerNames.has(prospect.name.toLowerCase())) continue;
-          if (ownedPlayerNames.has(prospect.name.toLowerCase())) continue;
+          // Skip if already drafted or owned (checks full name + last name/position fallback)
+          if (isProspectTaken(prospect.name, prospect.position)) continue;
           
           // Skip IDP prospects if league doesn't have IDP roster slots
           if (!hasIDPSlots && IDP_POSITION_GROUPS.has(prospect.positionGroup)) continue;
