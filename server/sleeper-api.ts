@@ -528,6 +528,34 @@ function calculateFantasyPointsGeneric(
   return Math.round(points * 100) / 100;
 }
 
+// Projections cache - keyed by season-week
+const projectionsCacheMap: Map<string, { data: Record<string, any>; time: number }> = new Map();
+const PROJECTIONS_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
+export async function fetchSleeperProjections(season: string, week: number): Promise<Record<string, any>> {
+  const cacheKey = `${season}-${week}`;
+  const now = Date.now();
+  const cached = projectionsCacheMap.get(cacheKey);
+
+  if (cached && now - cached.time < PROJECTIONS_CACHE_DURATION) {
+    return cached.data;
+  }
+
+  try {
+    const response = await fetch(`https://api.sleeper.app/projections/nfl/${season}/${week}?season_type=regular`);
+    if (!response.ok) {
+      console.error(`Projections API error: ${response.status}`);
+      return cached?.data || {};
+    }
+    const data = await response.json();
+    projectionsCacheMap.set(cacheKey, { data, time: now });
+    return data;
+  } catch (error) {
+    console.error("Error fetching projections:", error);
+    return cached?.data || {};
+  }
+}
+
 // Player data is large - we'll cache it in memory
 let playersCache: Record<string, any> | null = null;
 let playersCacheTime: number = 0;

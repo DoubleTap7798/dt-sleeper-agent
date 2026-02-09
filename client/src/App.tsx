@@ -25,6 +25,7 @@ import NewsFeedPage from "@/pages/news-feed";
 import PlayerTrendsPage from "@/pages/player-trends";
 import PlayerComparePage from "@/pages/player-compare";
 import LineupAdvicePage from "@/pages/lineup-advice";
+import LineupOptimizerPage from "@/pages/lineup-optimizer";
 import ProjectionsPage from "@/pages/projections";
 import HomePage from "@/pages/home";
 import RosterPage from "@/pages/roster";
@@ -37,6 +38,9 @@ import UpgradePage from "@/pages/upgrade";
 import AdminPage from "@/pages/admin";
 import AuthPage from "@/pages/auth";
 import AIChatPage from "@/pages/ai-chat";
+import PowerRankingsPage from "@/pages/power-rankings";
+import DraftPickValuePage from "@/pages/draft-pick-value";
+import LeagueTimelinePage from "@/pages/league-timeline";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -115,6 +119,13 @@ function Router() {
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
+      <Route path="/league/power-rankings">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <PowerRankingsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
       <Route path="/league/roster">
         <AuthenticatedRoute>
           <LeagueLayout>
@@ -185,6 +196,13 @@ function Router() {
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
+      <Route path="/league/timeline">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <LeagueTimelinePage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
       <Route path="/league/rivalries">
         <AuthenticatedRoute>
           <LeagueLayout>
@@ -234,6 +252,13 @@ function Router() {
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
+      <Route path="/league/lineup-optimizer">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <LineupOptimizerPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
       <Route path="/league/projections">
         <AuthenticatedRoute>
           <LeagueLayout>
@@ -259,6 +284,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <AIChatPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/draft-pick-values">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DraftPickValuePage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

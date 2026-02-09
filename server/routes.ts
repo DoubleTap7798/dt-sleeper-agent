@@ -1219,6 +1219,299 @@ ${urls}
     }
   });
 
+  // Lineup Optimizer - find optimal starting lineup (Premium)
+  app.get("/api/sleeper/lineup-optimizer/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "No Sleeper account connected" });
+      }
+
+      const [league, rosters, users, state, allPlayers] = await Promise.all([
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+
+      const currentWeek = state?.week || 1;
+      const season = league.season || state?.season || "2025";
+
+      const projections = await sleeperApi.fetchSleeperProjections(season, currentWeek);
+
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+      const userRoster = rosters.find((r) => r.owner_id === userProfile.sleeperUserId);
+
+      if (!userRoster) {
+        return res.status(404).json({ message: "Could not find your roster in this league" });
+      }
+
+      const owner = userMap.get(userRoster.owner_id);
+      const teamName = owner?.metadata?.team_name || owner?.display_name || owner?.username || "Your Team";
+      const ownerName = owner?.display_name || owner?.username || "Unknown";
+
+      const scoringType = sleeperApi.getScoringType(league.scoring_settings || {});
+      const pointsKey = scoringType === "ppr" ? "pts_ppr" : scoringType === "half_ppr" ? "pts_half_ppr" : "pts_std";
+
+      const getProjectedPoints = (playerId: string): number => {
+        const proj = projections[playerId];
+        if (!proj) return 0;
+        const stats = proj.stats || proj;
+        return stats[pointsKey] || stats.pts_ppr || stats.pts_half_ppr || stats.pts_std || 0;
+      };
+
+      const getPlayerInfo = (playerId: string) => {
+        const player = allPlayers[playerId];
+        if (!player) return { name: `Player ${playerId}`, position: "?", team: "?" };
+        return {
+          name: player.full_name || `${player.first_name || ""} ${player.last_name || ""}`.trim() || playerId,
+          position: player.position || "?",
+          team: player.team || "FA",
+        };
+      };
+
+      const rosterPositions = league.roster_positions || [];
+      const starterSlots = rosterPositions.filter((p: string) => p !== "BN");
+      const currentStarters = userRoster.starters || [];
+      const allPlayerIds = userRoster.players || [];
+      const benchPlayerIds = allPlayerIds.filter((id: string) => !currentStarters.includes(id));
+
+      const SLOT_ELIGIBILITY: Record<string, string[]> = {
+        "QB": ["QB"],
+        "RB": ["RB"],
+        "WR": ["WR"],
+        "TE": ["TE"],
+        "FLEX": ["RB", "WR", "TE"],
+        "SUPER_FLEX": ["QB", "RB", "WR", "TE"],
+        "REC_FLEX": ["WR", "TE"],
+        "K": ["K"],
+        "DEF": ["DEF"],
+        "DL": ["DL", "DE", "DT"],
+        "LB": ["LB", "ILB", "OLB"],
+        "DB": ["DB", "CB", "S", "FS", "SS"],
+        "IDP_FLEX": ["DL", "DE", "DT", "LB", "ILB", "OLB", "DB", "CB", "S", "FS", "SS"],
+      };
+
+      const isFlexSlot = (slot: string) => ["FLEX", "SUPER_FLEX", "REC_FLEX", "IDP_FLEX"].includes(slot);
+
+      const sortedSlots = [...starterSlots].sort((a: string, b: string) => {
+        const aFlex = isFlexSlot(a) ? 1 : 0;
+        const bFlex = isFlexSlot(b) ? 1 : 0;
+        return aFlex - bFlex;
+      });
+
+      const playerProjections = allPlayerIds.map((id: string) => ({
+        id,
+        ...getPlayerInfo(id),
+        projectedPoints: Math.round(getProjectedPoints(id) * 100) / 100,
+      }));
+      playerProjections.sort((a: any, b: any) => b.projectedPoints - a.projectedPoints);
+
+      const assigned = new Set<string>();
+      const optimalLineup: any[] = [];
+
+      for (const slot of sortedSlots) {
+        const eligible = SLOT_ELIGIBILITY[slot] || [slot];
+        const best = playerProjections.find(
+          (p: any) => !assigned.has(p.id) && eligible.includes(p.position)
+        );
+        if (best) {
+          assigned.add(best.id);
+          optimalLineup.push({
+            playerId: best.id,
+            name: best.name,
+            position: best.position,
+            team: best.team,
+            slot,
+            projectedPoints: best.projectedPoints,
+          });
+        } else {
+          optimalLineup.push({
+            playerId: "",
+            name: "Empty",
+            position: "",
+            team: "",
+            slot,
+            projectedPoints: 0,
+          });
+        }
+      }
+
+      const optimalPlayerIds = new Set(optimalLineup.map((p: any) => p.playerId));
+
+      const slotCounts: Record<string, number> = {};
+      const currentLineup = starterSlots.map((slot: string, index: number) => {
+        slotCounts[slot] = (slotCounts[slot] || 0) + 1;
+        const playerId = currentStarters[index] || "";
+        const info = playerId ? getPlayerInfo(playerId) : { name: "Empty", position: "", team: "" };
+        const projectedPoints = playerId ? Math.round(getProjectedPoints(playerId) * 100) / 100 : 0;
+        const isInOptimal = optimalPlayerIds.has(playerId);
+        return {
+          playerId,
+          name: info.name,
+          position: info.position,
+          team: info.team,
+          slot,
+          projectedPoints,
+          isOptimal: isInOptimal,
+        };
+      });
+
+      const optimalBenchIds = allPlayerIds.filter((id: string) => !optimalPlayerIds.has(id));
+      const benchPlayersData = optimalBenchIds.map((id: string) => {
+        const info = getPlayerInfo(id);
+        return {
+          playerId: id,
+          name: info.name,
+          position: info.position,
+          team: info.team,
+          projectedPoints: Math.round(getProjectedPoints(id) * 100) / 100,
+        };
+      }).sort((a: any, b: any) => b.projectedPoints - a.projectedPoints);
+
+      const currentProjectedTotal = Math.round(currentLineup.reduce((sum: number, p: any) => sum + p.projectedPoints, 0) * 100) / 100;
+      const optimalProjectedTotal = Math.round(optimalLineup.reduce((sum: number, p: any) => sum + p.projectedPoints, 0) * 100) / 100;
+
+      res.json({
+        currentLineup,
+        optimalLineup,
+        benchPlayers: benchPlayersData,
+        currentProjectedTotal,
+        optimalProjectedTotal,
+        pointsGained: Math.round((optimalProjectedTotal - currentProjectedTotal) * 100) / 100,
+        week: currentWeek,
+        teamName,
+        ownerName,
+      });
+    } catch (error) {
+      console.error("Error in lineup optimizer:", error);
+      res.status(500).json({ message: "Failed to optimize lineup" });
+    }
+  });
+
+  // Get power rankings for a league
+  app.get("/api/sleeper/power-rankings/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+
+      const [league, rosters, leagueUsers, state, allPlayers] = await Promise.all([
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+
+      await dynastyConsensusService.fetchAndCacheValues();
+      const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+
+      const userMap = new Map(leagueUsers.map((u) => [u.user_id, u]));
+
+      const rosterValues: number[] = [];
+      const pointsArray: number[] = [];
+
+      const teamsRaw = rosters.map((roster) => {
+        const user = userMap.get(roster.owner_id);
+        const fpts = (roster.settings.fpts || 0) + (roster.settings.fpts_decimal || 0) / 100;
+        const maxPts = (roster.settings.ppts || 0) + (roster.settings.ppts_decimal || 0) / 100;
+        const totalGames = (roster.settings.wins || 0) + (roster.settings.losses || 0) + (roster.settings.ties || 0);
+        const winPct = totalGames > 0 ? (roster.settings.wins || 0) / totalGames : 0;
+
+        let rosterValue = 0;
+        const playerIds = roster.players || [];
+        for (const pid of playerIds) {
+          const player = allPlayers[pid];
+          if (!player) continue;
+          const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
+          const position = player.position || "QB";
+          const val = dynastyConsensusService.getNormalizedValue(playerName, position, isSuperflex);
+          if (val !== null) {
+            rosterValue += val;
+          }
+        }
+
+        rosterValues.push(rosterValue);
+        pointsArray.push(fpts);
+
+        return {
+          rosterId: roster.roster_id,
+          ownerId: roster.owner_id,
+          ownerName: user?.display_name || user?.username || "Unknown",
+          avatar: sleeperApi.getAvatarUrl(user?.avatar || null),
+          teamName: user?.metadata?.team_name || user?.display_name || user?.username || "Unknown",
+          record: {
+            wins: roster.settings.wins || 0,
+            losses: roster.settings.losses || 0,
+            ties: roster.settings.ties || 0,
+          },
+          pointsFor: fpts,
+          rosterValue,
+          winPct,
+          maxPts,
+          efficiency: maxPts > 0 ? (fpts / maxPts) * 100 : 0,
+        };
+      });
+
+      const maxRosterValue = Math.max(...rosterValues, 1);
+      const maxPoints = Math.max(...pointsArray, 1);
+
+      const teams = teamsRaw.map((team) => {
+        const rosterStrengthScore = (team.rosterValue / maxRosterValue) * 100;
+        const performanceScore = (team.pointsFor / maxPoints) * 100;
+        const recordScore = team.winPct * 100;
+        const efficiencyScore = team.efficiency;
+
+        const powerScore =
+          rosterStrengthScore * 0.4 +
+          performanceScore * 0.3 +
+          recordScore * 0.2 +
+          efficiencyScore * 0.1;
+
+        let tier: string;
+        if (powerScore >= 80) tier = "Elite";
+        else if (powerScore >= 65) tier = "Contender";
+        else if (powerScore >= 50) tier = "Playoff";
+        else if (powerScore >= 35) tier = "Average";
+        else tier = "Rebuild";
+
+        return {
+          ...team,
+          rosterStrengthScore: Math.round(rosterStrengthScore * 10) / 10,
+          performanceScore: Math.round(performanceScore * 10) / 10,
+          recordScore: Math.round(recordScore * 10) / 10,
+          efficiencyScore: Math.round(efficiencyScore * 10) / 10,
+          powerScore: Math.round(powerScore * 10) / 10,
+          tier,
+          previousRank: null as number | null,
+        };
+      });
+
+      teams.sort((a, b) => b.powerScore - a.powerScore);
+
+      const result = teams.map((team, index) => ({
+        ...team,
+        rank: index + 1,
+      }));
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching power rankings:", error);
+      res.status(500).json({ message: "Failed to fetch power rankings" });
+    }
+  });
+
   // Get waiver wire players (Premium)
   app.get("/api/sleeper/waivers/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
@@ -8137,6 +8430,271 @@ Guidelines:
       } else {
         res.status(500).json({ message: "Failed to process message" });
       }
+    }
+  });
+
+  app.get("/api/draft-pick-values", isAuthenticated, (_req: Request, res: Response) => {
+    const draftPickData = {
+      rounds: [
+        {
+          round: 1,
+          picks: [
+            { pick: 1, displayName: "1.01", value: 100, hitRate: 82, eliteRate: 45, starterRate: 72, bustRate: 18, avgPPG: 16.2, notablePicks: ["Saquon Barkley '18", "Ja'Marr Chase '21", "Bijan Robinson '23"] },
+            { pick: 2, displayName: "1.02", value: 93, hitRate: 78, eliteRate: 38, starterRate: 68, bustRate: 22, avgPPG: 14.8, notablePicks: ["Jonathan Taylor '20", "Breece Hall '22"] },
+            { pick: 3, displayName: "1.03", value: 87, hitRate: 75, eliteRate: 32, starterRate: 65, bustRate: 25, avgPPG: 14.1, notablePicks: ["CeeDee Lamb '20", "Garrett Wilson '22"] },
+            { pick: 4, displayName: "1.04", value: 82, hitRate: 72, eliteRate: 28, starterRate: 62, bustRate: 28, avgPPG: 13.5, notablePicks: ["D'Andre Swift '20", "Drake London '22"] },
+            { pick: 5, displayName: "1.05", value: 77, hitRate: 68, eliteRate: 24, starterRate: 58, bustRate: 32, avgPPG: 12.8, notablePicks: ["Jaylen Waddle '21", "Jaxon Smith-Njigba '23"] },
+            { pick: 6, displayName: "1.06", value: 73, hitRate: 64, eliteRate: 20, starterRate: 54, bustRate: 36, avgPPG: 12.2, notablePicks: ["Kyle Pitts '21", "Quentin Johnston '23"] },
+            { pick: 7, displayName: "1.07", value: 68, hitRate: 58, eliteRate: 16, starterRate: 48, bustRate: 42, avgPPG: 11.5, notablePicks: ["Javonte Williams '21", "Zay Flowers '23"] },
+            { pick: 8, displayName: "1.08", value: 64, hitRate: 54, eliteRate: 14, starterRate: 44, bustRate: 46, avgPPG: 10.9, notablePicks: ["Kenneth Walker '22", "Ladd McConkey '24"] },
+            { pick: 9, displayName: "1.09", value: 60, hitRate: 50, eliteRate: 12, starterRate: 40, bustRate: 50, avgPPG: 10.3, notablePicks: ["James Cook '22", "Rome Odunze '24"] },
+            { pick: 10, displayName: "1.10", value: 56, hitRate: 46, eliteRate: 10, starterRate: 36, bustRate: 54, avgPPG: 9.7, notablePicks: ["Chris Olave '22", "Brian Thomas Jr '24"] },
+            { pick: 11, displayName: "1.11", value: 53, hitRate: 42, eliteRate: 8, starterRate: 32, bustRate: 58, avgPPG: 9.1, notablePicks: ["Skyy Moore '22", "Keon Coleman '24"] },
+            { pick: 12, displayName: "1.12", value: 50, hitRate: 38, eliteRate: 6, starterRate: 28, bustRate: 62, avgPPG: 8.5, notablePicks: ["George Pickens '22", "Adonai Mitchell '24"] },
+          ]
+        },
+        {
+          round: 2,
+          picks: [
+            { pick: 1, displayName: "2.01", value: 47, hitRate: 35, eliteRate: 5, starterRate: 25, bustRate: 65, avgPPG: 7.8, notablePicks: ["Nico Collins '21", "Tank Dell '23"] },
+            { pick: 2, displayName: "2.02", value: 44, hitRate: 32, eliteRate: 4, starterRate: 22, bustRate: 68, avgPPG: 7.4, notablePicks: ["Elijah Moore '21", "Jayden Reed '23"] },
+            { pick: 3, displayName: "2.03", value: 41, hitRate: 30, eliteRate: 4, starterRate: 20, bustRate: 70, avgPPG: 7.0, notablePicks: ["Rashod Bateman '21", "Josh Downs '23"] },
+            { pick: 4, displayName: "2.04", value: 38, hitRate: 28, eliteRate: 3, starterRate: 18, bustRate: 72, avgPPG: 6.6, notablePicks: ["Kadarius Toney '21", "Jordan Addison '23"] },
+            { pick: 5, displayName: "2.05", value: 35, hitRate: 25, eliteRate: 3, starterRate: 16, bustRate: 75, avgPPG: 6.2, notablePicks: ["Amon-Ra St. Brown '21", "Puka Nacua '23"] },
+            { pick: 6, displayName: "2.06", value: 33, hitRate: 23, eliteRate: 2, starterRate: 14, bustRate: 77, avgPPG: 5.9, notablePicks: ["Wan'Dale Robinson '22"] },
+            { pick: 7, displayName: "2.07", value: 30, hitRate: 20, eliteRate: 2, starterRate: 12, bustRate: 80, avgPPG: 5.5, notablePicks: ["Isaiah Pacheco '22"] },
+            { pick: 8, displayName: "2.08", value: 28, hitRate: 18, eliteRate: 2, starterRate: 10, bustRate: 82, avgPPG: 5.2, notablePicks: ["DeMario Douglas '23"] },
+            { pick: 9, displayName: "2.09", value: 26, hitRate: 16, eliteRate: 1, starterRate: 9, bustRate: 84, avgPPG: 4.8, notablePicks: [] },
+            { pick: 10, displayName: "2.10", value: 24, hitRate: 15, eliteRate: 1, starterRate: 8, bustRate: 85, avgPPG: 4.5, notablePicks: [] },
+            { pick: 11, displayName: "2.11", value: 22, hitRate: 14, eliteRate: 1, starterRate: 7, bustRate: 86, avgPPG: 4.2, notablePicks: [] },
+            { pick: 12, displayName: "2.12", value: 20, hitRate: 12, eliteRate: 1, starterRate: 6, bustRate: 88, avgPPG: 3.9, notablePicks: [] },
+          ]
+        },
+        {
+          round: 3,
+          picks: [
+            { pick: 1, displayName: "3.01", value: 18, hitRate: 10, eliteRate: 1, starterRate: 5, bustRate: 90, avgPPG: 3.5, notablePicks: [] },
+            { pick: 2, displayName: "3.02", value: 16, hitRate: 9, eliteRate: 0, starterRate: 5, bustRate: 91, avgPPG: 3.2, notablePicks: [] },
+            { pick: 3, displayName: "3.03", value: 15, hitRate: 8, eliteRate: 0, starterRate: 4, bustRate: 92, avgPPG: 3.0, notablePicks: [] },
+            { pick: 4, displayName: "3.04", value: 13, hitRate: 7, eliteRate: 0, starterRate: 3, bustRate: 93, avgPPG: 2.7, notablePicks: [] },
+            { pick: 5, displayName: "3.05", value: 12, hitRate: 6, eliteRate: 0, starterRate: 3, bustRate: 94, avgPPG: 2.5, notablePicks: [] },
+            { pick: 6, displayName: "3.06", value: 10, hitRate: 5, eliteRate: 0, starterRate: 2, bustRate: 95, avgPPG: 2.2, notablePicks: [] },
+            { pick: 7, displayName: "3.07", value: 9, hitRate: 5, eliteRate: 0, starterRate: 2, bustRate: 95, avgPPG: 2.0, notablePicks: [] },
+            { pick: 8, displayName: "3.08", value: 8, hitRate: 4, eliteRate: 0, starterRate: 2, bustRate: 96, avgPPG: 1.8, notablePicks: [] },
+            { pick: 9, displayName: "3.09", value: 7, hitRate: 4, eliteRate: 0, starterRate: 1, bustRate: 96, avgPPG: 1.6, notablePicks: [] },
+            { pick: 10, displayName: "3.10", value: 6, hitRate: 3, eliteRate: 0, starterRate: 1, bustRate: 97, avgPPG: 1.4, notablePicks: [] },
+            { pick: 11, displayName: "3.11", value: 5, hitRate: 3, eliteRate: 0, starterRate: 1, bustRate: 97, avgPPG: 1.2, notablePicks: [] },
+            { pick: 12, displayName: "3.12", value: 4, hitRate: 2, eliteRate: 0, starterRate: 1, bustRate: 98, avgPPG: 1.0, notablePicks: [] },
+          ]
+        },
+        {
+          round: 4,
+          picks: [
+            { pick: 1, displayName: "4.01", value: 3, hitRate: 2, eliteRate: 0, starterRate: 1, bustRate: 98, avgPPG: 0.8, notablePicks: [] },
+            { pick: 2, displayName: "4.02", value: 3, hitRate: 2, eliteRate: 0, starterRate: 1, bustRate: 98, avgPPG: 0.7, notablePicks: [] },
+            { pick: 3, displayName: "4.03", value: 2, hitRate: 1, eliteRate: 0, starterRate: 0, bustRate: 99, avgPPG: 0.5, notablePicks: [] },
+            { pick: 4, displayName: "4.04", value: 2, hitRate: 1, eliteRate: 0, starterRate: 0, bustRate: 99, avgPPG: 0.4, notablePicks: [] },
+            { pick: 5, displayName: "4.05", value: 1, hitRate: 1, eliteRate: 0, starterRate: 0, bustRate: 99, avgPPG: 0.3, notablePicks: [] },
+            { pick: 6, displayName: "4.06", value: 1, hitRate: 1, eliteRate: 0, starterRate: 0, bustRate: 99, avgPPG: 0.2, notablePicks: [] },
+          ]
+        }
+      ],
+      methodology: "Based on historical dynasty rookie draft data from 2018-2024. Hit Rate = produced fantasy-relevant seasons. Starter Rate = finished as weekly starter. Elite Rate = finished as top-5 at position. Bust Rate = failed to produce meaningful fantasy value within 2 years.",
+      lastUpdated: "2025-01-15"
+    };
+    res.json(draftPickData);
+  });
+
+  app.get("/api/sleeper/league-timeline/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+
+      const [leagueHistory, allPlayers] = await Promise.all([
+        sleeperApi.getLeagueHistory(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      if (!leagueHistory || leagueHistory.length === 0) {
+        return res.status(404).json({ message: "League not found" });
+      }
+
+      const leagueName = leagueHistory[0].name;
+
+      const seasonDataPromises = leagueHistory.map(async (h) => {
+        const [rosters, users, bracket, transactions] = await Promise.all([
+          sleeperApi.getLeagueRosters(h.leagueId),
+          sleeperApi.getLeagueUsers(h.leagueId),
+          sleeperApi.getPlayoffBracket(h.leagueId),
+          sleeperApi.getAllLeagueTransactions(h.leagueId),
+        ]);
+        return { history: h, rosters, users, bracket, transactions };
+      });
+
+      const allSeasonData = await Promise.all(seasonDataPromises);
+
+      const seasons = allSeasonData.map((sd) => {
+        const { history: h, rosters, users, bracket, transactions } = sd;
+
+        const userMap = new Map<string, sleeperApi.SleeperUser>();
+        for (const u of users) {
+          userMap.set(u.user_id, u);
+        }
+
+        const rosterOwnerMap = new Map<number, { ownerName: string; avatar: string | null; ownerId: string }>();
+        for (const r of rosters) {
+          const u = userMap.get(r.owner_id);
+          rosterOwnerMap.set(r.roster_id, {
+            ownerName: u?.metadata?.team_name || u?.display_name || u?.username || "Unknown",
+            avatar: sleeperApi.getAvatarUrl(u?.avatar || null),
+            ownerId: r.owner_id,
+          });
+        }
+
+        const events: { type: string; title: string; description: string; ownerName: string | null; avatar: string | null }[] = [];
+
+        const championRosterId = sleeperApi.findChampionFromBracket(bracket);
+        if (championRosterId) {
+          const championRoster = rosters.find(r => r.roster_id === championRosterId);
+          const owner = rosterOwnerMap.get(championRosterId);
+          if (owner && championRoster) {
+            const w = championRoster.settings.wins || 0;
+            const l = championRoster.settings.losses || 0;
+            events.push({
+              type: "championship",
+              title: `Champion: ${owner.ownerName}`,
+              description: `Won the championship with a ${w}-${l} record`,
+              ownerName: owner.ownerName,
+              avatar: owner.avatar,
+            });
+          }
+        }
+
+        let topScorer: sleeperApi.SleeperRoster | null = null;
+        let topPts = -1;
+        for (const r of rosters) {
+          const fpts = (r.settings.fpts || 0) + (r.settings.fpts_decimal || 0) / 100;
+          if (fpts > topPts) {
+            topPts = fpts;
+            topScorer = r;
+          }
+        }
+        if (topScorer && topPts > 0) {
+          const owner = rosterOwnerMap.get(topScorer.roster_id);
+          if (owner) {
+            events.push({
+              type: "top_scorer",
+              title: `Scoring Leader: ${owner.ownerName}`,
+              description: `Led the league with ${topPts.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} points`,
+              ownerName: owner.ownerName,
+              avatar: owner.avatar,
+            });
+          }
+        }
+
+        let bestRecord: sleeperApi.SleeperRoster | null = null;
+        let bestWinPct = -1;
+        for (const r of rosters) {
+          const w = r.settings.wins || 0;
+          const l = r.settings.losses || 0;
+          const t = r.settings.ties || 0;
+          const total = w + l + t;
+          const pct = total > 0 ? (w + t * 0.5) / total : 0;
+          if (pct > bestWinPct || (pct === bestWinPct && w > (bestRecord?.settings.wins || 0))) {
+            bestWinPct = pct;
+            bestRecord = r;
+          }
+        }
+        if (bestRecord) {
+          const owner = rosterOwnerMap.get(bestRecord.roster_id);
+          if (owner) {
+            const w = bestRecord.settings.wins || 0;
+            const l = bestRecord.settings.losses || 0;
+            const t = bestRecord.settings.ties || 0;
+            const recordStr = t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`;
+            if (!(championRosterId && bestRecord.roster_id === championRosterId && w === (rosters.find(r => r.roster_id === championRosterId)?.settings.wins || 0))) {
+              events.push({
+                type: "best_record",
+                title: `Best Record: ${owner.ownerName}`,
+                description: `Finished ${recordStr}`,
+                ownerName: owner.ownerName,
+                avatar: owner.avatar,
+              });
+            } else {
+              events.push({
+                type: "best_record",
+                title: `Best Record: ${owner.ownerName}`,
+                description: `Finished ${recordStr}`,
+                ownerName: owner.ownerName,
+                avatar: owner.avatar,
+              });
+            }
+          }
+        }
+
+        const trades = transactions.filter(t => t.type === "trade" && t.status === "complete");
+        const significantTrades = trades
+          .map(trade => {
+            const addCount = trade.adds ? Object.keys(trade.adds).length : 0;
+            const dropCount = trade.drops ? Object.keys(trade.drops).length : 0;
+            const pickCount = trade.draft_picks ? trade.draft_picks.length : 0;
+            const totalAssets = addCount + pickCount;
+            return { trade, totalAssets, addCount, pickCount };
+          })
+          .filter(t => t.totalAssets >= 3)
+          .sort((a, b) => b.totalAssets - a.totalAssets)
+          .slice(0, 3);
+
+        for (const { trade } of significantTrades) {
+          const rosterIds = trade.roster_ids || [];
+          const teamNames = rosterIds.map(rid => rosterOwnerMap.get(rid)?.ownerName || "Unknown");
+
+          const parts: string[] = [];
+          if (trade.adds) {
+            const addsByRoster = new Map<number, string[]>();
+            for (const [playerId, rosterId] of Object.entries(trade.adds)) {
+              if (!addsByRoster.has(rosterId)) addsByRoster.set(rosterId, []);
+              const player = allPlayers[playerId];
+              const name = player ? `${player.first_name} ${player.last_name}` : `Player ${playerId}`;
+              addsByRoster.get(rosterId)!.push(name);
+            }
+
+            addsByRoster.forEach((players, rosterId) => {
+              const teamName = rosterOwnerMap.get(rosterId)?.ownerName || "Unknown";
+              parts.push(`${teamName} received ${players.join(", ")}`);
+            });
+          }
+
+          if (trade.draft_picks && trade.draft_picks.length > 0) {
+            for (const pick of trade.draft_picks) {
+              const receiver = rosterOwnerMap.get(pick.owner_id)?.ownerName || "Unknown";
+              parts.push(`${receiver} received ${pick.season} Round ${pick.round}`);
+            }
+          }
+
+          events.push({
+            type: "trade",
+            title: "Big Trade",
+            description: parts.length > 0 ? parts.join(" | ") : `${teamNames.join(" and ")} made a trade`,
+            ownerName: null,
+            avatar: null,
+          });
+        }
+
+        return {
+          season: h.season,
+          leagueId: h.leagueId,
+          leagueName: h.name,
+          totalTeams: rosters.length,
+          events,
+        };
+      });
+
+      seasons.sort((a, b) => b.season.localeCompare(a.season));
+
+      res.json({ leagueName, seasons });
+    } catch (error) {
+      console.error("Error fetching league timeline:", error);
+      res.status(500).json({ message: "Failed to fetch league timeline" });
     }
   });
 

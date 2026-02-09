@@ -18,6 +18,8 @@ import { Trophy, TrendingUp, Users, ChevronRight, Star, Zap, Crown } from "lucid
 import type { StandingsTeam } from "@/lib/sleeper-types";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { InfoTooltip } from "@/components/metric-tooltip";
+import { ExportButton } from "@/components/export-button";
+import { formatStandingsForShare } from "@/lib/export-utils";
 
 interface StandingsData {
   standings: StandingsTeam[];
@@ -117,6 +119,22 @@ export default function LeagueStandingsPage() {
         <h2 className="text-xl font-semibold" data-testid="text-standings-title">
           Standings
         </h2>
+        <div className="ml-auto">
+          <ExportButton
+            data={standings.map((team, index) => ({
+              rank: index + 1,
+              ownerName: team.ownerName,
+              wins: team.wins,
+              losses: team.losses,
+              ties: team.ties,
+              pointsFor: team.pointsFor?.toFixed(1) ?? "0",
+              pointsAgainst: team.pointsAgainst?.toFixed(1) ?? "0",
+              playoffOdds: (team.playoffOdds ?? (100 - index * 12)).toFixed(0),
+            }))}
+            filename="league-standings"
+            shareText={formatStandingsForShare(standings)}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

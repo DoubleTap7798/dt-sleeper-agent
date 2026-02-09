@@ -52,6 +52,11 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Trophy Room**: League achievements.
 - **AI Chat Assistant**: Personal AI fantasy football advisor at `/league/ai-chat`. Conversational interface with streaming responses, conversation history, suggested prompts. Context-aware — pulls user's roster, standings, and league settings from Sleeper API. Covers trades, start/sit, waivers, dynasty strategy, draft advice, and devy scouting. Premium feature.
 - **Real-Time Notifications**: Bell icon for trades, waivers, free agent pickups.
+- **Power Rankings**: Dynamic team rankings based on composite scoring (roster strength 40%, performance 30%, record 20%, efficiency 10%). Uses dynasty consensus values for roster scoring. Tier system: Elite/Contender/Playoff/Average/Rebuild. Located at `/league/power-rankings`.
+- **Lineup Optimizer**: Mathematical best-lineup calculator using Sleeper's weekly projected points. Greedy algorithm processes fixed-position slots first, then flex. Shows current vs optimal lineup with point differential. Premium feature at `/league/lineup-optimizer`.
+- **Export Functionality**: Reusable ExportButton component (`client/src/components/export-button.tsx`) with CSV download and clipboard copy. Integrated into Power Rankings and Standings pages. Export utility functions in `client/src/lib/export-utils.ts`.
+- **Draft Pick Value Chart**: Static historical draft pick hit rates for rounds 1-4 (curated industry data). Three views: Value Chart (horizontal bars), Hit Rates (stacked probability bars), Details (full table). Free feature at `/league/draft-pick-values`.
+- **League History Timeline**: Visual timeline of key events across all linked seasons (via previous_league_id chain). Shows championships, scoring leaders, best records, and major trades per season. Free feature at `/league/timeline`.
 
 ### System Design Choices
 - **Shared Types**: Database schemas and models are shared between frontend and backend.
@@ -93,8 +98,8 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Stripe**: Payment gateway for premium subscriptions ($3.99/week).
 - **PremiumGate Component**: Wraps premium page content; shows upgrade prompt for free users.
 - **Sidebar Crown Icons**: Premium features show a small crown icon for non-subscribers.
-- **Free Features**: Dashboard, Standings, Matchups (basic), Roster, Schedule, Playoff Bracket, Trophy Room, Rivalries, League Info, NFL Players, Depth Charts.
-- **Premium Features ($3.99/week)**: Trade Calculator, Trade History, Lineup Advice, Waiver Wire, Player Trends, Player Comparison, ROS Projections, 2026 Draft Board, Devy Rankings, Fantasy News, Watchlist.
+- **Free Features**: Dashboard, Standings, Matchups (basic), Roster, Schedule, Playoff Bracket, Trophy Room, Rivalries, League Info, NFL Players, Depth Charts, Draft Pick Value Chart, League History Timeline, Power Rankings.
+- **Premium Features ($3.99/week)**: Trade Calculator, Trade History, Lineup Advice, Lineup Optimizer, Waiver Wire, Player Trends, Player Comparison, ROS Projections, 2026 Draft Board, Devy Rankings, Fantasy News, Watchlist.
 
 ### SEO
 - **Static SEO**: index.html has meta description, keywords, Open Graph tags, Twitter cards, JSON-LD structured data, canonical URL, robots meta, and pre-rendered HTML content visible to crawlers.

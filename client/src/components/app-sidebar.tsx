@@ -30,6 +30,8 @@ import {
   Crown,
   Sparkles,
   Bot,
+  Zap,
+  Clock,
 } from "lucide-react";
 import {
   Sidebar,
@@ -98,10 +100,12 @@ const navigationGroups: NavGroup[] = [
     requiresLeague: true,
     items: [
       { title: "Standings", url: "/league/standings", icon: BarChart3, requiresLeague: true },
+      { title: "Power Rankings", url: "/league/power-rankings", icon: Zap, requiresLeague: true },
       { title: "Playoff Bracket", url: "/league/bracket", icon: GitBranch, requiresLeague: true },
       { title: "Rivalries", url: "/league/rivalries", icon: Swords, requiresLeague: true },
       { title: "Trophy Room", url: "/league/trophies", icon: Trophy, requiresLeague: true },
       { title: "League Info", url: "/league/info", icon: Settings, requiresLeague: true },
+      { title: "History", url: "/league/timeline", icon: Clock, requiresLeague: true },
     ],
   },
   {
@@ -111,6 +115,7 @@ const navigationGroups: NavGroup[] = [
     items: [
       { title: "Roster", url: "/league/roster", icon: Users, requiresLeague: true },
       { title: "Lineup Advice", url: "/league/lineup", icon: Target, requiresLeague: true, premium: true },
+      { title: "Lineup Optimizer", url: "/league/lineup-optimizer", icon: Zap, requiresLeague: true, premium: true },
       { title: "Matchups", url: "/league/matchups", icon: Gamepad2, requiresLeague: true },
       { title: "Schedule", url: "/league/schedule", icon: CalendarDays, requiresLeague: true },
       { title: "Watchlist", url: "/league/watchlist", icon: Eye, premium: true },
@@ -138,6 +143,7 @@ const navigationGroups: NavGroup[] = [
     items: [
       { title: "Trade Calculator", url: "/league/trade", icon: RefreshCw, requiresLeague: true, premium: true },
       { title: "Trade History", url: "/league/history", icon: History, requiresLeague: true, premium: true },
+      { title: "Pick Values", url: "/league/draft-pick-values", icon: TrendingUp, requiresLeague: false },
     ],
   },
 ];
