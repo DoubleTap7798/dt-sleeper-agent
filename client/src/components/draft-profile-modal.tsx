@@ -187,7 +187,7 @@ export function DraftProfileModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden [&>button]:hidden"
+        className="max-w-2xl w-[95vw] h-[85vh] flex flex-col p-0 overflow-hidden [&>button]:hidden"
         data-testid="modal-draft-profile"
       >
         <DialogHeader className="p-4 pb-2 border-b shrink-0">
@@ -487,95 +487,95 @@ export function DraftProfileModal({
                         <Card>
                           <CardContent className="p-4">
                             <h3 className="font-semibold mb-3">Career Totals</h3>
-                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                               {data.collegeStats.careerTotals.games > 0 && (
                                 <div className="text-center p-2 bg-muted/50 rounded">
-                                  <div className="text-xl font-bold">{data.collegeStats.careerTotals.games}</div>
-                                  <div className="text-xs text-muted-foreground">Games</div>
+                                  <div className="text-lg font-bold">{data.collegeStats.careerTotals.games}</div>
+                                  <div className="text-[10px] text-muted-foreground">Games</div>
                                 </div>
                               )}
                               {(data.collegeStats.careerTotals.passYds ?? 0) > 0 && (
                                 <>
                                   <div className="text-center p-2 bg-muted/50 rounded">
-                                    <div className="text-xl font-bold">{data.collegeStats.careerTotals.passYds?.toLocaleString()}</div>
-                                    <div className="text-xs text-muted-foreground">Pass Yds</div>
+                                    <div className="text-lg font-bold">{data.collegeStats.careerTotals.passYds?.toLocaleString()}</div>
+                                    <div className="text-[10px] text-muted-foreground">Pass Yds</div>
                                   </div>
                                   <div className="text-center p-2 bg-muted/50 rounded">
-                                    <div className="text-xl font-bold">{data.collegeStats.careerTotals.passTd}</div>
-                                    <div className="text-xs text-muted-foreground">Pass TD</div>
+                                    <div className="text-lg font-bold">{data.collegeStats.careerTotals.passTd}</div>
+                                    <div className="text-[10px] text-muted-foreground">Pass TD</div>
                                   </div>
                                 </>
                               )}
                               {(data.collegeStats.careerTotals.rushYds ?? 0) > 0 && (
                                 <>
                                   <div className="text-center p-2 bg-muted/50 rounded">
-                                    <div className="text-xl font-bold">{data.collegeStats.careerTotals.rushYds?.toLocaleString()}</div>
-                                    <div className="text-xs text-muted-foreground">Rush Yds</div>
+                                    <div className="text-lg font-bold">{data.collegeStats.careerTotals.rushYds?.toLocaleString()}</div>
+                                    <div className="text-[10px] text-muted-foreground">Rush Yds</div>
                                   </div>
                                   <div className="text-center p-2 bg-muted/50 rounded">
-                                    <div className="text-xl font-bold">{data.collegeStats.careerTotals.rushTd}</div>
-                                    <div className="text-xs text-muted-foreground">Rush TD</div>
+                                    <div className="text-lg font-bold">{data.collegeStats.careerTotals.rushTd}</div>
+                                    <div className="text-[10px] text-muted-foreground">Rush TD</div>
                                   </div>
                                 </>
                               )}
                               {(data.collegeStats.careerTotals.recYds ?? 0) > 0 && (
                                 <>
                                   <div className="text-center p-2 bg-muted/50 rounded">
-                                    <div className="text-xl font-bold">{data.collegeStats.careerTotals.receptions}</div>
-                                    <div className="text-xs text-muted-foreground">Rec</div>
+                                    <div className="text-lg font-bold">{data.collegeStats.careerTotals.receptions}</div>
+                                    <div className="text-[10px] text-muted-foreground">Rec</div>
                                   </div>
                                   <div className="text-center p-2 bg-muted/50 rounded">
-                                    <div className="text-xl font-bold">{data.collegeStats.careerTotals.recYds?.toLocaleString()}</div>
-                                    <div className="text-xs text-muted-foreground">Rec Yds</div>
+                                    <div className="text-lg font-bold">{data.collegeStats.careerTotals.recYds?.toLocaleString()}</div>
+                                    <div className="text-[10px] text-muted-foreground">Rec Yds</div>
                                   </div>
                                   <div className="text-center p-2 bg-muted/50 rounded">
-                                    <div className="text-xl font-bold">{data.collegeStats.careerTotals.recTd}</div>
-                                    <div className="text-xs text-muted-foreground">Rec TD</div>
+                                    <div className="text-lg font-bold">{data.collegeStats.careerTotals.recTd}</div>
+                                    <div className="text-[10px] text-muted-foreground">Rec TD</div>
                                   </div>
                                 </>
                               )}
                               {(data.collegeStats.careerTotals.tackles ?? 0) > 0 && (
                                 <>
                                   <div className="text-center p-2 bg-muted/50 rounded">
-                                    <div className="text-xl font-bold">{data.collegeStats.careerTotals.tackles}</div>
-                                    <div className="text-xs text-muted-foreground">Tackles</div>
+                                    <div className="text-lg font-bold">{data.collegeStats.careerTotals.tackles}</div>
+                                    <div className="text-[10px] text-muted-foreground">Tackles</div>
                                   </div>
                                   {(data.collegeStats.careerTotals.soloTackles ?? 0) > 0 && (
                                     <div className="text-center p-2 bg-muted/50 rounded">
-                                      <div className="text-xl font-bold">{data.collegeStats.careerTotals.soloTackles}</div>
-                                      <div className="text-xs text-muted-foreground">Solo Tkl</div>
+                                      <div className="text-lg font-bold">{data.collegeStats.careerTotals.soloTackles}</div>
+                                      <div className="text-[10px] text-muted-foreground">Solo Tkl</div>
                                     </div>
                                   )}
                                 </>
                               )}
                               {(data.collegeStats.careerTotals.sacks ?? 0) > 0 && (
                                 <div className="text-center p-2 bg-muted/50 rounded">
-                                  <div className="text-xl font-bold">{data.collegeStats.careerTotals.sacks}</div>
-                                  <div className="text-xs text-muted-foreground">Sacks</div>
+                                  <div className="text-lg font-bold">{data.collegeStats.careerTotals.sacks}</div>
+                                  <div className="text-[10px] text-muted-foreground">Sacks</div>
                                 </div>
                               )}
                               {(data.collegeStats.careerTotals.tfl ?? 0) > 0 && (
                                 <div className="text-center p-2 bg-muted/50 rounded">
-                                  <div className="text-xl font-bold">{data.collegeStats.careerTotals.tfl}</div>
-                                  <div className="text-xs text-muted-foreground">TFL</div>
+                                  <div className="text-lg font-bold">{data.collegeStats.careerTotals.tfl}</div>
+                                  <div className="text-[10px] text-muted-foreground">TFL</div>
                                 </div>
                               )}
                               {(data.collegeStats.careerTotals.passInt ?? 0) > 0 && (
                                 <div className="text-center p-2 bg-muted/50 rounded">
-                                  <div className="text-xl font-bold">{data.collegeStats.careerTotals.passInt}</div>
-                                  <div className="text-xs text-muted-foreground">INT</div>
+                                  <div className="text-lg font-bold">{data.collegeStats.careerTotals.passInt}</div>
+                                  <div className="text-[10px] text-muted-foreground">INT</div>
                                 </div>
                               )}
                               {(data.collegeStats.careerTotals.passDeflect ?? 0) > 0 && (
                                 <div className="text-center p-2 bg-muted/50 rounded">
-                                  <div className="text-xl font-bold">{data.collegeStats.careerTotals.passDeflect}</div>
-                                  <div className="text-xs text-muted-foreground">PD</div>
+                                  <div className="text-lg font-bold">{data.collegeStats.careerTotals.passDeflect}</div>
+                                  <div className="text-[10px] text-muted-foreground">PD</div>
                                 </div>
                               )}
                               {(data.collegeStats.careerTotals.ff ?? 0) > 0 && (
                                 <div className="text-center p-2 bg-muted/50 rounded">
-                                  <div className="text-xl font-bold">{data.collegeStats.careerTotals.ff}</div>
-                                  <div className="text-xs text-muted-foreground">FF</div>
+                                  <div className="text-lg font-bold">{data.collegeStats.careerTotals.ff}</div>
+                                  <div className="text-[10px] text-muted-foreground">FF</div>
                                 </div>
                               )}
                             </div>
@@ -600,36 +600,36 @@ export function DraftProfileModal({
                                 const hasFF = data.collegeStats.seasons.some(s => s.stats.ff !== undefined);
 
                                 return (
-                                  <table className="w-full text-xs" data-testid="table-college-stats">
+                                  <table className="w-full text-[11px]" data-testid="table-college-stats">
                                     <thead className="border-b">
                                       <tr className="text-left text-muted-foreground">
-                                        <th className="px-1.5 py-1">Yr</th>
-                                        <th className="px-1.5 py-1">G</th>
-                                        {hasPass && <><th className="px-1.5 py-1">PaY</th><th className="px-1.5 py-1">PaT</th></>}
-                                        {hasRush && <><th className="px-1.5 py-1">RuY</th><th className="px-1.5 py-1">RuT</th></>}
-                                        {hasRec && <><th className="px-1.5 py-1">Rec</th><th className="px-1.5 py-1">ReY</th><th className="px-1.5 py-1">ReT</th></>}
-                                        {hasTackles && <><th className="px-1.5 py-1">Tkl</th><th className="px-1.5 py-1">Solo</th></>}
-                                        {hasSacks && <th className="px-1.5 py-1">Sack</th>}
-                                        {hasTfl && <th className="px-1.5 py-1">TFL</th>}
-                                        {hasPD && <th className="px-1.5 py-1">PD</th>}
-                                        {hasINT && <th className="px-1.5 py-1">INT</th>}
-                                        {hasFF && <th className="px-1.5 py-1">FF</th>}
+                                        <th className="px-1 py-1 sticky left-0 bg-card z-10">Yr</th>
+                                        <th className="px-1 py-1">G</th>
+                                        {hasPass && <><th className="px-1 py-1">PaY</th><th className="px-1 py-1">PaT</th></>}
+                                        {hasRush && <><th className="px-1 py-1">RuY</th><th className="px-1 py-1">RuT</th></>}
+                                        {hasRec && <><th className="px-1 py-1">Rec</th><th className="px-1 py-1">ReY</th><th className="px-1 py-1">ReT</th></>}
+                                        {hasTackles && <><th className="px-1 py-1">Tkl</th><th className="px-1 py-1">Solo</th></>}
+                                        {hasSacks && <th className="px-1 py-1">Sack</th>}
+                                        {hasTfl && <th className="px-1 py-1">TFL</th>}
+                                        {hasPD && <th className="px-1 py-1">PD</th>}
+                                        {hasINT && <th className="px-1 py-1">INT</th>}
+                                        {hasFF && <th className="px-1 py-1">FF</th>}
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {data.collegeStats.seasons.map((season, i) => (
                                         <tr key={i} className={i % 2 === 0 ? "bg-muted/30" : ""}>
-                                          <td className="px-1.5 py-1 font-medium">{season.year}</td>
-                                          <td className="px-1.5 py-1">{season.games}</td>
-                                          {hasPass && <><td className="px-1.5 py-1">{season.stats.passYds ?? "-"}</td><td className="px-1.5 py-1">{season.stats.passTd ?? "-"}</td></>}
-                                          {hasRush && <><td className="px-1.5 py-1">{season.stats.rushYds ?? "-"}</td><td className="px-1.5 py-1">{season.stats.rushTd ?? "-"}</td></>}
-                                          {hasRec && <><td className="px-1.5 py-1">{season.stats.receptions ?? "-"}</td><td className="px-1.5 py-1">{season.stats.recYds ?? "-"}</td><td className="px-1.5 py-1">{season.stats.recTd ?? "-"}</td></>}
-                                          {hasTackles && <><td className="px-1.5 py-1">{season.stats.tackles ?? "-"}</td><td className="px-1.5 py-1">{season.stats.soloTackles ?? "-"}</td></>}
-                                          {hasSacks && <td className="px-1.5 py-1">{season.stats.sacks ?? "-"}</td>}
-                                          {hasTfl && <td className="px-1.5 py-1">{season.stats.tfl ?? "-"}</td>}
-                                          {hasPD && <td className="px-1.5 py-1">{season.stats.passDeflect ?? "-"}</td>}
-                                          {hasINT && <td className="px-1.5 py-1">{season.stats.passInt ?? "-"}</td>}
-                                          {hasFF && <td className="px-1.5 py-1">{season.stats.ff ?? "-"}</td>}
+                                          <td className="px-1 py-1 font-medium sticky left-0 bg-inherit z-10">{season.year}</td>
+                                          <td className="px-1 py-1">{season.games}</td>
+                                          {hasPass && <><td className="px-1 py-1">{season.stats.passYds ?? "-"}</td><td className="px-1 py-1">{season.stats.passTd ?? "-"}</td></>}
+                                          {hasRush && <><td className="px-1 py-1">{season.stats.rushYds ?? "-"}</td><td className="px-1 py-1">{season.stats.rushTd ?? "-"}</td></>}
+                                          {hasRec && <><td className="px-1 py-1">{season.stats.receptions ?? "-"}</td><td className="px-1 py-1">{season.stats.recYds ?? "-"}</td><td className="px-1 py-1">{season.stats.recTd ?? "-"}</td></>}
+                                          {hasTackles && <><td className="px-1 py-1">{season.stats.tackles ?? "-"}</td><td className="px-1 py-1">{season.stats.soloTackles ?? "-"}</td></>}
+                                          {hasSacks && <td className="px-1 py-1">{season.stats.sacks ?? "-"}</td>}
+                                          {hasTfl && <td className="px-1 py-1">{season.stats.tfl ?? "-"}</td>}
+                                          {hasPD && <td className="px-1 py-1">{season.stats.passDeflect ?? "-"}</td>}
+                                          {hasINT && <td className="px-1 py-1">{season.stats.passInt ?? "-"}</td>}
+                                          {hasFF && <td className="px-1 py-1">{season.stats.ff ?? "-"}</td>}
                                         </tr>
                                       ))}
                                     </tbody>

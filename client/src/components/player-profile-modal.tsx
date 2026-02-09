@@ -322,7 +322,7 @@ export function PlayerProfileModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden" data-testid="player-profile-modal">
+      <DialogContent className="max-w-2xl w-[95vw] max-h-[85vh] overflow-hidden" data-testid="player-profile-modal">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <Avatar className="h-12 w-12 shrink-0">
@@ -513,34 +513,36 @@ function StatsTab({
       {seasonStats.length > 0 ? (
         <Card className="p-3">
           <h4 className="font-semibold mb-2 text-sm">Season History</h4>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-11 text-xs px-1.5">Yr</TableHead>
-                <TableHead className="w-9 text-xs px-1.5">Tm</TableHead>
-                <TableHead className="w-7 text-xs px-1.5">G</TableHead>
-                {statsToShow.slice(0, 4).map(stat => (
-                  <TableHead key={stat} className="text-right text-xs px-1.5">
-                    {getStatLabel(position, stat, true)}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {seasonStats.slice(0, 10).map((season, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium text-xs px-1.5">{season.season}</TableCell>
-                  <TableCell className="text-xs px-1.5">{season.team}</TableCell>
-                  <TableCell className="text-xs px-1.5">{season.games}</TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-11 text-xs px-1">Yr</TableHead>
+                  <TableHead className="w-9 text-xs px-1">Tm</TableHead>
+                  <TableHead className="w-7 text-xs px-1">G</TableHead>
                   {statsToShow.slice(0, 4).map(stat => (
-                    <TableCell key={stat} className="text-right text-xs px-1.5">
-                      {formatStatValue(season.stats[stat] ?? "-")}
-                    </TableCell>
+                    <TableHead key={stat} className="text-right text-xs px-1">
+                      {getStatLabel(position, stat, true)}
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {seasonStats.slice(0, 10).map((season, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="font-medium text-xs px-1">{season.season}</TableCell>
+                    <TableCell className="text-xs px-1">{season.team}</TableCell>
+                    <TableCell className="text-xs px-1">{season.games}</TableCell>
+                    {statsToShow.slice(0, 4).map(stat => (
+                      <TableCell key={stat} className="text-right text-xs px-1">
+                        {formatStatValue(season.stats[stat] ?? "-")}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
           <StatLegend position={position} stats={statsToShow.slice(0, 4)} />
         </Card>
       ) : !careerStats && (
@@ -602,39 +604,41 @@ function GameLogsTab({ gameLogs, position }: { gameLogs: GameLog[]; position: st
         </div>
       )}
       
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-7 text-xs px-1.5">Wk</TableHead>
-            <TableHead className="w-11 text-xs px-1.5">Opp</TableHead>
-            <TableHead className="w-6 text-xs px-1.5">W/L</TableHead>
-            {statsToShow.map(stat => (
-              <TableHead key={stat} className="text-right text-xs px-1.5">
-                {getStatLabel(position, stat, true)}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredGameLogs.map((game, i) => (
-            <TableRow key={i}>
-              <TableCell className="font-medium text-xs px-1.5">{game.week}</TableCell>
-              <TableCell className="text-xs px-1.5">
-                <span className="text-muted-foreground mr-0.5">
-                  {game.homeAway === "away" ? "@" : ""}
-                </span>
-                {game.opponent}
-              </TableCell>
-              <TableCell className="text-xs px-1.5">{game.result?.charAt(0) || "-"}</TableCell>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-7 text-xs px-1">Wk</TableHead>
+              <TableHead className="w-11 text-xs px-1">Opp</TableHead>
+              <TableHead className="w-6 text-xs px-1">W/L</TableHead>
               {statsToShow.map(stat => (
-                <TableCell key={stat} className="text-right text-xs px-1.5">
-                  {formatStatValue(game.stats[stat] ?? "-")}
-                </TableCell>
+                <TableHead key={stat} className="text-right text-xs px-1">
+                  {getStatLabel(position, stat, true)}
+                </TableHead>
               ))}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {filteredGameLogs.map((game, i) => (
+              <TableRow key={i}>
+                <TableCell className="font-medium text-xs px-1">{game.week}</TableCell>
+                <TableCell className="text-xs px-1">
+                  <span className="text-muted-foreground mr-0.5">
+                    {game.homeAway === "away" ? "@" : ""}
+                  </span>
+                  {game.opponent}
+                </TableCell>
+                <TableCell className="text-xs px-1">{game.result?.charAt(0) || "-"}</TableCell>
+                {statsToShow.map(stat => (
+                  <TableCell key={stat} className="text-right text-xs px-1">
+                    {formatStatValue(game.stats[stat] ?? "-")}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
       <StatLegend position={position} stats={statsToShow} />
       
       {filteredGameLogs.length === 0 && selectedSeason && (

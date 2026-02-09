@@ -197,7 +197,7 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden [&>button]:hidden" data-testid="modal-devy-profile">
+      <DialogContent className="max-w-2xl w-[95vw] h-[85vh] flex flex-col p-0 overflow-hidden [&>button]:hidden" data-testid="modal-devy-profile">
         <DialogHeader className="p-4 pb-2 border-b shrink-0">
           <div className="flex items-start justify-between gap-2 pr-8">
             <div className="flex items-start gap-3">
@@ -478,50 +478,50 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                     <Card>
                       <CardContent className="p-4">
                         <h3 className="font-semibold mb-3">Career Totals</h3>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                           {data.collegeStats.careerTotals.games > 0 && (
                             <div className="text-center p-2 bg-muted/50 rounded">
-                              <div className="text-xl font-bold">{data.collegeStats.careerTotals.games}</div>
-                              <div className="text-xs text-muted-foreground">Games</div>
+                              <div className="text-lg font-bold">{data.collegeStats.careerTotals.games}</div>
+                              <div className="text-[10px] text-muted-foreground">Games</div>
                             </div>
                           )}
                           {(data.collegeStats.careerTotals.passYds ?? 0) > 0 && (
                             <>
                               <div className="text-center p-2 bg-muted/50 rounded">
-                                <div className="text-xl font-bold">{data.collegeStats.careerTotals.passYds?.toLocaleString()}</div>
-                                <div className="text-xs text-muted-foreground">Pass Yds</div>
+                                <div className="text-lg font-bold">{data.collegeStats.careerTotals.passYds?.toLocaleString()}</div>
+                                <div className="text-[10px] text-muted-foreground">Pass Yds</div>
                               </div>
                               <div className="text-center p-2 bg-muted/50 rounded">
-                                <div className="text-xl font-bold">{data.collegeStats.careerTotals.passTd}</div>
-                                <div className="text-xs text-muted-foreground">Pass TD</div>
+                                <div className="text-lg font-bold">{data.collegeStats.careerTotals.passTd}</div>
+                                <div className="text-[10px] text-muted-foreground">Pass TD</div>
                               </div>
                             </>
                           )}
                           {(data.collegeStats.careerTotals.rushYds ?? 0) > 0 && (
                             <>
                               <div className="text-center p-2 bg-muted/50 rounded">
-                                <div className="text-xl font-bold">{data.collegeStats.careerTotals.rushYds?.toLocaleString()}</div>
-                                <div className="text-xs text-muted-foreground">Rush Yds</div>
+                                <div className="text-lg font-bold">{data.collegeStats.careerTotals.rushYds?.toLocaleString()}</div>
+                                <div className="text-[10px] text-muted-foreground">Rush Yds</div>
                               </div>
                               <div className="text-center p-2 bg-muted/50 rounded">
-                                <div className="text-xl font-bold">{data.collegeStats.careerTotals.rushTd}</div>
-                                <div className="text-xs text-muted-foreground">Rush TD</div>
+                                <div className="text-lg font-bold">{data.collegeStats.careerTotals.rushTd}</div>
+                                <div className="text-[10px] text-muted-foreground">Rush TD</div>
                               </div>
                             </>
                           )}
                           {(data.collegeStats.careerTotals.recYds ?? 0) > 0 && (
                             <>
                               <div className="text-center p-2 bg-muted/50 rounded">
-                                <div className="text-xl font-bold">{data.collegeStats.careerTotals.receptions}</div>
-                                <div className="text-xs text-muted-foreground">Rec</div>
+                                <div className="text-lg font-bold">{data.collegeStats.careerTotals.receptions}</div>
+                                <div className="text-[10px] text-muted-foreground">Rec</div>
                               </div>
                               <div className="text-center p-2 bg-muted/50 rounded">
-                                <div className="text-xl font-bold">{data.collegeStats.careerTotals.recYds?.toLocaleString()}</div>
-                                <div className="text-xs text-muted-foreground">Rec Yds</div>
+                                <div className="text-lg font-bold">{data.collegeStats.careerTotals.recYds?.toLocaleString()}</div>
+                                <div className="text-[10px] text-muted-foreground">Rec Yds</div>
                               </div>
                               <div className="text-center p-2 bg-muted/50 rounded">
-                                <div className="text-xl font-bold">{data.collegeStats.careerTotals.recTd}</div>
-                                <div className="text-xs text-muted-foreground">Rec TD</div>
+                                <div className="text-lg font-bold">{data.collegeStats.careerTotals.recTd}</div>
+                                <div className="text-[10px] text-muted-foreground">Rec TD</div>
                               </div>
                             </>
                           )}
@@ -534,7 +534,8 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                     <Card>
                       <CardContent className="p-3">
                         <h3 className="font-semibold mb-2 text-sm">Season History</h3>
-                          <table className="w-full text-xs">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-[11px]">
                             <thead className="border-b">
                               <tr className="text-left text-muted-foreground">
                                 <th className="px-1.5 py-1">Yr</th>
@@ -588,7 +589,8 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                               ))}
                             </tbody>
                           </table>
-                          <div className="mt-2 text-[10px] text-muted-foreground flex flex-wrap gap-x-2">
+                        </div>
+                        <div className="mt-2 text-[10px] text-muted-foreground flex flex-wrap gap-x-2">
                             {player.position === "QB" ? (
                               <>
                                 <span><span className="font-medium">PaY</span>=Pass Yds</span>
@@ -607,7 +609,7 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                                 <span><span className="font-medium">ReT</span>=Rec TD</span>
                               </>
                             )}
-                          </div>
+                        </div>
                       </CardContent>
                     </Card>
                   )}
