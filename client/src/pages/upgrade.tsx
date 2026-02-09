@@ -264,29 +264,29 @@ export default function UpgradePage() {
         </p>
       </div>
 
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Crown className="w-5 h-5 text-primary" />
+            Premium Features
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="grid sm:grid-cols-2 gap-3">
+            {PREMIUM_FEATURES.map((feature, i) => (
+              <li key={i} className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <feature.icon className="w-4 h-4 text-primary" />
+                </div>
+                <span className="text-sm">{feature.text}</span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Crown className="w-5 h-5 text-primary" />
-              Premium Features
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {PREMIUM_FEATURES.map((feature, i) => (
-                <li key={i} className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <feature.icon className="w-4 h-4 text-primary" />
-                  </div>
-                  <span className="text-sm">{feature.text}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card className="border-primary/50">
           <CardHeader>
             <CardTitle>Weekly Plan</CardTitle>
             <CardDescription>3-day free trial, then $3.99/week</CardDescription>
@@ -313,25 +313,70 @@ export default function UpgradePage() {
               </li>
             </ul>
 
-            <div className="space-y-3 pt-2" data-testid="stripe-buy-button-container">
+            <div className="space-y-3 pt-2" data-testid="stripe-buy-button-weekly">
               <Button
                 className="w-full"
                 size="lg"
                 onClick={() => window.open('https://buy.stripe.com/3cIbIT1Oj8kH8lX4AA3ZK00', '_blank')}
-                data-testid="button-subscribe"
+                data-testid="button-subscribe-weekly"
               >
                 <CreditCard className="w-4 h-4 mr-2" />
                 Start Free Trial
               </Button>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="mt-4 rounded-md bg-muted/50 p-3">
-              <p className="text-xs text-muted-foreground text-center">
-                After payment, your premium access will be activated within 1 hour. If you need immediate access, reach out and we'll get you set up right away.
-              </p>
+        <Card className="border-primary/50 relative overflow-visible">
+          <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+            <Badge variant="default" className="bg-primary text-primary-foreground">Best Value</Badge>
+          </div>
+          <CardHeader>
+            <CardTitle>Monthly Plan</CardTitle>
+            <CardDescription>7-day free trial, then $9.99/month</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-center py-4">
+              <span className="text-4xl font-bold">$9.99</span>
+              <span className="text-muted-foreground">/month</span>
+              <p className="text-sm text-primary font-medium mt-1">7-day free trial</p>
+              <p className="text-xs text-muted-foreground mt-1">Save ~40% vs weekly</p>
+            </div>
+            
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-primary" />
+                7-day free trial to start
+              </li>
+              <li className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-primary" />
+                All premium features included
+              </li>
+              <li className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-primary" />
+                Cancel anytime
+              </li>
+            </ul>
+
+            <div className="space-y-3 pt-2" data-testid="stripe-buy-button-monthly">
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={() => window.open('https://buy.stripe.com/6oU6ozcsXcAXeKl5EE3ZK01', '_blank')}
+                data-testid="button-subscribe-monthly"
+              >
+                <CreditCard className="w-4 h-4 mr-2" />
+                Start Free Trial
+              </Button>
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-6 rounded-md bg-muted/50 p-3 max-w-md mx-auto">
+        <p className="text-xs text-muted-foreground text-center">
+          After payment, your premium access will be activated within 1 hour. If you need immediate access, reach out and we'll get you set up right away.
+        </p>
       </div>
 
       <p className="text-center text-xs text-muted-foreground mt-8">
