@@ -16,6 +16,7 @@ interface LineupPlayer {
   slot: string;
   projectedPoints: number;
   isOptimal?: boolean;
+  isDevyPlaceholder?: boolean;
 }
 
 interface BenchPlayer {
@@ -154,28 +155,38 @@ function LineupOptimizerContent({
                   <div
                     key={`current-${index}`}
                     className={`flex items-center gap-2 px-4 py-2 ${
-                      player.isOptimal
-                        ? "bg-green-500/5"
-                        : "bg-destructive/5"
+                      player.isDevyPlaceholder
+                        ? "bg-purple-500/5 opacity-60"
+                        : player.isOptimal
+                          ? "bg-green-500/5"
+                          : "bg-destructive/5"
                     }`}
                     data-testid={`row-current-${index}`}
                   >
                     <span className="w-10 text-xs font-medium text-muted-foreground shrink-0">
                       {slotLabel}
                     </span>
-                    <Badge variant="outline" className={`shrink-0 ${getPositionColorClass(player.position)}`}>
-                      {player.position}
-                    </Badge>
-                    <span className="font-medium text-sm truncate flex-1" data-testid={`text-current-player-${index}`}>
+                    {player.isDevyPlaceholder ? (
+                      <Badge variant="outline" className="shrink-0 border-purple-500/50 text-purple-400 text-[10px]">
+                        DEV
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className={`shrink-0 ${getPositionColorClass(player.position)}`}>
+                        {player.position}
+                      </Badge>
+                    )}
+                    <span className={`font-medium text-sm truncate flex-1 ${player.isDevyPlaceholder ? "italic text-purple-300" : ""}`} data-testid={`text-current-player-${index}`}>
                       <span className="sm:hidden">{abbreviateName(player.name)}</span>
                       <span className="hidden sm:inline">{player.name}</span>
                     </span>
-                    <span className="text-xs text-muted-foreground shrink-0">{player.team}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">{player.isDevyPlaceholder ? "" : player.team}</span>
                     <span className="text-sm font-semibold w-12 text-right shrink-0" data-testid={`text-current-pts-${index}`}>
-                      {player.projectedPoints.toFixed(1)}
+                      {player.isDevyPlaceholder ? "--" : player.projectedPoints.toFixed(1)}
                     </span>
                     <span className="w-5 shrink-0 flex justify-center">
-                      {player.isOptimal ? (
+                      {player.isDevyPlaceholder ? (
+                        <span className="text-[10px] text-purple-400">DEVY</span>
+                      ) : player.isOptimal ? (
                         <CheckCircle className="h-4 w-4 text-green-500" />
                       ) : (
                         <AlertTriangle className="h-4 w-4 text-destructive" />

@@ -201,6 +201,19 @@ function RosterContent({ leagueId }: { leagueId: string }) {
     if (player.devyPlayerData) {
       setDevyModalPlayer(player.devyPlayerData);
       setDevyModalOpen(true);
+    } else if (player.devyInfo) {
+      setDevyModalPlayer({
+        playerId: player.playerId,
+        name: player.devyInfo.devyName,
+        position: player.devyInfo.devyPosition,
+        college: player.devyInfo.devySchool,
+        tier: "Unknown",
+        value: 0,
+        rank: 0,
+        draftEligibleYear: "",
+        isUnmatched: true,
+      });
+      setDevyModalOpen(true);
     }
   };
 
@@ -253,19 +266,13 @@ function RosterContent({ leagueId }: { leagueId: string }) {
               </div>
               {isDevy ? (
                 <div className="flex items-center gap-1 flex-wrap" data-testid={`text-team-${player.playerId}`}>
-                  {player.devyPlayerData ? (
-                    <span
-                      className="text-xs text-purple-400 font-medium underline decoration-purple-400/40 cursor-pointer"
-                      onClick={(e) => handleDevyClick(e, player)}
-                      data-testid={`link-devy-${player.playerId}`}
-                    >
-                      {player.devyInfo!.devyName}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-purple-400 font-medium">
-                      {player.devyInfo!.devyName}
-                    </span>
-                  )}
+                  <span
+                    className="text-xs text-purple-400 font-medium underline decoration-purple-400/40 cursor-pointer"
+                    onClick={(e) => handleDevyClick(e, player)}
+                    data-testid={`link-devy-${player.playerId}`}
+                  >
+                    {player.devyInfo!.devyName}
+                  </span>
                   <span className="text-xs text-muted-foreground/60">
                     {player.devyInfo!.devySchool}
                   </span>

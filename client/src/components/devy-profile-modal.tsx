@@ -158,42 +158,111 @@ interface DevyProfileModalProps {
     playerId: string;
     name: string;
     position: string;
-    positionRank: number;
+    positionRank?: number;
     college: string;
-    draftEligibleYear: number;
-    tier: number;
-    value: number;
-    trend7Day: number;
-    trend30Day: number;
-    seasonChange: number;
-    rank: number;
-    starterPct: number;
-    elitePct: number;
-    bustPct: number;
-    top10Pct: number;
-    round1Pct: number;
-    round2PlusPct: number;
-    pickEquivalent: string;
-    pickMultiplier: number;
-    dominatorRating: number;
-    yardShare: number;
-    tdShare: number;
-    breakoutAge: number | null;
-    comps: DevyComp[];
-    depthRole: string;
-    pathContext: string;
-    ageClass: "young-breakout" | "normal" | "old-producer";
+    draftEligibleYear?: number | string;
+    tier?: number | string;
+    value?: number;
+    trend7Day?: number;
+    trend30Day?: number;
+    seasonChange?: number;
+    rank?: number;
+    starterPct?: number;
+    elitePct?: number;
+    bustPct?: number;
+    top10Pct?: number;
+    round1Pct?: number;
+    round2PlusPct?: number;
+    pickEquivalent?: string;
+    pickMultiplier?: number;
+    dominatorRating?: number;
+    yardShare?: number;
+    tdShare?: number;
+    breakoutAge?: number | null;
+    comps?: DevyComp[];
+    depthRole?: string;
+    pathContext?: string;
+    ageClass?: "young-breakout" | "normal" | "old-producer";
+    isUnmatched?: boolean;
   } | null;
 }
 
 export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModalProps) {
+  const isUnmatched = player?.isUnmatched === true;
   const { data, isLoading, error } = useQuery<DevyProfileData>({
     queryKey: [`/api/sleeper/devy/${player?.playerId}/profile`],
-    enabled: !!player?.playerId && open,
+    enabled: !!player?.playerId && open && !isUnmatched,
     staleTime: 1000 * 60 * 10,
   });
 
   if (!player) return null;
+
+  if (isUnmatched) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md w-[95vw] flex flex-col p-0 overflow-hidden [&>button]:hidden" data-testid="modal-devy-profile-unmatched">
+          <DialogHeader className="p-4 pb-3 border-b shrink-0">
+            <div className="flex items-start justify-between gap-2 pr-8">
+              <div className="flex items-start gap-3">
+                <Avatar className="h-14 w-14 shrink-0">
+                  <AvatarFallback className="text-lg bg-purple-500/20 text-purple-400">
+                    {player.college && player.college !== "Unknown" ? player.college.slice(0, 2) : "DV"}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <DialogTitle className="text-xl" data-testid="text-player-name">
+                    {player.name}
+                  </DialogTitle>
+                  <DialogDescription asChild>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {player.position && player.position !== "?" && (
+                        <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid="badge-position">
+                          {player.position}
+                        </Badge>
+                      )}
+                      {player.college && player.college !== "Unknown" && (
+                        <Badge variant="outline" data-testid="badge-college">
+                          <GraduationCap className="h-3 w-3 mr-1" />
+                          {player.college}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/30">
+                        DEVY
+                      </Badge>
+                    </div>
+                  </DialogDescription>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => onOpenChange(false)}
+                data-testid="button-close-modal"
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="p-6 text-center text-muted-foreground space-y-3">
+            <User className="h-12 w-12 mx-auto opacity-40" />
+            <p className="text-sm">
+              This prospect is not yet in our curated devy database. Detailed analytics, scouting notes, and projections will be available once they are added to the system.
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center text-xs">
+              {player.position && player.position !== "?" && (
+                <span>Position: <span className="font-medium text-foreground">{player.position}</span></span>
+              )}
+              {player.college && player.college !== "Unknown" && (
+                <span>School: <span className="font-medium text-foreground">{player.college}</span></span>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -217,26 +286,30 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                 <DialogDescription asChild>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid="badge-position">
-                      {player.position}{player.positionRank}
+                      {player.position}{player.positionRank ?? ""}
                     </Badge>
                     <Badge variant="outline" data-testid="badge-college">
                       <GraduationCap className="h-3 w-3 mr-1" />
                       {player.college}
                     </Badge>
-                    <Badge variant="outline" data-testid="badge-draft-year">
-                      {player.draftEligibleYear} Draft
-                    </Badge>
+                    {player.draftEligibleYear && (
+                      <Badge variant="outline" data-testid="badge-draft-year">
+                        {player.draftEligibleYear} Draft
+                      </Badge>
+                    )}
                   </div>
                 </DialogDescription>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="text-right shrink-0">
-                <div className="text-lg font-bold" data-testid="text-rank">
-                  #{player.rank}
+              {player.rank != null && player.rank > 0 && (
+                <div className="text-right shrink-0">
+                  <div className="text-lg font-bold" data-testid="text-rank">
+                    #{player.rank}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Overall</div>
                 </div>
-                <div className="text-xs text-muted-foreground">Overall</div>
-              </div>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -252,29 +325,29 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
 
           <div className="grid grid-cols-5 gap-2 mt-3">
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-pick-value">
-              <div className="text-lg font-bold text-primary">{player.pickMultiplier.toFixed(1)}x</div>
+              <div className="text-lg font-bold text-primary">{(player.pickMultiplier ?? 0).toFixed(1)}x</div>
               <div className="text-xs text-muted-foreground">Pick Value</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-elite">
-              <div className="text-lg font-bold text-green-500">{player.elitePct}%</div>
+              <div className="text-lg font-bold text-green-500">{player.elitePct ?? 0}%</div>
               <div className="text-xs text-muted-foreground">Elite %</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-bust">
-              <div className="text-lg font-bold text-red-500">{player.bustPct}%</div>
+              <div className="text-lg font-bold text-red-500">{player.bustPct ?? 0}%</div>
               <div className="text-xs text-muted-foreground">Bust %</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-round1">
-              <div className="text-lg font-bold">{player.round1Pct}%</div>
+              <div className="text-lg font-bold">{player.round1Pct ?? 0}%</div>
               <div className="text-xs text-muted-foreground">Round 1</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-trend">
               <div className="text-lg font-bold flex items-center justify-center gap-1">
-                {player.trend30Day > 0 ? (
+                {(player.trend30Day ?? 0) > 0 ? (
                   <>
                     <TrendingUp className="h-3 w-3 text-green-500" />
                     <span className="text-green-500">+{player.trend30Day}</span>
                   </>
-                ) : player.trend30Day < 0 ? (
+                ) : (player.trend30Day ?? 0) < 0 ? (
                   <>
                     <TrendingDown className="h-3 w-3 text-red-500" />
                     <span className="text-red-500">{player.trend30Day}</span>
@@ -293,15 +366,15 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               <div className="text-xs text-muted-foreground mb-1">Market Share</div>
               <div className="grid grid-cols-3 gap-1 text-xs">
                 <div>
-                  <span className="font-medium">{player.dominatorRating}%</span>
+                  <span className="font-medium">{player.dominatorRating ?? 0}%</span>
                   <span className="text-muted-foreground ml-0.5">Dom</span>
                 </div>
                 <div>
-                  <span className="font-medium">{player.yardShare}%</span>
+                  <span className="font-medium">{player.yardShare ?? 0}%</span>
                   <span className="text-muted-foreground ml-0.5">Yds</span>
                 </div>
                 <div>
-                  <span className="font-medium">{player.tdShare}%</span>
+                  <span className="font-medium">{player.tdShare ?? 0}%</span>
                   <span className="text-muted-foreground ml-0.5">TDs</span>
                 </div>
               </div>
@@ -316,8 +389,8 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
             </div>
             <div className="p-2 bg-muted/50 rounded">
               <div className="text-xs text-muted-foreground mb-1">Path to Production</div>
-              <div className="text-sm font-medium">{player.depthRole}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{player.pathContext}</div>
+              <div className="text-sm font-medium">{player.depthRole ?? "Unknown"}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{player.pathContext ?? ""}</div>
             </div>
           </div>
 

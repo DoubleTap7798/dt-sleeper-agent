@@ -1284,6 +1284,48 @@ ${urls}
       const allPlayerIds = userRoster.players || [];
       const benchPlayerIds = allPlayerIds.filter((id: string) => !currentStarters.includes(id));
 
+      const hasKickerSlot = rosterPositions.includes("K");
+      const hasDefSlot = rosterPositions.includes("DEF");
+      const idpPositions = ["DL", "LB", "DB", "IDP_FLEX"];
+      const isIDPLeague = rosterPositions.some((p: string) => idpPositions.includes(p));
+      const devyNoteMap = new Map<string, { devyName: string; devyPosition: string; devySchool: string }>();
+
+      for (const roster of rosters) {
+        const meta = roster.metadata || {};
+        for (const [key, noteValue] of Object.entries(meta)) {
+          if (!noteValue || typeof noteValue !== 'string') continue;
+          let targetPlayerId: string | null = null;
+          if (key.startsWith('p_nick_')) {
+            targetPlayerId = key.replace('p_nick_', '');
+          } else if (key.startsWith('p_note_')) {
+            targetPlayerId = key.replace('p_note_', '');
+          }
+          if (targetPlayerId && noteValue.trim().length >= 2 && allPlayerIds.includes(targetPlayerId)) {
+            const parsed = parseDevyNote(noteValue.trim());
+            if (parsed && !devyNoteMap.has(targetPlayerId)) {
+              devyNoteMap.set(targetPlayerId, parsed);
+            }
+          }
+        }
+      }
+
+      const isDevyPlaceholder = (playerId: string): boolean => {
+        if (devyNoteMap.has(playerId)) return true;
+        const player = allPlayers[playerId];
+        if (!player) return false;
+        const playerPos = player.position || "?";
+        const isKicker = playerPos === "K";
+        const isDef = playerPos === "DEF";
+        const isRetired = !player.team && (player.status === "Inactive" || player.active === false);
+        const isIDPPlayer = ["CB", "S", "DB", "LB", "ILB", "OLB", "MLB", "DL", "DE", "DT", "NT", "EDGE", "ED", "FS", "SS"].includes(playerPos);
+        const isPlaceholderByPosition = (isKicker && !hasKickerSlot) || (isDef && !hasDefSlot) || (isIDPPlayer && !isIDPLeague);
+        const isLikelyDevyPlaceholder = devyNoteMap.size > 0 && isKicker && !player.team;
+        return isPlaceholderByPosition || isRetired || isLikelyDevyPlaceholder;
+      };
+
+      const devyPlaceholderIds = new Set(allPlayerIds.filter((id: string) => isDevyPlaceholder(id)));
+      const eligiblePlayerIds = allPlayerIds.filter((id: string) => !devyPlaceholderIds.has(id));
+
       const SLOT_ELIGIBILITY: Record<string, string[]> = {
         "QB": ["QB"],
         "RB": ["RB"],
@@ -1308,7 +1350,7 @@ ${urls}
         return aFlex - bFlex;
       });
 
-      const playerProjections = allPlayerIds.map((id: string) => ({
+      const playerProjections = eligiblePlayerIds.map((id: string) => ({
         id,
         ...getPlayerInfo(id),
         projectedPoints: Math.round(getProjectedPoints(id) * 100) / 100,
@@ -1351,21 +1393,24 @@ ${urls}
       const currentLineup = starterSlots.map((slot: string, index: number) => {
         slotCounts[slot] = (slotCounts[slot] || 0) + 1;
         const playerId = currentStarters[index] || "";
+        const isDevy = playerId ? devyPlaceholderIds.has(playerId) : false;
+        const devyNote = playerId ? devyNoteMap.get(playerId) : undefined;
         const info = playerId ? getPlayerInfo(playerId) : { name: "Empty", position: "", team: "" };
-        const projectedPoints = playerId ? Math.round(getProjectedPoints(playerId) * 100) / 100 : 0;
+        const projectedPoints = (playerId && !isDevy) ? Math.round(getProjectedPoints(playerId) * 100) / 100 : 0;
         const isInOptimal = optimalPlayerIds.has(playerId);
         return {
           playerId,
-          name: info.name,
-          position: info.position,
-          team: info.team,
+          name: isDevy && devyNote ? devyNote.devyName : info.name,
+          position: isDevy && devyNote ? devyNote.devyPosition : info.position,
+          team: isDevy && devyNote ? devyNote.devySchool : info.team,
           slot,
           projectedPoints,
-          isOptimal: isInOptimal,
+          isOptimal: isDevy ? true : isInOptimal,
+          isDevyPlaceholder: isDevy,
         };
       });
 
-      const optimalBenchIds = allPlayerIds.filter((id: string) => !optimalPlayerIds.has(id));
+      const optimalBenchIds = eligiblePlayerIds.filter((id: string) => !optimalPlayerIds.has(id));
       const benchPlayersData = optimalBenchIds.map((id: string) => {
         const info = getPlayerInfo(id);
         return {
