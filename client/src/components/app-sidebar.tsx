@@ -53,6 +53,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Collapsible,
@@ -235,7 +237,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                   <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[--radix-dropdown-menu-trigger-width]">
+              <DropdownMenuContent align="start" className="w-[--radix-dropdown-menu-trigger-width] max-h-[70vh] overflow-y-auto">
                 <DropdownMenuItem
                   onClick={() => onLeagueChange(null)}
                   className="cursor-pointer font-medium"
@@ -244,27 +246,61 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                   <span>All Leagues</span>
                   <span className="ml-auto text-xs text-muted-foreground">Career Stats</span>
                 </DropdownMenuItem>
-                <div className="h-px bg-border my-1" />
-                {leagues.map((league) => (
-                  <DropdownMenuItem
-                    key={league.league_id}
-                    onClick={() => onLeagueChange(league)}
-                    className="cursor-pointer"
-                    data-testid={`menu-item-league-${league.league_id}`}
-                  >
-                    <Avatar className="h-6 w-6 mr-2 shrink-0">
-                      <AvatarImage 
-                        src={league.avatar ? `https://sleepercdn.com/avatars/${league.avatar}` : undefined}
-                        alt={league.name}
-                      />
-                      <AvatarFallback className="text-xs">
-                        {league.name.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="truncate">{league.name}</span>
-                    <span className="ml-auto text-xs text-muted-foreground shrink-0">{league.season}</span>
-                  </DropdownMenuItem>
-                ))}
+                {(() => {
+                  const grouped = new Map<string, Map<string, typeof leagues>>();
+                  leagues.forEach((league) => {
+                    const commish = league.commissioner_name || "Unknown";
+                    const type = league.league_type || "Redraft";
+                    if (!grouped.has(commish)) grouped.set(commish, new Map());
+                    const typeMap = grouped.get(commish)!;
+                    if (!typeMap.has(type)) typeMap.set(type, []);
+                    typeMap.get(type)!.push(league);
+                  });
+
+                  const entries: React.ReactNode[] = [];
+                  grouped.forEach((typeMap, commish) => {
+                    entries.push(
+                      <DropdownMenuSeparator key={`sep-${commish}`} />,
+                      <DropdownMenuLabel key={`label-${commish}`} className="text-xs text-muted-foreground font-normal px-2 py-1">
+                        Commish: {commish}
+                      </DropdownMenuLabel>
+                    );
+                    const typeOrder = ["Dynasty", "Best Ball", "Keeper", "Redraft"];
+                    const sortedTypes = Array.from(typeMap.keys()).sort((a, b) => {
+                      const ai = typeOrder.indexOf(a);
+                      const bi = typeOrder.indexOf(b);
+                      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                    });
+                    sortedTypes.forEach((type) => {
+                      const typeLeagues = typeMap.get(type)!;
+                      typeLeagues.forEach((league) => {
+                        entries.push(
+                          <DropdownMenuItem
+                            key={league.league_id}
+                            onClick={() => onLeagueChange(league)}
+                            className="cursor-pointer"
+                            data-testid={`menu-item-league-${league.league_id}`}
+                          >
+                            <Avatar className="h-6 w-6 mr-2 shrink-0">
+                              <AvatarImage
+                                src={league.avatar ? `https://sleepercdn.com/avatars/${league.avatar}` : undefined}
+                                alt={league.name}
+                              />
+                              <AvatarFallback className="text-xs">
+                                {league.name.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="truncate">{league.name}</span>
+                            <Badge variant="outline" className="ml-auto shrink-0 text-[10px] px-1.5 py-0">
+                              {type}
+                            </Badge>
+                          </DropdownMenuItem>
+                        );
+                      });
+                    });
+                  });
+                  return entries;
+                })()}
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarGroupContent>

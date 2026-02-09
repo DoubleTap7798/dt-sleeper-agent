@@ -21,9 +21,14 @@ export interface SleeperLeague {
     waiver_budget: number;
     trade_deadline: number;
     type: number; // 0 = redraft, 1 = keeper, 2 = dynasty
+    best_ball?: number; // 1 if best ball
+    league_average_match?: number;
   };
   status: string;
   avatar: string | null;
+  owner_id?: string;
+  commissioner_name?: string;
+  league_type?: string;
 }
 
 export interface SleeperRoster {

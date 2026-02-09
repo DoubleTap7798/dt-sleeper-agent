@@ -29,13 +29,14 @@ export interface SleeperLeague {
     trade_deadline: number;
     type: number;
     leg?: number;
-    league_average_match?: number; // 1 if median scoring is enabled (extra game vs median each week)
-    best_ball?: number; // 1 if best ball league
-    num_teams?: number; // Number of teams in the league
+    league_average_match?: number;
+    best_ball?: number;
+    num_teams?: number;
   };
   status: string;
   avatar: string | null;
   previous_league_id: string | null;
+  owner_id?: string;
 }
 
 export interface SleeperRoster {

@@ -867,7 +867,7 @@ ${urls}
     }
   });
 
-  // Get user's leagues
+  // Get user's leagues (enriched with commissioner names and league type)
   app.get("/api/sleeper/leagues", isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
@@ -878,11 +878,46 @@ ${urls}
       }
 
       const state = await sleeperApi.getState();
-      // Use league_season (2026) for dynasty leagues that have rolled over, not season (2025 NFL playoffs)
       const leagueSeason = state?.league_season || state?.season || "2026";
       const leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, leagueSeason);
 
-      res.json(leagues);
+      const ownerIdSet = new Set<string>();
+      leagues.forEach(l => { if (l.owner_id) ownerIdSet.add(l.owner_id); });
+      const uniqueOwnerIds = Array.from(ownerIdSet);
+      const ownerMap = new Map<string, string>();
+
+      if (uniqueOwnerIds.length > 0) {
+        const ownerPromises = uniqueOwnerIds.map(async (ownerId) => {
+          try {
+            const user = await sleeperApi.getSleeperUser(ownerId);
+            if (user) {
+              ownerMap.set(ownerId, user.display_name || user.username || "Unknown");
+            }
+          } catch {
+            ownerMap.set(ownerId, "Unknown");
+          }
+        });
+        await Promise.all(ownerPromises);
+      }
+
+      const enrichedLeagues = leagues.map(league => {
+        let leagueType = "Redraft";
+        if (league.settings?.best_ball === 1) {
+          leagueType = "Best Ball";
+        } else if (league.settings?.type === 2) {
+          leagueType = "Dynasty";
+        } else if (league.settings?.type === 1) {
+          leagueType = "Keeper";
+        }
+
+        return {
+          ...league,
+          commissioner_name: league.owner_id ? ownerMap.get(league.owner_id) || "Unknown" : "Unknown",
+          league_type: leagueType,
+        };
+      });
+
+      res.json(enrichedLeagues);
     } catch (error) {
       console.error("Error fetching leagues:", error);
       res.status(500).json({ message: "Failed to fetch leagues" });
