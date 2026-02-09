@@ -111,7 +111,7 @@ function ChatContent() {
   const [inputMessage, setInputMessage] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -257,21 +257,34 @@ function ChatContent() {
   const messages = activeConversation?.messages || [];
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] gap-0">
+    <div className="flex h-[calc(100vh-4rem)] gap-0 relative">
+      {/* Mobile overlay backdrop */}
+      {showSidebar && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={() => setShowSidebar(false)}
+        />
+      )}
+
       {/* Conversation List Sidebar */}
-      <div className={`${showSidebar ? "w-64 border-r border-border" : "w-0 overflow-hidden"} transition-all duration-200 flex flex-col shrink-0`}>
+      <div className={`${
+        showSidebar ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      } fixed md:relative z-40 md:z-auto h-[calc(100vh-4rem)] w-72 md:w-64 bg-background border-r border-border transition-transform duration-200 flex flex-col shrink-0`}>
         <div className="p-3 border-b border-border flex items-center justify-between gap-2">
           <h3 className="font-semibold text-sm truncate">Conversations</h3>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => {
-              setActiveConversationId(null);
-            }}
-            data-testid="button-new-chat"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => {
+                setActiveConversationId(null);
+                setShowSidebar(false);
+              }}
+              data-testid="button-new-chat"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {loadingConversations ? (
@@ -293,7 +306,10 @@ function ChatContent() {
                     ? "bg-primary/10 text-foreground"
                     : "text-muted-foreground hover-elevate"
                 }`}
-                onClick={() => setActiveConversationId(convo.id)}
+                onClick={() => {
+                  setActiveConversationId(convo.id);
+                  setShowSidebar(false);
+                }}
                 data-testid={`conversation-item-${convo.id}`}
               >
                 <MessageSquare className="h-3.5 w-3.5 shrink-0" />
@@ -317,25 +333,24 @@ function ChatContent() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 md:ml-0">
         {/* Header */}
         <div className="p-3 border-b border-border flex items-center gap-2">
           <Button
             size="icon"
             variant="ghost"
             onClick={() => setShowSidebar(!showSidebar)}
-            className="sm:hidden"
             data-testid="button-toggle-sidebar"
           >
             <MessageSquare className="h-4 w-4" />
           </Button>
           <Bot className="h-5 w-5 text-primary" />
-          <h2 className="font-semibold text-sm" data-testid="text-chat-title">
+          <h2 className="font-semibold text-sm truncate" data-testid="text-chat-title">
             {activeConversation?.title || "AI Fantasy Assistant"}
           </h2>
           {leagueId && leagueId !== "all" && (
-            <Badge variant="outline" className="text-xs ml-auto" data-testid="badge-league-context">
-              League context active
+            <Badge variant="outline" className="text-xs ml-auto shrink-0" data-testid="badge-league-context">
+              League context
             </Badge>
           )}
         </div>
@@ -343,18 +358,18 @@ function ChatContent() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {!activeConversationId && messages.length === 0 && !isStreaming ? (
-            <div className="flex flex-col items-center justify-center h-full gap-6">
+            <div className="flex flex-col items-center justify-center h-full gap-4 md:gap-6 px-4">
               <div className="text-center space-y-2">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                  <Sparkles className="h-8 w-8 text-primary" />
+                <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                  <Sparkles className="h-6 w-6 md:h-8 md:w-8 text-primary" />
                 </div>
-                <h3 className="text-lg font-semibold" data-testid="text-welcome-title">Fantasy Football AI Assistant</h3>
-                <p className="text-muted-foreground text-sm max-w-md">
-                  Ask me anything about fantasy football — trades, start/sit decisions, roster advice, dynasty strategy, and more.
+                <h3 className="text-base md:text-lg font-semibold" data-testid="text-welcome-title">AI Fantasy Assistant</h3>
+                <p className="text-muted-foreground text-xs md:text-sm max-w-sm md:max-w-md">
+                  Ask me anything about fantasy football — trades, start/sit, roster advice, dynasty strategy, and more.
                   {leagueId && leagueId !== "all" && " I have context about your current league and roster."}
                 </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full">
+              <div className="grid grid-cols-2 gap-2 max-w-lg w-full">
                 {SUGGESTED_PROMPTS.map((prompt, i) => (
                   <Card
                     key={i}
@@ -441,7 +456,7 @@ function ChatContent() {
         </div>
 
         {/* Input Area */}
-        <div className="p-3 border-t border-border">
+        <div className="p-2 md:p-3 border-t border-border">
           <div className="flex items-end gap-2 max-w-4xl mx-auto">
             <Textarea
               ref={textareaRef}
