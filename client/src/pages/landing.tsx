@@ -65,7 +65,7 @@ export default function LandingPage() {
     {
       icon: Shield,
       title: "Premium Power",
-      description: "Unlock AI tools for just $3.99/week with free basic features",
+      description: "3-day free trial, then just $3.99/week",
     },
     {
       icon: RefreshCw,
@@ -340,7 +340,7 @@ export default function LandingPage() {
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
             <p className="text-xs text-[hsl(var(--accent))]/80 mt-4">
-              Free basic features • Premium at $3.99/week unlocks full AI tools
+              Free basic features • Start with a 3-day free trial of Premium
             </p>
           </div>
         </section>

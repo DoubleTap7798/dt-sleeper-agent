@@ -289,15 +289,20 @@ export default function UpgradePage() {
         <Card className="border-primary/50">
           <CardHeader>
             <CardTitle>Weekly Plan</CardTitle>
-            <CardDescription>Full access, cancel anytime</CardDescription>
+            <CardDescription>3-day free trial, then $3.99/week</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-center py-4">
               <span className="text-4xl font-bold">$3.99</span>
               <span className="text-muted-foreground">/week</span>
+              <p className="text-sm text-primary font-medium mt-1">3-day free trial</p>
             </div>
             
             <ul className="space-y-2 text-sm">
+              <li className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-primary" />
+                3-day free trial to start
+              </li>
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-primary" />
                 All premium features included
@@ -305,10 +310,6 @@ export default function UpgradePage() {
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-primary" />
                 Cancel anytime
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-primary" />
-                Instant access
               </li>
             </ul>
 
@@ -320,7 +321,7 @@ export default function UpgradePage() {
                 data-testid="button-subscribe"
               >
                 <CreditCard className="w-4 h-4 mr-2" />
-                Subscribe Now - $3.99/week
+                Start Free Trial
               </Button>
             </div>
 

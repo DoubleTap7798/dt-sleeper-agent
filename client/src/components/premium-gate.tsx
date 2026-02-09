@@ -75,7 +75,7 @@ export function PremiumGate({ children, featureName = "This feature" }: PremiumG
             data-testid="button-upgrade-gate"
           >
             <Crown className="w-4 h-4 mr-2" />
-            Upgrade for $3.99/week
+            Start Free Trial
           </Button>
         </CardContent>
       </Card>
