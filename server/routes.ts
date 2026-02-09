@@ -881,23 +881,37 @@ ${urls}
       const leagueSeason = state?.league_season || state?.season || "2026";
       const leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, leagueSeason);
 
+      const leagueDetails = await Promise.all(
+        leagues.map(async (league) => {
+          try {
+            const detail = await sleeperApi.getLeague(league.league_id);
+            return { league_id: league.league_id, owner_id: detail?.owner_id || null };
+          } catch {
+            return { league_id: league.league_id, owner_id: null };
+          }
+        })
+      );
+      const leagueOwnerMap = new Map<string, string | null>();
+      leagueDetails.forEach(d => leagueOwnerMap.set(d.league_id, d.owner_id));
+
       const ownerIdSet = new Set<string>();
-      leagues.forEach(l => { if (l.owner_id) ownerIdSet.add(l.owner_id); });
+      leagueDetails.forEach(d => { if (d.owner_id) ownerIdSet.add(d.owner_id); });
       const uniqueOwnerIds = Array.from(ownerIdSet);
       const ownerMap = new Map<string, string>();
 
       if (uniqueOwnerIds.length > 0) {
-        const ownerPromises = uniqueOwnerIds.map(async (ownerId) => {
-          try {
-            const user = await sleeperApi.getSleeperUser(ownerId);
-            if (user) {
-              ownerMap.set(ownerId, user.display_name || user.username || "Unknown");
+        await Promise.all(
+          uniqueOwnerIds.map(async (ownerId) => {
+            try {
+              const user = await sleeperApi.getSleeperUser(ownerId);
+              if (user) {
+                ownerMap.set(ownerId, user.display_name || user.username || "Unknown");
+              }
+            } catch {
+              ownerMap.set(ownerId, "Unknown");
             }
-          } catch {
-            ownerMap.set(ownerId, "Unknown");
-          }
-        });
-        await Promise.all(ownerPromises);
+          })
+        );
       }
 
       const enrichedLeagues = leagues.map(league => {
@@ -910,9 +924,11 @@ ${urls}
           leagueType = "Keeper";
         }
 
+        const ownerId = leagueOwnerMap.get(league.league_id);
         return {
           ...league,
-          commissioner_name: league.owner_id ? ownerMap.get(league.owner_id) || "Unknown" : "Unknown",
+          owner_id: ownerId,
+          commissioner_name: ownerId ? ownerMap.get(ownerId) || "Unknown" : "Unknown",
           league_type: leagueType,
         };
       });
