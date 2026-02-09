@@ -11,10 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Users, Crown, AlertCircle, ShieldCheck, ShieldX } from "lucide-react";
+import { Users, Crown, AlertCircle, ShieldCheck, ShieldX, ArrowLeft } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 interface AdminUser {
   userId: string;
@@ -45,6 +46,7 @@ function formatDate(dateString: string | null): string {
 
 export default function AdminPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [togglingUser, setTogglingUser] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery<AdminUsersData>({
@@ -92,8 +94,16 @@ export default function AdminPage() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center gap-3">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => setLocation("/league")}
+          data-testid="button-admin-back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
         <Crown className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-bold" data-testid="text-admin-title">Admin Dashboard</h1>
+        <h1 className="text-2xl md:text-3xl font-bold" data-testid="text-admin-title">Admin Dashboard</h1>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
