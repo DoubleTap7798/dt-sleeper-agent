@@ -28,7 +28,7 @@ export function Logo({ size = "md", showText = true, className = "" }: LogoProps
       <img 
         src={dtLogo} 
         alt="DT Sleeper Agent Logo" 
-        className={`${sizeClasses[size]} rounded-full object-cover`}
+        className={`${sizeClasses[size]} rounded-full object-cover dark:invert-0 invert`}
         data-testid="logo-icon"
       />
       {showText && (

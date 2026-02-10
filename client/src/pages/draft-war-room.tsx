@@ -30,21 +30,21 @@ import {
 } from "@/components/ui/table";
 
 const POSITION_COLORS: Record<string, string> = {
-  QB: "bg-red-500/20 text-red-400 border-red-500/30",
-  RB: "bg-green-500/20 text-green-400 border-green-500/30",
-  WR: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  WRS: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
-  TE: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  K: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  EDGE: "bg-rose-500/20 text-rose-400 border-rose-500/30",
-  DL: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  DL1T: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  DL3T: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  DL5T: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  ILB: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
-  LB: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
-  CB: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  S: "bg-pink-500/20 text-pink-400 border-pink-500/30",
+  QB: "bg-red-600 text-white border-red-700",
+  RB: "bg-green-600 text-white border-green-700",
+  WR: "bg-blue-600 text-white border-blue-700",
+  WRS: "bg-blue-500 text-white border-blue-600",
+  TE: "bg-orange-500 text-white border-orange-600",
+  K: "bg-yellow-600 text-white border-yellow-700",
+  EDGE: "bg-rose-700 text-white border-rose-800",
+  DL: "bg-amber-800 text-white border-amber-900",
+  DL1T: "bg-amber-800 text-white border-amber-900",
+  DL3T: "bg-amber-800 text-white border-amber-900",
+  DL5T: "bg-amber-800 text-white border-amber-900",
+  ILB: "bg-teal-600 text-white border-teal-700",
+  LB: "bg-teal-600 text-white border-teal-700",
+  CB: "bg-purple-600 text-white border-purple-700",
+  S: "bg-indigo-600 text-white border-indigo-700",
 };
 
 interface PlayerRecommendation {

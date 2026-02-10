@@ -384,24 +384,24 @@ function ShareButton() {
 // Strength bar component with glow effect - clickable to show players
 function StrengthBar({ position, value, rank, total, onClick }: { position: string; value: number; rank: number; total: number; onClick?: () => void }) {
   const positionColors: Record<string, string> = {
-    QB: "from-red-500 to-red-600",
-    RB: "from-green-500 to-green-600",
-    WR: "from-blue-500 to-blue-600",
-    TE: "from-yellow-500 to-yellow-600",
+    QB: "from-red-600 to-red-700",
+    RB: "from-green-600 to-green-700",
+    WR: "from-blue-600 to-blue-700",
+    TE: "from-orange-500 to-orange-600",
   };
 
   const glowColors: Record<string, string> = {
-    QB: "shadow-red-500/50",
-    RB: "shadow-green-500/50",
-    WR: "shadow-blue-500/50",
-    TE: "shadow-yellow-500/50",
+    QB: "shadow-red-600/50",
+    RB: "shadow-green-600/50",
+    WR: "shadow-blue-600/50",
+    TE: "shadow-orange-500/50",
   };
 
   const positionBorderColors: Record<string, string> = {
-    QB: "border-red-500 text-red-400",
-    RB: "border-green-500 text-green-400",
-    WR: "border-blue-500 text-blue-400",
-    TE: "border-yellow-500 text-yellow-400",
+    QB: "border-red-600 text-red-500 dark:text-red-400",
+    RB: "border-green-600 text-green-600 dark:text-green-400",
+    WR: "border-blue-600 text-blue-600 dark:text-blue-400",
+    TE: "border-orange-500 text-orange-600 dark:text-orange-400",
   };
 
   return (

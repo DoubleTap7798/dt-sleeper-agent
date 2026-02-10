@@ -26,21 +26,21 @@
 
   --card-border: 0 0% 90%;
 
-  --sidebar: 0 0% 4%;
+  --sidebar: 0 0% 97%;
 
-  --sidebar-foreground: 0 0% 95%;
+  --sidebar-foreground: 0 0% 10%;
 
-  --sidebar-border: 0 0% 15%;
+  --sidebar-border: 0 0% 85%;
 
-  --sidebar-primary: 0 0% 100%;
+  --sidebar-primary: 0 0% 9%;
 
-  --sidebar-primary-foreground: 0 0% 5%;
+  --sidebar-primary-foreground: 0 0% 98%;
 
-  --sidebar-accent: 0 0% 20%;
+  --sidebar-accent: 0 0% 92%;
 
-  --sidebar-accent-foreground: 0 0% 95%;
+  --sidebar-accent-foreground: 0 0% 10%;
 
-  --sidebar-ring: 0 0% 30%;
+  --sidebar-ring: 0 0% 60%;
 
   --popover: 0 0% 100%;
 
@@ -376,69 +376,69 @@
 
   /* Position-specific electric colors */
   .position-qb {
-    background-color: rgba(239, 68, 68, 0.15) !important;
-    border-color: rgba(239, 68, 68, 0.5) !important;
-    color: rgb(252, 165, 165) !important;
+    background-color: rgb(220, 38, 38) !important;
+    border-color: rgb(185, 28, 28) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-rb {
-    background-color: rgba(34, 197, 94, 0.15) !important;
-    border-color: rgba(34, 197, 94, 0.5) !important;
-    color: rgb(134, 239, 172) !important;
+    background-color: rgb(22, 163, 74) !important;
+    border-color: rgb(21, 128, 61) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-wr {
-    background-color: rgba(0, 212, 255, 0.15) !important;
-    border-color: rgba(0, 212, 255, 0.5) !important;
-    color: rgb(125, 235, 255) !important;
+    background-color: rgb(37, 99, 235) !important;
+    border-color: rgb(29, 78, 216) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-te {
-    background-color: rgba(250, 204, 21, 0.15) !important;
-    border-color: rgba(250, 204, 21, 0.5) !important;
-    color: rgb(254, 240, 138) !important;
+    background-color: rgb(234, 88, 12) !important;
+    border-color: rgb(194, 65, 12) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-k {
-    background-color: rgba(249, 115, 22, 0.15) !important;
-    border-color: rgba(249, 115, 22, 0.5) !important;
-    color: rgb(253, 186, 116) !important;
+    background-color: rgb(202, 138, 4) !important;
+    border-color: rgb(161, 98, 7) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-edge {
-    background-color: rgba(244, 63, 94, 0.15) !important;
-    border-color: rgba(244, 63, 94, 0.5) !important;
-    color: rgb(251, 113, 133) !important;
+    background-color: rgb(190, 18, 60) !important;
+    border-color: rgb(159, 18, 57) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-dl, .position-def, .position-idp {
-    background-color: rgba(234, 179, 8, 0.15) !important;
-    border-color: rgba(234, 179, 8, 0.5) !important;
-    color: rgb(253, 224, 71) !important;
+    background-color: rgb(146, 64, 14) !important;
+    border-color: rgb(120, 53, 15) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-lb {
-    background-color: rgba(6, 182, 212, 0.15) !important;
-    border-color: rgba(6, 182, 212, 0.5) !important;
-    color: rgb(103, 232, 249) !important;
+    background-color: rgb(8, 145, 178) !important;
+    border-color: rgb(14, 116, 144) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-cb, .position-db {
-    background-color: rgba(168, 85, 247, 0.15) !important;
-    border-color: rgba(168, 85, 247, 0.5) !important;
-    color: rgb(216, 180, 254) !important;
+    background-color: rgb(147, 51, 234) !important;
+    border-color: rgb(126, 34, 206) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-s {
-    background-color: rgba(236, 72, 153, 0.15) !important;
-    border-color: rgba(236, 72, 153, 0.5) !important;
-    color: rgb(251, 182, 206) !important;
+    background-color: rgb(79, 70, 229) !important;
+    border-color: rgb(67, 56, 202) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-flex {
-    background-color: rgba(236, 72, 153, 0.15) !important;
-    border-color: rgba(236, 72, 153, 0.5) !important;
-    color: rgb(251, 182, 206) !important;
+    background-color: rgb(219, 39, 119) !important;
+    border-color: rgb(190, 24, 93) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-sf, .position-superflex {
-    background-color: rgba(20, 184, 166, 0.15) !important;
-    border-color: rgba(20, 184, 166, 0.5) !important;
-    color: rgb(94, 234, 212) !important;
+    background-color: rgb(15, 118, 110) !important;
+    border-color: rgb(17, 94, 89) !important;
+    color: rgb(255, 255, 255) !important;
   }
   .position-pick {
-    background-color: rgba(156, 163, 175, 0.15) !important;
-    border-color: rgba(156, 163, 175, 0.5) !important;
-    color: rgb(209, 213, 219) !important;
+    background-color: rgb(107, 114, 128) !important;
+    border-color: rgb(75, 85, 99) !important;
+    color: rgb(255, 255, 255) !important;
   }
 
   /* Placeholder styling for contentEditable div */
