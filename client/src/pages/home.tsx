@@ -11,10 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Trophy, Users, TrendingUp, Calendar, Target, Crown, Medal, Activity, 
   ArrowRightLeft, UserPlus, RefreshCw, Zap, AlertTriangle, ChevronRight,
-  ArrowUpRight, ArrowUp, ArrowDown, Minus, Rocket, Shield, Hourglass, HelpCircle, Lightbulb, X
+  ArrowUpRight, ArrowUp, ArrowDown, Minus, Rocket, Shield, Hourglass, HelpCircle, Lightbulb, X,
+  Share2, Copy, Check, Crosshair, Flame, BarChart3
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -122,6 +124,249 @@ interface RosterResponse {
   players: RosterPlayer[];
   teamName: string;
   totalValue: number;
+}
+
+interface StatLeader {
+  player_id: string;
+  player_name: string;
+  team: string;
+  position: string;
+  value: number;
+  games_played?: number;
+}
+
+interface StatLeadersResponse {
+  season: number;
+  categories: {
+    receiving: Record<string, StatLeader[]>;
+    rushing: Record<string, StatLeader[]>;
+    passing: Record<string, StatLeader[]>;
+    explosive: Record<string, StatLeader[]>;
+    efficiency: Record<string, StatLeader[]>;
+    fantasy: Record<string, StatLeader[]>;
+  };
+}
+
+const STAT_LABELS: Record<string, string> = {
+  targets: "Targets",
+  receptions: "Receptions",
+  receiving_yards: "Receiving Yards",
+  receiving_tds: "Receiving TDs",
+  receiving_first_downs: "Receiving 1st Downs",
+  carries: "Carries",
+  rushing_yards: "Rushing Yards",
+  rushing_tds: "Rushing TDs",
+  rushing_first_downs: "Rushing 1st Downs",
+  passing_yards: "Passing Yards",
+  passing_tds: "Passing TDs",
+  completions: "Completions",
+  rushing_20plus: "20+ Yard Runs",
+  rushing_30plus: "30+ Yard Runs",
+  rushing_40plus: "40+ Yard Runs",
+  receiving_20plus: "20+ Yard Catches",
+  receiving_30plus: "30+ Yard Catches",
+  receiving_40plus: "40+ Yard Catches",
+  passing_20plus: "20+ Yard Passes",
+  passing_30plus: "30+ Yard Passes",
+  passing_40plus: "40+ Yard Passes",
+  target_share: "Target Share",
+  yards_per_carry: "Yards/Carry",
+  catch_rate: "Catch Rate",
+  wopr: "WOPR",
+  ppg_ppr: "PPG (PPR)",
+  fantasy_points_ppr: "Total PPR Points",
+};
+
+const POSITION_COLORS: Record<string, string> = {
+  QB: "text-red-400",
+  RB: "text-green-400",
+  WR: "text-blue-400",
+  TE: "text-yellow-400",
+};
+
+function formatStatValue(key: string, value: number): string {
+  if (["target_share", "catch_rate"].includes(key)) {
+    return (value * 100).toFixed(1) + "%";
+  }
+  if (["yards_per_carry", "wopr", "ppg_ppr"].includes(key)) {
+    return value.toFixed(1);
+  }
+  if (["receiving_yards", "rushing_yards", "passing_yards", "fantasy_points_ppr"].includes(key)) {
+    return value.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+  return String(Math.round(value));
+}
+
+function LeaderboardTable({ statKey, leaders }: { statKey: string; leaders: StatLeader[] }) {
+  return (
+    <div className="space-y-1" data-testid={`leaderboard-${statKey}`}>
+      <h4 className="text-xs font-medium text-muted-foreground mb-2">{STAT_LABELS[statKey] || statKey}</h4>
+      {leaders.slice(0, 5).map((player, idx) => (
+        <div
+          key={player.player_id || idx}
+          className="flex items-center gap-2 py-1 px-2 rounded bg-muted/30 text-xs"
+          data-testid={`leader-${statKey}-${idx}`}
+        >
+          <span className="w-4 text-muted-foreground font-medium">{idx + 1}</span>
+          <span className={`w-7 font-medium ${POSITION_COLORS[player.position] || "text-muted-foreground"}`}>
+            {player.position || "--"}
+          </span>
+          <span className="flex-1 truncate font-medium">{player.player_name}</span>
+          <span className="text-muted-foreground text-[11px] shrink-0">{player.team}</span>
+          <span className="font-bold text-[hsl(var(--accent))] w-14 text-right shrink-0">
+            {formatStatValue(statKey, player.value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StatLeadersSection() {
+  const { data: leaders, isLoading, error } = useQuery<StatLeadersResponse>({
+    queryKey: ["/api/nfl/stat-leaders"],
+    staleTime: 1000 * 60 * 30,
+    retry: 1,
+  });
+
+  if (isLoading) {
+    return (
+      <Card data-testid="card-stat-leaders-loading">
+        <CardHeader>
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            NFL Stat Leaders
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error || !leaders) {
+    return (
+      <Card data-testid="card-stat-leaders-error">
+        <CardHeader>
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            NFL Stat Leaders
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Unable to load NFL stats at this time. Try again later.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const categoryConfig = [
+    { key: "receiving" as const, label: "Receiving", icon: Crosshair },
+    { key: "rushing" as const, label: "Rushing", icon: Zap },
+    { key: "passing" as const, label: "Passing", icon: Target },
+    { key: "explosive" as const, label: "Big Plays", icon: Flame },
+    { key: "efficiency" as const, label: "Efficiency", icon: TrendingUp },
+    { key: "fantasy" as const, label: "Fantasy", icon: Trophy },
+  ];
+
+  return (
+    <Card data-testid="card-stat-leaders">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            NFL Stat Leaders
+          </CardTitle>
+          <Badge variant="outline" className="text-[10px]">{leaders.season} Season</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="receiving">
+          <TabsList className="w-full justify-start flex-wrap h-auto gap-1 py-1">
+            {categoryConfig.map(cat => (
+              <TabsTrigger
+                key={cat.key}
+                value={cat.key}
+                className="text-xs gap-1"
+                data-testid={`tab-leaders-${cat.key}`}
+              >
+                <cat.icon className="h-3 w-3" />
+                <span className="hidden sm:inline">{cat.label}</span>
+                <span className="sm:hidden">{cat.label.slice(0, 4)}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {categoryConfig.map(cat => {
+            const categoryData = leaders.categories[cat.key];
+            if (!categoryData) return null;
+            const statKeys = Object.keys(categoryData);
+            return (
+              <TabsContent key={cat.key} value={cat.key} className="mt-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {statKeys.map(statKey => {
+                    const statLeaders = categoryData[statKey];
+                    if (!statLeaders || statLeaders.length === 0) return null;
+                    return <LeaderboardTable key={statKey} statKey={statKey} leaders={statLeaders} />;
+                  })}
+                </div>
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ShareButton() {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const handleShare = async () => {
+    const url = window.location.origin;
+    const shareData = {
+      title: "DT Sleeper Agent",
+      text: "Check out DT Sleeper Agent - the ultimate fantasy football companion for Sleeper leagues!",
+      url,
+    };
+
+    if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        // User cancelled share
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        toast({ title: "Link Copied", description: "Website link copied to clipboard!" });
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        toast({ title: "Copy Failed", description: "Could not copy link.", variant: "destructive" });
+      }
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleShare}
+      className="gap-1.5"
+      data-testid="button-share-website"
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+      <span className="hidden sm:inline">{copied ? "Copied" : "Share"}</span>
+    </Button>
+  );
 }
 
 // Strength bar component with glow effect - clickable to show players
@@ -423,9 +668,12 @@ export default function HomePage() {
     return (
       <div className="space-y-6">
         <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <Target className="h-6 w-6" />
-            <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-page-title">Career Dashboard</h1>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Target className="h-6 w-6" />
+              <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-page-title">Career Dashboard</h1>
+            </div>
+            <ShareButton />
           </div>
           <p className="text-sm text-muted-foreground" data-testid="text-subtitle">
             Your fantasy football overview across all leagues
@@ -636,6 +884,8 @@ export default function HomePage() {
             )}
           </CardContent>
         </Card>
+
+        <StatLeadersSection />
       </div>
     );
   }

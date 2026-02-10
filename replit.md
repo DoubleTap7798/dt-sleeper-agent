@@ -57,6 +57,8 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Export Functionality**: Reusable ExportButton component (`client/src/components/export-button.tsx`) with CSV download and clipboard copy. Integrated into Power Rankings and Standings pages. Export utility functions in `client/src/lib/export-utils.ts`.
 - **Draft Pick Value Chart**: Static historical draft pick hit rates for rounds 1-4 (curated industry data). Three views: Value Chart (horizontal bars), Hit Rates (stacked probability bars), Details (full table). Free feature at `/league/draft-pick-values`.
 - **League History Timeline**: Visual timeline of key events across all linked seasons (via previous_league_id chain). Shows championships, scoring leaders, best records, and major trades per season. Free feature at `/league/timeline`.
+- **NFL Stat Leaders**: Real NFL statistical leaderboards on the All Leagues / Career Dashboard page. Tabbed categories: Receiving (targets, receptions, yards, TDs, first downs), Rushing (carries, yards, TDs, first downs), Passing (yards, TDs, completions), Big Plays (20+/30+/40+ yard catches, runs, passes from PBP data), Efficiency (target share, yards/carry, catch rate, WOPR, PPG), Fantasy (total PPR points, PPG). Data from nflverse player_stats CSV + play-by-play CSV with 24-hour cache. Free feature.
+- **Share Website Button**: Share button on Career Dashboard header. Uses native Web Share API on mobile, clipboard copy on desktop.
 
 ### System Design Choices
 - **Shared Types**: Database schemas and models are shared between frontend and backend.
