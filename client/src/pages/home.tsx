@@ -331,14 +331,26 @@ function ShareButton() {
 
   const handleShare = async () => {
     const url = window.location.origin;
-    const shareData = {
-      title: "DT Sleeper Agent",
-      text: "Check out DT Sleeper Agent - the ultimate fantasy football companion for Sleeper leagues!",
-      url,
-    };
 
     if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
       try {
+        const shareData: ShareData = {
+          title: "DT Sleeper Agent",
+          text: "Check out DT Sleeper Agent - the ultimate fantasy football companion for Sleeper leagues!",
+          url,
+        };
+
+        try {
+          const response = await fetch("/icon-512.png");
+          const blob = await response.blob();
+          const file = new File([blob], "dt-sleeper-agent.png", { type: "image/png" });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            shareData.files = [file];
+          }
+        } catch {
+          // Logo fetch failed, share without image
+        }
+
         await navigator.share(shareData);
       } catch (err) {
         // User cancelled share
