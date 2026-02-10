@@ -298,6 +298,297 @@ async function fetchNFLVerseStats(season: number): Promise<NFLVersePlayerStats[]
   }
 }
 
+async function fetchPlayerStatsFromPBP(season: number): Promise<NFLVersePlayerStats[]> {
+  const url = NFLVERSE_PBP_URL_TEMPLATE.replace('{YEAR}', String(season));
+  console.log(`[nflverse] Building player stats from PBP data for ${season}...`);
+
+  try {
+    const response = await fetch(url, {
+      headers: { 'Accept': 'text/csv' },
+      redirect: 'follow'
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch PBP data: ${response.status} ${response.statusText}`);
+    }
+
+    const csvText = await response.text();
+    const lines = csvText.split('\n');
+    if (lines.length < 2) return [];
+
+    const headers = parseCSVLine(lines[0]);
+    const headerIndex: Record<string, number> = {};
+    headers.forEach((h, i) => { headerIndex[h.replace(/"/g, '')] = i; });
+
+    interface WeekAccum {
+      completions: number;
+      attempts: number;
+      passing_yards: number;
+      passing_tds: number;
+      interceptions: number;
+      sacks: number;
+      carries: number;
+      rushing_yards: number;
+      rushing_tds: number;
+      rushing_fumbles_lost: number;
+      receptions: number;
+      targets: number;
+      receiving_yards: number;
+      receiving_tds: number;
+      receiving_fumbles_lost: number;
+      receiving_air_yards: number;
+      receiving_yards_after_catch: number;
+      receiving_first_downs: number;
+      rushing_first_downs: number;
+      passing_first_downs: number;
+      passing_epa: number;
+      rushing_epa: number;
+      receiving_epa: number;
+    }
+
+    interface PlayerInfo {
+      player_id: string;
+      player_name: string;
+      position: string;
+      team: string;
+    }
+
+    const playerWeeks = new Map<string, WeekAccum>();
+    const playerInfo = new Map<string, PlayerInfo>();
+    const teamWeekTargets = new Map<string, number>();
+    const teamWeekAirYards = new Map<string, number>();
+    const playerWeekTargets = new Map<string, number>();
+    const playerWeekAirYards = new Map<string, number>();
+
+    const getKey = (id: string, week: number) => `${id}||${week}`;
+    const getOrCreate = (id: string, week: number): WeekAccum => {
+      const key = getKey(id, week);
+      if (!playerWeeks.has(key)) {
+        playerWeeks.set(key, {
+          completions: 0, attempts: 0, passing_yards: 0, passing_tds: 0,
+          interceptions: 0, sacks: 0, carries: 0, rushing_yards: 0,
+          rushing_tds: 0, rushing_fumbles_lost: 0, receptions: 0, targets: 0,
+          receiving_yards: 0, receiving_tds: 0, receiving_fumbles_lost: 0,
+          receiving_air_yards: 0, receiving_yards_after_catch: 0,
+          receiving_first_downs: 0, rushing_first_downs: 0, passing_first_downs: 0,
+          passing_epa: 0, rushing_epa: 0, receiving_epa: 0,
+        });
+      }
+      return playerWeeks.get(key)!;
+    };
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+
+      const values = parseCSVLine(line);
+      if (values.length < 20) continue;
+
+      const get = (col: string) => values[headerIndex[col]] || '';
+
+      if (get('season_type') !== 'REG') continue;
+
+      const week = safeInt(get('week'));
+      const posteam = get('posteam');
+      const defteam = get('defteam');
+      const playEpa = safeFloat(get('epa'));
+
+      const passAttempt = safeInt(get('pass_attempt'));
+      const rushAttempt = safeInt(get('rush_attempt'));
+      const completePass = safeInt(get('complete_pass'));
+      const passTd = safeInt(get('pass_touchdown'));
+      const rushTd = safeInt(get('rush_touchdown'));
+      const interception = safeInt(get('interception'));
+      const sack = safeInt(get('sack'));
+      const fumbleLost = safeInt(get('fumble_lost'));
+      const firstDownPass = safeInt(get('first_down_pass'));
+      const firstDownRush = safeInt(get('first_down_rush'));
+      const airYards = safeFloat(get('air_yards'));
+      const yac = safeFloat(get('yards_after_catch'));
+      const passYards = safeFloat(get('passing_yards'));
+      const rushYards = safeFloat(get('rushing_yards'));
+      const recYards = safeFloat(get('receiving_yards'));
+
+      if (passAttempt === 1) {
+        const passerId = get('passer_player_id');
+        const passerName = get('passer_player_name');
+        const receiverId = get('receiver_player_id');
+        const receiverName = get('receiver_player_name');
+
+        if (passerId) {
+          const acc = getOrCreate(passerId, week);
+          acc.attempts++;
+          if (completePass) acc.completions++;
+          acc.passing_yards += passYards;
+          if (passTd) acc.passing_tds++;
+          if (interception) acc.interceptions++;
+          if (firstDownPass) acc.passing_first_downs++;
+          acc.passing_epa += playEpa;
+          if (!playerInfo.has(passerId)) {
+            playerInfo.set(passerId, { player_id: passerId, player_name: passerName, position: 'QB', team: posteam });
+          }
+        }
+
+        if (receiverId) {
+          const acc = getOrCreate(receiverId, week);
+          acc.targets++;
+          if (completePass) {
+            acc.receptions++;
+            acc.receiving_yards += recYards;
+            acc.receiving_yards_after_catch += yac;
+            if (firstDownPass) acc.receiving_first_downs++;
+          }
+          if (passTd) acc.receiving_tds++;
+          acc.receiving_air_yards += airYards;
+          acc.receiving_epa += playEpa;
+          if (!playerInfo.has(receiverId)) {
+            const pos = get('receiver_position') || 'WR';
+            playerInfo.set(receiverId, { player_id: receiverId, player_name: receiverName, position: pos, team: posteam });
+          }
+
+          const twKey = `${posteam}_${week}`;
+          teamWeekTargets.set(twKey, (teamWeekTargets.get(twKey) || 0) + 1);
+          teamWeekAirYards.set(twKey, (teamWeekAirYards.get(twKey) || 0) + airYards);
+          const pwKey = `${receiverId}_${week}`;
+          playerWeekTargets.set(pwKey, (playerWeekTargets.get(pwKey) || 0) + 1);
+          playerWeekAirYards.set(pwKey, (playerWeekAirYards.get(pwKey) || 0) + airYards);
+        }
+
+        if (receiverId && fumbleLost) {
+          const acc = getOrCreate(receiverId, week);
+          acc.receiving_fumbles_lost++;
+        }
+      }
+
+      if (sack === 1) {
+        const passerId = get('passer_player_id');
+        if (passerId) {
+          const acc = getOrCreate(passerId, week);
+          acc.sacks++;
+        }
+      }
+
+      if (rushAttempt === 1) {
+        const rusherId = get('rusher_player_id');
+        const rusherName = get('rusher_player_name');
+        if (rusherId) {
+          const acc = getOrCreate(rusherId, week);
+          acc.carries++;
+          acc.rushing_yards += rushYards;
+          if (rushTd) acc.rushing_tds++;
+          if (fumbleLost) acc.rushing_fumbles_lost++;
+          if (firstDownRush) acc.rushing_first_downs++;
+          acc.rushing_epa += playEpa;
+          if (!playerInfo.has(rusherId)) {
+            const pos = get('rusher_position') || 'RB';
+            playerInfo.set(rusherId, { player_id: rusherId, player_name: rusherName, position: pos, team: posteam });
+          }
+        }
+      }
+    }
+
+    for (const [id, info] of Array.from(playerInfo.entries())) {
+      if (info.position === 'WR' || info.position === 'RB') {
+        let totalCarries = 0;
+        let totalTargets = 0;
+        let totalAttempts = 0;
+        for (const [key, acc] of Array.from(playerWeeks.entries())) {
+          if (key.startsWith(id + '||')) {
+            totalCarries += acc.carries;
+            totalTargets += acc.targets;
+            totalAttempts += acc.attempts;
+          }
+        }
+        if (totalAttempts > totalCarries && totalAttempts > totalTargets) {
+          info.position = 'QB';
+        } else if (totalCarries > totalTargets * 1.5) {
+          info.position = 'RB';
+        } else if (totalTargets > totalCarries * 2) {
+          info.position = 'WR';
+        }
+      }
+    }
+
+    const weeklyStats: NFLVersePlayerStats[] = [];
+    const processedKeys = new Set<string>();
+    for (const [key, acc] of Array.from(playerWeeks.entries())) {
+      if (processedKeys.has(key)) continue;
+      processedKeys.add(key);
+
+      const delimIdx = key.lastIndexOf('||');
+      const playerId = key.substring(0, delimIdx);
+      const week = parseInt(key.substring(delimIdx + 2), 10);
+      const info = playerInfo.get(playerId);
+      if (!info) continue;
+      if (!['QB', 'RB', 'WR', 'TE'].includes(info.position)) continue;
+
+      const twKey = `${info.team}_${week}`;
+      const teamTgts = teamWeekTargets.get(twKey) || 1;
+      const teamAY = teamWeekAirYards.get(twKey) || 1;
+      const pwKey = `${playerId}_${week}`;
+      const playerTgts = playerWeekTargets.get(pwKey) || 0;
+      const playerAY = playerWeekAirYards.get(pwKey) || 0;
+      const tgtShare = teamTgts > 0 ? playerTgts / teamTgts : 0;
+      const ayShare = teamAY > 0 ? playerAY / teamAY : 0;
+      const wopr = 1.5 * tgtShare + 0.7 * ayShare;
+
+      const fp = acc.passing_yards * 0.04 + acc.passing_tds * 4 - acc.interceptions * 2
+        + acc.rushing_yards * 0.1 + acc.rushing_tds * 6
+        + acc.receiving_yards * 0.1 + acc.receiving_tds * 6
+        - (acc.rushing_fumbles_lost + acc.receiving_fumbles_lost) * 2;
+      const fpPPR = fp + acc.receptions * 1;
+
+      weeklyStats.push({
+        player_id: info.player_id,
+        player_name: info.player_name,
+        player_display_name: info.player_name,
+        position: info.position,
+        position_group: info.position,
+        team: info.team,
+        season,
+        week,
+        season_type: 'REG',
+        opponent_team: '',
+        completions: acc.completions,
+        attempts: acc.attempts,
+        passing_yards: acc.passing_yards,
+        passing_tds: acc.passing_tds,
+        interceptions: acc.interceptions,
+        sacks: acc.sacks,
+        carries: acc.carries,
+        rushing_yards: acc.rushing_yards,
+        rushing_tds: acc.rushing_tds,
+        rushing_fumbles_lost: acc.rushing_fumbles_lost,
+        receptions: acc.receptions,
+        targets: acc.targets,
+        receiving_yards: acc.receiving_yards,
+        receiving_tds: acc.receiving_tds,
+        receiving_fumbles_lost: acc.receiving_fumbles_lost,
+        receiving_air_yards: acc.receiving_air_yards,
+        receiving_yards_after_catch: acc.receiving_yards_after_catch,
+        receiving_first_downs: acc.receiving_first_downs,
+        rushing_first_downs: acc.rushing_first_downs,
+        passing_first_downs: acc.passing_first_downs,
+        passing_epa: acc.passing_epa,
+        rushing_epa: acc.rushing_epa,
+        receiving_epa: acc.receiving_epa,
+        target_share: tgtShare,
+        air_yards_share: ayShare,
+        wopr,
+        fantasy_points: fp,
+        fantasy_points_ppr: fpPPR,
+      });
+    }
+
+    console.log(`[nflverse] Built ${weeklyStats.length} weekly stat lines from PBP for ${season}`);
+    return weeklyStats;
+
+  } catch (error) {
+    console.error(`Error building stats from PBP for ${season}:`, error);
+    return [];
+  }
+}
+
 function aggregateToSeason(weeklyStats: NFLVersePlayerStats[]): NFLVerseSeasonStats[] {
   const playerMap = new Map<string, NFLVersePlayerStats[]>();
 
@@ -407,15 +698,29 @@ export async function getNFLVerseStats(season?: number): Promise<{
   try {
     weeklyData = await fetchNFLVerseStats(targetSeason);
     if (weeklyData.length === 0 && !season) {
-      console.log(`[nflverse] No data for ${targetSeason}, falling back to ${targetSeason - 1}`);
-      weeklyData = await fetchNFLVerseStats(targetSeason - 1);
-      usedSeason = targetSeason - 1;
+      console.log(`[nflverse] No player_stats CSV for ${targetSeason}, trying PBP-derived stats...`);
+      weeklyData = await fetchPlayerStatsFromPBP(targetSeason);
+      if (weeklyData.length === 0) {
+        console.log(`[nflverse] No PBP data for ${targetSeason} either, falling back to ${targetSeason - 1}`);
+        weeklyData = await fetchNFLVerseStats(targetSeason - 1);
+        usedSeason = targetSeason - 1;
+      }
     }
   } catch (err) {
     if (!season) {
-      console.log(`[nflverse] Failed to fetch ${targetSeason}, falling back to ${targetSeason - 1}`);
-      weeklyData = await fetchNFLVerseStats(targetSeason - 1);
-      usedSeason = targetSeason - 1;
+      console.log(`[nflverse] Failed to fetch player_stats for ${targetSeason}, trying PBP-derived stats...`);
+      try {
+        weeklyData = await fetchPlayerStatsFromPBP(targetSeason);
+        if (weeklyData.length === 0) {
+          console.log(`[nflverse] No PBP data for ${targetSeason}, falling back to ${targetSeason - 1}`);
+          weeklyData = await fetchNFLVerseStats(targetSeason - 1);
+          usedSeason = targetSeason - 1;
+        }
+      } catch (pbpErr) {
+        console.log(`[nflverse] PBP also failed for ${targetSeason}, falling back to ${targetSeason - 1}`);
+        weeklyData = await fetchNFLVerseStats(targetSeason - 1);
+        usedSeason = targetSeason - 1;
+      }
     } else {
       throw err;
     }
