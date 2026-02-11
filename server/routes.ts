@@ -124,12 +124,14 @@ export async function registerRoutes(
 
 User-agent: *
 Allow: /
-
-# Sitemap location
-Sitemap: ${baseUrl}/sitemap.xml
-
-# Disallow API routes from indexing
+Disallow: /league/
+Disallow: /auth
+Disallow: /upgrade
+Disallow: /admin
+Disallow: /dashboard
 Disallow: /api/
+
+Sitemap: ${baseUrl}/sitemap.xml
 `;
     res.type("text/plain").send(robotsTxt);
   });
@@ -251,30 +253,7 @@ Created for fantasy football enthusiasts who want advanced tools to dominate the
     const baseUrl = `${protocol}://${host}`;
     const today = new Date().toISOString().split("T")[0];
     const pages = [
-      { path: "/", changefreq: "daily", priority: "1.0" },
-      { path: "/dashboard", changefreq: "daily", priority: "0.9" },
-      { path: "/upgrade", changefreq: "monthly", priority: "0.7" },
-      { path: "/league/standings", changefreq: "daily", priority: "0.8" },
-      { path: "/league/matchups", changefreq: "daily", priority: "0.8" },
-      { path: "/league/roster", changefreq: "daily", priority: "0.8" },
-      { path: "/league/schedule", changefreq: "weekly", priority: "0.6" },
-      { path: "/league/bracket", changefreq: "weekly", priority: "0.7" },
-      { path: "/league/trophies", changefreq: "weekly", priority: "0.6" },
-      { path: "/league/rivalries", changefreq: "weekly", priority: "0.6" },
-      { path: "/league/info", changefreq: "weekly", priority: "0.5" },
-      { path: "/league/players", changefreq: "daily", priority: "0.7" },
-      { path: "/league/depth-chart", changefreq: "weekly", priority: "0.6" },
-      { path: "/league/trade", changefreq: "weekly", priority: "0.9" },
-      { path: "/league/history", changefreq: "weekly", priority: "0.6" },
-      { path: "/league/waivers", changefreq: "daily", priority: "0.7" },
-      { path: "/league/lineup", changefreq: "daily", priority: "0.8" },
-      { path: "/league/projections", changefreq: "weekly", priority: "0.7" },
-      { path: "/league/news", changefreq: "hourly", priority: "0.8" },
-      { path: "/league/watchlist", changefreq: "daily", priority: "0.6" },
-      { path: "/league/trends", changefreq: "weekly", priority: "0.6" },
-      { path: "/league/compare", changefreq: "weekly", priority: "0.6" },
-      { path: "/league/devy", changefreq: "weekly", priority: "0.7" },
-      { path: "/league/draft-board", changefreq: "weekly", priority: "0.7" },
+      { path: "/", changefreq: "weekly", priority: "1.0" },
     ];
     const urls = pages.map(p => `  <url>
     <loc>${baseUrl}${p.path}</loc>
