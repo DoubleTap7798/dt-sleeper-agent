@@ -64,8 +64,8 @@ export default function LandingPage() {
     },
     {
       icon: Shield,
-      title: "Premium Power",
-      description: "3-day free trial, then just $3.99/week",
+      title: "Full Access",
+      description: "Sign up and unlock every feature for free",
     },
     {
       icon: RefreshCw,

@@ -20,11 +20,11 @@ export function useSubscription() {
   });
 
   return {
-    isPremium: data?.hasSubscription ?? false,
+    isPremium: true,
     isGrandfathered: data?.isGrandfathered ?? false,
     status: data?.status ?? null,
     periodEnd: data?.periodEnd ?? null,
-    isLoading: isAuthenticated ? isLoading : false,
+    isLoading: false,
     error,
     refetch,
   };
