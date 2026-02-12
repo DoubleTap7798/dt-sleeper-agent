@@ -384,6 +384,14 @@ function StatLeadersSection() {
           {categoryConfig.map(cat => {
             const categoryData = leaders.categories[cat.key];
             if (!categoryData) return null;
+            const hasPositionGroups = cat.key === "redzone" || cat.key === "advanced";
+            if (hasPositionGroups) {
+              return (
+                <TabsContent key={cat.key} value={cat.key} className="mt-4">
+                  <PositionFilteredLeaderboards categoryKey={cat.key} categoryData={categoryData} />
+                </TabsContent>
+              );
+            }
             const statKeys = Object.keys(categoryData);
             return (
               <TabsContent key={cat.key} value={cat.key} className="mt-4">
