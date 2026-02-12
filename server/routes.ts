@@ -2597,10 +2597,15 @@ ${urls}
       });
 
       playersWithConsensus.sort((a, b) => a.consensusRank - b.consensusRank);
-      const rankedPlayers = playersWithConsensus.map((player, index) => ({
-        ...player,
-        rank: index + 1,
-      }));
+      const positionCounters: Record<string, number> = {};
+      const rankedPlayers = playersWithConsensus.map((player, index) => {
+        positionCounters[player.position] = (positionCounters[player.position] || 0) + 1;
+        return {
+          ...player,
+          rank: index + 1,
+          positionRank: positionCounters[player.position],
+        };
+      });
 
       // Get unique positions and years for filters
       const positions = Array.from(new Set(rankedPlayers.map(p => p.position))).sort();
