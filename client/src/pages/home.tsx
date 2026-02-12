@@ -202,21 +202,49 @@ const STAT_LABELS: Record<string, string> = {
   rz_te_yds: "TE RZ Yards",
   rz_te_fpts: "TE RZ Fantasy Pts",
   rz_te_fpts_per_game: "TE RZ FPTS/G",
-  adv_passing_yds: "Passing Yards",
-  adv_passer_rating: "Passer Rating",
-  adv_air_yds: "Air Yards",
-  adv_air_per_att: "Air Yds/Att",
-  adv_deep_20plus: "20+ Yd Passes",
-  adv_deep_30plus: "30+ Yd Passes",
-  adv_comp_pct: "Comp %",
-  adv_ya: "Yards/Att",
-  adv_sacks: "Sacks Taken",
-  adv_knockdowns: "Knockdowns",
-  adv_hurries: "Hurries",
-  adv_poor_throws: "Poor Throws",
-  adv_drops: "Drops (WR)",
-  adv_pkt_time: "Pocket Time",
-  adv_rz_att: "RZ Attempts",
+  adv_passing_yds: "QB Pass Yards",
+  adv_passer_rating: "QB Passer Rating",
+  adv_air_yds: "QB Air Yards",
+  adv_air_per_att: "QB Air Yds/Att",
+  adv_deep_20plus: "QB 20+ Yd Passes",
+  adv_deep_30plus: "QB 30+ Yd Passes",
+  adv_comp_pct: "QB Comp %",
+  adv_ya: "QB Yards/Att",
+  adv_sacks: "QB Sacks Taken",
+  adv_knockdowns: "QB Knockdowns",
+  adv_hurries: "QB Hurries",
+  adv_poor_throws: "QB Poor Throws",
+  adv_drops: "QB Drops (WR)",
+  adv_pkt_time: "QB Pocket Time",
+  adv_rz_att: "QB RZ Attempts",
+  adv_wr_yds: "WR Rec Yards",
+  adv_wr_yac: "WR YAC",
+  adv_wr_yac_per_r: "WR YAC/Rec",
+  adv_wr_air: "WR Air Yards",
+  adv_wr_air_per_r: "WR Air Yds/Rec",
+  adv_wr_tgt_share: "WR Tgt Share %",
+  adv_wr_drops: "WR Drops",
+  adv_wr_brktkl: "WR Broken Tackles",
+  adv_wr_rz_tgt: "WR RZ Targets",
+  adv_wr_deep_20plus: "WR 20+ Yd Catches",
+  adv_rb_yds: "RB Rush Yards",
+  adv_rb_ypc: "RB Yards/Carry",
+  adv_rb_yacon: "RB YACon",
+  adv_rb_yacon_per_att: "RB YACon/Att",
+  adv_rb_brktkl: "RB Broken Tackles",
+  adv_rb_att: "RB Attempts",
+  adv_rb_rz_tgt: "RB RZ Targets",
+  adv_rb_deep_20plus: "RB 20+ Yd Runs",
+  adv_rb_lng: "RB Long Run",
+  adv_rb_rec: "RB Receptions",
+  adv_te_yds: "TE Rec Yards",
+  adv_te_yac: "TE YAC",
+  adv_te_yac_per_r: "TE YAC/Rec",
+  adv_te_tgt_share: "TE Tgt Share %",
+  adv_te_drops: "TE Drops",
+  adv_te_brktkl: "TE Broken Tackles",
+  adv_te_rz_tgt: "TE RZ Targets",
+  adv_te_rec: "TE Receptions",
 };
 
 const POSITION_COLORS: Record<string, string> = {
@@ -233,10 +261,13 @@ function formatStatValue(key: string, value: number): string {
   if (["rz_comp_pct", "adv_comp_pct"].includes(key)) {
     return value.toFixed(1) + "%";
   }
-  if (["yards_per_carry", "wopr", "ppg_ppr", "rz_fpts_per_game", "adv_air_per_att", "adv_ya", "adv_pkt_time", "rz_rb_ya", "rz_wr_fpts_per_game", "rz_rb_fpts_per_game", "rz_te_fpts_per_game"].includes(key)) {
+  if (["adv_wr_tgt_share", "adv_te_tgt_share"].includes(key)) {
+    return value.toFixed(1) + "%";
+  }
+  if (["yards_per_carry", "wopr", "ppg_ppr", "rz_fpts_per_game", "adv_air_per_att", "adv_ya", "adv_pkt_time", "rz_rb_ya", "rz_wr_fpts_per_game", "rz_rb_fpts_per_game", "rz_te_fpts_per_game", "adv_wr_yac_per_r", "adv_wr_air_per_r", "adv_rb_ypc", "adv_rb_yacon_per_att", "adv_te_yac_per_r"].includes(key)) {
     return value.toFixed(1);
   }
-  if (["receiving_yards", "rushing_yards", "passing_yards", "fantasy_points_ppr", "adv_passing_yds", "adv_air_yds", "rz_fpts", "rz_wr_fpts", "rz_rb_fpts", "rz_te_fpts"].includes(key)) {
+  if (["receiving_yards", "rushing_yards", "passing_yards", "fantasy_points_ppr", "adv_passing_yds", "adv_air_yds", "rz_fpts", "rz_wr_fpts", "rz_rb_fpts", "rz_te_fpts", "adv_wr_yds", "adv_wr_yac", "adv_wr_air", "adv_rb_yds", "adv_rb_yacon", "adv_te_yds", "adv_te_yac"].includes(key)) {
     return value.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
   return String(Math.round(value));

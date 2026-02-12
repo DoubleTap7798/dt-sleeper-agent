@@ -3160,7 +3160,7 @@ Return ONLY valid JSON, no other text.`;
   app.get("/api/nfl/stat-leaders", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { getStatLeaders } = await import('./nflverse-stats');
-      const { getRedZoneQBLeaders, getRedZoneWRLeaders, getRedZoneRBLeaders, getRedZoneTELeaders, getAdvancedQBLeaders } = await import('./fantasypros-stats');
+      const { getRedZoneQBLeaders, getRedZoneWRLeaders, getRedZoneRBLeaders, getRedZoneTELeaders, getAdvancedQBLeaders, getAdvancedWRLeaders, getAdvancedRBLeaders, getAdvancedTELeaders } = await import('./fantasypros-stats');
       const season = req.query.season ? parseInt(req.query.season as string) : undefined;
       const leaders = await getStatLeaders(season);
       leaders.categories.redzone = {
@@ -3169,7 +3169,12 @@ Return ONLY valid JSON, no other text.`;
         ...getRedZoneRBLeaders(),
         ...getRedZoneTELeaders(),
       };
-      leaders.categories.advanced = getAdvancedQBLeaders();
+      leaders.categories.advanced = {
+        ...getAdvancedQBLeaders(),
+        ...getAdvancedWRLeaders(),
+        ...getAdvancedRBLeaders(),
+        ...getAdvancedTELeaders(),
+      };
       res.json(leaders);
     } catch (error) {
       console.error("Error fetching stat leaders:", error);

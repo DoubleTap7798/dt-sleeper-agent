@@ -180,6 +180,91 @@ interface RedZoneTERaw {
   fptsPerGame: number;
 }
 
+interface AdvancedWRRaw {
+  rank: number;
+  player: string;
+  games: number;
+  rec: number;
+  yds: number;
+  yr: number;
+  ybc: number;
+  ybcPerR: number;
+  air: number;
+  airPerR: number;
+  yac: number;
+  yacPerR: number;
+  yacon: number;
+  yaconPerR: number;
+  brktkl: number;
+  tgt: number;
+  tgtPctTm: number;
+  catchable: number;
+  drops: number;
+  rzTgt: number;
+  tenPlus: number;
+  twentyPlus: number;
+  thirtyPlus: number;
+  fortyPlus: number;
+  fiftyPlus: number;
+  lng: number;
+}
+
+interface AdvancedRBRaw {
+  rank: number;
+  player: string;
+  games: number;
+  att: number;
+  yds: number;
+  yPerAtt: number;
+  ybcon: number;
+  ybconPerAtt: number;
+  yacon: number;
+  yaconPerAtt: number;
+  brktkl: number;
+  tkLoss: number;
+  tkLossYds: number;
+  lngTd: number;
+  tenPlus: number;
+  twentyPlus: number;
+  thirtyPlus: number;
+  fortyPlus: number;
+  fiftyPlus: number;
+  lng: number;
+  rec: number;
+  tgt: number;
+  rzTgt: number;
+  yaconRec: number;
+}
+
+interface AdvancedTERaw {
+  rank: number;
+  player: string;
+  games: number;
+  rec: number;
+  yds: number;
+  yr: number;
+  ybc: number;
+  ybcPerR: number;
+  air: number;
+  airPerR: number;
+  yac: number;
+  yacPerR: number;
+  yacon: number;
+  yaconPerR: number;
+  brktkl: number;
+  tgt: number;
+  tgtPctTm: number;
+  catchable: number;
+  drops: number;
+  rzTgt: number;
+  tenPlus: number;
+  twentyPlus: number;
+  thirtyPlus: number;
+  fortyPlus: number;
+  fiftyPlus: number;
+  lng: number;
+}
+
 const RED_ZONE_WR_DATA: RedZoneWRRaw[] = [
   { rank: 1, player: "Deebo Samuel Sr. (WAS)", rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, rushAtt: 1, rushYds: 19, rushTd: 1, rushPct: 100, fl: 0, games: 16, fpts: 7.9, fptsPerGame: 0.5 },
   { rank: 2, player: "Calvin Austin III (PIT)", rec: 1, tgt: 1, recPct: 100, recYds: 18, yr: 18, recTd: 1, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 14, fpts: 7.8, fptsPerGame: 0.6 },
@@ -247,6 +332,75 @@ const RED_ZONE_TE_DATA: RedZoneTERaw[] = [
   { rank: 13, player: "Tyler Warren (IND)", rec: 1, tgt: 2, recPct: 50, recYds: 4, yr: 4.0, recTd: 0, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 0.4, fptsPerGame: 0.0 },
   { rank: 14, player: "Trey McBride (ARI)", rec: 1, tgt: 1, recPct: 100, recYds: 4, yr: 4.0, recTd: 0, tgtPct: 50, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 0.4, fptsPerGame: 0.0 },
   { rank: 15, player: "AJ Barner (SEA)", rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, rushAtt: 1, rushYds: 2, rushTd: 0, rushPct: 100, fl: 0, games: 17, fpts: 0.2, fptsPerGame: 0.0 },
+];
+
+const ADVANCED_WR_DATA: AdvancedWRRaw[] = [
+  { rank: 1, player: "Puka Nacua (LAR)", games: 16, rec: 129, yds: 1715, yr: 13.3, ybc: 1049, ybcPerR: 8.1, air: 1541, airPerR: 11.9, yac: 666, yacPerR: 5.2, yacon: 261, yaconPerR: 2.0, brktkl: 11, tgt: 166, tgtPctTm: 28.6, catchable: 133, drops: 4, rzTgt: 16, tenPlus: 70, twentyPlus: 27, thirtyPlus: 12, fortyPlus: 3, fiftyPlus: 2, lng: 58 },
+  { rank: 2, player: "Jaxon Smith-Njigba (SEA)", games: 17, rec: 119, yds: 1793, yr: 15.1, ybc: 1265, ybcPerR: 10.6, air: 1831, airPerR: 15.4, yac: 528, yacPerR: 4.4, yacon: 174, yaconPerR: 1.5, brktkl: 3, tgt: 163, tgtPctTm: 35.8, catchable: 126, drops: 5, rzTgt: 17, tenPlus: 76, twentyPlus: 27, thirtyPlus: 12, fortyPlus: 8, fiftyPlus: 4, lng: 63 },
+  { rank: 3, player: "Amon-Ra St. Brown (DET)", games: 17, rec: 117, yds: 1401, yr: 12.0, ybc: 831, ybcPerR: 7.1, air: 1359, airPerR: 11.6, yac: 570, yacPerR: 4.9, yacon: 152, yaconPerR: 1.3, brktkl: 4, tgt: 172, tgtPctTm: 31.3, catchable: 128, drops: 10, rzTgt: 34, tenPlus: 56, twentyPlus: 19, thirtyPlus: 7, fortyPlus: 1, fiftyPlus: 1, lng: 52 },
+  { rank: 4, player: "George Pickens (DAL)", games: 17, rec: 93, yds: 1429, yr: 15.4, ybc: 950, ybcPerR: 10.2, air: 1545, airPerR: 16.6, yac: 479, yacPerR: 5.2, yacon: 199, yaconPerR: 2.1, brktkl: 6, tgt: 137, tgtPctTm: 22.6, catchable: 97, drops: 4, rzTgt: 21, tenPlus: 62, twentyPlus: 22, thirtyPlus: 9, fortyPlus: 4, fiftyPlus: 0, lng: 45 },
+  { rank: 5, player: "Ja'Marr Chase (CIN)", games: 16, rec: 125, yds: 1412, yr: 11.3, ybc: 772, ybcPerR: 6.2, air: 1570, airPerR: 12.6, yac: 640, yacPerR: 5.1, yacon: 225, yaconPerR: 1.8, brktkl: 6, tgt: 185, tgtPctTm: 30.4, catchable: 129, drops: 4, rzTgt: 21, tenPlus: 63, twentyPlus: 15, thirtyPlus: 5, fortyPlus: 2, fiftyPlus: 1, lng: 64 },
+  { rank: 6, player: "Chris Olave (NO)", games: 16, rec: 100, yds: 1163, yr: 11.6, ybc: 874, ybcPerR: 8.7, air: 1841, airPerR: 18.4, yac: 289, yacPerR: 2.9, yacon: 47, yaconPerR: 0.5, brktkl: 2, tgt: 156, tgtPctTm: 27.6, catchable: 105, drops: 5, rzTgt: 13, tenPlus: 42, twentyPlus: 11, thirtyPlus: 5, fortyPlus: 4, fiftyPlus: 4, lng: 62 },
+  { rank: 7, player: "Davante Adams (LAR)", games: 14, rec: 60, yds: 789, yr: 13.2, ybc: 671, ybcPerR: 11.2, air: 1439, airPerR: 24.0, yac: 118, yacPerR: 2.0, yacon: 27, yaconPerR: 0.5, brktkl: 0, tgt: 114, tgtPctTm: 19.6, catchable: 65, drops: 5, rzTgt: 31, tenPlus: 35, twentyPlus: 14, thirtyPlus: 3, fortyPlus: 1, fiftyPlus: 0, lng: 44 },
+  { rank: 8, player: "Zay Flowers (BAL)", games: 17, rec: 86, yds: 1211, yr: 14.1, ybc: 753, ybcPerR: 8.8, air: 1205, airPerR: 14.0, yac: 458, yacPerR: 5.3, yacon: 105, yaconPerR: 1.2, brktkl: 9, tgt: 118, tgtPctTm: 29.0, catchable: 93, drops: 7, rzTgt: 10, tenPlus: 43, twentyPlus: 19, thirtyPlus: 10, fortyPlus: 4, fiftyPlus: 3, lng: 64 },
+  { rank: 9, player: "Nico Collins (HOU)", games: 15, rec: 71, yds: 1117, yr: 15.7, ybc: 793, ybcPerR: 11.2, air: 1512, airPerR: 21.3, yac: 324, yacPerR: 4.6, yacon: 130, yaconPerR: 1.8, brktkl: 4, tgt: 120, tgtPctTm: 21.7, catchable: 72, drops: 1, rzTgt: 16, tenPlus: 46, twentyPlus: 18, thirtyPlus: 6, fortyPlus: 5, fiftyPlus: 4, lng: 57 },
+  { rank: 10, player: "Jameson Williams (DET)", games: 17, rec: 65, yds: 1117, yr: 17.2, ybc: 676, ybcPerR: 10.4, air: 1303, airPerR: 20.0, yac: 441, yacPerR: 6.8, yacon: 140, yaconPerR: 2.2, brktkl: 4, tgt: 102, tgtPctTm: 18.5, catchable: 77, drops: 12, rzTgt: 8, tenPlus: 45, twentyPlus: 23, thirtyPlus: 7, fortyPlus: 5, fiftyPlus: 1, lng: 64 },
+  { rank: 11, player: "Tee Higgins (CIN)", games: 15, rec: 59, yds: 846, yr: 14.3, ybc: 680, ybcPerR: 11.5, air: 1286, airPerR: 21.8, yac: 166, yacPerR: 2.8, yacon: 65, yaconPerR: 1.1, brktkl: 5, tgt: 98, tgtPctTm: 16.1, catchable: 61, drops: 2, rzTgt: 14, tenPlus: 34, twentyPlus: 14, thirtyPlus: 5, fortyPlus: 3, fiftyPlus: 0, lng: 44 },
+  { rank: 12, player: "Courtland Sutton (DEN)", games: 17, rec: 74, yds: 1017, yr: 13.7, ybc: 795, ybcPerR: 10.7, air: 1543, airPerR: 20.9, yac: 222, yacPerR: 3.0, yacon: 110, yaconPerR: 1.5, brktkl: 3, tgt: 124, tgtPctTm: 21.2, catchable: 82, drops: 8, rzTgt: 17, tenPlus: 41, twentyPlus: 17, thirtyPlus: 7, fortyPlus: 2, fiftyPlus: 1, lng: 52 },
+  { rank: 13, player: "Michael Wilson (ARI)", games: 17, rec: 78, yds: 1006, yr: 12.9, ybc: 733, ybcPerR: 9.4, air: 1498, airPerR: 19.2, yac: 273, yacPerR: 3.5, yacon: 126, yaconPerR: 1.6, brktkl: 3, tgt: 126, tgtPctTm: 20.4, catchable: 80, drops: 1, rzTgt: 15, tenPlus: 43, twentyPlus: 14, thirtyPlus: 8, fortyPlus: 2, fiftyPlus: 1, lng: 50 },
+  { rank: 14, player: "A.J. Brown (PHI)", games: 15, rec: 78, yds: 1003, yr: 12.9, ybc: 735, ybcPerR: 9.4, air: 1425, airPerR: 18.3, yac: 268, yacPerR: 3.4, yacon: 143, yaconPerR: 1.8, brktkl: 7, tgt: 121, tgtPctTm: 26.1, catchable: 79, drops: 1, rzTgt: 12, tenPlus: 40, twentyPlus: 14, thirtyPlus: 5, fortyPlus: 1, fiftyPlus: 0, lng: 45 },
+  { rank: 15, player: "Tetairoa McMillan (CAR)", games: 17, rec: 70, yds: 1014, yr: 14.5, ybc: 745, ybcPerR: 10.6, air: 1426, airPerR: 20.4, yac: 269, yacPerR: 3.8, yacon: 76, yaconPerR: 1.1, brktkl: 2, tgt: 122, tgtPctTm: 25.4, catchable: 78, drops: 8, rzTgt: 15, tenPlus: 47, twentyPlus: 17, thirtyPlus: 4, fortyPlus: 3, fiftyPlus: 0, lng: 43 },
+  { rank: 16, player: "Alec Pierce (IND)", games: 15, rec: 47, yds: 1003, yr: 21.3, ybc: 829, ybcPerR: 17.6, air: 1587, airPerR: 33.8, yac: 174, yacPerR: 3.7, yacon: 58, yaconPerR: 1.2, brktkl: 1, tgt: 84, tgtPctTm: 15.8, catchable: 48, drops: 1, rzTgt: 8, tenPlus: 39, twentyPlus: 17, thirtyPlus: 9, fortyPlus: 5, fiftyPlus: 3, lng: 66 },
+  { rank: 17, player: "Drake London (ATL)", games: 12, rec: 68, yds: 919, yr: 13.5, ybc: 690, ybcPerR: 10.1, air: 1220, airPerR: 17.9, yac: 229, yacPerR: 3.4, yacon: 74, yaconPerR: 1.1, brktkl: 0, tgt: 112, tgtPctTm: 21.6, catchable: 71, drops: 1, rzTgt: 13, tenPlus: 40, twentyPlus: 13, thirtyPlus: 7, fortyPlus: 3, fiftyPlus: 0, lng: 43 },
+  { rank: 18, player: "Emeka Egbuka (TB)", games: 17, rec: 63, yds: 938, yr: 14.9, ybc: 603, ybcPerR: 9.6, air: 1534, airPerR: 24.3, yac: 335, yacPerR: 5.3, yacon: 66, yaconPerR: 1.0, brktkl: 1, tgt: 127, tgtPctTm: 23.5, catchable: 73, drops: 9, rzTgt: 11, tenPlus: 30, twentyPlus: 20, thirtyPlus: 8, fortyPlus: 3, fiftyPlus: 2, lng: 77 },
+  { rank: 19, player: "Jaylen Waddle (MIA)", games: 16, rec: 64, yds: 910, yr: 14.2, ybc: 682, ybcPerR: 10.7, air: 1306, airPerR: 20.4, yac: 228, yacPerR: 3.6, yacon: 66, yaconPerR: 1.0, brktkl: 4, tgt: 100, tgtPctTm: 21.6, catchable: 68, drops: 5, rzTgt: 11, tenPlus: 43, twentyPlus: 14, thirtyPlus: 5, fortyPlus: 3, fiftyPlus: 0, lng: 46 },
+  { rank: 20, player: "DK Metcalf (PIT)", games: 15, rec: 59, yds: 850, yr: 14.4, ybc: 436, ybcPerR: 7.4, air: 1041, airPerR: 17.6, yac: 414, yacPerR: 7.0, yacon: 180, yaconPerR: 3.1, brktkl: 8, tgt: 99, tgtPctTm: 19.0, catchable: 65, drops: 5, rzTgt: 13, tenPlus: 32, twentyPlus: 15, thirtyPlus: 5, fortyPlus: 3, fiftyPlus: 2, lng: 80 },
+];
+
+const ADVANCED_RB_DATA: AdvancedRBRaw[] = [
+  { rank: 1, player: "Jonathan Taylor (IND)", games: 17, att: 323, yds: 1585, yPerAtt: 4.9, ybcon: 798, ybconPerAtt: 2.5, yacon: 787, yaconPerAtt: 2.4, brktkl: 27, tkLoss: 28, tkLossYds: -54, lngTd: 83, tenPlus: 36, twentyPlus: 9, thirtyPlus: 5, fortyPlus: 4, fiftyPlus: 3, lng: 83, rec: 46, tgt: 55, rzTgt: 4, yaconRec: 103 },
+  { rank: 2, player: "Christian McCaffrey (SF)", games: 17, att: 311, yds: 1202, yPerAtt: 3.9, ybcon: 728, ybconPerAtt: 2.3, yacon: 474, yaconPerAtt: 1.5, brktkl: 10, tkLoss: 30, tkLossYds: -73, lngTd: 12, tenPlus: 27, twentyPlus: 3, thirtyPlus: 1, fortyPlus: 1, fiftyPlus: 0, lng: 41, rec: 102, tgt: 129, rzTgt: 25, yaconRec: 212 },
+  { rank: 3, player: "Bijan Robinson (ATL)", games: 17, att: 287, yds: 1478, yPerAtt: 5.1, ybcon: 812, ybconPerAtt: 2.8, yacon: 666, yaconPerAtt: 2.3, brktkl: 22, tkLoss: 26, tkLossYds: -64, lngTd: 93, tenPlus: 36, twentyPlus: 8, thirtyPlus: 4, fortyPlus: 2, fiftyPlus: 2, lng: 93, rec: 79, tgt: 103, rzTgt: 12, yaconRec: 209 },
+  { rank: 4, player: "Jahmyr Gibbs (DET)", games: 17, att: 243, yds: 1223, yPerAtt: 5.0, ybcon: 819, ybconPerAtt: 3.4, yacon: 404, yaconPerAtt: 1.7, brktkl: 18, tkLoss: 27, tkLossYds: -81, lngTd: 78, tenPlus: 27, twentyPlus: 10, thirtyPlus: 6, fortyPlus: 6, fiftyPlus: 2, lng: 78, rec: 77, tgt: 94, rzTgt: 12, yaconRec: 77 },
+  { rank: 5, player: "James Cook III (BUF)", games: 17, att: 309, yds: 1621, yPerAtt: 5.2, ybcon: 935, ybconPerAtt: 3.0, yacon: 686, yaconPerAtt: 2.2, brktkl: 21, tkLoss: 14, tkLossYds: -35, lngTd: 64, tenPlus: 39, twentyPlus: 9, thirtyPlus: 5, fortyPlus: 4, fiftyPlus: 1, lng: 64, rec: 33, tgt: 40, rzTgt: 3, yaconRec: 98 },
+  { rank: 6, player: "Derrick Henry (BAL)", games: 17, att: 307, yds: 1595, yPerAtt: 5.2, ybcon: 866, ybconPerAtt: 2.8, yacon: 729, yaconPerAtt: 2.4, brktkl: 13, tkLoss: 22, tkLossYds: -49, lngTd: 46, tenPlus: 36, twentyPlus: 17, thirtyPlus: 7, fortyPlus: 4, fiftyPlus: 1, lng: 59, rec: 15, tgt: 21, rzTgt: 2, yaconRec: 57 },
+  { rank: 7, player: "De'Von Achane (MIA)", games: 16, att: 238, yds: 1350, yPerAtt: 5.7, ybcon: 631, ybconPerAtt: 2.7, yacon: 719, yaconPerAtt: 3.0, brktkl: 22, tkLoss: 23, tkLossYds: -54, lngTd: 59, tenPlus: 40, twentyPlus: 13, thirtyPlus: 6, fortyPlus: 4, fiftyPlus: 1, lng: 59, rec: 67, tgt: 85, rzTgt: 9, yaconRec: 108 },
+  { rank: 8, player: "Kyren Williams (LAR)", games: 17, att: 259, yds: 1252, yPerAtt: 4.8, ybcon: 737, ybconPerAtt: 2.8, yacon: 515, yaconPerAtt: 2.0, brktkl: 22, tkLoss: 12, tkLossYds: -31, lngTd: 7, tenPlus: 26, twentyPlus: 6, thirtyPlus: 2, fortyPlus: 0, fiftyPlus: 0, lng: 34, rec: 36, tgt: 50, rzTgt: 9, yaconRec: 35 },
+  { rank: 9, player: "Travis Etienne Jr. (JAC)", games: 17, att: 260, yds: 1107, yPerAtt: 4.3, ybcon: 562, ybconPerAtt: 2.2, yacon: 545, yaconPerAtt: 2.1, brktkl: 10, tkLoss: 26, tkLossYds: -60, lngTd: 48, tenPlus: 26, twentyPlus: 7, thirtyPlus: 4, fortyPlus: 3, fiftyPlus: 1, lng: 71, rec: 36, tgt: 52, rzTgt: 9, yaconRec: 121 },
+  { rank: 10, player: "Chase Brown (CIN)", games: 17, att: 232, yds: 1019, yPerAtt: 4.4, ybcon: 525, ybconPerAtt: 2.3, yacon: 494, yaconPerAtt: 2.1, brktkl: 16, tkLoss: 16, tkLossYds: -36, lngTd: 12, tenPlus: 24, twentyPlus: 6, thirtyPlus: 2, fortyPlus: 0, fiftyPlus: 0, lng: 37, rec: 69, tgt: 88, rzTgt: 11, yaconRec: 124 },
+  { rank: 11, player: "Javonte Williams (DAL)", games: 16, att: 252, yds: 1201, yPerAtt: 4.8, ybcon: 574, ybconPerAtt: 2.3, yacon: 627, yaconPerAtt: 2.5, brktkl: 25, tkLoss: 13, tkLossYds: -27, lngTd: 30, tenPlus: 26, twentyPlus: 6, thirtyPlus: 3, fortyPlus: 1, fiftyPlus: 1, lng: 66, rec: 35, tgt: 51, rzTgt: 12, yaconRec: 46 },
+  { rank: 12, player: "Josh Jacobs (GB)", games: 15, att: 234, yds: 929, yPerAtt: 4.0, ybcon: 459, ybconPerAtt: 2.0, yacon: 470, yaconPerAtt: 2.0, brktkl: 16, tkLoss: 19, tkLossYds: -37, lngTd: 40, tenPlus: 23, twentyPlus: 3, thirtyPlus: 1, fortyPlus: 1, fiftyPlus: 0, lng: 40, rec: 36, tgt: 44, rzTgt: 6, yaconRec: 101 },
+  { rank: 13, player: "Saquon Barkley (PHI)", games: 16, att: 280, yds: 1140, yPerAtt: 4.1, ybcon: 689, ybconPerAtt: 2.5, yacon: 451, yaconPerAtt: 1.6, brktkl: 18, tkLoss: 41, tkLossYds: -104, lngTd: 65, tenPlus: 28, twentyPlus: 4, thirtyPlus: 3, fortyPlus: 3, fiftyPlus: 2, lng: 65, rec: 37, tgt: 50, rzTgt: 6, yaconRec: 78 },
+  { rank: 14, player: "D'Andre Swift (CHI)", games: 16, att: 223, yds: 1087, yPerAtt: 4.9, ybcon: 666, ybconPerAtt: 3.0, yacon: 421, yaconPerAtt: 1.9, brktkl: 11, tkLoss: 14, tkLossYds: -32, lngTd: 22, tenPlus: 30, twentyPlus: 5, thirtyPlus: 0, fortyPlus: 0, fiftyPlus: 0, lng: 25, rec: 34, tgt: 48, rzTgt: 1, yaconRec: 65 },
+  { rank: 15, player: "Ashton Jeanty (LV)", games: 17, att: 266, yds: 975, yPerAtt: 3.7, ybcon: 419, ybconPerAtt: 1.6, yacon: 556, yaconPerAtt: 2.1, brktkl: 24, tkLoss: 45, tkLossYds: -82, lngTd: 64, tenPlus: 24, twentyPlus: 3, thirtyPlus: 2, fortyPlus: 2, fiftyPlus: 2, lng: 64, rec: 55, tgt: 73, rzTgt: 10, yaconRec: 148 },
+  { rank: 16, player: "Rico Dowdle (CAR)", games: 17, att: 236, yds: 1076, yPerAtt: 4.6, ybcon: 596, ybconPerAtt: 2.5, yacon: 480, yaconPerAtt: 2.0, brktkl: 14, tkLoss: 16, tkLossYds: -29, lngTd: 5, tenPlus: 24, twentyPlus: 5, thirtyPlus: 2, fortyPlus: 2, fiftyPlus: 1, lng: 53, rec: 39, tgt: 50, rzTgt: 4, yaconRec: 66 },
+  { rank: 17, player: "Jaylen Warren (PIT)", games: 16, att: 211, yds: 958, yPerAtt: 4.5, ybcon: 461, ybconPerAtt: 2.2, yacon: 497, yaconPerAtt: 2.4, brktkl: 23, tkLoss: 17, tkLossYds: -31, lngTd: 45, tenPlus: 23, twentyPlus: 6, thirtyPlus: 4, fortyPlus: 2, fiftyPlus: 0, lng: 45, rec: 40, tgt: 45, rzTgt: 5, yaconRec: 179 },
+  { rank: 18, player: "Breece Hall (NYJ)", games: 16, att: 243, yds: 1065, yPerAtt: 4.4, ybcon: 618, ybconPerAtt: 2.5, yacon: 447, yaconPerAtt: 1.8, brktkl: 12, tkLoss: 33, tkLossYds: -88, lngTd: 59, tenPlus: 26, twentyPlus: 8, thirtyPlus: 3, fortyPlus: 1, fiftyPlus: 1, lng: 59, rec: 36, tgt: 48, rzTgt: 8, yaconRec: 96 },
+  { rank: 19, player: "TreVeyon Henderson (NE)", games: 17, att: 180, yds: 911, yPerAtt: 5.1, ybcon: 549, ybconPerAtt: 3.1, yacon: 362, yaconPerAtt: 2.0, brktkl: 11, tkLoss: 19, tkLossYds: -46, lngTd: 69, tenPlus: 18, twentyPlus: 6, thirtyPlus: 4, fortyPlus: 4, fiftyPlus: 4, lng: 69, rec: 35, tgt: 42, rzTgt: 4, yaconRec: 46 },
+  { rank: 20, player: "Zach Charbonnet (SEA)", games: 16, att: 184, yds: 730, yPerAtt: 4.0, ybcon: 393, ybconPerAtt: 2.1, yacon: 337, yaconPerAtt: 1.8, brktkl: 14, tkLoss: 20, tkLossYds: -45, lngTd: 27, tenPlus: 12, twentyPlus: 5, thirtyPlus: 1, fortyPlus: 0, fiftyPlus: 0, lng: 30, rec: 20, tgt: 24, rzTgt: 3, yaconRec: 32 },
+  { rank: 21, player: "Kenneth Walker III (SEA)", games: 17, att: 221, yds: 1027, yPerAtt: 4.6, ybcon: 621, ybconPerAtt: 2.8, yacon: 406, yaconPerAtt: 1.8, brktkl: 23, tkLoss: 26, tkLossYds: -57, lngTd: 55, tenPlus: 33, twentyPlus: 10, thirtyPlus: 2, fortyPlus: 1, fiftyPlus: 1, lng: 55, rec: 31, tgt: 36, rzTgt: 3, yaconRec: 67 },
+  { rank: 22, player: "Tony Pollard (TEN)", games: 17, att: 242, yds: 1082, yPerAtt: 4.5, ybcon: 640, ybconPerAtt: 2.6, yacon: 442, yaconPerAtt: 1.8, brktkl: 16, tkLoss: 18, tkLossYds: -30, lngTd: 65, tenPlus: 27, twentyPlus: 6, thirtyPlus: 2, fortyPlus: 1, fiftyPlus: 1, lng: 65, rec: 33, tgt: 41, rzTgt: 1, yaconRec: 62 },
+  { rank: 23, player: "Alvin Kamara (NO)", games: 11, att: 131, yds: 471, yPerAtt: 3.6, ybcon: 282, ybconPerAtt: 2.2, yacon: 189, yaconPerAtt: 1.4, brktkl: 7, tkLoss: 16, tkLossYds: -27, lngTd: 18, tenPlus: 10, twentyPlus: 0, thirtyPlus: 0, fortyPlus: 0, fiftyPlus: 0, lng: 18, rec: 33, tgt: 39, rzTgt: 5, yaconRec: 23 },
+  { rank: 24, player: "David Montgomery (DET)", games: 17, att: 158, yds: 716, yPerAtt: 4.5, ybcon: 370, ybconPerAtt: 2.3, yacon: 346, yaconPerAtt: 2.2, brktkl: 3, tkLoss: 14, tkLossYds: -26, lngTd: 35, tenPlus: 15, twentyPlus: 3, thirtyPlus: 3, fortyPlus: 1, fiftyPlus: 1, lng: 72, rec: 24, tgt: 29, rzTgt: 2, yaconRec: 49 },
+  { rank: 25, player: "Jacory Croskey-Merritt (WAS)", games: 17, att: 175, yds: 805, yPerAtt: 4.6, ybcon: 443, ybconPerAtt: 2.5, yacon: 362, yaconPerAtt: 2.1, brktkl: 13, tkLoss: 17, tkLossYds: -35, lngTd: 72, tenPlus: 21, twentyPlus: 3, thirtyPlus: 2, fortyPlus: 2, fiftyPlus: 1, lng: 72, rec: 9, tgt: 13, rzTgt: 1, yaconRec: 8 },
+];
+
+const ADVANCED_TE_DATA: AdvancedTERaw[] = [
+  { rank: 1, player: "Trey McBride (ARI)", games: 17, rec: 126, yds: 1239, yr: 9.8, ybc: 656, ybcPerR: 5.2, air: 1147, airPerR: 9.1, yac: 583, yacPerR: 4.6, yacon: 167, yaconPerR: 1.3, brktkl: 9, tgt: 169, tgtPctTm: 27.4, catchable: 128, drops: 2, rzTgt: 32, tenPlus: 51, twentyPlus: 12, thirtyPlus: 1, fortyPlus: 0, fiftyPlus: 0, lng: 31 },
+  { rank: 2, player: "Dallas Goedert (PHI)", games: 15, rec: 60, yds: 591, yr: 9.9, ybc: 357, ybcPerR: 6.0, air: 583, airPerR: 9.7, yac: 234, yacPerR: 3.9, yacon: 59, yaconPerR: 1.0, brktkl: 3, tgt: 82, tgtPctTm: 17.7, catchable: 64, drops: 4, rzTgt: 15, tenPlus: 22, twentyPlus: 7, thirtyPlus: 3, fortyPlus: 0, fiftyPlus: 0, lng: 36 },
+  { rank: 3, player: "Kyle Pitts Sr. (ATL)", games: 17, rec: 88, yds: 928, yr: 10.5, ybc: 528, ybcPerR: 6.0, air: 871, airPerR: 9.9, yac: 400, yacPerR: 4.5, yacon: 90, yaconPerR: 1.0, brktkl: 2, tgt: 118, tgtPctTm: 22.7, catchable: 91, drops: 2, rzTgt: 11, tenPlus: 43, twentyPlus: 12, thirtyPlus: 2, fortyPlus: 0, fiftyPlus: 0, lng: 36 },
+  { rank: 4, player: "Hunter Henry (NE)", games: 17, rec: 60, yds: 768, yr: 12.8, ybc: 433, ybcPerR: 7.2, air: 692, airPerR: 11.5, yac: 335, yacPerR: 5.6, yacon: 64, yaconPerR: 1.1, brktkl: 1, tgt: 87, tgtPctTm: 18.0, catchable: 63, drops: 3, rzTgt: 22, tenPlus: 36, twentyPlus: 11, thirtyPlus: 2, fortyPlus: 0, fiftyPlus: 0, lng: 36 },
+  { rank: 5, player: "Travis Kelce (KC)", games: 17, rec: 76, yds: 851, yr: 11.2, ybc: 430, ybcPerR: 5.7, air: 734, airPerR: 9.7, yac: 421, yacPerR: 5.5, yacon: 134, yaconPerR: 1.8, brktkl: 1, tgt: 108, tgtPctTm: 19.7, catchable: 83, drops: 7, rzTgt: 11, tenPlus: 40, twentyPlus: 9, thirtyPlus: 4, fortyPlus: 1, fiftyPlus: 0, lng: 44 },
+  { rank: 6, player: "Harold Fannin Jr. (CLE)", games: 16, rec: 72, yds: 731, yr: 10.2, ybc: 379, ybcPerR: 5.3, air: 659, airPerR: 9.2, yac: 352, yacPerR: 4.9, yacon: 154, yaconPerR: 2.1, brktkl: 7, tgt: 107, tgtPctTm: 20.5, catchable: 76, drops: 4, rzTgt: 10, tenPlus: 30, twentyPlus: 8, thirtyPlus: 2, fortyPlus: 0, fiftyPlus: 0, lng: 35 },
+  { rank: 7, player: "Tyler Warren (IND)", games: 17, rec: 76, yds: 817, yr: 10.8, ybc: 343, ybcPerR: 4.5, air: 610, airPerR: 8.0, yac: 474, yacPerR: 6.2, yacon: 118, yaconPerR: 1.6, brktkl: 4, tgt: 112, tgtPctTm: 21.1, catchable: 78, drops: 2, rzTgt: 19, tenPlus: 33, twentyPlus: 10, thirtyPlus: 1, fortyPlus: 1, fiftyPlus: 0, lng: 41 },
+  { rank: 8, player: "Brock Bowers (LV)", games: 12, rec: 64, yds: 680, yr: 10.6, ybc: 375, ybcPerR: 5.9, air: 560, airPerR: 8.8, yac: 305, yacPerR: 4.8, yacon: 83, yaconPerR: 1.3, brktkl: 3, tgt: 86, tgtPctTm: 17.4, catchable: 68, drops: 4, rzTgt: 16, tenPlus: 24, twentyPlus: 8, thirtyPlus: 3, fortyPlus: 0, fiftyPlus: 0, lng: 38 },
+  { rank: 9, player: "Colston Loveland (CHI)", games: 16, rec: 58, yds: 713, yr: 12.3, ybc: 463, ybcPerR: 8.0, air: 741, airPerR: 12.8, yac: 250, yacPerR: 4.3, yacon: 99, yaconPerR: 1.7, brktkl: 4, tgt: 82, tgtPctTm: 15.4, catchable: 61, drops: 1, rzTgt: 14, tenPlus: 28, twentyPlus: 10, thirtyPlus: 5, fortyPlus: 1, fiftyPlus: 1, lng: 58 },
+  { rank: 10, player: "Jake Ferguson (DAL)", games: 17, rec: 82, yds: 600, yr: 7.3, ybc: 293, ybcPerR: 3.6, air: 476, airPerR: 5.8, yac: 307, yacPerR: 3.7, yacon: 78, yaconPerR: 1.0, brktkl: 6, tgt: 102, tgtPctTm: 16.8, catchable: 84, drops: 2, rzTgt: 23, tenPlus: 23, twentyPlus: 2, thirtyPlus: 0, fortyPlus: 0, fiftyPlus: 0, lng: 26 },
+  { rank: 11, player: "George Kittle (SF)", games: 11, rec: 57, yds: 628, yr: 11.0, ybc: 376, ybcPerR: 6.6, air: 459, airPerR: 8.1, yac: 252, yacPerR: 4.4, yacon: 75, yaconPerR: 1.3, brktkl: 2, tgt: 69, tgtPctTm: 12.5, catchable: 58, drops: 1, rzTgt: 12, tenPlus: 30, twentyPlus: 9, thirtyPlus: 2, fortyPlus: 0, fiftyPlus: 0, lng: 33 },
+  { rank: 12, player: "Juwan Johnson (NO)", games: 17, rec: 77, yds: 889, yr: 11.5, ybc: 527, ybcPerR: 6.8, air: 769, airPerR: 10.0, yac: 362, yacPerR: 4.7, yacon: 94, yaconPerR: 1.2, brktkl: 5, tgt: 102, tgtPctTm: 18.1, catchable: 83, drops: 6, rzTgt: 8, tenPlus: 38, twentyPlus: 11, thirtyPlus: 5, fortyPlus: 1, fiftyPlus: 1, lng: 52 },
+  { rank: 13, player: "Dalton Schultz (HOU)", games: 17, rec: 82, yds: 777, yr: 9.5, ybc: 419, ybcPerR: 5.1, air: 659, airPerR: 8.0, yac: 358, yacPerR: 4.4, yacon: 75, yaconPerR: 0.9, brktkl: 3, tgt: 106, tgtPctTm: 19.2, catchable: 85, drops: 2, rzTgt: 11, tenPlus: 31, twentyPlus: 5, thirtyPlus: 2, fortyPlus: 1, fiftyPlus: 0, lng: 47 },
+  { rank: 14, player: "AJ Barner (SEA)", games: 17, rec: 52, yds: 519, yr: 10.0, ybc: 248, ybcPerR: 4.8, air: 303, airPerR: 5.8, yac: 271, yacPerR: 5.2, yacon: 69, yaconPerR: 1.3, brktkl: 3, tgt: 68, tgtPctTm: 14.9, catchable: 54, drops: 2, rzTgt: 12, tenPlus: 20, twentyPlus: 3, thirtyPlus: 1, fortyPlus: 1, fiftyPlus: 1, lng: 61 },
+  { rank: 15, player: "Dalton Kincaid (BUF)", games: 12, rec: 39, yds: 571, yr: 14.6, ybc: 312, ybcPerR: 8.0, air: 465, airPerR: 11.9, yac: 259, yacPerR: 6.6, yacon: 62, yaconPerR: 1.6, brktkl: 1, tgt: 49, tgtPctTm: 10.2, catchable: 40, drops: 1, rzTgt: 6, tenPlus: 26, twentyPlus: 13, thirtyPlus: 1, fortyPlus: 1, fiftyPlus: 0, lng: 47 },
 ];
 
 function toStatLeader(player: string, value: number, games: number, position: string = 'QB'): StatLeader {
@@ -342,6 +496,64 @@ export function getRedZoneTELeaders(): Record<string, StatLeader[]> {
     rz_te_yds: topNFromData(d, i => i.recYds, p, g, 10, true, pos),
     rz_te_fpts: topNFromData(d, i => i.fpts, p, g, 10, true, pos),
     rz_te_fpts_per_game: topNFromData(d, i => i.fptsPerGame, p, g, 10, true, pos),
+  };
+}
+
+export function getAdvancedWRLeaders(): Record<string, StatLeader[]> {
+  const d = ADVANCED_WR_DATA;
+  const p = (item: AdvancedWRRaw) => item.player;
+  const g = (item: AdvancedWRRaw) => item.games;
+  const pos = 'WR';
+
+  return {
+    adv_wr_yds: topNFromData(d, i => i.yds, p, g, 10, true, pos),
+    adv_wr_yac: topNFromData(d, i => i.yac, p, g, 10, true, pos),
+    adv_wr_yac_per_r: topNFromData(d, i => i.yacPerR, p, g, 10, true, pos),
+    adv_wr_air: topNFromData(d, i => i.air, p, g, 10, true, pos),
+    adv_wr_air_per_r: topNFromData(d, i => i.airPerR, p, g, 10, true, pos),
+    adv_wr_tgt_share: topNFromData(d, i => i.tgtPctTm, p, g, 10, true, pos),
+    adv_wr_drops: topNFromData(d, i => i.drops, p, g, 10, true, pos),
+    adv_wr_brktkl: topNFromData(d, i => i.brktkl, p, g, 10, true, pos),
+    adv_wr_rz_tgt: topNFromData(d, i => i.rzTgt, p, g, 10, true, pos),
+    adv_wr_deep_20plus: topNFromData(d, i => i.twentyPlus, p, g, 10, true, pos),
+  };
+}
+
+export function getAdvancedRBLeaders(): Record<string, StatLeader[]> {
+  const d = ADVANCED_RB_DATA;
+  const p = (item: AdvancedRBRaw) => item.player;
+  const g = (item: AdvancedRBRaw) => item.games;
+  const pos = 'RB';
+
+  return {
+    adv_rb_yds: topNFromData(d, i => i.yds, p, g, 10, true, pos),
+    adv_rb_ypc: topNFromData(d, i => i.yPerAtt, p, g, 10, true, pos),
+    adv_rb_yacon: topNFromData(d, i => i.yacon, p, g, 10, true, pos),
+    adv_rb_yacon_per_att: topNFromData(d, i => i.yaconPerAtt, p, g, 10, true, pos),
+    adv_rb_brktkl: topNFromData(d, i => i.brktkl, p, g, 10, true, pos),
+    adv_rb_att: topNFromData(d, i => i.att, p, g, 10, true, pos),
+    adv_rb_rz_tgt: topNFromData(d, i => i.rzTgt, p, g, 10, true, pos),
+    adv_rb_deep_20plus: topNFromData(d, i => i.twentyPlus, p, g, 10, true, pos),
+    adv_rb_lng: topNFromData(d, i => i.lng, p, g, 10, true, pos),
+    adv_rb_rec: topNFromData(d, i => i.rec, p, g, 10, true, pos),
+  };
+}
+
+export function getAdvancedTELeaders(): Record<string, StatLeader[]> {
+  const d = ADVANCED_TE_DATA;
+  const p = (item: AdvancedTERaw) => item.player;
+  const g = (item: AdvancedTERaw) => item.games;
+  const pos = 'TE';
+
+  return {
+    adv_te_yds: topNFromData(d, i => i.yds, p, g, 10, true, pos),
+    adv_te_yac: topNFromData(d, i => i.yac, p, g, 10, true, pos),
+    adv_te_yac_per_r: topNFromData(d, i => i.yacPerR, p, g, 10, true, pos),
+    adv_te_tgt_share: topNFromData(d, i => i.tgtPctTm, p, g, 10, true, pos),
+    adv_te_drops: topNFromData(d, i => i.drops, p, g, 10, true, pos),
+    adv_te_brktkl: topNFromData(d, i => i.brktkl, p, g, 10, true, pos),
+    adv_te_rz_tgt: topNFromData(d, i => i.rzTgt, p, g, 10, true, pos),
+    adv_te_rec: topNFromData(d, i => i.rec, p, g, 10, true, pos),
   };
 }
 
