@@ -153,6 +153,8 @@ export interface StatLeadersResponse {
       fantasy_points_ppr: StatLeader[];
       ppg_ppr: StatLeader[];
     };
+    redzone: Record<string, StatLeader[]>;
+    advanced: Record<string, StatLeader[]>;
   };
 }
 
@@ -1040,6 +1042,8 @@ export async function getStatLeaders(season?: number): Promise<StatLeadersRespon
         fantasy_points_ppr: topN(seasonStats, p => p.fantasy_points_ppr),
         ppg_ppr: topN(seasonStats, p => p.ppg_ppr, 10, efficiencyMinGames),
       },
+      redzone: {},
+      advanced: {},
     },
   };
 }

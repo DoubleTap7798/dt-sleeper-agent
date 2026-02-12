@@ -16,7 +16,7 @@ import {
   Trophy, Users, TrendingUp, Calendar, Target, Crown, Medal, Activity, 
   ArrowRightLeft, UserPlus, RefreshCw, Zap, AlertTriangle, ChevronRight,
   ArrowUpRight, ArrowUp, ArrowDown, Minus, Rocket, Shield, Hourglass, HelpCircle, Lightbulb, X,
-  Share2, Copy, Check, Crosshair, Flame, BarChart3
+  Share2, Copy, Check, Crosshair, Flame, BarChart3, Gauge, Brain
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -144,6 +144,8 @@ interface StatLeadersResponse {
     explosive: Record<string, StatLeader[]>;
     efficiency: Record<string, StatLeader[]>;
     fantasy: Record<string, StatLeader[]>;
+    redzone: Record<string, StatLeader[]>;
+    advanced: Record<string, StatLeader[]>;
   };
 }
 
@@ -175,6 +177,28 @@ const STAT_LABELS: Record<string, string> = {
   wopr: "WOPR",
   ppg_ppr: "PPG (PPR)",
   fantasy_points_ppr: "Total PPR Points",
+  rz_total_td: "RZ Total TDs",
+  rz_pass_td: "RZ Pass TDs",
+  rz_rush_td: "RZ Rush TDs",
+  rz_fpts_per_game: "RZ FPTS/G",
+  rz_fpts: "RZ Fantasy Pts",
+  rz_att: "RZ Attempts",
+  rz_comp_pct: "RZ Comp %",
+  adv_passing_yds: "Passing Yards",
+  adv_passer_rating: "Passer Rating",
+  adv_air_yds: "Air Yards",
+  adv_air_per_att: "Air Yds/Att",
+  adv_deep_20plus: "20+ Yd Passes",
+  adv_deep_30plus: "30+ Yd Passes",
+  adv_comp_pct: "Comp %",
+  adv_ya: "Yards/Att",
+  adv_sacks: "Sacks Taken",
+  adv_knockdowns: "Knockdowns",
+  adv_hurries: "Hurries",
+  adv_poor_throws: "Poor Throws",
+  adv_drops: "Drops (WR)",
+  adv_pkt_time: "Pocket Time",
+  adv_rz_att: "RZ Attempts",
 };
 
 const POSITION_COLORS: Record<string, string> = {
@@ -188,10 +212,13 @@ function formatStatValue(key: string, value: number): string {
   if (["target_share", "catch_rate"].includes(key)) {
     return (value * 100).toFixed(1) + "%";
   }
-  if (["yards_per_carry", "wopr", "ppg_ppr"].includes(key)) {
+  if (["rz_comp_pct", "adv_comp_pct"].includes(key)) {
+    return value.toFixed(1) + "%";
+  }
+  if (["yards_per_carry", "wopr", "ppg_ppr", "rz_fpts_per_game", "adv_air_per_att", "adv_ya", "adv_pkt_time"].includes(key)) {
     return value.toFixed(1);
   }
-  if (["receiving_yards", "rushing_yards", "passing_yards", "fantasy_points_ppr"].includes(key)) {
+  if (["receiving_yards", "rushing_yards", "passing_yards", "fantasy_points_ppr", "adv_passing_yds", "adv_air_yds", "rz_fpts"].includes(key)) {
     return value.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
   return String(Math.round(value));
@@ -274,6 +301,8 @@ function StatLeadersSection() {
     { key: "explosive" as const, label: "Big Plays", icon: Flame },
     { key: "efficiency" as const, label: "Efficiency", icon: TrendingUp },
     { key: "fantasy" as const, label: "Fantasy", icon: Trophy },
+    { key: "redzone" as const, label: "Red Zone", icon: Gauge },
+    { key: "advanced" as const, label: "Advanced", icon: Brain },
   ];
 
   return (

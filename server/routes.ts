@@ -3160,8 +3160,11 @@ Return ONLY valid JSON, no other text.`;
   app.get("/api/nfl/stat-leaders", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { getStatLeaders } = await import('./nflverse-stats');
+      const { getRedZoneQBLeaders, getAdvancedQBLeaders } = await import('./fantasypros-stats');
       const season = req.query.season ? parseInt(req.query.season as string) : undefined;
       const leaders = await getStatLeaders(season);
+      leaders.categories.redzone = getRedZoneQBLeaders();
+      leaders.categories.advanced = getAdvancedQBLeaders();
       res.json(leaders);
     } catch (error) {
       console.error("Error fetching stat leaders:", error);
