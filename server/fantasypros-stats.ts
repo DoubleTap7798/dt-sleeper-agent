@@ -119,13 +119,143 @@ const ADVANCED_QB_DATA: AdvancedQBRaw[] = [
   { rank: 25, player: "Tua Tagovailoa (MIA)", games: 14, comp: 260, att: 384, pct: 68, yds: 2660, ya: 6.9, airYds: 1496, airPerAtt: 3.9, deep10: 113, deep20: 33, deep30: 8, deep40: 4, deep50: 0, pktTime: 2.3, sacks: 30, knockdowns: 15, hurries: 48, blitz: 85, poorThrows: 58, drops: 18, rzAtt: 53, rating: 87 },
 ];
 
-function toStatLeader(player: string, value: number, games: number): StatLeader {
+interface RedZoneWRRaw {
+  rank: number;
+  player: string;
+  rec: number;
+  tgt: number;
+  recPct: number;
+  recYds: number;
+  yr: number;
+  recTd: number;
+  tgtPct: number;
+  rushAtt: number;
+  rushYds: number;
+  rushTd: number;
+  rushPct: number;
+  fl: number;
+  games: number;
+  fpts: number;
+  fptsPerGame: number;
+}
+
+interface RedZoneRBRaw {
+  rank: number;
+  player: string;
+  rushAtt: number;
+  rushYds: number;
+  ya: number;
+  rushTd: number;
+  rushPct: number;
+  rec: number;
+  tgt: number;
+  recPct: number;
+  recYds: number;
+  yr: number;
+  recTd: number;
+  tgtPct: number;
+  fl: number;
+  games: number;
+  fpts: number;
+  fptsPerGame: number;
+}
+
+interface RedZoneTERaw {
+  rank: number;
+  player: string;
+  rec: number;
+  tgt: number;
+  recPct: number;
+  recYds: number;
+  yr: number;
+  recTd: number;
+  tgtPct: number;
+  rushAtt: number;
+  rushYds: number;
+  rushTd: number;
+  rushPct: number;
+  fl: number;
+  games: number;
+  fpts: number;
+  fptsPerGame: number;
+}
+
+const RED_ZONE_WR_DATA: RedZoneWRRaw[] = [
+  { rank: 1, player: "Deebo Samuel Sr. (WAS)", rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, rushAtt: 1, rushYds: 19, rushTd: 1, rushPct: 100, fl: 0, games: 16, fpts: 7.9, fptsPerGame: 0.5 },
+  { rank: 2, player: "Calvin Austin III (PIT)", rec: 1, tgt: 1, recPct: 100, recYds: 18, yr: 18, recTd: 1, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 14, fpts: 7.8, fptsPerGame: 0.6 },
+  { rank: 3, player: "Jayden Reed (GB)", rec: 1, tgt: 1, recPct: 100, recYds: 17, yr: 17, recTd: 1, tgtPct: 25, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 7, fpts: 7.7, fptsPerGame: 1.1 },
+  { rank: 4, player: "Isaac TeSlaa (DET)", rec: 1, tgt: 1, recPct: 100, recYds: 13, yr: 13, recTd: 1, tgtPct: 25, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 7.3, fptsPerGame: 0.4 },
+  { rank: 5, player: "Justin Jefferson (MIN)", rec: 1, tgt: 2, recPct: 50, recYds: 13, yr: 13, recTd: 1, tgtPct: 66.7, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 7.3, fptsPerGame: 0.4 },
+  { rank: 6, player: "Keenan Allen (LAC)", rec: 1, tgt: 1, recPct: 100, recYds: 11, yr: 11, recTd: 1, tgtPct: 33.3, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 7.1, fptsPerGame: 0.4 },
+  { rank: 7, player: "Keon Coleman (BUF)", rec: 1, tgt: 2, recPct: 50, recYds: 10, yr: 10, recTd: 1, tgtPct: 33.3, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 13, fpts: 7.0, fptsPerGame: 0.5 },
+  { rank: 8, player: "Brian Thomas Jr. (JAC)", rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, rushAtt: 1, rushYds: 9, rushTd: 1, rushPct: 100, fl: 0, games: 14, fpts: 6.9, fptsPerGame: 0.5 },
+  { rank: 9, player: "Cedric Tillman (CLE)", rec: 1, tgt: 1, recPct: 100, recYds: 5, yr: 5, recTd: 1, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 13, fpts: 6.5, fptsPerGame: 0.5 },
+  { rank: 10, player: "Quentin Johnston (LAC)", rec: 1, tgt: 2, recPct: 50, recYds: 5, yr: 5, recTd: 1, tgtPct: 66.7, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 14, fpts: 6.5, fptsPerGame: 0.5 },
+  { rank: 11, player: "DeMario Douglas (NE)", rec: 1, tgt: 3, recPct: 33.3, recYds: 2, yr: 2, recTd: 1, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 6.2, fptsPerGame: 0.4 },
+  { rank: 12, player: "Rome Odunze (CHI)", rec: 1, tgt: 1, recPct: 100, recYds: 1, yr: 1, recTd: 1, tgtPct: 50, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 12, fpts: 6.1, fptsPerGame: 0.5 },
+  { rank: 13, player: "Marvin Harrison Jr. (ARI)", rec: 1, tgt: 1, recPct: 100, recYds: 1, yr: 1, recTd: 1, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 12, fpts: 6.1, fptsPerGame: 0.5 },
+  { rank: 14, player: "Ashton Dulin (IND)", rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, rushAtt: 1, rushYds: 15, rushTd: 0, rushPct: 100, fl: 0, games: 12, fpts: 1.5, fptsPerGame: 0.1 },
+  { rank: 15, player: "Khalil Shakir (BUF)", rec: 2, tgt: 2, recPct: 100, recYds: 9, yr: 4.5, recTd: 0, tgtPct: 33.3, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 16, fpts: 0.9, fptsPerGame: 0.1 },
+  { rank: 16, player: "Joshua Palmer (BUF)", rec: 1, tgt: 2, recPct: 50, recYds: 8, yr: 8, recTd: 0, tgtPct: 33.3, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 12, fpts: 0.8, fptsPerGame: 0.1 },
+  { rank: 17, player: "Olamide Zaccheaus (CHI)", rec: 1, tgt: 1, recPct: 100, recYds: 7, yr: 7, recTd: 0, tgtPct: 50, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 16, fpts: 0.7, fptsPerGame: 0.0 },
+  { rank: 18, player: "Jordan Whittington (LAR)", rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, rushAtt: 1, rushYds: 5, rushTd: 0, rushPct: 100, fl: 0, games: 17, fpts: 0.5, fptsPerGame: 0.0 },
+  { rank: 19, player: "Courtland Sutton (DEN)", rec: 1, tgt: 1, recPct: 100, recYds: 5, yr: 5, recTd: 0, tgtPct: 50, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 0.5, fptsPerGame: 0.0 },
+  { rank: 20, player: "Travis Hunter (JAC)", rec: 1, tgt: 1, recPct: 100, recYds: 4, yr: 4, recTd: 0, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 7, fpts: 0.4, fptsPerGame: 0.1 },
+];
+
+const RED_ZONE_RB_DATA: RedZoneRBRaw[] = [
+  { rank: 1, player: "Javonte Williams (DAL)", rushAtt: 3, rushYds: 13, ya: 4.3, rushTd: 2, rushPct: 60, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 16, fpts: 13.3, fptsPerGame: 0.8 },
+  { rank: 2, player: "J.K. Dobbins (DEN)", rushAtt: 3, rushYds: 20, ya: 6.7, rushTd: 1, rushPct: 100, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 10, fpts: 8.0, fptsPerGame: 0.8 },
+  { rank: 3, player: "Chase Brown (CIN)", rushAtt: 4, rushYds: 20, ya: 5.0, rushTd: 1, rushPct: 100, rec: 0, tgt: 1, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 100, fl: 0, games: 17, fpts: 8.0, fptsPerGame: 0.5 },
+  { rank: 4, player: "Jaylen Warren (PIT)", rushAtt: 4, rushYds: 12, ya: 3.0, rushTd: 0, rushPct: 100, rec: 1, tgt: 1, recPct: 100, recYds: 5, yr: 5.0, recTd: 1, tgtPct: 100, fl: 0, games: 16, fpts: 7.7, fptsPerGame: 0.5 },
+  { rank: 5, player: "Alvin Kamara (NO)", rushAtt: 2, rushYds: 16, ya: 8.0, rushTd: 1, rushPct: 100, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 11, fpts: 7.6, fptsPerGame: 0.7 },
+  { rank: 6, player: "Saquon Barkley (PHI)", rushAtt: 4, rushYds: 12, ya: 3.0, rushTd: 1, rushPct: 80, rec: 1, tgt: 1, recPct: 100, recYds: 3, yr: 3.0, recTd: 0, tgtPct: 100, fl: 0, games: 16, fpts: 7.5, fptsPerGame: 0.5 },
+  { rank: 7, player: "Josh Jacobs (GB)", rushAtt: 5, rushYds: 13, ya: 2.6, rushTd: 1, rushPct: 100, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 15, fpts: 7.3, fptsPerGame: 0.5 },
+  { rank: 8, player: "Jacory Croskey-Merritt (WAS)", rushAtt: 2, rushYds: 12, ya: 6.0, rushTd: 1, rushPct: 50, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 17, fpts: 7.2, fptsPerGame: 0.4 },
+  { rank: 9, player: "James Conner (ARI)", rushAtt: 2, rushYds: 7, ya: 3.5, rushTd: 0, rushPct: 50, rec: 1, tgt: 1, recPct: 100, recYds: 4, yr: 4.0, recTd: 1, tgtPct: 100, fl: 0, games: 4, fpts: 7.1, fptsPerGame: 1.8 },
+  { rank: 10, player: "De'Von Achane (MIA)", rushAtt: 0, rushYds: 0, ya: 0, rushTd: 0, rushPct: 0, rec: 1, tgt: 1, recPct: 100, recYds: 11, yr: 11.0, recTd: 1, tgtPct: 100, fl: 0, games: 16, fpts: 7.1, fptsPerGame: 0.4 },
+  { rank: 11, player: "Bucky Irving (TB)", rushAtt: 1, rushYds: -1, ya: -1.0, rushTd: 0, rushPct: 100, rec: 1, tgt: 1, recPct: 100, recYds: 9, yr: 9.0, recTd: 1, tgtPct: 100, fl: 0, games: 10, fpts: 6.8, fptsPerGame: 0.7 },
+  { rank: 12, player: "Zach Charbonnet (SEA)", rushAtt: 4, rushYds: 8, ya: 2.0, rushTd: 1, rushPct: 66.7, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 16, fpts: 6.8, fptsPerGame: 0.4 },
+  { rank: 13, player: "Kyren Williams (LAR)", rushAtt: 4, rushYds: 8, ya: 2.0, rushTd: 1, rushPct: 100, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 17, fpts: 6.8, fptsPerGame: 0.4 },
+  { rank: 14, player: "Braelon Allen (NYJ)", rushAtt: 3, rushYds: 7, ya: 2.3, rushTd: 1, rushPct: 50, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 4, fpts: 6.7, fptsPerGame: 1.7 },
+  { rank: 15, player: "Ashton Jeanty (LV)", rushAtt: 2, rushYds: 7, ya: 3.5, rushTd: 1, rushPct: 100, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 17, fpts: 6.7, fptsPerGame: 0.4 },
+  { rank: 16, player: "James Cook III (BUF)", rushAtt: 4, rushYds: 4, ya: 1.0, rushTd: 1, rushPct: 100, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 17, fpts: 6.4, fptsPerGame: 0.4 },
+  { rank: 17, player: "Raheim Sanders (CLE)", rushAtt: 2, rushYds: 1, ya: 0.5, rushTd: 1, rushPct: 33.3, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 5, fpts: 6.1, fptsPerGame: 1.2 },
+  { rank: 18, player: "Dylan Sampson (CLE)", rushAtt: 2, rushYds: 4, ya: 2.0, rushTd: 0, rushPct: 33.3, rec: 2, tgt: 2, recPct: 100, recYds: 19, yr: 9.5, recTd: 0, tgtPct: 100, fl: 0, games: 15, fpts: 2.3, fptsPerGame: 0.2 },
+  { rank: 19, player: "Jonathan Taylor (IND)", rushAtt: 7, rushYds: 20, ya: 2.9, rushTd: 0, rushPct: 77.8, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 17, fpts: 2.0, fptsPerGame: 0.1 },
+  { rank: 20, player: "Omarion Hampton (LAC)", rushAtt: 4, rushYds: 17, ya: 4.3, rushTd: 0, rushPct: 100, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 9, fpts: 1.7, fptsPerGame: 0.2 },
+  { rank: 21, player: "Tony Pollard (TEN)", rushAtt: 3, rushYds: 16, ya: 5.3, rushTd: 0, rushPct: 60, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 17, fpts: 1.6, fptsPerGame: 0.1 },
+  { rank: 22, player: "Christian McCaffrey (SF)", rushAtt: 8, rushYds: 1, ya: 0.1, rushTd: 0, rushPct: 100, rec: 2, tgt: 3, recPct: 66.7, recYds: 12, yr: 6.0, recTd: 0, tgtPct: 100, fl: 0, games: 17, fpts: 1.3, fptsPerGame: 0.1 },
+  { rank: 23, player: "Bijan Robinson (ATL)", rushAtt: 4, rushYds: 11, ya: 2.8, rushTd: 0, rushPct: 66.7, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 17, fpts: 1.1, fptsPerGame: 0.1 },
+  { rank: 24, player: "David Montgomery (DET)", rushAtt: 1, rushYds: 3, ya: 3.0, rushTd: 0, rushPct: 33.3, rec: 1, tgt: 1, recPct: 100, recYds: 7, yr: 7.0, recTd: 0, tgtPct: 33.3, fl: 0, games: 17, fpts: 1.0, fptsPerGame: 0.1 },
+  { rank: 25, player: "Isiah Pacheco (KC)", rushAtt: 1, rushYds: 10, ya: 10.0, rushTd: 0, rushPct: 100, rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, fl: 0, games: 13, fpts: 1.0, fptsPerGame: 0.1 },
+];
+
+const RED_ZONE_TE_DATA: RedZoneTERaw[] = [
+  { rank: 1, player: "Dalton Kincaid (BUF)", rec: 1, tgt: 1, recPct: 100, recYds: 15, yr: 15.0, recTd: 1, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 12, fpts: 7.5, fptsPerGame: 0.6 },
+  { rank: 2, player: "Tucker Kraft (GB)", rec: 1, tgt: 1, recPct: 100, recYds: 15, yr: 15.0, recTd: 1, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 8, fpts: 7.5, fptsPerGame: 0.9 },
+  { rank: 3, player: "Davis Allen (LAR)", rec: 1, tgt: 1, recPct: 100, recYds: 13, yr: 13.0, recTd: 1, tgtPct: 50, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 20, fpts: 7.3, fptsPerGame: 0.4 },
+  { rank: 4, player: "Jake Tonges (SF)", rec: 2, tgt: 2, recPct: 100, recYds: 13, yr: 6.5, recTd: 1, tgtPct: 66.7, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 16, fpts: 7.3, fptsPerGame: 0.5 },
+  { rank: 5, player: "Zach Ertz (WAS)", rec: 1, tgt: 1, recPct: 100, recYds: 7, yr: 7.0, recTd: 1, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 13, fpts: 6.7, fptsPerGame: 0.5 },
+  { rank: 6, player: "Hunter Long (JAC)", rec: 1, tgt: 1, recPct: 100, recYds: 6, yr: 6.0, recTd: 1, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 9, fpts: 6.6, fptsPerGame: 0.7 },
+  { rank: 7, player: "George Kittle (SF)", rec: 1, tgt: 1, recPct: 100, recYds: 5, yr: 5.0, recTd: 1, tgtPct: 33.3, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 11, fpts: 6.5, fptsPerGame: 0.6 },
+  { rank: 8, player: "Jonnu Smith (PIT)", rec: 1, tgt: 1, recPct: 100, recYds: 3, yr: 3.0, recTd: 1, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 6.3, fptsPerGame: 0.4 },
+  { rank: 9, player: "Noah Fant (CIN)", rec: 1, tgt: 1, recPct: 100, recYds: 1, yr: 1.0, recTd: 1, tgtPct: 33.3, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 15, fpts: 6.1, fptsPerGame: 0.4 },
+  { rank: 10, player: "Daniel Bellinger (NYG)", rec: 1, tgt: 1, recPct: 100, recYds: 14, yr: 14.0, recTd: 0, tgtPct: 50, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 16, fpts: 1.4, fptsPerGame: 0.1 },
+  { rank: 11, player: "Austin Hooper (NE)", rec: 1, tgt: 1, recPct: 100, recYds: 10, yr: 10.0, recTd: 0, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 1.0, fptsPerGame: 0.1 },
+  { rank: 12, player: "Michael Mayer (LV)", rec: 1, tgt: 1, recPct: 100, recYds: 7, yr: 7.0, recTd: 0, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 13, fpts: 0.7, fptsPerGame: 0.1 },
+  { rank: 13, player: "Tyler Warren (IND)", rec: 1, tgt: 2, recPct: 50, recYds: 4, yr: 4.0, recTd: 0, tgtPct: 100, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 0.4, fptsPerGame: 0.0 },
+  { rank: 14, player: "Trey McBride (ARI)", rec: 1, tgt: 1, recPct: 100, recYds: 4, yr: 4.0, recTd: 0, tgtPct: 50, rushAtt: 0, rushYds: 0, rushTd: 0, rushPct: 0, fl: 0, games: 17, fpts: 0.4, fptsPerGame: 0.0 },
+  { rank: 15, player: "AJ Barner (SEA)", rec: 0, tgt: 0, recPct: 0, recYds: 0, yr: 0, recTd: 0, tgtPct: 0, rushAtt: 1, rushYds: 2, rushTd: 0, rushPct: 100, fl: 0, games: 17, fpts: 0.2, fptsPerGame: 0.0 },
+];
+
+function toStatLeader(player: string, value: number, games: number, position: string = 'QB'): StatLeader {
   const { name, team } = parsePlayerTeam(player);
   return {
     player_id: name.toLowerCase().replace(/\s+/g, '_'),
     player_name: name,
     team,
-    position: 'QB',
+    position,
     value,
     games_played: games,
   };
@@ -138,12 +268,17 @@ function topNFromData<T>(
   gamesFn: (item: T) => number,
   n: number = 10,
   filterZero: boolean = true,
+  position: string = 'QB',
 ): StatLeader[] {
   return data
-    .map(item => toStatLeader(playerFn(item), valueFn(item), gamesFn(item)))
+    .map(item => toStatLeader(playerFn(item), valueFn(item), gamesFn(item), position))
     .filter(l => !filterZero || l.value > 0)
     .sort((a, b) => b.value - a.value)
     .slice(0, n);
+}
+
+function mergeLeaders(...sources: StatLeader[][]): StatLeader[] {
+  return sources.flat().sort((a, b) => b.value - a.value).slice(0, 10);
 }
 
 export function getRedZoneQBLeaders(): Record<string, StatLeader[]> {
@@ -159,6 +294,54 @@ export function getRedZoneQBLeaders(): Record<string, StatLeader[]> {
     rz_fpts: topNFromData(d, i => i.fpts, p, g),
     rz_att: topNFromData(d, i => i.att + i.rushAtt, p, g),
     rz_comp_pct: topNFromData(d, i => i.att >= 3 ? i.pct : 0, p, g),
+  };
+}
+
+export function getRedZoneWRLeaders(): Record<string, StatLeader[]> {
+  const d = RED_ZONE_WR_DATA;
+  const p = (item: RedZoneWRRaw) => item.player;
+  const g = (item: RedZoneWRRaw) => item.games;
+  const pos = 'WR';
+
+  return {
+    rz_wr_td: topNFromData(d, i => i.recTd + i.rushTd, p, g, 10, true, pos),
+    rz_wr_tgt: topNFromData(d, i => i.tgt, p, g, 10, true, pos),
+    rz_wr_rec: topNFromData(d, i => i.rec, p, g, 10, true, pos),
+    rz_wr_yds: topNFromData(d, i => i.recYds + i.rushYds, p, g, 10, true, pos),
+    rz_wr_fpts: topNFromData(d, i => i.fpts, p, g, 10, true, pos),
+    rz_wr_fpts_per_game: topNFromData(d, i => i.fptsPerGame, p, g, 10, true, pos),
+  };
+}
+
+export function getRedZoneRBLeaders(): Record<string, StatLeader[]> {
+  const d = RED_ZONE_RB_DATA;
+  const p = (item: RedZoneRBRaw) => item.player;
+  const g = (item: RedZoneRBRaw) => item.games;
+  const pos = 'RB';
+
+  return {
+    rz_rb_td: topNFromData(d, i => i.rushTd + i.recTd, p, g, 10, true, pos),
+    rz_rb_att: topNFromData(d, i => i.rushAtt, p, g, 10, true, pos),
+    rz_rb_rush_yds: topNFromData(d, i => i.rushYds, p, g, 10, false, pos),
+    rz_rb_ya: topNFromData(d, i => i.rushAtt >= 2 ? i.ya : 0, p, g, 10, true, pos),
+    rz_rb_fpts: topNFromData(d, i => i.fpts, p, g, 10, true, pos),
+    rz_rb_fpts_per_game: topNFromData(d, i => i.fptsPerGame, p, g, 10, true, pos),
+  };
+}
+
+export function getRedZoneTELeaders(): Record<string, StatLeader[]> {
+  const d = RED_ZONE_TE_DATA;
+  const p = (item: RedZoneTERaw) => item.player;
+  const g = (item: RedZoneTERaw) => item.games;
+  const pos = 'TE';
+
+  return {
+    rz_te_td: topNFromData(d, i => i.recTd + i.rushTd, p, g, 10, true, pos),
+    rz_te_tgt: topNFromData(d, i => i.tgt, p, g, 10, true, pos),
+    rz_te_rec: topNFromData(d, i => i.rec, p, g, 10, true, pos),
+    rz_te_yds: topNFromData(d, i => i.recYds, p, g, 10, true, pos),
+    rz_te_fpts: topNFromData(d, i => i.fpts, p, g, 10, true, pos),
+    rz_te_fpts_per_game: topNFromData(d, i => i.fptsPerGame, p, g, 10, true, pos),
   };
 }
 

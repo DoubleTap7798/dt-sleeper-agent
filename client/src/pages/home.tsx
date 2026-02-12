@@ -184,6 +184,24 @@ const STAT_LABELS: Record<string, string> = {
   rz_fpts: "RZ Fantasy Pts",
   rz_att: "RZ Attempts",
   rz_comp_pct: "RZ Comp %",
+  rz_wr_td: "WR RZ TDs",
+  rz_wr_tgt: "WR RZ Targets",
+  rz_wr_rec: "WR RZ Receptions",
+  rz_wr_yds: "WR RZ Yards",
+  rz_wr_fpts: "WR RZ Fantasy Pts",
+  rz_wr_fpts_per_game: "WR RZ FPTS/G",
+  rz_rb_td: "RB RZ TDs",
+  rz_rb_att: "RB RZ Carries",
+  rz_rb_rush_yds: "RB RZ Rush Yards",
+  rz_rb_ya: "RB RZ Yards/Att",
+  rz_rb_fpts: "RB RZ Fantasy Pts",
+  rz_rb_fpts_per_game: "RB RZ FPTS/G",
+  rz_te_td: "TE RZ TDs",
+  rz_te_tgt: "TE RZ Targets",
+  rz_te_rec: "TE RZ Receptions",
+  rz_te_yds: "TE RZ Yards",
+  rz_te_fpts: "TE RZ Fantasy Pts",
+  rz_te_fpts_per_game: "TE RZ FPTS/G",
   adv_passing_yds: "Passing Yards",
   adv_passer_rating: "Passer Rating",
   adv_air_yds: "Air Yards",
@@ -215,10 +233,10 @@ function formatStatValue(key: string, value: number): string {
   if (["rz_comp_pct", "adv_comp_pct"].includes(key)) {
     return value.toFixed(1) + "%";
   }
-  if (["yards_per_carry", "wopr", "ppg_ppr", "rz_fpts_per_game", "adv_air_per_att", "adv_ya", "adv_pkt_time"].includes(key)) {
+  if (["yards_per_carry", "wopr", "ppg_ppr", "rz_fpts_per_game", "adv_air_per_att", "adv_ya", "adv_pkt_time", "rz_rb_ya", "rz_wr_fpts_per_game", "rz_rb_fpts_per_game", "rz_te_fpts_per_game"].includes(key)) {
     return value.toFixed(1);
   }
-  if (["receiving_yards", "rushing_yards", "passing_yards", "fantasy_points_ppr", "adv_passing_yds", "adv_air_yds", "rz_fpts"].includes(key)) {
+  if (["receiving_yards", "rushing_yards", "passing_yards", "fantasy_points_ppr", "adv_passing_yds", "adv_air_yds", "rz_fpts", "rz_wr_fpts", "rz_rb_fpts", "rz_te_fpts"].includes(key)) {
     return value.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
   return String(Math.round(value));
