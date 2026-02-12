@@ -298,6 +298,56 @@ function LeaderboardTable({ statKey, leaders }: { statKey: string; leaders: Stat
   );
 }
 
+const POSITION_FILTERS = ["All", "QB", "WR", "RB", "TE"] as const;
+
+function getPositionKeyFilter(categoryKey: string, position: string): (key: string) => boolean {
+  if (position === "All") return () => true;
+  if (categoryKey === "redzone") {
+    if (position === "QB") return (k: string) => k.startsWith("rz_") && !k.startsWith("rz_wr_") && !k.startsWith("rz_rb_") && !k.startsWith("rz_te_");
+    if (position === "WR") return (k: string) => k.startsWith("rz_wr_");
+    if (position === "RB") return (k: string) => k.startsWith("rz_rb_");
+    if (position === "TE") return (k: string) => k.startsWith("rz_te_");
+  }
+  if (categoryKey === "advanced") {
+    if (position === "QB") return (k: string) => k.startsWith("adv_") && !k.startsWith("adv_wr_") && !k.startsWith("adv_rb_") && !k.startsWith("adv_te_");
+    if (position === "WR") return (k: string) => k.startsWith("adv_wr_");
+    if (position === "RB") return (k: string) => k.startsWith("adv_rb_");
+    if (position === "TE") return (k: string) => k.startsWith("adv_te_");
+  }
+  return () => true;
+}
+
+function PositionFilteredLeaderboards({ categoryKey, categoryData }: { categoryKey: string; categoryData: Record<string, StatLeader[]> }) {
+  const [activePosition, setActivePosition] = useState("All");
+  const filterFn = getPositionKeyFilter(categoryKey, activePosition);
+  const filteredKeys = Object.keys(categoryData).filter(filterFn);
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-4 flex-wrap" data-testid={`position-filters-${categoryKey}`}>
+        {POSITION_FILTERS.map(pos => (
+          <Button
+            key={pos}
+            size="sm"
+            variant={activePosition === pos ? "default" : "outline"}
+            onClick={() => setActivePosition(pos)}
+            data-testid={`filter-${categoryKey}-${pos.toLowerCase()}`}
+          >
+            {pos}
+          </Button>
+        ))}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {filteredKeys.map(statKey => {
+          const statLeaders = categoryData[statKey];
+          if (!statLeaders || statLeaders.length === 0) return null;
+          return <LeaderboardTable key={statKey} statKey={statKey} leaders={statLeaders} />;
+        })}
+      </div>
+    </div>
+  );
+}
+
 function StatLeadersSection() {
   const { data: leaders, isLoading, error } = useQuery<StatLeadersResponse>({
     queryKey: ["/api/nfl/stat-leaders"],
