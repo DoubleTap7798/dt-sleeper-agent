@@ -2536,6 +2536,8 @@ ${urls}
         return true;
       });
 
+      const { getFantasyProsRankByName } = await import('./devy-data-sources');
+
       // Transform to match expected format with dynasty engine values (0-100 scale)
       const rankedPlayers = trueDevyPlayers.map((player, index) => {
         // Calculate dynasty value using the engine
@@ -2545,6 +2547,8 @@ ${urls}
           1, // Assume 1st round projected for top prospects
           currentYear
         );
+        
+        const fpRank = getFantasyProsRankByName(player.name, player.position);
         
         return {
           playerId: player.id,
@@ -2559,6 +2563,7 @@ ${urls}
           seasonChange: player.seasonChange,
           value: dynastyValue, // Now 0-100 scale
           rank: index + 1,
+          fantasyProsRank: fpRank,
           // Breakout/Bust probability
           starterPct: player.starterPct,
           elitePct: player.elitePct,

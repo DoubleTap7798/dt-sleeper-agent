@@ -80,7 +80,8 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
   - **Dynasty Process ECR**: Expert Consensus Rankings aggregated from FantasyPros data, integrated into trade calculator's Market Comparison panel.
   - **nflverse (Production Stats)**: Open-source NFL play-by-play data from GitHub releases. Provides advanced metrics (target share, air yards share, WOPR, PPG, catch rate, yards per carry) for player profile Analytics tab. 24-hour cache.
   - **CFBD (College Advanced Stats)**: College Football Data API providing PPA metrics, usage rates by down/situation, and detailed season stats. Integrated into devy profile modal (Advanced tab) and draft profile modal. 24-hour cache, API key in secrets.
-  - **Future Expansion**: Infrastructure ready for additional sources (e.g., FantasyPros consensus) when legitimate APIs become available. Most devy ranking sites (247Sports, Rivals) don't offer public APIs.
+  - **FantasyPros Devy Rankings**: Static top-100 devy rankings from FantasyPros screenshots. Stored in `server/devy-data-sources.ts` as `FANTASYPROS_DEVY_RANKINGS` with abbreviated-to-full name mapping (`FANTASYPROS_NAME_MAP`). Position-aware matching via `getFantasyProsRankByName()` handles duplicate abbreviated names (e.g., two "D. Moore" entries). Integrated into multi-source consensus ranking and displayed as "FP" column on devy page. Color-coded: green if FP ranks higher than DT, red if lower.
+  - **Future Expansion**: Infrastructure ready for additional sources (e.g., 247Sports, Rivals) when legitimate APIs become available. Most devy ranking sites don't offer public APIs.
 
 ## External Dependencies
 

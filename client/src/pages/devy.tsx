@@ -48,6 +48,7 @@ interface DevyPlayer {
   seasonChange: number;
   value: number;
   rank: number;
+  fantasyProsRank: number | null;
   // Breakout/Bust probability
   starterPct: number;
   elitePct: number;
@@ -320,7 +321,8 @@ export default function DevyPage() {
               ))}
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Devy rankings are curated by DT Dynasty with values, tiers, draft projections, and player comparisons. 
+              Devy rankings are curated by DT Dynasty with values, tiers, draft projections, and player comparisons.
+              FantasyPros provides expert consensus devy rankings (top 100) for cross-reference.
               Dynasty Process provides NFL player values and ECR for the trade calculator. 
               nflverse powers advanced analytics (target share, WOPR, air yards) in player profiles.
             </p>
@@ -335,6 +337,14 @@ export default function DevyPage() {
                 <tr className="text-left text-sm text-muted-foreground">
                   <th className="p-3 w-12">
                     <SortButton field="rank" label="#" />
+                  </th>
+                  <th className="p-3 w-16 text-center">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="font-medium text-sm cursor-help">FP</span>
+                      </TooltipTrigger>
+                      <TooltipContent>FantasyPros Devy Rank</TooltipContent>
+                    </Tooltip>
                   </th>
                   <th className="p-3">
                     <SortButton field="name" label="Player" />
@@ -380,7 +390,7 @@ export default function DevyPage() {
               <tbody>
                 {sortedPlayers.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
+                    <td colSpan={11} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
                       No players match the selected filters
                     </td>
                   </tr>
@@ -394,6 +404,33 @@ export default function DevyPage() {
                     >
                       <td className="p-3 font-medium" data-testid={`text-rank-${player.playerId}`}>
                         {player.rank}
+                      </td>
+                      <td className="p-3 text-center" data-testid={`text-fp-rank-${player.playerId}`}>
+                        {player.fantasyProsRank ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`text-xs font-medium ${
+                                player.fantasyProsRank < player.rank ? "text-green-500" :
+                                player.fantasyProsRank > player.rank ? "text-red-500" :
+                                "text-muted-foreground"
+                              }`}>
+                                {player.fantasyProsRank}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">
+                                FantasyPros: #{player.fantasyProsRank}
+                                {player.fantasyProsRank !== player.rank && (
+                                  <span className={player.fantasyProsRank < player.rank ? " text-green-400" : " text-red-400"}>
+                                    {" "}({player.fantasyProsRank < player.rank ? "+" : ""}{player.rank - player.fantasyProsRank} vs DT)
+                                  </span>
+                                )}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </td>
                       <td className="p-3">
                         <div className="flex flex-col">
@@ -565,6 +602,15 @@ export default function DevyPage() {
                           </Badge>
                           <span className="text-xs text-muted-foreground">{player.college}</span>
                           <span className="text-xs text-muted-foreground">• {player.draftEligibleYear}</span>
+                          {player.fantasyProsRank && (
+                            <span className={`text-xs font-medium ${
+                              player.fantasyProsRank < player.rank ? "text-green-500" :
+                              player.fantasyProsRank > player.rank ? "text-red-500" :
+                              "text-muted-foreground"
+                            }`}>
+                              • FP #{player.fantasyProsRank}
+                            </span>
+                          )}
                         </div>
                         {player.comps && player.comps.length > 0 && (
                           <div className="text-xs text-muted-foreground mt-0.5">
