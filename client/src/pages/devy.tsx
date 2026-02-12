@@ -48,6 +48,7 @@ interface DevyPlayer {
   seasonChange: number;
   value: number;
   rank: number;
+  dtRank: number;
   fantasyProsRank: number | null;
   // Breakout/Bust probability
   starterPct: number;
@@ -338,7 +339,15 @@ export default function DevyPage() {
                   <th className="p-3 w-12">
                     <SortButton field="rank" label="#" />
                   </th>
-                  <th className="p-3 w-16 text-center">
+                  <th className="p-3 w-14 text-center">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="font-medium text-sm cursor-help">DT</span>
+                      </TooltipTrigger>
+                      <TooltipContent>DT Dynasty Rank</TooltipContent>
+                    </Tooltip>
+                  </th>
+                  <th className="p-3 w-14 text-center">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span className="font-medium text-sm cursor-help">FP</span>
@@ -405,13 +414,16 @@ export default function DevyPage() {
                       <td className="p-3 font-medium" data-testid={`text-rank-${player.playerId}`}>
                         {player.rank}
                       </td>
+                      <td className="p-3 text-center" data-testid={`text-dt-rank-${player.playerId}`}>
+                        <span className="text-xs text-muted-foreground">{player.dtRank}</span>
+                      </td>
                       <td className="p-3 text-center" data-testid={`text-fp-rank-${player.playerId}`}>
                         {player.fantasyProsRank ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className={`text-xs font-medium ${
-                                player.fantasyProsRank < player.rank ? "text-green-500" :
-                                player.fantasyProsRank > player.rank ? "text-red-500" :
+                                player.fantasyProsRank < player.dtRank ? "text-green-500" :
+                                player.fantasyProsRank > player.dtRank ? "text-red-500" :
                                 "text-muted-foreground"
                               }`}>
                                 {player.fantasyProsRank}
@@ -420,9 +432,9 @@ export default function DevyPage() {
                             <TooltipContent>
                               <p className="text-xs">
                                 FantasyPros: #{player.fantasyProsRank}
-                                {player.fantasyProsRank !== player.rank && (
-                                  <span className={player.fantasyProsRank < player.rank ? " text-green-400" : " text-red-400"}>
-                                    {" "}({player.fantasyProsRank < player.rank ? "+" : ""}{player.rank - player.fantasyProsRank} vs DT)
+                                {player.fantasyProsRank !== player.dtRank && (
+                                  <span className={player.fantasyProsRank < player.dtRank ? " text-green-400" : " text-red-400"}>
+                                    {" "}({player.fantasyProsRank < player.dtRank ? "+" : ""}{player.dtRank - player.fantasyProsRank} vs DT)
                                   </span>
                                 )}
                               </p>
@@ -602,10 +614,11 @@ export default function DevyPage() {
                           </Badge>
                           <span className="text-xs text-muted-foreground">{player.college}</span>
                           <span className="text-xs text-muted-foreground">• {player.draftEligibleYear}</span>
+                          <span className="text-xs text-muted-foreground">• DT #{player.dtRank}</span>
                           {player.fantasyProsRank && (
                             <span className={`text-xs font-medium ${
-                              player.fantasyProsRank < player.rank ? "text-green-500" :
-                              player.fantasyProsRank > player.rank ? "text-red-500" :
+                              player.fantasyProsRank < player.dtRank ? "text-green-500" :
+                              player.fantasyProsRank > player.dtRank ? "text-red-500" :
                               "text-muted-foreground"
                             }`}>
                               • FP #{player.fantasyProsRank}
