@@ -7624,10 +7624,32 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       const youngPlayers = userAges.filter(a => a <= 24).length;
       const oldPlayers = userAges.filter(a => a >= 28).length;
       
+      // Competitive strength: average percentile across position groups (0-1, higher = stronger)
+      const posStrengthScores = positions.map(pos => {
+        const rank = positionRanks[pos]?.rank || leagueSize;
+        return (leagueSize - rank) / (leagueSize - 1);
+      });
+      const avgStrength = posStrengthScores.reduce((a, b) => a + b, 0) / posStrengthScores.length;
+      const bottomThirdCount = posStrengthScores.filter(s => s < 0.33).length;
+      const topThirdCount = posStrengthScores.filter(s => s > 0.66).length;
+
+      // Age tendency: "old" leans contender, "young" leans rebuild
+      let ageTendency: "old" | "young" | "middle" = "middle";
+      if (avgAge >= 27 || oldPlayers > youngPlayers * 1.5) ageTendency = "old";
+      else if (avgAge <= 24 || youngPlayers > oldPlayers * 1.5) ageTendency = "young";
+      
+      // Combined classification: strength matters more than age
+      // A team needs both competitive strength AND age profile to be a contender
       let teamProfile: "contender" | "balanced" | "rebuild" = "balanced";
-      if (avgAge >= 27 || oldPlayers > youngPlayers * 1.5) {
+      if (avgStrength >= 0.55 && bottomThirdCount <= 1) {
         teamProfile = "contender";
-      } else if (avgAge <= 24 || youngPlayers > oldPlayers * 1.5) {
+      } else if (avgStrength >= 0.40 && topThirdCount >= 2 && ageTendency === "old") {
+        teamProfile = "contender";
+      } else if (bottomThirdCount >= 3 || avgStrength < 0.25) {
+        teamProfile = "rebuild";
+      } else if (ageTendency === "young" && avgStrength < 0.40) {
+        teamProfile = "rebuild";
+      } else if (ageTendency === "old" && avgStrength < 0.33) {
         teamProfile = "rebuild";
       }
 
@@ -7809,16 +7831,26 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         action: `/league/lineup?id=${leagueId}`,
       });
 
-      // Generate weekly blurb
+      // Generate weekly blurb based on combined strength + age profile
       const formatNote = isSuperflex ? " (Superflex)" : totalFlexSlots >= 2 ? ` (${totalFlexSlots} Flex)` : "";
-      const blurbOptions = [
-        teamProfile === "contender" 
-          ? `Your roster is built to win now${formatNote}. Focus on maximizing points and making win-now moves.`
-          : teamProfile === "rebuild"
-          ? `Your young roster has upside${formatNote}. Prioritize acquiring future picks and developing players.`
-          : `Your roster is well-balanced${formatNote}. Look for opportunities to tip the scales in your favor.`,
-      ];
-      const weeklyBlurb = blurbOptions[0];
+      let weeklyBlurb: string;
+      if (teamProfile === "contender") {
+        weeklyBlurb = `Your roster is built to win now${formatNote}. Focus on maximizing points and making win-now moves.`;
+      } else if (teamProfile === "rebuild") {
+        if (ageTendency === "old" && avgStrength < 0.33) {
+          weeklyBlurb = `Your roster skews older but lacks competitive depth${formatNote}. Consider selling aging assets for younger talent and future picks.`;
+        } else if (bottomThirdCount >= 3) {
+          weeklyBlurb = `Multiple position groups need work${formatNote}. Focus on acquiring picks and young upside players to build a foundation.`;
+        } else {
+          weeklyBlurb = `Your roster has upside but needs development${formatNote}. Prioritize acquiring future picks and developing your young players.`;
+        }
+      } else {
+        if (topThirdCount >= 1 && bottomThirdCount >= 1) {
+          weeklyBlurb = `Your roster is a mix of strengths and gaps${formatNote}. Shore up your weak spots to push into contention.`;
+        } else {
+          weeklyBlurb = `Your roster is well-balanced${formatNote}. Look for opportunities to tip the scales in your favor.`;
+        }
+      }
 
       res.json({
         rosterStrength,
