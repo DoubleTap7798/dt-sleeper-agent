@@ -1541,14 +1541,26 @@ ${urls}
     try {
       const { leagueId } = req.params;
 
-      const [rosters, allPlayers, state] = await Promise.all([
+      const [rosters, allPlayers, state, league] = await Promise.all([
         sleeperApi.getLeagueRosters(leagueId),
         sleeperApi.getAllPlayers(),
         sleeperApi.getState(),
+        sleeperApi.getLeague(leagueId),
       ]);
 
       if (!rosters || !allPlayers) {
         return res.json({ players: [], week: state?.week || 1 });
+      }
+      
+      const wCurrentDate = new Date();
+      const wCurrentMonth = wCurrentDate.getMonth();
+      const wCurrentYear = wCurrentDate.getFullYear();
+      const wStatsSeason = wCurrentMonth < 8 ? String(wCurrentYear - 1) : String(wCurrentYear);
+      let wSeasonStats: any = {};
+      try {
+        wSeasonStats = await sleeperApi.getSeasonStats(wStatsSeason, "regular") || {};
+      } catch (e) {
+        console.log(`[Waiver Wire] Failed to fetch season stats: ${e}`);
       }
 
       // Get all rostered player IDs
@@ -1559,28 +1571,39 @@ ${urls}
         (roster.taxi || []).forEach((p) => rosteredPlayers.add(p));
       });
 
-      // Filter to available players
+      // Filter to available players - exclude retired/inactive
       const availablePlayers = Object.entries(allPlayers)
         .filter(([playerId, player]: [string, any]) => {
           if (rosteredPlayers.has(playerId)) return false;
           if (!player.fantasy_positions?.length) return false;
           const pos = player.fantasy_positions[0];
-          return ["QB", "RB", "WR", "TE", "K", "DEF"].includes(pos);
+          if (!["QB", "RB", "WR", "TE", "K", "DEF"].includes(pos)) return false;
+          const status = (player.status || "").toLowerCase();
+          if (status === "inactive" || status === "retired") return false;
+          if (!player.team) return false;
+          return true;
         })
-        .map(([playerId, player]: [string, any]) => ({
-          playerId,
-          name: player.full_name || `${player.first_name} ${player.last_name}`,
-          position: player.fantasy_positions?.[0] || "?",
-          team: player.team,
-          age: player.age,
-          status: player.status || "Active",
-          injuryStatus: player.injury_status,
-          seasonPoints: Math.random() * 150, // Placeholder - would come from stats API
-          avgPoints: Math.random() * 12,
-          lastWeekPoints: Math.random() * 25,
-          projectedPoints: Math.random() * 15,
-          percentRostered: Math.floor(Math.random() * 30),
-        }))
+        .map(([playerId, player]: [string, any]) => {
+          const pStats = wSeasonStats?.[playerId] || {};
+          const gamesPlayed = pStats.gp || 0;
+          const fantasyPoints = pStats.pts_ppr || 0;
+          const ppg = gamesPlayed > 0 ? fantasyPoints / gamesPlayed : 0;
+          
+          return {
+            playerId,
+            name: player.full_name || `${player.first_name} ${player.last_name}`,
+            position: player.fantasy_positions?.[0] || "?",
+            team: player.team,
+            age: player.age,
+            status: player.status || "Active",
+            injuryStatus: player.injury_status,
+            seasonPoints: Math.round(fantasyPoints * 10) / 10,
+            avgPoints: Math.round(ppg * 10) / 10,
+            lastWeekPoints: 0,
+            projectedPoints: Math.round(ppg * 10) / 10,
+            percentRostered: 0,
+          };
+        })
         .sort((a, b) => b.avgPoints - a.avgPoints)
         .slice(0, 200);
 
@@ -1613,6 +1636,17 @@ ${urls}
         sleeperApi.getAllPlayers(),
         sleeperApi.getState(),
       ]);
+      
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      const statsSeason = currentMonth < 8 ? String(currentYear - 1) : String(currentYear);
+      let seasonStats: any = {};
+      try {
+        seasonStats = await sleeperApi.getSeasonStats(statsSeason, "regular") || {};
+      } catch (e) {
+        console.log(`[Waiver Recommendations] Failed to fetch season stats: ${e}`);
+      }
 
       if (!rosters || !allPlayers) {
         return res.json({ recommendations: [], needs: [] });
@@ -1681,35 +1715,73 @@ ${urls}
       positionNeeds.sort((a, b) => b.need - a.need);
 
       // Get available players and score them based on roster fit
+      const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+      const rosterSettings = dynastyEngine.parseLeagueRosterSettings(league);
+      
+      try {
+        await dynastyConsensusService.fetchAndCacheValues();
+      } catch (e) {
+        console.log(`[Waiver Wire] Failed to fetch consensus values: ${e}`);
+      }
+      
       const recommendations = Object.entries(allPlayers)
         .filter(([playerId, player]: [string, any]) => {
           if (rosteredPlayers.has(playerId)) return false;
           if (!player.fantasy_positions?.length) return false;
           const pos = player.fantasy_positions[0];
-          return ["QB", "RB", "WR", "TE"].includes(pos) && player.team; // Must be on NFL team
+          if (!["QB", "RB", "WR", "TE"].includes(pos)) return false;
+          if (!player.team) return false;
+          const status = (player.status || "").toLowerCase();
+          if (status === "inactive" || status === "retired") return false;
+          return true;
         })
         .map(([playerId, player]: [string, any]) => {
           const pos = player.fantasy_positions[0];
-          const playerValue = dynastyEngine.getQuickPlayerValue(
+          const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
+          const pStats = seasonStats?.[playerId] || {};
+          const gamesPlayed = pStats.gp || 0;
+          const fantasyPoints = pStats.pts_ppr || 0;
+          const ppg = gamesPlayed > 0 ? fantasyPoints / gamesPlayed : 0;
+          
+          const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, pos, isSuperflex);
+          const valueResult = dynastyEngine.getBlendedPlayerValue(
             playerId,
+            playerName,
             pos,
             player.age || 25,
             player.years_exp || 0,
             player.injury_status || null,
-            { points: 0, games: 0, ppg: 0 },
-            1,
-            null
+            { points: fantasyPoints, games: gamesPlayed, ppg },
+            null,
+            null,
+            consensusValue,
+            0.5,
+            rosterSettings
           );
+          const playerValue = valueResult.value;
           const positionNeed = positionNeeds.find(p => p.position === pos);
           
-          // Calculate fit score: combines player value with position need bonus
-          // Need bonus ranges from 0 to 20 based on position need level
           const needBonus = positionNeed ? (positionNeed.need / 100) * 20 : 0;
-          const fitScore = Math.round(Math.min(100, playerValue + needBonus));
+          const fitScore = Math.round(Math.min(100, (playerValue / 100) + needBonus));
+          
+          let reason = "";
+          if (positionNeed && positionNeed.need >= 50) {
+            reason = `Fills ${pos} need (only ${positionNeed.count} on roster)`;
+          } else if (playerValue >= 7000) {
+            reason = `Elite talent available (${ppg > 0 ? ppg.toFixed(1) + " PPG" : "high upside"})`;
+          } else if (playerValue >= 4000) {
+            reason = `Solid starter${ppg >= 10 ? " (" + ppg.toFixed(1) + " PPG)" : ""}`;
+          } else if (playerValue >= 2000) {
+            reason = `Emerging player with upside`;
+          } else if (player.years_exp <= 2) {
+            reason = `Young developmental prospect`;
+          } else {
+            reason = `Depth/streaming option`;
+          }
           
           return {
             playerId,
-            name: player.full_name || `${player.first_name} ${player.last_name}`,
+            name: playerName,
             position: pos,
             team: player.team,
             age: player.age,
@@ -1717,14 +1789,10 @@ ${urls}
             dynastyValue: Math.round(playerValue),
             fitScore,
             needLevel: positionNeed?.need ? (positionNeed.need >= 70 ? "high" : positionNeed.need >= 40 ? "medium" : "low") : "low",
-            reason: positionNeed && positionNeed.need >= 50 
-              ? `Fills ${pos} need (only ${positionNeed.count} on roster)` 
-              : playerValue >= 3000 
-                ? `High-value upside player` 
-                : `Depth/handcuff option`,
+            reason,
           };
         })
-        .filter(p => p.fitScore >= 10 && p.dynastyValue >= 500) // Only include players with decent value
+        .filter(p => p.fitScore >= 10 && p.dynastyValue >= 500)
         .sort((a, b) => b.fitScore - a.fitScore)
         .slice(0, 20);
 
@@ -3372,9 +3440,10 @@ Return ONLY valid JSON, no other text.`;
       // Detect if the selected league is an IDP league or Superflex
       let isIDPLeague = false;
       let isSuperflex = false;
+      let league: any = null;
       
       if (leagueId) {
-        const league = await sleeperApi.getLeague(leagueId);
+        league = await sleeperApi.getLeague(leagueId);
         if (league?.scoring_settings) {
           scoringSettings = league.scoring_settings;
         }
@@ -3669,8 +3738,9 @@ Return ONLY valid JSON, no other text.`;
       
       // Determine if league is superflex for proper value calculation
       let isSuperflex = false;
+      let league: any = null;
       if (leagueId) {
-        const league = await sleeperApi.getLeague(leagueId);
+        league = await sleeperApi.getLeague(leagueId);
         isSuperflex = dynastyEngine.isLeagueSuperflex(league);
       }
       
