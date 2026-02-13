@@ -8,7 +8,7 @@ import {
 export const metricDefinitions = {
   dynastyValue: {
     title: "Dynasty Value",
-    description: "Custom 0-100 score combining production, age, role security, and market consensus. Higher = more valuable in dynasty leagues.",
+    description: "Custom 0-10,000 score combining production, age, role security, and market consensus. Higher = more valuable in dynasty leagues.",
   },
   vor: {
     title: "Value Over Replacement",

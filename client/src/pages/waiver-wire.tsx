@@ -229,7 +229,7 @@ export default function WaiverWirePage() {
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">{rec.team} • Age {rec.age || "?"}</span>
-                        <span className="text-muted-foreground">Value: {rec.dynastyValue}</span>
+                        <span className="text-muted-foreground">Value: {rec.dynastyValue.toLocaleString()}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">{rec.reason}</p>
                     </div>

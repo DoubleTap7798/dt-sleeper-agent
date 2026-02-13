@@ -179,7 +179,7 @@ export default function TradeCalculatorPage() {
             <Card className="mt-2 bg-muted/50" data-testid="card-value-explanation">
               <CardContent className="pt-4 text-sm space-y-3">
                 <p>
-                  <strong>Dynasty values are on a 0-100 scale</strong> — the higher the number, the more valuable the player or pick.
+                  <strong>Dynasty values are on a 0-10,000 scale</strong> — the higher the number, the more valuable the player or pick.
                 </p>
                 <p>
                   Each value combines <strong>two sources</strong>: your league's specific settings (roster size, scoring, QB slots) and industry-wide consensus rankings from dynasty experts.
@@ -194,7 +194,7 @@ export default function TradeCalculatorPage() {
                   <li>Injury status — injured players have temporarily reduced values</li>
                 </ul>
                 <p>
-                  <strong>Draft picks</strong> start with base values (1st round = 80, 2nd = 55, 3rd = 35, 4th = 18) and decrease slightly for future years since there's more uncertainty.
+                  <strong>Draft picks</strong> start with base values (1st round = 8,000, 2nd = 5,500, 3rd = 3,500, 4th = 1,800) and decrease slightly for future years since there's more uncertainty.
                 </p>
               </CardContent>
             </Card>
@@ -282,7 +282,7 @@ export default function TradeCalculatorPage() {
                         description="The combined dynasty value of all assets being traded away, before any adjustments for consolidation or piece count."
                       />
                     </span>
-                    <span className="font-mono text-muted-foreground">-{analysis.teamA.totalValue.toFixed(1)}</span>
+                    <span className="font-mono text-muted-foreground">-{analysis.teamA.totalValue.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground flex items-center gap-1">
@@ -292,17 +292,17 @@ export default function TradeCalculatorPage() {
                         description="Value after applying the consolidation premium. When trading fewer elite pieces for multiple assets, the elite side gets a value boost because star players are harder to acquire."
                       />
                     </span>
-                    <span className="font-mono text-muted-foreground">-{(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue).toFixed(1)}</span>
+                    <span className="font-mono text-muted-foreground">-{(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Receiving (Adj):</span>
-                    <span className="font-mono font-semibold">+{(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue).toFixed(1)}</span>
+                    <span className="font-mono font-semibold">+{(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue).toLocaleString()}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Net Adjusted:</span>
                     <span className="font-mono font-bold">
-                      {(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) - (analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) >= 0 ? '+' : ''}{((analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) - (analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue)).toFixed(1)}
+                      {(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) - (analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) >= 0 ? '+' : ''}{((analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) - (analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue)).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -315,21 +315,21 @@ export default function TradeCalculatorPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Trading Away (Raw):</span>
-                    <span className="font-mono text-muted-foreground">-{analysis.teamB.totalValue.toFixed(1)}</span>
+                    <span className="font-mono text-muted-foreground">-{analysis.teamB.totalValue.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Trading Away (Adj):</span>
-                    <span className="font-mono text-muted-foreground">-{(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue).toFixed(1)}</span>
+                    <span className="font-mono text-muted-foreground">-{(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Receiving (Adj):</span>
-                    <span className="font-mono font-semibold">+{(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue).toFixed(1)}</span>
+                    <span className="font-mono font-semibold">+{(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue).toLocaleString()}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Net Adjusted:</span>
                     <span className="font-mono font-bold">
-                      {(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) - (analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) >= 0 ? '+' : ''}{((analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) - (analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue)).toFixed(1)}
+                      {(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) - (analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) >= 0 ? '+' : ''}{((analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) - (analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue)).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -620,7 +620,7 @@ function TradeSide({
                 >
                   <span>{asset.name}</span>
                   <span className="text-xs text-muted-foreground ml-1">
-                    ({asset.value.toFixed(1)})
+                    ({asset.value.toLocaleString()})
                   </span>
                   <Button
                     variant="ghost"
@@ -639,10 +639,10 @@ function TradeSide({
                 Total Value
                 <InfoTooltip
                   title="Total Dynasty Value"
-                  description="Sum of all dynasty values for players and picks being traded. Values are on a 0-100 scale based on production, age, role security, and market consensus."
+                  description="Sum of all dynasty values for players and picks being traded. Values are on a 0-10,000 scale based on production, age, role security, and market consensus."
                 />
               </span>
-              <span className="font-bold font-mono text-primary">{totalValue.toFixed(1)}</span>
+              <span className="font-bold font-mono text-primary">{totalValue.toLocaleString()}</span>
             </div>
           </div>
         )}
@@ -673,7 +673,7 @@ function TradeSide({
                           </span>
                         </div>
                         <span className="text-xs font-mono text-primary">
-                          {player.value.toFixed(1)}
+                          {player.value.toLocaleString()}
                         </span>
                       </button>
                     ))}
@@ -699,7 +699,7 @@ function TradeSide({
                           >
                             <span className="text-sm">{pick.name}</span>
                             <span className="text-xs font-mono text-primary">
-                              {pick.value.toFixed(1)}
+                              {pick.value.toLocaleString()}
                             </span>
                           </button>
                         ))}

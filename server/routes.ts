@@ -151,7 +151,7 @@ CORE FEATURES
 -------------
 
 1. TRADE CALCULATOR
-   - Custom dynasty player values (0-100 scale)
+   - Custom dynasty player values (0-10,000 scale)
    - Multi-year Value Over Replacement (VOR) algorithm
    - AI-powered trade analysis and recommendations
    - Factor analysis: age, injury risk, team context, draft capital
@@ -1714,17 +1714,17 @@ ${urls}
             team: player.team,
             age: player.age,
             injuryStatus: player.injury_status,
-            dynastyValue: Math.round(playerValue * 10) / 10,
+            dynastyValue: Math.round(playerValue),
             fitScore,
             needLevel: positionNeed?.need ? (positionNeed.need >= 70 ? "high" : positionNeed.need >= 40 ? "medium" : "low") : "low",
             reason: positionNeed && positionNeed.need >= 50 
               ? `Fills ${pos} need (only ${positionNeed.count} on roster)` 
-              : playerValue >= 30 
+              : playerValue >= 3000 
                 ? `High-value upside player` 
                 : `Depth/handcuff option`,
           };
         })
-        .filter(p => p.fitScore >= 10 && p.dynastyValue >= 5) // Only include players with decent value
+        .filter(p => p.fitScore >= 10 && p.dynastyValue >= 500) // Only include players with decent value
         .sort((a, b) => b.fitScore - a.fitScore)
         .slice(0, 20);
 
@@ -3539,7 +3539,9 @@ Return ONLY valid JSON, no other text.`;
           { points: standardPprPoints, games: gamesPlayed, ppg: standardPpg },
           null,
           null,
-          consensusValue
+          consensusValue,
+          0.5,
+          dynastyEngine.parseLeagueRosterSettings(league)
         );
         const dynastyValue = valueResult.value;
         
@@ -3739,7 +3741,9 @@ Return ONLY valid JSON, no other text.`;
           { points: 0, games: 0, ppg: 0 },
           depthOrder,  // Pass actual depth order for role security calculation
           null,        // No snap% data available here
-          consensusValue
+          consensusValue,
+          0.5,
+          dynastyEngine.parseLeagueRosterSettings(league)
         );
         const dynastyValue = valueResult.value;
         
@@ -4045,7 +4049,9 @@ ${fantasyOutlookSection}
             { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
             null, // No depth chart order
             null, // No league scoring settings
-            consensusValue
+            consensusValue,
+            0.5,
+            dynastyEngine.parseLeagueRosterSettings(league)
           );
           const value = valueResult.value;
 
@@ -4264,7 +4270,9 @@ ${fantasyOutlookSection}
           { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
           null,
           null,
-          consensusValue
+          consensusValue,
+          0.5,
+          dynastyEngine.parseLeagueRosterSettings(league)
         );
         return valueResult.value;
       };
@@ -4475,8 +4483,8 @@ ${fantasyOutlookSection}
         const prompt = `Analyze this fantasy football dynasty trade between ${teamADisplayName} and ${teamBDisplayName}:
 
 THE TRADE:
-• ${teamADisplayName} is GIVING UP: ${teamAAssetNames || "Nothing"} (total value: ${adjustmentResult.teamA.adjustedTotal.toFixed(1)})
-• ${teamBDisplayName} is GIVING UP: ${teamBAssetNames || "Nothing"} (total value: ${adjustmentResult.teamB.adjustedTotal.toFixed(1)})
+• ${teamADisplayName} is GIVING UP: ${teamAAssetNames || "Nothing"} (total value: ${Math.round(adjustmentResult.teamA.adjustedTotal)})
+• ${teamBDisplayName} is GIVING UP: ${teamBAssetNames || "Nothing"} (total value: ${Math.round(adjustmentResult.teamB.adjustedTotal)})
 
 This means:
 • ${teamADisplayName} RECEIVES: ${teamBAssetNames || "Nothing"}
@@ -4602,7 +4610,9 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
             {},
             null,
             null,
-            consensusValue
+            consensusValue,
+            0.5,
+            dynastyEngine.parseLeagueRosterSettings(league)
           );
           return valueResult.value;
         } else if (asset.type === "pick") {
@@ -5863,12 +5873,14 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
       
       // Get league-specific scoring settings if a league is selected
       let leagueScoring: dynastyEngine.LeagueScoringSettings | null = null;
+      let leagueRosterSettings: dynastyEngine.LeagueRosterSettings | null = null;
       let isSuperflex = false;
       if (leagueId) {
         try {
           const league = await sleeperApi.getLeague(leagueId as string);
           if (league) {
             leagueScoring = dynastyEngine.parseLeagueScoringSettings(league);
+            leagueRosterSettings = dynastyEngine.parseLeagueRosterSettings(league);
             isSuperflex = dynastyEngine.isLeagueSuperflex(league);
             console.log(`[Compare Players] League ${leagueId}: PPR=${leagueScoring.rec}, PassTD=${leagueScoring.passTd}, TEPrem=${leagueScoring.bonusRecTe}, SF=${isSuperflex}`);
           } else {
@@ -5915,7 +5927,9 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
             { points, games, ppg },
             null,
             null,
-            consensusValue
+            consensusValue,
+            0.5,
+            leagueRosterSettings
           );
           
           return {
@@ -5955,7 +5969,7 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
       // Calculate sample delta to prove scoring affects values
       const sampleRbValue = dynastyEngine.getQuickPlayerValue("sample", "RB", 25, 3, null, { points: 200, games: 16, ppg: 12.5 }, 1, leagueScoring);
       const baseRbValue = dynastyEngine.getQuickPlayerValue("sample", "RB", 25, 3, null, { points: 200, games: 16, ppg: 12.5 }, 1, null);
-      const valueDelta = Math.round((sampleRbValue - baseRbValue) * 10) / 10;
+      const valueDelta = Math.round(sampleRbValue - baseRbValue);
       
       // Include scoring settings in response for debugging/verification
       const scoringInfo = leagueScoring ? {
@@ -7072,7 +7086,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
           null,
           leagueScoring,
-          consensusValue
+          consensusValue,
+          0.5,
+          dynastyEngine.parseLeagueRosterSettings(league)
         );
         return valueResult.value;
       };
@@ -7106,9 +7122,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         if (gp >= 6 && ppg >= (prStarterPPG[pos] || 10)) return 0.9;
         if (gp >= 4 && ppg >= (prStarterPPG[pos] || 10) * 0.7) return 0.75;
         if (gp >= 2 && ppg >= (prStarterPPG[pos] || 10) * 0.5) return 0.6;
-        if (isCurrentlyInjured && dynastyValue >= 60 && gp < 6) return 0.75;
-        if (dynastyValue >= 70 && gp < 6 && yearsExp >= 1 && yearsExp <= 3) return 0.65;
-        if (yearsExp === 0) return dynastyValue >= 70 ? 0.65 : 0.45;
+        if (isCurrentlyInjured && dynastyValue >= 6000 && gp < 6) return 0.75;
+        if (dynastyValue >= 7000 && gp < 6 && yearsExp >= 1 && yearsExp <= 3) return 0.65;
+        if (yearsExp === 0) return dynastyValue >= 7000 ? 0.65 : 0.45;
         if (yearsExp >= 2 && gp < 4) return 0.35;
         return 0.5;
       };
@@ -7320,7 +7336,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           status: player?.status || null,
           injuryStatus: player?.injury_status || null,
           dynastyValue,
-          projectedPoints: Math.round((dynastyValue / 800) * 10 + Math.random() * 5),
+          projectedPoints: Math.round((dynastyValue / 80000) * 10 + Math.random() * 5),
           isStarter,
           slotPosition,
           starterIndex: isStarter ? starterIndex : -1,
@@ -7442,7 +7458,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
           null,
           leagueScoring,
-          consensusValue
+          consensusValue,
+          0.5,
+          dynastyEngine.parseLeagueRosterSettings(league)
         );
         return valueResult.value;
       };
@@ -7517,10 +7535,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         if (gp >= 2 && ppg >= (starterPPG[pos] || 10) * 0.5) return 0.6;
         // Proven player who missed time due to injury — trust dynasty value as proxy for talent
         // High DV + few games + injury = likely a good player who just got hurt, not a bust
-        if (isCurrentlyInjured && dynastyValue >= 60 && gp < 6) return 0.75;
-        if (dynastyValue >= 70 && gp < 6 && yearsExp >= 1 && yearsExp <= 3) return 0.65;
+        if (isCurrentlyInjured && dynastyValue >= 6000 && gp < 6) return 0.75;
+        if (dynastyValue >= 7000 && gp < 6 && yearsExp >= 1 && yearsExp <= 3) return 0.65;
         // Rookie (0 years exp) — give benefit of the doubt based on dynasty value
-        if (yearsExp === 0) return dynastyValue >= 70 ? 0.65 : 0.45;
+        if (yearsExp === 0) return dynastyValue >= 7000 ? 0.65 : 0.45;
         // Veteran with no/minimal production — they've had chances and haven't produced
         if (yearsExp >= 2 && gp < 4) return 0.35;
         // Default — some experience but limited data
@@ -7658,8 +7676,8 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       //   - Elite: proven top-tier production OR very high dynasty value (handles injury/limited games)
       //   - Starter: solid production OR strong dynasty value
       //   - Depth: everything else (speculative, unproven, low value)
-      const eliteValueThreshold = 70;
-      const starterValueThreshold = 40;
+      const eliteValueThreshold = 7000;
+      const starterValueThreshold = 4000;
       const positionQuality: Record<string, { eliteCount: number; starterCount: number; depthCount: number; totalCount: number; hasProvenSurplus: boolean; bestPlayerPPG: number }> = {};
       for (const pos of positions) {
         const players = userPositionPlayers[pos];
@@ -7926,7 +7944,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
           null,
           null,
-          consensusValue
+          consensusValue,
+          0.5,
+          dynastyEngine.parseLeagueRosterSettings(league)
         );
         return { value: valueResult.value, name: playerName, pos, age: player?.age || 25 };
       };
@@ -7996,7 +8016,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         give: Array<{ name: string; pos: string; value: number }>;
         get: Array<{ name: string; pos: string; value: number }>;
         reason: string;
-        fairnessScore: number; // 0-100, 50 = perfectly fair
+        fairnessScore: number; // 0-100 percentage, 50 = perfectly fair
       }> = [];
 
       // Create owner name lookup
@@ -8056,7 +8076,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
                     const fairnessScore = avgValue > 0 ? Math.round(100 - (valueDiff / avgValue) * 50) : 50;
                     
                     // Only suggest trades within reasonable value difference (fairness >= 50)
-                    if (fairnessScore >= 50 && give.value >= 15 && get.value >= 15) {
+                    if (fairnessScore >= 50 && give.value >= 1500 && get.value >= 1500) {
                       const ownerInfo = ownerMap.get(roster.owner_id) || { name: "Unknown", avatar: null };
                       
                       tradeIdeas.push({
@@ -8451,10 +8471,12 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             player.years_exp || 0,
             player.injury_status || null,
             { points: playerStats.pts_ppr || 0, games: gamesPlayed, ppg },
-            1, null, null
+            1, null, null,
+            0.5,
+            dynastyEngine.parseLeagueRosterSettings(league)
           );
 
-          if (blendedValue.value > 5) {
+          if (blendedValue.value > 500) {
             const needFit = needs.includes(player.position) ? "High" : "Medium";
             
             availablePlayers.push({

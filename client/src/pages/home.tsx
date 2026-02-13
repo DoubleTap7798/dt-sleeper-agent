@@ -552,7 +552,7 @@ function StrengthBar({ position, value, rank, total, onClick }: { position: stri
       </div>
       <div className="h-3 bg-muted rounded-full overflow-hidden">
         <div 
-          className={`h-full bg-gradient-to-r ${positionColors[position]} rounded-full transition-all duration-500 shadow-lg ${value >= 80 ? glowColors[position] : ""}`}
+          className={`h-full bg-gradient-to-r ${positionColors[position]} rounded-full transition-all duration-500 shadow-lg ${value >= 8000 ? glowColors[position] : ""}`}
           style={{ width: `${value}%` }}
         />
       </div>
@@ -1504,7 +1504,7 @@ export default function HomePage() {
                       </div>
                     </div>
                     <Badge variant="outline" className="text-xs">
-                      {player.dynastyValue.toFixed(0)} DV
+                      {player.dynastyValue.toLocaleString()} DV
                     </Badge>
                   </div>
                 ))}

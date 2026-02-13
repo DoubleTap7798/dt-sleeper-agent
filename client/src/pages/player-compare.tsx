@@ -244,7 +244,7 @@ export default function PlayerComparePage() {
                         <span className="text-xs text-muted-foreground" data-testid={`option-team-${player.playerId}`}>{player.team}</span>
                       </div>
                       {leagueId && (
-                        <span className="text-sm font-medium text-primary" data-testid={`option-value-${player.playerId}`}>{player.dynastyValue.toFixed(1)}</span>
+                        <span className="text-sm font-medium text-primary" data-testid={`option-value-${player.playerId}`}>{player.dynastyValue.toLocaleString()}</span>
                       )}
                     </div>
                   ))}

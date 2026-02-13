@@ -1,60 +1,60 @@
 // Use global fetch (Node 18+)
 
 // Static fallback values for elite NFL players (ensures correct values if DynastyProcess lookup fails)
-// Values on 0-100 scale, updated for 2025-2026 dynasty season
+// Values on 0-10,000 scale, updated for 2025-2026 dynasty season
 const ELITE_PLAYER_FALLBACKS: Record<string, { value1QB: number; value2QB: number; position: string }> = {
   // Elite QBs
-  "josh allen": { value1QB: 75, value2QB: 99, position: "QB" },
-  "patrick mahomes": { value1QB: 72, value2QB: 85, position: "QB" },
-  "lamar jackson": { value1QB: 70, value2QB: 82, position: "QB" },
-  "jalen hurts": { value1QB: 65, value2QB: 78, position: "QB" },
-  "joe burrow": { value1QB: 62, value2QB: 75, position: "QB" },
-  "cj stroud": { value1QB: 68, value2QB: 80, position: "QB" },
-  "caleb williams": { value1QB: 60, value2QB: 72, position: "QB" },
-  "jayden daniels": { value1QB: 58, value2QB: 70, position: "QB" },
+  "josh allen": { value1QB: 7500, value2QB: 9900, position: "QB" },
+  "patrick mahomes": { value1QB: 7200, value2QB: 8500, position: "QB" },
+  "lamar jackson": { value1QB: 7000, value2QB: 8200, position: "QB" },
+  "jalen hurts": { value1QB: 6500, value2QB: 7800, position: "QB" },
+  "joe burrow": { value1QB: 6200, value2QB: 7500, position: "QB" },
+  "cj stroud": { value1QB: 6800, value2QB: 8000, position: "QB" },
+  "caleb williams": { value1QB: 6000, value2QB: 7200, position: "QB" },
+  "jayden daniels": { value1QB: 5800, value2QB: 7000, position: "QB" },
   
   // Elite RBs
-  "bijan robinson": { value1QB: 95, value2QB: 88, position: "RB" },
-  "breece hall": { value1QB: 88, value2QB: 82, position: "RB" },
-  "jahmyr gibbs": { value1QB: 85, value2QB: 78, position: "RB" },
-  "jonathan taylor": { value1QB: 72, value2QB: 65, position: "RB" },
-  "saquon barkley": { value1QB: 65, value2QB: 58, position: "RB" },
-  "isaiah pacheco": { value1QB: 55, value2QB: 48, position: "RB" },
-  "derrick henry": { value1QB: 35, value2QB: 30, position: "RB" },
-  "josh jacobs": { value1QB: 45, value2QB: 40, position: "RB" },
-  "kyren williams": { value1QB: 55, value2QB: 48, position: "RB" },
-  "devon achane": { value1QB: 68, value2QB: 62, position: "RB" },
-  "kenneth walker": { value1QB: 52, value2QB: 45, position: "RB" },
-  "kenny mcintosh": { value1QB: 18, value2QB: 15, position: "RB" }, // Backup RB
+  "bijan robinson": { value1QB: 9500, value2QB: 8800, position: "RB" },
+  "breece hall": { value1QB: 8800, value2QB: 8200, position: "RB" },
+  "jahmyr gibbs": { value1QB: 8500, value2QB: 7800, position: "RB" },
+  "jonathan taylor": { value1QB: 7200, value2QB: 6500, position: "RB" },
+  "saquon barkley": { value1QB: 6500, value2QB: 5800, position: "RB" },
+  "isaiah pacheco": { value1QB: 5500, value2QB: 4800, position: "RB" },
+  "derrick henry": { value1QB: 3500, value2QB: 3000, position: "RB" },
+  "josh jacobs": { value1QB: 4500, value2QB: 4000, position: "RB" },
+  "kyren williams": { value1QB: 5500, value2QB: 4800, position: "RB" },
+  "devon achane": { value1QB: 6800, value2QB: 6200, position: "RB" },
+  "kenneth walker": { value1QB: 5200, value2QB: 4500, position: "RB" },
+  "kenny mcintosh": { value1QB: 1800, value2QB: 1500, position: "RB" }, // Backup RB
   
   // Elite WRs
-  "jamarr chase": { value1QB: 99, value2QB: 92, position: "WR" },
-  "ja'marr chase": { value1QB: 99, value2QB: 92, position: "WR" },
-  "justin jefferson": { value1QB: 93, value2QB: 85, position: "WR" },
-  "ceedee lamb": { value1QB: 94, value2QB: 87, position: "WR" },
-  "jaxon smithnjigba": { value1QB: 96, value2QB: 84, position: "WR" },
-  "amon-ra st brown": { value1QB: 88, value2QB: 80, position: "WR" },
-  "amonra st brown": { value1QB: 88, value2QB: 80, position: "WR" },
-  "malik nabers": { value1QB: 90, value2QB: 82, position: "WR" },
-  "marvin harrison": { value1QB: 88, value2QB: 80, position: "WR" },
-  "garrett wilson": { value1QB: 82, value2QB: 75, position: "WR" },
-  "nico collins": { value1QB: 78, value2QB: 72, position: "WR" },
-  "drake london": { value1QB: 80, value2QB: 74, position: "WR" },
-  "chris olave": { value1QB: 75, value2QB: 68, position: "WR" },
-  "aj brown": { value1QB: 72, value2QB: 65, position: "WR" },
-  "tyreek hill": { value1QB: 55, value2QB: 48, position: "WR" },
-  "davante adams": { value1QB: 48, value2QB: 42, position: "WR" },
+  "jamarr chase": { value1QB: 9900, value2QB: 9200, position: "WR" },
+  "ja'marr chase": { value1QB: 9900, value2QB: 9200, position: "WR" },
+  "justin jefferson": { value1QB: 9300, value2QB: 8500, position: "WR" },
+  "ceedee lamb": { value1QB: 9400, value2QB: 8700, position: "WR" },
+  "jaxon smithnjigba": { value1QB: 9600, value2QB: 8400, position: "WR" },
+  "amon-ra st brown": { value1QB: 8800, value2QB: 8000, position: "WR" },
+  "amonra st brown": { value1QB: 8800, value2QB: 8000, position: "WR" },
+  "malik nabers": { value1QB: 9000, value2QB: 8200, position: "WR" },
+  "marvin harrison": { value1QB: 8800, value2QB: 8000, position: "WR" },
+  "garrett wilson": { value1QB: 8200, value2QB: 7500, position: "WR" },
+  "nico collins": { value1QB: 7800, value2QB: 7200, position: "WR" },
+  "drake london": { value1QB: 8000, value2QB: 7400, position: "WR" },
+  "chris olave": { value1QB: 7500, value2QB: 6800, position: "WR" },
+  "aj brown": { value1QB: 7200, value2QB: 6500, position: "WR" },
+  "tyreek hill": { value1QB: 5500, value2QB: 4800, position: "WR" },
+  "davante adams": { value1QB: 4800, value2QB: 4200, position: "WR" },
   
   // Elite TEs
-  "brock bowers": { value1QB: 92, value2QB: 85, position: "TE" }, // Elite TE1
-  "sam laporta": { value1QB: 75, value2QB: 68, position: "TE" },
-  "trey mcbride": { value1QB: 70, value2QB: 63, position: "TE" },
-  "travis kelce": { value1QB: 45, value2QB: 40, position: "TE" },
-  "george kittle": { value1QB: 50, value2QB: 45, position: "TE" },
-  "dalton kincaid": { value1QB: 68, value2QB: 62, position: "TE" },
-  "kyle pitts": { value1QB: 55, value2QB: 50, position: "TE" },
-  "mark andrews": { value1QB: 42, value2QB: 38, position: "TE" },
-  "evan engram": { value1QB: 35, value2QB: 32, position: "TE" },
+  "brock bowers": { value1QB: 9200, value2QB: 8500, position: "TE" }, // Elite TE1
+  "sam laporta": { value1QB: 7500, value2QB: 6800, position: "TE" },
+  "trey mcbride": { value1QB: 7000, value2QB: 6300, position: "TE" },
+  "travis kelce": { value1QB: 4500, value2QB: 4000, position: "TE" },
+  "george kittle": { value1QB: 5000, value2QB: 4500, position: "TE" },
+  "dalton kincaid": { value1QB: 6800, value2QB: 6200, position: "TE" },
+  "kyle pitts": { value1QB: 5500, value2QB: 5000, position: "TE" },
+  "mark andrews": { value1QB: 4200, value2QB: 3800, position: "TE" },
+  "evan engram": { value1QB: 3500, value2QB: 3200, position: "TE" },
 };
 
 interface DynastyProcessPlayer {
@@ -169,14 +169,14 @@ class DynastyConsensusService {
         const rank2QB = (rank2QBMap.get(p.name + "|" + p.pos) || 0) + 1;
         
         // Rank-based percentile normalization:
-        // - Rank 1 = 99.5 (top player)
-        // - Rank 25 = ~95 (elite tier)
-        // - Rank 100 = ~80 (starter tier)
-        // - Rank 250 = ~50 (depth)
-        // - Rank 492 = ~5 (bottom of dynasty relevance)
-        // Formula: 100 - ((rank - 1) / total) * 95 → gives range 5-100
-        const normalizedValue1QB = Math.min(99.5, Math.max(5, 100 - ((rank1QB - 1) / total) * 95));
-        const normalizedValue2QB = Math.min(99.5, Math.max(5, 100 - ((rank2QB - 1) / total) * 95));
+        // - Rank 1 = 9950 (top player)
+        // - Rank 25 = ~9500 (elite tier)
+        // - Rank 100 = ~8000 (starter tier)
+        // - Rank 250 = ~5000 (depth)
+        // - Rank 492 = ~500 (bottom of dynasty relevance)
+        // Formula: 10000 - ((rank - 1) / total) * 9500 → gives range 500-10000
+        const normalizedValue1QB = Math.min(9950, Math.max(500, 10000 - ((rank1QB - 1) / total) * 9500));
+        const normalizedValue2QB = Math.min(9950, Math.max(500, 10000 - ((rank2QB - 1) / total) * 9500));
         const key = this.createPlayerKey(p.name, p.pos);
         
         this.cache.set(key, {
@@ -194,17 +194,17 @@ class DynastyConsensusService {
       }
 
       this.lastFetch = new Date();
-      console.log(`[DynastyConsensus] Cached ${this.cache.size} players. Max raw: ${maxVal}, normalized to 0-100 scale`);
+      console.log(`[DynastyConsensus] Cached ${this.cache.size} players. Max raw: ${maxVal}, normalized to 0-10,000 scale`);
       
       const topPlayers1QB = Array.from(this.cache.values())
         .sort((a, b) => b.normalizedValue1QB - a.normalizedValue1QB)
         .slice(0, 5);
-      console.log(`[DynastyConsensus] Top 5 (1QB): ${topPlayers1QB.map(p => `${p.name}: ${p.normalizedValue1QB.toFixed(1)}`).join(', ')}`);
+      console.log(`[DynastyConsensus] Top 5 (1QB): ${topPlayers1QB.map(p => `${p.name}: ${p.normalizedValue1QB.toFixed(0)}`).join(', ')}`);
       
       const topPlayers2QB = Array.from(this.cache.values())
         .sort((a, b) => b.normalizedValue2QB - a.normalizedValue2QB)
         .slice(0, 5);
-      console.log(`[DynastyConsensus] Top 5 (2QB/SF): ${topPlayers2QB.map(p => `${p.name}: ${p.normalizedValue2QB.toFixed(1)}`).join(', ')}`);
+      console.log(`[DynastyConsensus] Top 5 (2QB/SF): ${topPlayers2QB.map(p => `${p.name}: ${p.normalizedValue2QB.toFixed(0)}`).join(', ')}`);
     } catch (error) {
       console.error(`[DynastyConsensus] Error fetching values:`, error);
       throw error;
@@ -311,7 +311,7 @@ class DynastyConsensusService {
     }
 
     const blended = (leagueValue * leagueWeight) + (consensusValue * (1 - leagueWeight));
-    return Math.round(blended * 10) / 10;
+    return Math.round(blended);
   }
 
   getCacheStats(): { size: number; lastFetch: Date | null; maxRaw: number; minRaw: number; available: boolean; matchRate?: number } {

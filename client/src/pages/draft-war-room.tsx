@@ -211,7 +211,7 @@ function ValueDropAlert({ player }: { player: ValueDrop }) {
       <div className="flex-1">
         <span className="font-medium text-green-400">{player.name}</span>
         <span className="text-muted-foreground ml-2">
-          fallen {player.spotsFallen} spots - grab at {player.value.toFixed(1)} value!
+          fallen {player.spotsFallen} spots - grab at {player.value.toLocaleString()} value!
         </span>
       </div>
       <Badge className={POSITION_COLORS[player.position] || ""}>{player.position}</Badge>

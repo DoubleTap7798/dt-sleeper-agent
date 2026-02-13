@@ -366,7 +366,7 @@ export default function WatchlistPage() {
                           <span className="font-medium">{player.name}</span>
                           <span className="text-muted-foreground text-sm">{player.team}</span>
                         </div>
-                        <span className="text-sm font-mono">{player.dynastyValue}</span>
+                        <span className="text-sm font-mono">{player.dynastyValue.toLocaleString()}</span>
                       </button>
                     ))}
                   </div>

@@ -46,7 +46,7 @@ function ScoreBar({ label, value, icon: Icon, color }: { label: string; value: n
           style={{ width: `${Math.min(value, 100)}%` }}
         />
       </div>
-      <span className="w-8 text-right font-mono text-muted-foreground">{value.toFixed(0)}</span>
+      <span className="w-8 text-right font-mono text-muted-foreground">{Math.round(value)}</span>
     </div>
   );
 }

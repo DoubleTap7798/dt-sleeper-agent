@@ -457,7 +457,7 @@ export default function PlayersPage() {
                     </Card>
                     <Card className="p-3">
                       <MetricTooltip metric="dynastyValue" className="text-xs text-muted-foreground" />
-                      <p className="text-lg font-bold font-mono text-primary">{selectedPlayer.dynastyValue.toFixed(1)}</p>
+                      <p className="text-lg font-bold font-mono text-primary">{selectedPlayer.dynastyValue.toLocaleString()}</p>
                     </Card>
                     <Card className="p-3">
                       <p className="text-xs text-muted-foreground">Overall Rank</p>

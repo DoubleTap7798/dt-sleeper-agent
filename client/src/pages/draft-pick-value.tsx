@@ -30,10 +30,10 @@ interface DraftPickValues {
 }
 
 function getValueColor(value: number): string {
-  if (value >= 80) return "hsl(45, 93%, 47%)";
-  if (value >= 60) return "hsl(45, 80%, 55%)";
-  if (value >= 40) return "hsl(40, 60%, 55%)";
-  if (value >= 20) return "hsl(30, 40%, 50%)";
+  if (value >= 8000) return "hsl(45, 93%, 47%)";
+  if (value >= 6000) return "hsl(45, 80%, 55%)";
+  if (value >= 4000) return "hsl(40, 60%, 55%)";
+  if (value >= 2000) return "hsl(30, 40%, 50%)";
   return "hsl(0, 0%, 55%)";
 }
 
@@ -49,7 +49,7 @@ function ValueChartView({ rounds }: { rounds: RoundData[] }) {
         <Card key={round.round} data-testid={`card-round-${round.round}-value`}>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
             <CardTitle className="text-base">Round {round.round}</CardTitle>
-            <Badge variant="secondary">Avg Value: {Math.round(round.picks.reduce((s, p) => s + p.value, 0) / round.picks.length)}</Badge>
+            <Badge variant="secondary">Avg Value: {Math.round(round.picks.reduce((s, p) => s + p.value, 0) / round.picks.length).toLocaleString()}</Badge>
           </CardHeader>
           <CardContent className="space-y-1.5">
             {round.picks.map((pick) => (
@@ -59,12 +59,12 @@ function ValueChartView({ rounds }: { rounds: RoundData[] }) {
                   <div
                     className="h-full rounded-md transition-all duration-300"
                     style={{
-                      width: `${pick.value}%`,
+                      width: `${Math.min(pick.value / 100, 100)}%`,
                       backgroundColor: getValueColor(pick.value),
                     }}
                   />
-                  <span className="absolute inset-0 flex items-center px-2 text-xs font-medium" style={{ color: pick.value > 30 ? "hsl(0, 0%, 10%)" : undefined }}>
-                    {pick.value}
+                  <span className="absolute inset-0 flex items-center px-2 text-xs font-medium" style={{ color: pick.value > 3000 ? "hsl(0, 0%, 10%)" : undefined }}>
+                    {pick.value.toLocaleString()}
                   </span>
                 </div>
                 <span className="w-12 text-xs text-muted-foreground text-right shrink-0">{pick.avgPPG} PPG</span>

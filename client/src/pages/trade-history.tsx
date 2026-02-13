@@ -182,7 +182,7 @@ export default function TradeHistoryPage() {
                             <div className="mt-3 pt-3 border-t flex items-center justify-center gap-2 text-xs text-muted-foreground">
                               <TrendingUp className="h-3 w-3" />
                               <span>
-                                Value difference: <span className="font-mono font-medium text-foreground">{trade.absValueDiff.toFixed(1)}</span>
+                                Value difference: <span className="font-mono font-medium text-foreground">{trade.absValueDiff.toLocaleString()}</span>
                               </span>
                             </div>
                           )}
@@ -230,7 +230,7 @@ export default function TradeHistoryPage() {
                       </AccordionTrigger>
                       <AccordionContent className="pt-0 pb-3 space-y-2">
                         <div className="text-xs text-muted-foreground">
-                          Value gained: <span className="font-semibold">+{trade.absValueDiff.toFixed(1)}</span>
+                          Value gained: <span className="font-semibold">+{trade.absValueDiff.toLocaleString()}</span>
                         </div>
                         <p className="text-sm text-muted-foreground">
                           {trade.aiAnalysis}
@@ -323,7 +323,7 @@ function TradeTeamColumn({ team }: { team: TradeTeam }) {
         </div>
         {team.value > 0 && (
           <div className="mt-1 text-xs text-muted-foreground font-mono">
-            Value: {team.value.toFixed(1)}
+            Value: {team.value.toLocaleString()}
           </div>
         )}
       </div>

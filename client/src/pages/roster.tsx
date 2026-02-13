@@ -291,7 +291,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <div className="text-right hidden sm:block">
               <span className="text-sm font-semibold text-primary" data-testid={`stat-value-${player.playerId}`}>
-                {player.dynastyValue.toFixed(1)}
+                {player.dynastyValue.toLocaleString()}
               </span>
               <MetricTooltip metric="dynastyValue" className="text-xs text-muted-foreground block" />
             </div>
@@ -321,7 +321,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
               </div>
               <div className="sm:hidden">
                 <MetricTooltip metric="dynastyValue" className="text-muted-foreground block text-xs" />
-                <span className="font-semibold text-primary">{player.dynastyValue.toFixed(1)}</span>
+                <span className="font-semibold text-primary">{player.dynastyValue.toLocaleString()}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block text-xs">Status</span>

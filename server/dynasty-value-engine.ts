@@ -1,10 +1,10 @@
 // Dynasty Value Engine - UPGRADED ALGORITHM
 // Custom value system for trade calculator - replaces KTC values
-// Calculates league-specific values on 0-100 scale with 2 decimal precision
+// Calculates league-specific values on 0-10,000 scale with whole number precision
 // 
 // ALGORITHM OVERVIEW:
 // 1. Multi-Year VOR: Calculate 3-year weighted VOR (50%/30%/20% with year discounts)
-// 2. Normalize to Base Value (0-100 scale)
+// 2. Normalize to Base Value (0-10,000 scale)
 // 3. Apply multipliers: Age, Role Security, Injury Risk, Production Ceiling,
 //    Volatility, Draft Capital, Team Context
 // 4. Light scarcity bonus for elite tiers only
@@ -93,7 +93,7 @@ export interface DynastyValue {
   name: string;
   position: string;
   team: string;
-  value: number; // 0-100 scale with 2 decimals
+  value: number; // 0-10,000 scale
   rawVOR: number;
   weightedVOR: number; // Multi-year weighted VOR
   fantasyPoints: number;
@@ -131,7 +131,7 @@ export interface PlayerExtendedInfo {
 export interface DraftPickValue {
   season: string;
   round: number;
-  value: number; // 0-100 scale
+  value: number; // 0-10,000 scale
   displayName: string;
 }
 
@@ -673,11 +673,11 @@ function calculateReplacementLevel(
 // ============================================================================
 
 const DRAFT_PICK_BASE_VALUES: Record<number, number> = {
-  1: 80, // 1st round picks are very valuable
-  2: 55,
-  3: 35,
-  4: 18,
-  5: 8,
+  1: 8000, // 1st round picks are very valuable
+  2: 5500,
+  3: 3500,
+  4: 1800,
+  5: 800,
 };
 
 const PICK_POSITION_ADJUSTMENTS: Record<string, number> = {
@@ -703,11 +703,11 @@ export function getDraftPickValue(
   
   let value = baseValue * yearDecay * positionMult;
   
-  // Cap at 100
-  value = Math.min(100, value);
+  // Cap at 10000
+  value = Math.min(10000, value);
   
-  // Round to 2 decimals
-  value = Math.round(value * 100) / 100;
+  // Round to whole numbers
+  value = Math.round(value);
   
   const ordinal = round === 1 ? "1st" : round === 2 ? "2nd" : round === 3 ? "3rd" : `${round}th`;
   // displayName is just year + round - position label is added by caller
@@ -762,22 +762,22 @@ export function calculateDevyValue(
   projectedRound: number = 1,
   currentYear: number = new Date().getFullYear()
 ): number {
-  // Base value from tier (Tier 1 = highest)
+  // Base value from tier (Tier 1 = highest) on 0-10,000 scale
   const tierBaseValues: Record<number, number> = {
-    1: 95, // Elite prospects
-    2: 85,
-    3: 75,
-    4: 65,
-    5: 55,
-    6: 45,
-    7: 35,
-    8: 28,
-    9: 22,
-    10: 16,
-    11: 12,
+    1: 9500, // Elite prospects
+    2: 8500,
+    3: 7500,
+    4: 6500,
+    5: 5500,
+    6: 4500,
+    7: 3500,
+    8: 2800,
+    9: 2200,
+    10: 1600,
+    11: 1200,
   };
   
-  const baseValue = tierBaseValues[tier] || 10;
+  const baseValue = tierBaseValues[tier] || 1000;
   
   // Adjust for draft year distance (further = more uncertainty)
   const yearsUntilDraft = draftEligibleYear - currentYear;
@@ -789,7 +789,7 @@ export function calculateDevyValue(
                           projectedRound === 3 ? 0.55 : 0.4;
   
   let value = baseValue * yearDiscount * roundMultiplier;
-  value = Math.round(value * 100) / 100;
+  value = Math.round(value);
   
   return value;
 }
@@ -1024,7 +1024,7 @@ export async function calculateLeagueValues(
     });
   }
   
-  // STEP 2 continued: Normalize to 0-100 scale (Base Dynasty Value)
+  // STEP 2 continued: Normalize to 0-10,000 scale (Base Dynasty Value)
   const maxVOR = Math.max(...dynastyValues.map(v => v.weightedVOR * 
     v.ageMultiplier * v.roleSecurityMultiplier * v.injuryMultiplier * 
     v.productionCeilingMultiplier * v.volatilityMultiplier * 
@@ -1037,24 +1037,24 @@ export async function calculateLeagueValues(
       dv.productionCeilingMultiplier * dv.volatilityMultiplier * 
       dv.draftCapitalMultiplier * dv.teamContextMultiplier * dv.scarcityBonus;
     
-    // Normalize to 0-100
-    let normalizedValue = (adjustedValue / maxVOR) * 100;
+    // Normalize to 0-10,000
+    let normalizedValue = (adjustedValue / maxVOR) * 10000;
     
-    // STEP 6: Clamp to 1-100 range
-    normalizedValue = Math.max(1, Math.min(100, normalizedValue));
+    // STEP 6: Clamp to 10-10,000 range
+    normalizedValue = Math.max(10, Math.min(10000, normalizedValue));
     
-    // Round to 2 decimal places
-    normalizedValue = Math.round(normalizedValue * 100) / 100;
+    // Round to whole numbers
+    normalizedValue = Math.round(normalizedValue);
     
     dv.value = normalizedValue;
     
     // Assign tier based on value
-    if (normalizedValue >= 90) dv.tier = 1;
-    else if (normalizedValue >= 75) dv.tier = 2;
-    else if (normalizedValue >= 60) dv.tier = 3;
-    else if (normalizedValue >= 45) dv.tier = 4;
-    else if (normalizedValue >= 30) dv.tier = 5;
-    else if (normalizedValue >= 15) dv.tier = 6;
+    if (normalizedValue >= 9000) dv.tier = 1;
+    else if (normalizedValue >= 7500) dv.tier = 2;
+    else if (normalizedValue >= 6000) dv.tier = 3;
+    else if (normalizedValue >= 4500) dv.tier = 4;
+    else if (normalizedValue >= 3000) dv.tier = 5;
+    else if (normalizedValue >= 1500) dv.tier = 6;
     else dv.tier = 7;
   }
   
@@ -1228,30 +1228,30 @@ export function isLeagueSuperflex(league: any): boolean {
  * Elite players contribute more of their value in trades (stud premium).
  * Lower-value players contribute less (prevents quantity-for-quality trades).
  * 
- * Tiers based on 0-100 dynasty value scale:
- * - Elite (80+): 38-40% multiplier
- * - Star (65-79): 30-35% multiplier
- * - Starter (50-64): 22-28% multiplier
- * - Bench (35-49): 15-20% multiplier
- * - Depth (20-34): 12-15% multiplier
- * - Lottery (<20): 10% multiplier
+ * Tiers based on 0-10,000 dynasty value scale:
+ * - Elite (8000+): 38-40% multiplier
+ * - Star (6500-7999): 30-35% multiplier
+ * - Starter (5000-6499): 22-28% multiplier
+ * - Bench (3500-4999): 15-20% multiplier
+ * - Depth (2000-3499): 12-15% multiplier
+ * - Lottery (<2000): 10% multiplier
  */
 export function getAdjustmentMultiplier(value: number): number {
-  if (value >= 80) {
+  if (value >= 8000) {
     // Elite tier: 38-40% (scales with value)
-    return 0.38 + ((value - 80) / 20) * 0.02;
-  } else if (value >= 65) {
+    return 0.38 + ((value - 8000) / 2000) * 0.02;
+  } else if (value >= 6500) {
     // Star tier: 30-35%
-    return 0.30 + ((value - 65) / 15) * 0.05;
-  } else if (value >= 50) {
+    return 0.30 + ((value - 6500) / 1500) * 0.05;
+  } else if (value >= 5000) {
     // Starter tier: 22-28%
-    return 0.22 + ((value - 50) / 15) * 0.06;
-  } else if (value >= 35) {
+    return 0.22 + ((value - 5000) / 1500) * 0.06;
+  } else if (value >= 3500) {
     // Bench tier: 15-20%
-    return 0.15 + ((value - 35) / 15) * 0.05;
-  } else if (value >= 20) {
+    return 0.15 + ((value - 3500) / 1500) * 0.05;
+  } else if (value >= 2000) {
     // Depth tier: 12-15%
-    return 0.12 + ((value - 20) / 15) * 0.03;
+    return 0.12 + ((value - 2000) / 1500) * 0.03;
   } else {
     // Lottery tier: 10%
     return 0.10;
@@ -1297,29 +1297,29 @@ export function calculateConsolidationPremium(
   const concentration = totalRawValue > 0 ? maxValue / totalRawValue : 0;
   
   // Premium triggers when:
-  // 1. You have at least one star player (70+)
+  // 1. You have at least one star player (7000+)
   // 2. AND either: fewer pieces than opponent OR high concentration (>60%)
   const hasFewerPieces = assetCount < opposingAssetCount;
   const hasHighConcentration = concentration > 0.60;
   
-  if (maxValue < 70 || (!hasFewerPieces && !hasHighConcentration)) return 0;
+  if (maxValue < 7000 || (!hasFewerPieces && !hasHighConcentration)) return 0;
   
   // Base premium rate based on max asset value tier
   // These rates are applied to the MAX ASSET VALUE (not total)
   let basePremiumRate = 0;
   
-  if (maxValue >= 93) {
+  if (maxValue >= 9300) {
     // Elite 1 (top 3-5 dynasty assets like Chase, Jefferson, etc.): 35-42%
-    basePremiumRate = 0.35 + ((maxValue - 93) / 7) * 0.07;
-  } else if (maxValue >= 85) {
+    basePremiumRate = 0.35 + ((maxValue - 9300) / 700) * 0.07;
+  } else if (maxValue >= 8500) {
     // Elite 2 (WR1s, RB1s, elite young QBs): 25-35%
-    basePremiumRate = 0.25 + ((maxValue - 85) / 8) * 0.10;
-  } else if (maxValue >= 78) {
+    basePremiumRate = 0.25 + ((maxValue - 8500) / 800) * 0.10;
+  } else if (maxValue >= 7800) {
     // Star tier: 15-25%
-    basePremiumRate = 0.15 + ((maxValue - 78) / 7) * 0.10;
-  } else if (maxValue >= 70) {
+    basePremiumRate = 0.15 + ((maxValue - 7800) / 700) * 0.10;
+  } else if (maxValue >= 7000) {
     // Borderline star: 8-15%
-    basePremiumRate = 0.08 + ((maxValue - 70) / 8) * 0.07;
+    basePremiumRate = 0.08 + ((maxValue - 7000) / 800) * 0.07;
   }
   
   // Amplify based on piece differential (when trading fewer pieces)
@@ -1446,7 +1446,7 @@ export function calculateTradeAdjustment(
 }
 
 // ============================================================================
-// TRADE GRADE CALCULATION (updated for 0-100 scale)
+// TRADE GRADE CALCULATION (updated for 0-10,000 scale)
 // ============================================================================
 
 export function calculateTradeGrade(
@@ -1527,16 +1527,16 @@ export function getQuickPlayerValue(
 ): number {
   // Base values by position - adjusted based on league scoring type
   let positionBaseValues: Record<string, number> = {
-    QB: 65,
-    RB: 55,
-    WR: 60,
-    TE: 45,
-    K: 5,
-    DEF: 5,
+    QB: 6500,
+    RB: 5500,
+    WR: 6000,
+    TE: 4500,
+    K: 500,
+    DEF: 500,
     // IDP positions - generally lower than offensive players
-    DL: 40,
-    LB: 42,
-    DB: 38,
+    DL: 4000,
+    LB: 4200,
+    DB: 3800,
   };
   
   // Track scoring adjustments for debugging
@@ -1548,32 +1548,32 @@ export function getQuickPlayerValue(
     const pprBonus = leagueScoring.rec || 0;
     if (pprBonus >= 1.0) {
       // Full PPR - major boost to pass catchers
-      positionBaseValues.WR += 12;
-      positionBaseValues.RB += 8; // Pass-catching backs benefit significantly
-      positionBaseValues.TE += 15;
-      scoringAdjustments.push(`FullPPR(WR+12,RB+8,TE+15)`);
+      positionBaseValues.WR += 1200;
+      positionBaseValues.RB += 800; // Pass-catching backs benefit significantly
+      positionBaseValues.TE += 1500;
+      scoringAdjustments.push(`FullPPR(WR+1200,RB+800,TE+1500)`);
     } else if (pprBonus >= 0.5) {
       // Half PPR
-      positionBaseValues.WR += 6;
-      positionBaseValues.RB += 4;
-      positionBaseValues.TE += 8;
-      scoringAdjustments.push(`HalfPPR(WR+6,RB+4,TE+8)`);
+      positionBaseValues.WR += 600;
+      positionBaseValues.RB += 400;
+      positionBaseValues.TE += 800;
+      scoringAdjustments.push(`HalfPPR(WR+600,RB+400,TE+800)`);
     } else {
       scoringAdjustments.push(`Standard(no PPR bonus)`);
     }
     
     // 6-pt passing TDs boost QBs significantly
     if (leagueScoring.passTd >= 6) {
-      positionBaseValues.QB += 12;
-      scoringAdjustments.push(`6ptPassTD(QB+12)`);
+      positionBaseValues.QB += 1200;
+      scoringAdjustments.push(`6ptPassTD(QB+1200)`);
     } else if (leagueScoring.passTd >= 5) {
-      positionBaseValues.QB += 6;
-      scoringAdjustments.push(`5ptPassTD(QB+6)`);
+      positionBaseValues.QB += 600;
+      scoringAdjustments.push(`5ptPassTD(QB+600)`);
     }
     
     // TE premium - significant boost
     if (leagueScoring.bonusRecTe && leagueScoring.bonusRecTe > 0) {
-      const teBonus = Math.min(20, leagueScoring.bonusRecTe * 8);
+      const teBonus = Math.min(2000, leagueScoring.bonusRecTe * 800);
       positionBaseValues.TE += teBonus;
       scoringAdjustments.push(`TEPremium(TE+${teBonus})`);
     }
@@ -1581,34 +1581,34 @@ export function getQuickPlayerValue(
     // Bonus yardage scoring - boosts workhorse players
     if (leagueScoring.bonus100RushYds && leagueScoring.bonus100RushYds > 0) {
       // 100-yard rushing bonus benefits bell-cow RBs
-      positionBaseValues.RB += Math.min(8, leagueScoring.bonus100RushYds * 2);
-      scoringAdjustments.push(`100YdRush(RB+${Math.min(8, leagueScoring.bonus100RushYds * 2)})`);
+      positionBaseValues.RB += Math.min(800, leagueScoring.bonus100RushYds * 200);
+      scoringAdjustments.push(`100YdRush(RB+${Math.min(800, leagueScoring.bonus100RushYds * 200)})`);
     }
     if (leagueScoring.bonus100RecYds && leagueScoring.bonus100RecYds > 0) {
       // 100-yard receiving bonus benefits WR1s
-      positionBaseValues.WR += Math.min(6, leagueScoring.bonus100RecYds * 2);
-      positionBaseValues.TE += Math.min(4, leagueScoring.bonus100RecYds * 1.5);
-      scoringAdjustments.push(`100YdRec(WR+${Math.min(6, leagueScoring.bonus100RecYds * 2)})`);
+      positionBaseValues.WR += Math.min(600, leagueScoring.bonus100RecYds * 200);
+      positionBaseValues.TE += Math.min(400, leagueScoring.bonus100RecYds * 150);
+      scoringAdjustments.push(`100YdRec(WR+${Math.min(600, leagueScoring.bonus100RecYds * 200)})`);
     }
     if (leagueScoring.bonus300PassYds && leagueScoring.bonus300PassYds > 0) {
       // 300-yard passing bonus benefits high-volume passers
-      positionBaseValues.QB += Math.min(8, leagueScoring.bonus300PassYds * 2);
-      scoringAdjustments.push(`300YdPass(QB+${Math.min(8, leagueScoring.bonus300PassYds * 2)})`);
+      positionBaseValues.QB += Math.min(800, leagueScoring.bonus300PassYds * 200);
+      scoringAdjustments.push(`300YdPass(QB+${Math.min(800, leagueScoring.bonus300PassYds * 200)})`);
     }
     
     // First-down scoring - benefits possession receivers and grind-it-out RBs
     if (leagueScoring.rushFd && leagueScoring.rushFd > 0) {
-      positionBaseValues.RB += Math.min(6, leagueScoring.rushFd * 4);
-      scoringAdjustments.push(`RushFD(RB+${Math.min(6, leagueScoring.rushFd * 4)})`);
+      positionBaseValues.RB += Math.min(600, leagueScoring.rushFd * 400);
+      scoringAdjustments.push(`RushFD(RB+${Math.min(600, leagueScoring.rushFd * 400)})`);
     }
     if (leagueScoring.recFd && leagueScoring.recFd > 0) {
-      positionBaseValues.WR += Math.min(5, leagueScoring.recFd * 3);
-      positionBaseValues.TE += Math.min(5, leagueScoring.recFd * 3);
-      scoringAdjustments.push(`RecFD(WR/TE+${Math.min(5, leagueScoring.recFd * 3)})`);
+      positionBaseValues.WR += Math.min(500, leagueScoring.recFd * 300);
+      positionBaseValues.TE += Math.min(500, leagueScoring.recFd * 300);
+      scoringAdjustments.push(`RecFD(WR/TE+${Math.min(500, leagueScoring.recFd * 300)})`);
     }
     if (leagueScoring.passFd && leagueScoring.passFd > 0) {
-      positionBaseValues.QB += Math.min(5, leagueScoring.passFd * 3);
-      scoringAdjustments.push(`PassFD(QB+${Math.min(5, leagueScoring.passFd * 3)})`);
+      positionBaseValues.QB += Math.min(500, leagueScoring.passFd * 300);
+      scoringAdjustments.push(`PassFD(QB+${Math.min(500, leagueScoring.passFd * 300)})`);
     }
     
   } else {
@@ -1616,7 +1616,7 @@ export function getQuickPlayerValue(
     scoringAdjustments.push("NoLeagueScoring(using defaults)");
   }
   
-  let value = positionBaseValues[position] || 30;
+  let value = positionBaseValues[position] || 3000;
   
   // Apply depth chart multiplier - this is critical for realistic values!
   // Normalize position for IDP
@@ -1663,8 +1663,8 @@ export function getQuickPlayerValue(
   }
   
   // Cap and round
-  value = Math.min(100, Math.max(0, value));
-  value = Math.round(value * 100) / 100;
+  value = Math.min(10000, Math.max(0, value));
+  value = Math.round(value);
   
   return value;
 }
@@ -1673,7 +1673,7 @@ export function getQuickPlayerValue(
 // AVERAGED VALUE CALCULATION (simple 50/50 blend with consensus)
 // ============================================================================
 // Approach: Simple average of league value and KTC consensus value
-// - KTC raw value × 0.01 = normalized (e.g., 5532 → 55.32)
+// - KTC raw values normalized to 0-10,000 scale
 // - Average with league value: (leagueValue + ktcNormalized) / 2
 // - Just publish the final dynasty value
 
@@ -1688,9 +1688,10 @@ export function getBlendedPlayerValue(
   depthChartOrder: number | null = null,
   leagueScoring: LeagueScoringSettings | null = null,
   consensusValue: number | null = null,
-  _leagueWeight: number = 0.5 // Not used - always 50/50
+  _leagueWeight: number = 0.5, // Not used - always 50/50
+  rosterSettings: LeagueRosterSettings | null = null
 ): QuickPlayerValueResult {
-  const leagueValue = getQuickPlayerValue(
+  let leagueValue = getQuickPlayerValue(
     playerId,
     position,
     age,
@@ -1701,47 +1702,71 @@ export function getBlendedPlayerValue(
     leagueScoring
   );
   
+  // Format-aware position scarcity adjustment on the league-specific value
+  // In 1QB leagues, QBs are much less scarce (only need 1 starter), so their
+  // trade value drops significantly. In SF, QBs are already properly valued
+  // via the consensus rankings. This adjusts the league-specific half of the blend.
+  if (rosterSettings) {
+    const isSF = rosterSettings.superflexSlots > 0 || rosterSettings.qbSlots >= 2;
+    const flexCount = rosterSettings.flexSlots || 0;
+    
+    if (position === "QB" && !isSF) {
+      // 1QB league: QBs are significantly less valuable for trade purposes
+      // Only 1 starter needed, streaming is viable, replacement level is high
+      // Apply a heavy deflation to the league value component
+      leagueValue *= 0.65;
+    } else if (position === "QB" && isSF) {
+      // SF: QBs are premium — slight boost to league value to match consensus emphasis
+      leagueValue *= 1.08;
+    }
+    
+    // In leagues with extra flex spots, RBs and WRs fill more starting slots
+    if (flexCount >= 3 && (position === "RB" || position === "WR")) {
+      leagueValue *= 1.05;
+    }
+    
+    // TE premium leagues already handled by scoring settings, but give small additional
+    // boost in TE-premium formats since TEs fill a scarce niche
+    if (position === "TE" && leagueScoring && leagueScoring.bonusRecTe > 0) {
+      leagueValue *= 1.04;
+    }
+  }
+  
   // If no consensus value, player is NOT in DynastyProcess top ~500
   // Apply moderate penalty but consider actual production/age
   if (consensusValue === null || consensusValue === undefined) {
-    // Players not in consensus get penalty, but not as severe
-    // Young players with production should still have decent value
     const hasProduction = (actualStats.ppg || 0) > 5 || (actualStats.games || 0) > 10;
     const isYoung = (age || 30) < 27;
     
-    // Base cap is 35, but young producers can reach 50
     let cappedValue: number;
     if (hasProduction && isYoung) {
-      // Young player with production - moderate penalty (cap at 50)
-      cappedValue = Math.min(50, leagueValue * 0.65);
+      cappedValue = Math.min(5000, leagueValue * 0.65);
     } else if (hasProduction || isYoung) {
-      // Either producing or young - lighter penalty (cap at 40)
-      cappedValue = Math.min(40, leagueValue * 0.55);
+      cappedValue = Math.min(4000, leagueValue * 0.55);
     } else {
-      // Old non-producer - heavy penalty (cap at 25)
-      cappedValue = Math.min(25, leagueValue * 0.4);
+      cappedValue = Math.min(2500, leagueValue * 0.4);
     }
     
     return {
-      value: Math.round(cappedValue * 10) / 10,
-      leagueValue: Math.round(leagueValue * 10) / 10,
+      value: Math.round(cappedValue),
+      leagueValue: Math.round(leagueValue),
       consensusValue: null,
       blended: false
     };
   }
   
-  const roundedLeague = Math.round(leagueValue * 10) / 10;
-  const roundedConsensus = Math.round(consensusValue * 10) / 10;
+  const roundedLeague = Math.round(leagueValue);
+  const roundedConsensus = Math.round(consensusValue);
   
   // Simple 50/50 average of league and consensus values
   const averagedValue = (roundedLeague + roundedConsensus) / 2;
-  const finalValue = Math.round(averagedValue * 10) / 10;
+  const finalValue = Math.round(averagedValue);
   
   return {
     value: finalValue,
     leagueValue: roundedLeague,
     consensusValue: roundedConsensus,
-    blended: true // Always blended when consensus is available
+    blended: true
   };
 }
 
