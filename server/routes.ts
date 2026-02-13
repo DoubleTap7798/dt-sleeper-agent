@@ -7091,6 +7091,28 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       };
       const positionsToRank = isIDPLeague ? [...offensePositions, ...idpPositions] : offensePositions;
 
+      // Production confidence: scales dynasty value by proven production for position strength
+      const prElitePPG: Record<string, number> = { QB: 18, RB: 14, WR: 14, TE: 12 };
+      const prStarterPPG: Record<string, number> = { QB: 14, RB: 10, WR: 10, TE: 8 };
+      const getProdConfidence = (playerId: string, player: any, pos: string, dynastyValue: number): number => {
+        const pStats = stats?.[playerId] || {} as any;
+        const gp = pStats.gp || 0;
+        const pts = pStats.pts_ppr || 0;
+        const ppg = gp > 0 ? pts / gp : 0;
+        const yearsExp = player?.years_exp || 0;
+        const injuryStatus = player?.injury_status;
+        const isCurrentlyInjured = injuryStatus && ["IR", "Out", "Doubtful", "PUP"].includes(injuryStatus);
+        if (gp >= 8 && ppg >= (prElitePPG[pos] || 14)) return 1.0;
+        if (gp >= 6 && ppg >= (prStarterPPG[pos] || 10)) return 0.9;
+        if (gp >= 4 && ppg >= (prStarterPPG[pos] || 10) * 0.7) return 0.75;
+        if (gp >= 2 && ppg >= (prStarterPPG[pos] || 10) * 0.5) return 0.6;
+        if (isCurrentlyInjured && dynastyValue >= 60 && gp < 6) return 0.75;
+        if (dynastyValue >= 70 && gp < 6 && yearsExp >= 1 && yearsExp <= 3) return 0.65;
+        if (yearsExp === 0) return dynastyValue >= 70 ? 0.65 : 0.45;
+        if (yearsExp >= 2 && gp < 4) return 0.35;
+        return 0.5;
+      };
+
       // Calculate position group values for ALL teams using weighted top-N approach
       const topNByPosition: Record<string, number> = { QB: 3, RB: 5, WR: 5, TE: 3, DL: 4, LB: 4, DB: 4 };
       const teamPositionValues: Record<string, Record<string, number>> = {};
@@ -7109,11 +7131,13 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           const pos = player.position;
           const idpGroup = idpPlayerPositionMap[pos];
           if (pos in posPlayerValues) {
-            const value = getBlendedValue(pid, player);
-            posPlayerValues[pos].push(value);
+            const dynastyValue = getBlendedValue(pid, player);
+            const confidence = getProdConfidence(pid, player, pos, dynastyValue);
+            posPlayerValues[pos].push(dynastyValue * confidence);
           } else if (idpGroup && idpGroup in posPlayerValues) {
-            const value = getBlendedValue(pid, player);
-            posPlayerValues[idpGroup].push(value);
+            const dynastyValue = getBlendedValue(pid, player);
+            const confidence = getProdConfidence(pid, player, idpGroup, dynastyValue);
+            posPlayerValues[idpGroup].push(dynastyValue * confidence);
           }
         }
         
@@ -7472,6 +7496,37 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       const teamPositionValues: Record<string, { QB: number; RB: number; WR: number; TE: number }> = {};
       const teamAges: Record<string, number[]> = {};
 
+      // Production confidence multiplier: scales dynasty value by how much a player has proven on the field
+      // This prevents unproven players (high DV from draft capital/age alone) from inflating position rankings
+      const getProductionConfidence = (playerId: string, player: any, pos: string, dynastyValue: number): number => {
+        const pStats = stats?.[playerId] || {} as any;
+        const gp = pStats.gp || 0;
+        const pts = pStats.pts_ppr || 0;
+        const ppg = gp > 0 ? pts / gp : 0;
+        const yearsExp = player?.years_exp || 0;
+        const injuryStatus = player?.injury_status;
+        const isCurrentlyInjured = injuryStatus && ["IR", "Out", "Doubtful", "PUP"].includes(injuryStatus);
+
+        // Proven elite producer — full confidence
+        if (gp >= 8 && ppg >= (elitePPG[pos] || 14)) return 1.0;
+        // Solid starter-level production — high confidence
+        if (gp >= 6 && ppg >= (starterPPG[pos] || 10)) return 0.9;
+        // Some production but not starter-level — moderate confidence
+        if (gp >= 4 && ppg >= (starterPPG[pos] || 10) * 0.7) return 0.75;
+        // Limited games but showed something
+        if (gp >= 2 && ppg >= (starterPPG[pos] || 10) * 0.5) return 0.6;
+        // Proven player who missed time due to injury — trust dynasty value as proxy for talent
+        // High DV + few games + injury = likely a good player who just got hurt, not a bust
+        if (isCurrentlyInjured && dynastyValue >= 60 && gp < 6) return 0.75;
+        if (dynastyValue >= 70 && gp < 6 && yearsExp >= 1 && yearsExp <= 3) return 0.65;
+        // Rookie (0 years exp) — give benefit of the doubt based on dynasty value
+        if (yearsExp === 0) return dynastyValue >= 70 ? 0.65 : 0.45;
+        // Veteran with no/minimal production — they've had chances and haven't produced
+        if (yearsExp >= 2 && gp < 4) return 0.35;
+        // Default — some experience but limited data
+        return 0.5;
+      };
+
       // Track user's player-level detail for quality tier analysis
       type PlayerDetail = { name: string; value: number; ppg: number; gp: number; age: number };
       let userPositionPlayers: Record<string, PlayerDetail[]> = { QB: [], RB: [], WR: [], TE: [] };
@@ -7490,8 +7545,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           
           const pos = player.position as "QB" | "RB" | "WR" | "TE";
           if (pos in posPlayerValues) {
-            const value = getBlendedValue(pid, player);
-            posPlayerValues[pos].push(value);
+            const dynastyValue = getBlendedValue(pid, player);
+            const confidence = getProductionConfidence(pid, player, pos, dynastyValue);
+            const strengthValue = dynastyValue * confidence;
+            posPlayerValues[pos].push(strengthValue);
             if (player.age) ages.push(player.age);
 
             if (isUserRoster) {
@@ -7501,7 +7558,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
               const ppg = gp > 0 ? pts / gp : 0;
               userPositionPlayers[pos].push({
                 name: player.full_name || `${player.first_name} ${player.last_name}`,
-                value,
+                value: dynastyValue,
                 ppg,
                 gp,
                 age: player.age || 25,
