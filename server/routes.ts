@@ -7048,6 +7048,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         });
       }
       
+      // Parse league scoring settings for accurate position valuations (TEP, PPR, etc.)
+      const leagueScoring = league ? dynastyEngine.parseLeagueScoringSettings(league) : null;
+
       // Helper function to get blended dynasty value consistently
       const getBlendedValue = (playerId: string, player: any) => {
         const pos = player?.position || "?";
@@ -7068,7 +7071,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           player?.injury_status,
           { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
           null,
-          null,
+          leagueScoring,
           consensusValue
         );
         return valueResult.value;
@@ -7088,15 +7091,16 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       };
       const positionsToRank = isIDPLeague ? [...offensePositions, ...idpPositions] : offensePositions;
 
-      // Calculate position group values for ALL teams
+      // Calculate position group values for ALL teams using weighted top-N approach
+      const topNByPosition: Record<string, number> = { QB: 3, RB: 5, WR: 5, TE: 3, DL: 4, LB: 4, DB: 4 };
       const teamPositionValues: Record<string, Record<string, number>> = {};
       
       for (const roster of rosters) {
         const ownerId = roster.owner_id;
         const rosterPlayers = roster.players || [];
         
-        const posValues: Record<string, number> = {};
-        for (const p of positionsToRank) posValues[p] = 0;
+        const posPlayerValues: Record<string, number[]> = {};
+        for (const p of positionsToRank) posPlayerValues[p] = [];
         
         for (const pid of rosterPlayers) {
           const player = allPlayers[pid];
@@ -7104,13 +7108,29 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           
           const pos = player.position;
           const idpGroup = idpPlayerPositionMap[pos];
-          if (pos in posValues) {
+          if (pos in posPlayerValues) {
             const value = getBlendedValue(pid, player);
-            posValues[pos] += value;
-          } else if (idpGroup && idpGroup in posValues) {
+            posPlayerValues[pos].push(value);
+          } else if (idpGroup && idpGroup in posPlayerValues) {
             const value = getBlendedValue(pid, player);
-            posValues[idpGroup] += value;
+            posPlayerValues[idpGroup].push(value);
           }
+        }
+        
+        // Score each position: top-N get full weight, depth gets diminishing weight
+        const posValues: Record<string, number> = {};
+        for (const pos of positionsToRank) {
+          const sorted = (posPlayerValues[pos] || []).sort((a, b) => b - a);
+          const topN = topNByPosition[pos] || 3;
+          let total = 0;
+          for (let i = 0; i < sorted.length; i++) {
+            if (i < topN) {
+              total += sorted[i];
+            } else {
+              total += sorted[i] * 0.15;
+            }
+          }
+          posValues[pos] = total;
         }
         
         teamPositionValues[ownerId] = posValues;
@@ -7374,7 +7394,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         });
       }
 
-      // Calculate dynasty values
+      // Parse league scoring settings for accurate position valuations (TEP, PPR, 6pt pass TD, etc.)
+      const leagueScoring = league ? dynastyEngine.parseLeagueScoringSettings(league) : null;
+
+      // Calculate dynasty values with league-specific scoring
       const getBlendedValue = (playerId: string, player: any) => {
         const pos = player?.position || "?";
         const playerName = player?.full_name || `${player?.first_name} ${player?.last_name}`;
@@ -7394,13 +7417,15 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           player?.injury_status,
           { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
           null,
-          null,
+          leagueScoring,
           consensusValue
         );
         return valueResult.value;
       };
 
-      // Calculate position group values for ALL teams
+      // Calculate position group values for ALL teams using weighted top-N approach
+      // This prevents teams with many mediocre players from outranking teams with fewer elite players
+      const topNByPosition: Record<string, number> = { QB: 3, RB: 5, WR: 5, TE: 3 };
       const teamPositionValues: Record<string, { QB: number; RB: number; WR: number; TE: number }> = {};
       const teamAges: Record<string, number[]> = {};
       
@@ -7408,7 +7433,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         const ownerId = roster.owner_id;
         const rosterPlayers = roster.players || [];
         
-        const posValues = { QB: 0, RB: 0, WR: 0, TE: 0 };
+        const posPlayerValues: Record<string, number[]> = { QB: [], RB: [], WR: [], TE: [] };
         const ages: number[] = [];
         
         for (const pid of rosterPlayers) {
@@ -7416,11 +7441,27 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           if (!player) continue;
           
           const pos = player.position as "QB" | "RB" | "WR" | "TE";
-          if (pos in posValues) {
+          if (pos in posPlayerValues) {
             const value = getBlendedValue(pid, player);
-            posValues[pos] += value;
+            posPlayerValues[pos].push(value);
             if (player.age) ages.push(player.age);
           }
+        }
+        
+        // Score each position: top-N players get full weight, rest get diminishing weight
+        const posValues = { QB: 0, RB: 0, WR: 0, TE: 0 };
+        for (const pos of ["QB", "RB", "WR", "TE"] as const) {
+          const sorted = posPlayerValues[pos].sort((a, b) => b - a);
+          const topN = topNByPosition[pos];
+          let total = 0;
+          for (let i = 0; i < sorted.length; i++) {
+            if (i < topN) {
+              total += sorted[i]; // Full weight for top-N
+            } else {
+              total += sorted[i] * 0.15; // Depth pieces count very little
+            }
+          }
+          posValues[pos] = total;
         }
         
         teamPositionValues[ownerId] = posValues;
@@ -8425,10 +8466,24 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             const userRoster = rosters.find((r: any) => r.owner_id === sleeperUserId);
 
             if (userRoster) {
+              // Fetch season stats to provide production context to AI
+              let seasonStats: any = {};
+              try {
+                seasonStats = await sleeperApi.getSeasonStats("2025", "regular") || {};
+              } catch (e) { /* best effort */ }
+
+              const starters = new Set(userRoster.starters || []);
               const rosterPlayers = (userRoster.players || []).map((pid: string) => {
                 const p = allPlayers[pid];
                 if (!p) return null;
-                return `${p.full_name || p.first_name + " " + p.last_name} (${p.position}, ${p.team || "FA"})`;
+                const name = p.full_name || `${p.first_name} ${p.last_name}`;
+                const pStats = seasonStats[pid] || {};
+                const gp = pStats.gp || 0;
+                const pts = pStats.pts_ppr || 0;
+                const ppg = gp > 0 ? (pts / gp).toFixed(1) : "0";
+                const isStarter = starters.has(pid) ? "starter" : "bench";
+                const age = p.age ? `, age ${p.age}` : "";
+                return `${name} (${p.position}, ${p.team || "FA"}${age}, ${ppg} PPG, ${gp}g, ${isStarter})`;
               }).filter(Boolean);
 
               if (rosterPlayers.length > 0) {
@@ -8491,6 +8546,7 @@ Guidelines:
 - Be concise but thorough. Use bullet points for clarity.
 - When discussing trades, consider dynasty value, age, positional scarcity, and team construction.
 - For start/sit advice, consider matchups, recent performance, and usage trends.
+- IMPORTANT: Use the actual player stats (PPG, games played) provided in the roster context to assess player quality. Do NOT assume players are unproven or developing if their stats show strong production. A player averaging 14+ PPG in PPR is an established producer.
 - Reference specific player data when available from the user's context.
 - If you don't have specific data, provide general expert advice and note any assumptions.
 - Be opinionated — give clear recommendations rather than wishy-washy answers.
