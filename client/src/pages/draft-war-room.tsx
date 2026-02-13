@@ -392,12 +392,16 @@ function DraftBoard({ picks, currentPick }: {
 
 export default function DraftWarRoomPage() {
   const { league } = useSelectedLeague();
-  const [mode, setMode] = useState<"rookie" | "startup">("rookie");
+  const [modeOverride, setModeOverride] = useState<"rookie" | "startup" | null>(null);
 
+  const queryMode = modeOverride ? `&mode=${modeOverride}` : "";
   const { data, isLoading, error, refetch } = useQuery<DraftRecommendationsResponse>({
-    queryKey: [`/api/fantasy/draft-recommendations/${league?.league_id}?mode=${mode}`],
+    queryKey: [`/api/fantasy/draft-recommendations/${league?.league_id}?auto=1${queryMode}`],
     enabled: !!league?.league_id,
   });
+
+  const detectedMode = data?.mode === "startup" ? "startup" : "rookie";
+  const activeMode = modeOverride || detectedMode;
 
   if (!league) {
     return (
@@ -441,6 +445,7 @@ export default function DraftWarRoomPage() {
     valueDrops: [],
     rosterAnalysis: { positionCounts: {}, needs: [], avgAge: 0, profile: "Balanced" },
     positionalRuns: [],
+    mode: "rookie" as const,
     draft: null,
     draftBoard: [],
     myPicks: [],
@@ -462,17 +467,17 @@ export default function DraftWarRoomPage() {
 
         <div className="flex items-center gap-2">
           <Button
-            variant={mode === "rookie" ? "default" : "outline"}
+            variant={activeMode === "rookie" ? "default" : "outline"}
             size="sm"
-            onClick={() => setMode("rookie")}
+            onClick={() => setModeOverride("rookie")}
             data-testid="button-mode-rookie"
           >
             Rookie Draft
           </Button>
           <Button
-            variant={mode === "startup" ? "default" : "outline"}
+            variant={activeMode === "startup" ? "default" : "outline"}
             size="sm"
-            onClick={() => setMode("startup")}
+            onClick={() => setModeOverride("startup")}
             data-testid="button-mode-startup"
           >
             Startup Draft
@@ -556,7 +561,7 @@ export default function DraftWarRoomPage() {
                 <TabsContent value="value" className="space-y-2">
                   {recommendations.bestValue.length > 0 ? (
                     recommendations.bestValue.map((player, i) => (
-                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={mode === "rookie"} />
+                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={activeMode === "rookie"} />
                     ))
                   ) : (
                     <p className="text-center text-muted-foreground py-4" data-testid="empty-state-best-value">
@@ -568,7 +573,7 @@ export default function DraftWarRoomPage() {
                 <TabsContent value="needs" className="space-y-2">
                   {recommendations.bestForNeeds.length > 0 ? (
                     recommendations.bestForNeeds.map((player, i) => (
-                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={mode === "rookie"} />
+                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={activeMode === "rookie"} />
                     ))
                   ) : (
                     <p className="text-center text-muted-foreground py-4" data-testid="empty-state-best-needs">
@@ -580,11 +585,11 @@ export default function DraftWarRoomPage() {
                 <TabsContent value="upside" className="space-y-2">
                   {recommendations.bestUpside.length > 0 ? (
                     recommendations.bestUpside.map((player, i) => (
-                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={mode === "rookie"} />
+                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={activeMode === "rookie"} />
                     ))
                   ) : (
                     <p className="text-center text-muted-foreground py-4" data-testid="empty-state-best-upside">
-                      {mode === "rookie" ? "No rising stock prospects available" : "No young upside players available"}
+                      {activeMode === "rookie" ? "No rising stock prospects available" : "No young upside players available"}
                     </p>
                   )}
                 </TabsContent>
@@ -678,7 +683,7 @@ export default function DraftWarRoomPage() {
             <CardContent className="text-xs text-muted-foreground space-y-2">
               <p className="flex items-start gap-2">
                 <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
-                {mode === "rookie" 
+                {activeMode === "rookie" 
                   ? "Focus on talent over landing spot for dynasty value"
                   : "Balance youth and production for long-term success"
                 }

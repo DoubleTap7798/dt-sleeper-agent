@@ -8494,7 +8494,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     try {
       const userId = req.user.claims.sub;
       const { leagueId } = req.params;
-      const { draftId, mode = "rookie" } = req.query;
+      const { draftId, mode: requestedMode } = req.query;
       
       const userProfile = await storage.getUserProfile(userId);
       if (!userProfile?.sleeperUserId) {
@@ -8540,6 +8540,24 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         // Use most recent draft
         activeDraft = drafts[0];
         draftPicks = await sleeperApi.getDraftPicks(drafts[0].draft_id);
+      }
+
+      // Auto-detect draft type from Sleeper draft settings
+      // player_type: 0 = all players (startup), 1 = rookies only
+      // Also use round count as heuristic: startup drafts typically have 15+ rounds
+      let mode = requestedMode as string;
+      if (!mode && activeDraft) {
+        const playerType = activeDraft.settings?.player_type;
+        const rounds = activeDraft.settings?.rounds || 0;
+        if (playerType === 1 || rounds <= 6) {
+          mode = "rookie";
+        } else if (playerType === 0 || rounds >= 15) {
+          mode = "startup";
+        } else {
+          mode = "rookie"; // Default fallback
+        }
+      } else if (!mode) {
+        mode = "rookie";
       }
 
       // Get user's draft picks from this draft
@@ -8803,6 +8821,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         }
       } else {
         // STARTUP DRAFT: Use Sleeper player pool with dynasty values
+        // Parse league scoring settings for format-aware valuation
+        const leagueScoring = dynastyEngine.parseLeagueScoringSettings(league);
+        const rosterSettings = dynastyEngine.parseLeagueRosterSettings(league);
+        
         for (const [playerId, player] of Object.entries(allPlayers)) {
           if (draftedPlayerIds.has(playerId)) continue;
           if (!player || !player.position) continue;
@@ -8811,18 +8833,24 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           const playerStats = stats?.[playerId] || {};
           const gamesPlayed = playerStats.gp || 0;
           const ppg = gamesPlayed > 0 ? (playerStats.pts_ppr || 0) / gamesPlayed : 0;
+          const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
+          
+          // Look up consensus value from DynastyProcess/KTC
+          const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, player.position, isSuperflex);
           
           const blendedValue = dynastyEngine.getBlendedPlayerValue(
             playerId,
-            player.full_name || "",
+            playerName,
             player.position,
             player.age || null,
             player.years_exp || 0,
             player.injury_status || null,
             { points: playerStats.pts_ppr || 0, games: gamesPlayed, ppg },
-            1, null, null,
+            player.depth_chart_order || null,
+            leagueScoring,
+            consensusValue,
             0.5,
-            dynastyEngine.parseLeagueRosterSettings(league)
+            rosterSettings
           );
 
           if (blendedValue.value > 500) {
@@ -8937,6 +8965,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           profile: avgAge > 27 ? "Contender" : avgAge < 25 ? "Rebuild" : "Balanced",
         },
         positionalRuns: activeRuns,
+        mode,
         draft: activeDraft ? {
           id: activeDraft.draft_id,
           status: activeDraft.status,
@@ -8944,7 +8973,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           rounds: activeDraft.settings?.rounds || 0,
           picksMade: draftPicks.length,
           totalPicks: (activeDraft.settings?.rounds || 0) * (activeDraft.settings?.teams || 0),
-          reversalRound: activeDraft.settings?.reversal_round || 1, // How many rounds before direction reverses
+          reversalRound: activeDraft.settings?.reversal_round || 1,
         } : null,
         draftBoard: draftPicks
           .filter(p => p.player_id)
