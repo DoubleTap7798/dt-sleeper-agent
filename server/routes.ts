@@ -903,6 +903,279 @@ ${urls}
     }
   });
 
+  // Multi-league overview: upcoming matchups + standings for all user's leagues
+  app.get("/api/sleeper/leagues-overview", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+
+      if (!profile?.sleeperUserId) {
+        return res.json([]);
+      }
+
+      const state = await sleeperApi.getState();
+      const leagueSeason = state?.league_season || state?.season || "2026";
+      let leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, leagueSeason);
+
+      if ((!leagues || leagues.length === 0) && parseInt(leagueSeason) > 2020) {
+        const previousSeason = String(parseInt(leagueSeason) - 1);
+        leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, previousSeason);
+      }
+
+      const currentWeek = state?.display_week || state?.week || 1;
+
+      const overviewResults = await Promise.all(
+        leagues.map(async (league) => {
+          try {
+            const [rosters, users, matchups] = await Promise.all([
+              sleeperApi.getLeagueRosters(league.league_id),
+              sleeperApi.getLeagueUsers(league.league_id),
+              sleeperApi.getMatchups(league.league_id, currentWeek).catch(() => []),
+            ]);
+
+            const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+            const rosterMap = new Map((rosters || []).map((r) => [r.roster_id, r]));
+            const userRoster = rosters.find(r => r.owner_id === profile.sleeperUserId);
+            if (!userRoster) return null;
+
+            const wins = userRoster.settings?.wins || 0;
+            const losses = userRoster.settings?.losses || 0;
+            const ties = userRoster.settings?.ties || 0;
+            const fpts = (userRoster.settings?.fpts || 0) + (userRoster.settings?.fpts_decimal || 0) / 100;
+
+            const sortedRosters = [...rosters].sort((a, b) => {
+              const wA = a.settings?.wins || 0;
+              const wB = b.settings?.wins || 0;
+              if (wB !== wA) return wB - wA;
+              const fA = (a.settings?.fpts || 0) + (a.settings?.fpts_decimal || 0) / 100;
+              const fB = (b.settings?.fpts || 0) + (b.settings?.fpts_decimal || 0) / 100;
+              return fB - fA;
+            });
+            const rank = sortedRosters.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
+            const totalTeams = rosters.length;
+
+            let leagueType = "Redraft";
+            if (league.settings?.best_ball === 1) leagueType = "Best Ball";
+            else if (league.settings?.type === 2) leagueType = "Dynasty";
+            else if (league.settings?.type === 1) leagueType = "Keeper";
+
+            let upcomingMatchup: any = null;
+            if (matchups && matchups.length > 0) {
+              const userMatchup = matchups.find((m: any) => m.roster_id === userRoster.roster_id);
+              if (userMatchup && userMatchup.matchup_id != null) {
+                const opponentMatchup = matchups.find(
+                  (m: any) => m.matchup_id === userMatchup.matchup_id && m.roster_id !== userRoster.roster_id
+                );
+                if (opponentMatchup) {
+                  const oppRoster = rosterMap.get(opponentMatchup.roster_id);
+                  const oppUser = oppRoster ? userMap.get(oppRoster.owner_id) : null;
+                  const oppWins = oppRoster?.settings?.wins || 0;
+                  const oppLosses = oppRoster?.settings?.losses || 0;
+                  upcomingMatchup = {
+                    week: currentWeek,
+                    opponentName: oppUser?.display_name || oppUser?.username || `Team ${opponentMatchup.roster_id}`,
+                    opponentAvatar: oppUser?.avatar ? sleeperApi.getAvatarUrl(oppUser.avatar) : null,
+                    opponentRecord: `${oppWins}-${oppLosses}`,
+                    userPoints: userMatchup.points || 0,
+                    opponentPoints: opponentMatchup.points || 0,
+                  };
+                }
+              }
+            }
+
+            return {
+              leagueId: league.league_id,
+              leagueName: league.name,
+              leagueAvatar: league.avatar ? `https://sleepercdn.com/avatars/${league.avatar}` : null,
+              leagueType,
+              season: league.season,
+              record: { wins, losses, ties },
+              rank,
+              totalTeams,
+              pointsFor: Math.round(fpts * 10) / 10,
+              upcomingMatchup,
+            };
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      res.json(overviewResults.filter(Boolean));
+    } catch (error) {
+      console.error("Error fetching leagues overview:", error);
+      res.status(500).json({ message: "Failed to fetch leagues overview" });
+    }
+  });
+
+  // Strength of Schedule endpoint
+  app.get("/api/sleeper/strength-of-schedule/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+      if (!profile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [league, state, rosters, users] = await Promise.all([
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+      ]);
+
+      if (!league || !state) {
+        return res.status(404).json({ message: "League not found" });
+      }
+
+      const userRoster = rosters.find(r => r.owner_id === profile.sleeperUserId);
+      if (!userRoster) {
+        return res.status(404).json({ message: "User roster not found" });
+      }
+
+      const currentWeek = state.display_week || state.week || 1;
+      const playoffWeekStart = league.settings?.playoff_week_start || 15;
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+      const rosterMap = new Map((rosters || []).map((r) => [r.roster_id, r]));
+
+      // Calculate power scores for all teams based on record and points
+      const teamPowerScores = new Map<number, number>();
+      rosters.forEach(r => {
+        const wins = r.settings?.wins || 0;
+        const losses = r.settings?.losses || 0;
+        const fpts = (r.settings?.fpts || 0) + (r.settings?.fpts_decimal || 0) / 100;
+        const totalGames = wins + losses;
+        const winPct = totalGames > 0 ? wins / totalGames : 0.5;
+        const maxFpts = Math.max(...rosters.map(ro => (ro.settings?.fpts || 0) + (ro.settings?.fpts_decimal || 0) / 100));
+        const fptsNorm = maxFpts > 0 ? fpts / maxFpts : 0.5;
+        const powerScore = (winPct * 0.5 + fptsNorm * 0.5) * 100;
+        teamPowerScores.set(r.roster_id, Math.round(powerScore * 10) / 10);
+      });
+
+      // Sort teams by power score for ranking
+      const sortedTeams = Array.from(teamPowerScores.entries()).sort((a, b) => b[1] - a[1]);
+      const powerRankMap = new Map(sortedTeams.map(([rid, score], idx) => [rid, { rank: idx + 1, score }]));
+
+      // Get all remaining regular season matchups
+      const remainingWeeks = [];
+      for (let w = currentWeek; w < playoffWeekStart; w++) {
+        remainingWeeks.push(w);
+      }
+
+      const weekMatchups = await Promise.all(
+        remainingWeeks.map(w => sleeperApi.getMatchups(leagueId, w).then(m => ({ week: w, matchups: m })).catch(() => ({ week: w, matchups: [] })))
+      );
+
+      // Build schedule with SOS data for ALL teams
+      const teamSchedules = new Map<number, { week: number; opponentId: number; opponentName: string; opponentAvatar: string | null; opponentRecord: string; opponentPowerRank: number; opponentPowerScore: number; difficulty: string }[]>();
+
+      rosters.forEach(r => teamSchedules.set(r.roster_id, []));
+
+      weekMatchups.forEach(({ week, matchups }) => {
+        if (!matchups || matchups.length === 0) return;
+
+        const matchupGroups = new Map<number, any[]>();
+        matchups.forEach((m: any) => {
+          if (m.matchup_id == null) return;
+          if (!matchupGroups.has(m.matchup_id)) matchupGroups.set(m.matchup_id, []);
+          matchupGroups.get(m.matchup_id)!.push(m);
+        });
+
+        matchupGroups.forEach(group => {
+          if (group.length !== 2) return;
+          const [a, b] = group;
+
+          const addScheduleEntry = (teamId: number, oppId: number) => {
+            const oppRoster = rosterMap.get(oppId);
+            const oppUser = oppRoster ? userMap.get(oppRoster.owner_id) : null;
+            const oppPower = powerRankMap.get(oppId) || { rank: rosters.length, score: 0 };
+            const oppWins = oppRoster?.settings?.wins || 0;
+            const oppLosses = oppRoster?.settings?.losses || 0;
+
+            let difficulty = "Medium";
+            const totalTeams = rosters.length;
+            const topThird = Math.ceil(totalTeams / 3);
+            const bottomThird = totalTeams - topThird;
+            if (oppPower.rank <= topThird) difficulty = "Hard";
+            else if (oppPower.rank > bottomThird) difficulty = "Easy";
+
+            const schedules = teamSchedules.get(teamId) || [];
+            schedules.push({
+              week,
+              opponentId: oppId,
+              opponentName: oppUser?.display_name || oppUser?.username || `Team ${oppId}`,
+              opponentAvatar: oppUser?.avatar ? sleeperApi.getAvatarUrl(oppUser.avatar) : null,
+              opponentRecord: `${oppWins}-${oppLosses}`,
+              opponentPowerRank: oppPower.rank,
+              opponentPowerScore: oppPower.score,
+              difficulty,
+            });
+            teamSchedules.set(teamId, schedules);
+          };
+
+          addScheduleEntry(a.roster_id, b.roster_id);
+          addScheduleEntry(b.roster_id, a.roster_id);
+        });
+      });
+
+      // Calculate overall SOS for each team
+      const teamSosScores: { rosterId: number; ownerName: string; avatar: string | null; record: string; sosScore: number; sosRank: number; remainingGames: any[]; avgOpponentPowerRank: number }[] = [];
+
+      rosters.forEach(r => {
+        const schedule = teamSchedules.get(r.roster_id) || [];
+        const user = userMap.get(r.owner_id);
+        const avgPowerScore = schedule.length > 0
+          ? schedule.reduce((sum, g) => sum + g.opponentPowerScore, 0) / schedule.length
+          : 50;
+        const avgPowerRank = schedule.length > 0
+          ? schedule.reduce((sum, g) => sum + g.opponentPowerRank, 0) / schedule.length
+          : rosters.length / 2;
+
+        teamSosScores.push({
+          rosterId: r.roster_id,
+          ownerName: user?.display_name || user?.username || `Team ${r.roster_id}`,
+          avatar: user?.avatar ? sleeperApi.getAvatarUrl(user.avatar) : null,
+          record: `${r.settings?.wins || 0}-${r.settings?.losses || 0}`,
+          sosScore: Math.round(avgPowerScore * 10) / 10,
+          sosRank: 0,
+          remainingGames: schedule,
+          avgOpponentPowerRank: Math.round(avgPowerRank * 10) / 10,
+        });
+      });
+
+      // Rank by SOS (higher = harder schedule)
+      teamSosScores.sort((a, b) => b.sosScore - a.sosScore);
+      teamSosScores.forEach((t, idx) => { t.sosRank = idx + 1; });
+
+      const userSos = teamSosScores.find(t => t.rosterId === userRoster.roster_id);
+
+      res.json({
+        leagueName: league.name,
+        season: league.season,
+        currentWeek,
+        playoffWeekStart,
+        totalTeams: rosters.length,
+        userRosterId: userRoster.roster_id,
+        userSos: userSos || null,
+        allTeamsSos: teamSosScores,
+        powerRankings: sortedTeams.map(([rid, score], idx) => {
+          const r = rosterMap.get(rid);
+          const u = r ? userMap.get(r.owner_id) : null;
+          return {
+            rosterId: rid,
+            ownerName: u?.display_name || u?.username || `Team ${rid}`,
+            rank: idx + 1,
+            score,
+          };
+        }),
+      });
+    } catch (error) {
+      console.error("Error fetching SOS:", error);
+      res.status(500).json({ message: "Failed to fetch strength of schedule" });
+    }
+  });
+
   // Get league transactions
   app.get("/api/sleeper/transactions/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {

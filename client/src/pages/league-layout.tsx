@@ -20,6 +20,7 @@ import { useSubscription } from "@/hooks/use-subscription";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, prefetchLeagueData, prefetchPlayerData } from "@/lib/queryClient";
+import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import type { SleeperLeague } from "@/lib/sleeper-types";
 
 interface LeagueLayoutProps {
@@ -244,10 +245,11 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
               </DropdownMenu>
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-4 md:p-6">
+          <main className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6">
             {children}
           </main>
         </SidebarInset>
+        <MobileBottomNav />
       </div>
     </SidebarProvider>
   );

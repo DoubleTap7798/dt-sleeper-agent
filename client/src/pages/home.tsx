@@ -22,6 +22,26 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { SleeperLeague } from "@/lib/sleeper-types";
 
+interface LeagueOverviewItem {
+  leagueId: string;
+  leagueName: string;
+  leagueAvatar: string | null;
+  leagueType: string;
+  season: string;
+  record: { wins: number; losses: number; ties: number };
+  rank: number;
+  totalTeams: number;
+  pointsFor: number;
+  upcomingMatchup: {
+    week: number;
+    opponentName: string;
+    opponentAvatar: string | null;
+    opponentRecord: string;
+    userPoints: number;
+    opponentPoints: number;
+  } | null;
+}
+
 interface CareerSummary {
   totalLeagues: number;
   totalSeasons: number;
@@ -701,6 +721,13 @@ export default function HomePage() {
     enabled: isAllLeagues,
   });
 
+  // Fetch league overview data (upcoming matchups, rankings) for All Leagues view
+  const { data: leaguesOverview = [], isLoading: overviewLoading } = useQuery<LeagueOverviewItem[]>({
+    queryKey: ["/api/sleeper/leagues-overview"],
+    enabled: isAllLeagues,
+    staleTime: 1000 * 60 * 5,
+  });
+
   // Fetch league-specific stats when a specific league is selected
   const { data: leagueData, isLoading: leagueLoading } = useQuery<LeagueSummary>({
     queryKey: [`/api/fantasy/league-summary/${leagueIdFromUrl}`],
@@ -885,153 +912,126 @@ export default function HomePage() {
           </Card>
         </div>
 
-        <Card data-testid="card-league-breakdown">
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg">League Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {careerData?.leagueStats && careerData.leagueStats.length > 0 ? (
-              (() => {
-                // Filter to only show current year (2026)
-                const currentYear = new Date().getFullYear().toString();
-                const currentYearLeagues = careerData.leagueStats.filter(league => league.season === currentYear);
-                
-                if (currentYearLeagues.length === 0) {
-                  return (
-                    <div className="text-center py-6">
-                      <p className="text-[hsl(var(--accent))]">No active leagues for {currentYear}</p>
+        <div>
+          <h2 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Your Leagues
+          </h2>
+          {overviewLoading ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[1, 2, 3].map(i => (
+                <Card key={i}>
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      <Skeleton className="h-5 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-12 w-full" />
                     </div>
-                  );
-                }
-                
-                return (
-                  <div className="space-y-1">
-                    {/* Table header - horizontal compact */}
-                    <div className="hidden sm:grid sm:grid-cols-[1fr_70px_70px_80px_50px] gap-1 px-2 py-1 text-xs text-[hsl(var(--accent))]/80 font-medium border-b border-[hsl(var(--accent))]/20">
-                      <div>League</div>
-                      <div className="text-center">Record</div>
-                      <div className="text-center">Place</div>
-                      <div className="text-center">Status</div>
-                      <div className="text-center">Move</div>
-                    </div>
-                    {currentYearLeagues.map((league, idx) => (
-                      <div 
-                        key={`${league.leagueId}-${league.season}`} 
-                        className="grid grid-cols-[1fr_70px_70px_80px_50px] gap-1 items-center px-2 py-1.5 rounded bg-muted/30"
-                        data-testid={`league-row-${idx}`}
-                      >
-                        {/* League name - horizontal */}
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {league.isChampion && <Crown className="h-3.5 w-3.5 shrink-0 text-yellow-500" />}
-                          {league.isRunnerUp && <Medal className="h-3.5 w-3.5 shrink-0 text-gray-400" />}
-                          <p className="font-medium truncate text-sm text-[hsl(var(--accent))]" data-testid={`league-name-${idx}`}>
-                            {league.leagueName}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : leaguesOverview.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2" data-testid="leagues-overview-grid">
+              {leaguesOverview.map((lo, idx) => (
+                <Link key={lo.leagueId} href={`/league?id=${lo.leagueId}`}>
+                  <Card
+                    className="hover-elevate cursor-pointer transition-colors"
+                    data-testid={`card-league-overview-${idx}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Avatar className="h-8 w-8 shrink-0">
+                            <AvatarImage src={lo.leagueAvatar || undefined} />
+                            <AvatarFallback className="text-xs font-bold">
+                              {lo.leagueName.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm truncate" data-testid={`text-league-name-${idx}`}>
+                              {lo.leagueName}
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="secondary" className="text-[10px]">{lo.leagueType}</Badge>
+                              <span className="text-[10px] text-muted-foreground">{lo.season}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div className="text-center p-2 rounded bg-muted/50">
+                          <p className="text-xs text-muted-foreground">Record</p>
+                          <p className="font-bold text-sm" data-testid={`text-league-record-${idx}`}>
+                            {lo.record.wins}-{lo.record.losses}{lo.record.ties ? `-${lo.record.ties}` : ""}
                           </p>
                         </div>
-                        
-                        {/* Record */}
-                        <div className="flex justify-center">
-                          <span className="text-xs font-medium text-foreground" data-testid={`league-record-${idx}`}>
-                            {league.wins}-{league.losses}{league.ties ? `-${league.ties}` : ""}
-                          </span>
+                        <div className="text-center p-2 rounded bg-muted/50">
+                          <p className="text-xs text-muted-foreground">Rank</p>
+                          <p className="font-bold text-sm" data-testid={`text-league-rank-${idx}`}>
+                            #{lo.rank}<span className="text-muted-foreground font-normal">/{lo.totalTeams}</span>
+                          </p>
                         </div>
-                        
-                        {/* Place */}
-                        <div className="flex justify-center">
-                          <span className="text-xs font-medium text-foreground" data-testid={`league-rank-${idx}`}>
-                            #{league.rank}/{league.totalTeams}
-                          </span>
+                        <div className="text-center p-2 rounded bg-muted/50">
+                          <p className="text-xs text-muted-foreground">Points</p>
+                          <p className="font-bold text-sm" data-testid={`text-league-pts-${idx}`}>
+                            {lo.pointsFor > 0 ? lo.pointsFor.toFixed(1) : "--"}
+                          </p>
                         </div>
-                        
-                        {/* Status badges */}
-                        <div className="flex justify-center flex-wrap">
-                          {league.isChampion ? (
-                            <Badge variant="outline" className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
-                              Champ
-                            </Badge>
-                          ) : league.isRunnerUp ? (
-                            <span className="text-xs text-[hsl(var(--accent))]">2nd</span>
-                          ) : league.isPlayoffs ? (
-                            <span className="text-xs text-green-400">Playoffs</span>
-                          ) : (
-                            <span className="text-xs text-[hsl(var(--accent))]/60">--</span>
+                      </div>
+
+                      {lo.upcomingMatchup ? (
+                        <div className="flex items-center gap-2 p-2 rounded bg-muted/30 border border-border/50" data-testid={`matchup-preview-${idx}`}>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-muted-foreground mb-0.5">
+                              Week {lo.upcomingMatchup.week} Matchup
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium">vs</span>
+                              <Avatar className="h-5 w-5 shrink-0">
+                                <AvatarImage src={lo.upcomingMatchup.opponentAvatar || undefined} />
+                                <AvatarFallback className="text-[8px]">
+                                  {lo.upcomingMatchup.opponentName.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-xs font-medium truncate">{lo.upcomingMatchup.opponentName}</span>
+                              <span className="text-[10px] text-muted-foreground shrink-0">({lo.upcomingMatchup.opponentRecord})</span>
+                            </div>
+                          </div>
+                          {(lo.upcomingMatchup.userPoints > 0 || lo.upcomingMatchup.opponentPoints > 0) && (
+                            <div className="text-right shrink-0">
+                              <p className="text-xs font-bold">
+                                {lo.upcomingMatchup.userPoints.toFixed(1)} - {lo.upcomingMatchup.opponentPoints.toFixed(1)}
+                              </p>
+                            </div>
                           )}
                         </div>
-                        
-                        {/* Movement indicator */}
-                        <div className="flex justify-center" data-testid={`league-movement-${idx}`}>
-                          <MovementIndicator 
-                            rank={league.rank} 
-                            prevRank={league.prevRank}
-                            isCurrentSeason={true}
-                          />
+                      ) : (
+                        <div className="flex items-center gap-2 p-2 rounded bg-muted/30 border border-border/50">
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">No upcoming matchup</span>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()
-            ) : leagues && leagues.length > 0 ? (
-              (() => {
-                const currentYear = new Date().getFullYear().toString();
-                const currentYearLeagues = leagues.filter((l: any) => l.season === currentYear);
-                
-                if (currentYearLeagues.length === 0) {
-                  return (
-                    <div className="text-center py-6">
-                      <p className="text-[hsl(var(--accent))]">No active leagues for {currentYear}</p>
-                    </div>
-                  );
-                }
-                
-                return (
-                  <div className="space-y-1">
-                    {/* Table header - horizontal compact */}
-                    <div className="hidden sm:grid sm:grid-cols-[1fr_70px_70px_80px_50px] gap-1 px-2 py-1 text-xs text-[hsl(var(--accent))]/80 font-medium border-b border-[hsl(var(--accent))]/20">
-                      <div>League</div>
-                      <div className="text-center">Record</div>
-                      <div className="text-center">Teams</div>
-                      <div className="text-center">Status</div>
-                      <div className="text-center">Move</div>
-                    </div>
-                    {currentYearLeagues.map((league: any, idx: number) => (
-                      <div 
-                        key={league.league_id} 
-                        className="grid grid-cols-[1fr_70px_70px_80px_50px] gap-1 items-center px-2 py-1.5 rounded bg-muted/30"
-                        data-testid={`league-row-${idx}`}
-                      >
-                        <p className="font-medium truncate text-sm text-[hsl(var(--accent))]" data-testid={`league-name-${idx}`}>
-                          {league.name}
-                        </p>
-                        <div className="flex justify-center">
-                          <span className="text-xs text-foreground">--</span>
-                        </div>
-                        <div className="flex justify-center">
-                          <span className="text-xs text-foreground" data-testid={`league-teams-${idx}`}>
-                            {league.total_rosters}
-                          </span>
-                        </div>
-                        <div className="flex justify-center">
-                          <span className="text-xs text-[hsl(var(--accent))]/60">--</span>
-                        </div>
-                        <div className="flex justify-center">
-                          <span className="text-xs text-[hsl(var(--accent))]/60">--</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()
-            ) : (
-              <div className="text-center py-8">
-                <Users className="h-12 w-12 mx-auto text-[hsl(var(--accent))]/50 mb-4" />
-                <p className="text-[hsl(var(--accent))]" data-testid="text-no-leagues">
-                  No leagues connected. Connect your Sleeper account to get started.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="py-8">
+                <div className="text-center">
+                  <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <p className="text-muted-foreground" data-testid="text-no-leagues">
+                    No leagues found. Connect your Sleeper account to get started.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
 
         <StatLeadersSection />
       </div>
