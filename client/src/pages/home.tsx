@@ -842,7 +842,7 @@ export default function HomePage() {
   // ALL LEAGUES VIEW - Career Stats
   if (isAllLeagues) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 min-w-0 overflow-x-hidden">
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
@@ -948,7 +948,7 @@ export default function HomePage() {
               ))}
             </div>
           ) : leaguesOverview.length > 0 ? (
-            <div className="grid gap-2 sm:gap-3 sm:grid-cols-2" data-testid="leagues-overview-grid">
+            <div className="grid gap-2 sm:gap-3 sm:grid-cols-2 min-w-0" data-testid="leagues-overview-grid">
               {[...leaguesOverview].sort((a, b) => {
                 switch (leagueSort) {
                   case "record": {
@@ -963,7 +963,7 @@ export default function HomePage() {
               }).map((lo, idx) => (
                   <Card
                     key={lo.leagueId}
-                    className="hover-elevate cursor-pointer transition-colors"
+                    className="hover-elevate cursor-pointer transition-colors overflow-hidden min-w-0"
                     data-testid={`card-league-overview-${idx}`}
                   >
                     <Link href={`/league?id=${lo.leagueId}`}>
