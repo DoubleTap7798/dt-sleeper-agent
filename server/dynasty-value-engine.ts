@@ -150,8 +150,10 @@ const AGE_CURVES: Record<string, { peak: [number, number]; decay: number }> = {
   DB: { peak: [23, 28], decay: 0.06 }, // Defensive backs decline faster (speed-dependent)
 };
 
-// UPGRADED: Age Multiplier with bounded range 0.65-1.15
-// Young players can get up to 15% bonus, minimum is 65% for old players
+// UPGRADED: Age Multiplier with bounded range 0.65-1.10
+// Young players can get up to 10% bonus, minimum is 65% for old players
+// Youth bonus is tempered — raw age alone shouldn't inflate value much;
+// actual production and draft capital handle upside separately.
 function calculateAgeMultiplier(position: string, age: number | null): number {
   if (!age) return 0.85; // Unknown age penalty
   
@@ -164,10 +166,10 @@ function calculateAgeMultiplier(position: string, age: number | null): number {
   if (age >= peakStart && age <= peakEnd) {
     multiplier = 1.0; // Peak years
   } else if (age < peakStart) {
-    // Young player bonus (approaching peak) - up to 15% bonus
+    // Young player bonus (approaching peak) - up to 10% bonus (reduced from 15%)
+    // Players 1 year from peak get ~3%, 2 years ~5%, 3+ years capped at 10%
     const yearsToGo = peakStart - age;
-    // More bonus for players closer to peak, max 15%
-    const bonus = Math.min(0.15, yearsToGo * 0.04);
+    const bonus = Math.min(0.10, yearsToGo * 0.03);
     multiplier = 1.0 + bonus;
   } else {
     // Decline phase - apply position-specific decay
@@ -175,8 +177,8 @@ function calculateAgeMultiplier(position: string, age: number | null): number {
     multiplier = 1.0 - yearsPastPeak * curve.decay;
   }
   
-  // Clamp to 0.65-1.15 range
-  return Math.max(0.65, Math.min(1.15, multiplier));
+  // Clamp to 0.65-1.10 range (reduced ceiling from 1.15)
+  return Math.max(0.65, Math.min(1.10, multiplier));
 }
 
 // ============================================================================
@@ -193,8 +195,8 @@ function calculateRoleSecurityMultiplier(
   snapPct: number | null,
   depthChartOrder: number | null
 ): number {
-  // If no data at all, penalize with below-average value (unknown role = risky)
-  if ((snapPct === null || snapPct === 0) && depthChartOrder === null) return 0.88;
+  // If no data at all, penalize more — unknown role means unproven
+  if ((snapPct === null || snapPct === 0) && depthChartOrder === null) return 0.82;
   
   let multiplier = 1.0;
   
@@ -273,13 +275,17 @@ function calculateInjuryMultiplier(
 }
 
 // ============================================================================
-// PRODUCTION CEILING MULTIPLIER (UPGRADED)
+// PRODUCTION CEILING MULTIPLIER (UPGRADED v2)
 // ============================================================================
 // Based on weekly fantasy points per game percentile
-// Top 5% at position: 1.40 to 1.50
-// Top 15%: 1.20 to 1.30
-// Top 30%: 1.05 to 1.15
+// Widened tiers to create more separation between proven elite producers
+// and average/unproven players.
+// Top 3% at position: 1.55 to 1.65 (elite)
+// Top 8%: 1.35 to 1.50 (star)
+// Top 20%: 1.15 to 1.30 (starter)
+// Top 35%: 1.02 to 1.10 (contributor)
 // All others: 1.00
+// Below-average producers: 0.92 to 0.98 (penalty)
 
 function calculateProductionCeilingMultiplier(
   position: string,
@@ -291,22 +297,30 @@ function calculateProductionCeilingMultiplier(
   
   const percentile = (positionRank / totalPlayersAtPosition) * 100;
   
-  if (percentile <= 5) {
-    // Top 5% - elite tier (1.40 to 1.50)
-    const withinTier = percentile / 5; // 0 to 1 within this tier
-    return 1.50 - withinTier * 0.10;
-  } else if (percentile <= 15) {
-    // Top 15% - star tier (1.20 to 1.30)
-    const withinTier = (percentile - 5) / 10;
-    return 1.30 - withinTier * 0.10;
-  } else if (percentile <= 30) {
-    // Top 30% - starter tier (1.05 to 1.15)
-    const withinTier = (percentile - 15) / 15;
-    return 1.15 - withinTier * 0.10;
+  if (percentile <= 3) {
+    // Top 3% - elite tier (1.55 to 1.65) — proven studs
+    const withinTier = percentile / 3;
+    return 1.65 - withinTier * 0.10;
+  } else if (percentile <= 8) {
+    // Top 8% - star tier (1.35 to 1.50)
+    const withinTier = (percentile - 3) / 5;
+    return 1.50 - withinTier * 0.15;
+  } else if (percentile <= 20) {
+    // Top 20% - starter tier (1.15 to 1.30)
+    const withinTier = (percentile - 8) / 12;
+    return 1.30 - withinTier * 0.15;
+  } else if (percentile <= 35) {
+    // Top 35% - contributor tier (1.02 to 1.10)
+    const withinTier = (percentile - 20) / 15;
+    return 1.10 - withinTier * 0.08;
+  } else if (percentile <= 60) {
+    // Middle of pack — neutral
+    return 1.0;
+  } else {
+    // Below top 60% — slight penalty for low producers (0.92 to 0.98)
+    const withinTier = Math.min(1, (percentile - 60) / 40);
+    return 0.98 - withinTier * 0.06;
   }
-  
-  // Below top 30% - no bonus
-  return 1.0;
 }
 
 // ============================================================================
@@ -348,35 +362,36 @@ function calculateVolatilityMultiplier(weeklyScores: number[]): number {
 }
 
 // ============================================================================
-// DRAFT CAPITAL MULTIPLIER (NEW)
+// DRAFT CAPITAL MULTIPLIER (UPGRADED v2)
 // ============================================================================
-// For players under 4 years in league, based on NFL draft round
-// Round 1: 1.15, Round 2: 1.08, Round 3: 1.02, Day 3: 0.90, Undrafted: 0.85
-// Reduces by about 3% for each season played, floors at 1.00 once established
+// For players under 3 years in league, based on NFL draft round.
+// Reduced window from 4 to 3 years — by year 3, production should speak.
+// Round 1: 1.10, Round 2: 1.05, Round 3: 1.00, Day 3: 0.92, Undrafted: 0.88
+// Decays 4% per year (faster than before) so draft pedigree fades quickly.
 
 function calculateDraftCapitalMultiplier(
   draftRound: number | null,
   yearsExp: number
 ): number {
-  // Only applies to players under 4 years experience
-  if (yearsExp >= 4) return 1.0;
+  // Only applies to players under 3 years experience (reduced from 4)
+  if (yearsExp >= 3) return 1.0;
   
-  // Get base multiplier from draft round
+  // Get base multiplier from draft round (reduced bonuses)
   let baseMult: number;
   if (draftRound === null || draftRound === 0) {
-    baseMult = 0.85; // Undrafted
+    baseMult = 0.88; // Undrafted (slightly less harsh)
   } else if (draftRound === 1) {
-    baseMult = 1.15;
+    baseMult = 1.10; // Reduced from 1.15
   } else if (draftRound === 2) {
-    baseMult = 1.08;
+    baseMult = 1.05; // Reduced from 1.08
   } else if (draftRound === 3) {
-    baseMult = 1.02;
+    baseMult = 1.00;
   } else {
-    baseMult = 0.90; // Day 3 (rounds 4-7)
+    baseMult = 0.92; // Day 3 (rounds 4-7)
   }
   
-  // Reduce bonus by 3% per year of experience
-  const yearlyDecay = yearsExp * 0.03;
+  // Reduce bonus by 4% per year of experience (faster decay from 3%)
+  const yearlyDecay = yearsExp * 0.04;
   let adjustedMult = baseMult - yearlyDecay;
   
   // Floor at 1.00 for positive draft capital (don't let it become penalty once established)
@@ -384,8 +399,8 @@ function calculateDraftCapitalMultiplier(
     adjustedMult = Math.max(1.0, adjustedMult);
   }
   
-  // Clamp to spec bounds (0.85-1.15)
-  return Math.max(0.85, Math.min(1.15, adjustedMult));
+  // Clamp to spec bounds (0.88-1.10)
+  return Math.max(0.88, Math.min(1.10, adjustedMult));
 }
 
 // ============================================================================
@@ -1629,9 +1644,9 @@ export function getQuickPlayerValue(
   // Apply injury adjustment
   value *= calculateInjuryMultiplier(injuryStatus);
   
-  // Experience adjustment
-  if (yearsExp === 0) value *= 1.1;
-  else if (yearsExp === 1) value *= 1.05;
+  // Experience adjustment — reduced rookie bonus since production matters more
+  if (yearsExp === 0) value *= 1.04;
+  else if (yearsExp === 1) value *= 1.02;
   else if (yearsExp > 10) value *= 0.7;
   
   // Apply production multiplier based on actual stats (most important for realistic values!)
@@ -1641,17 +1656,31 @@ export function getQuickPlayerValue(
       ? actualStats.ppg 
       : (actualStats.games && actualStats.games > 0 ? totalPoints / actualStats.games : 0);
     
-    // Simplified production multiplier for quick value calculation
-    // Elite producers (top tier PPG) get bonus, low producers get penalty
+    // Production multiplier with wider separation between tiers
+    // Elite producers get a larger bonus; below-average producers get penalized
     const eliteThresholds: Record<string, number> = { QB: 20, RB: 15, WR: 14, TE: 12, DL: 10, LB: 12, DB: 10 };
     const elitePPG = eliteThresholds[groupPos] || 12;
     let productionMultiplier = 1.0;
-    if (ppg >= elitePPG) {
-      productionMultiplier = 1.25 + Math.min(0.25, (ppg - elitePPG) / elitePPG * 0.5);
-    } else if (ppg >= elitePPG * 0.6) {
-      productionMultiplier = 1.0 + ((ppg - elitePPG * 0.6) / (elitePPG * 0.4)) * 0.25;
+    if (ppg >= elitePPG * 1.3) {
+      // Superstar tier (e.g. WR with 18+ PPG) — 1.55 to 1.70
+      productionMultiplier = 1.55 + Math.min(0.15, (ppg - elitePPG * 1.3) / elitePPG * 0.3);
+    } else if (ppg >= elitePPG) {
+      // Elite tier — 1.30 to 1.55
+      productionMultiplier = 1.30 + ((ppg - elitePPG) / (elitePPG * 0.3)) * 0.25;
+    } else if (ppg >= elitePPG * 0.7) {
+      // Solid starter — 1.05 to 1.25
+      productionMultiplier = 1.05 + ((ppg - elitePPG * 0.7) / (elitePPG * 0.3)) * 0.20;
+    } else if (ppg >= elitePPG * 0.4) {
+      // Below average — 0.85 to 1.00
+      productionMultiplier = 0.85 + ((ppg - elitePPG * 0.4) / (elitePPG * 0.3)) * 0.15;
+    } else if (ppg > 0) {
+      // Minimal producer — 0.70 to 0.85
+      productionMultiplier = 0.70 + (ppg / (elitePPG * 0.4)) * 0.15;
+    } else {
+      // Zero production — penalty
+      productionMultiplier = 0.65;
     }
-    value *= Math.min(1.50, productionMultiplier);
+    value *= Math.min(1.70, productionMultiplier);
   } else if (!depthChartOrder || depthChartOrder <= 0) {
     // No actual stats AND no depth chart - add small variance based on player ID
     const hash = playerId.split("").reduce((a, b) => {

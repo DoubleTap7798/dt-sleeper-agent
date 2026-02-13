@@ -31,7 +31,7 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Multi-League Dashboard Enhancements**: Sort leagues by rank/record/points/name, quick-action links (Roster/Matchups/Standings) per league card, matchup previews.
 - **Export Coverage**: ExportButton on Power Rankings, Standings, Roster, Trade Calculator, Trade History, Matchups, Schedule, Players, Watchlist, Devy Rankings, Draft Board, Stat Leaders.
 - **Devy Placeholder Detection**: `parseDevyNote()` function in `server/routes.ts` extracts devy player details from commissioner notes on roster and draft board views.
-- **Dynasty Value Engine**: Custom algorithm calculating player values (0-100 scale) based on VOR, age, role security, injury risk, production ceiling, volatility, draft capital, team context, scarcity bonus, and market calibration.
+- **Dynasty Value Engine**: Custom algorithm calculating player values (0-10,000 scale) based on VOR, age, role security, injury risk, production ceiling, volatility, draft capital, team context, scarcity bonus, and 50/50 KTC consensus blend. Production-weighted: elite producers get 1.55-1.65x ceiling multiplier; youth bonus capped at 10%; draft capital decays within 3 years; unproven players with no snap data penalized at 0.82x role security.
 - **Consolidation Premium**: Trade calculator applies a star player premium when trading fewer, higher-value assets for multiple pieces.
 
 ### System Design Choices
