@@ -1,13 +1,21 @@
 import { useLocation, useSearch } from "wouter";
-import { Home, Swords, Users, CalendarDays, Bot } from "lucide-react";
+import { Home, Swords, Users, CalendarDays, Bot, UserSearch, ArrowRightLeft, BarChart3 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 
-const navItems = [
+const leagueNavItems = [
   { icon: Home, label: "Home", path: "/league", matchPath: "/league" },
   { icon: Users, label: "Roster", path: "/league/roster", matchPath: "/league/roster" },
   { icon: Swords, label: "Matchups", path: "/league/matchups", matchPath: "/league/matchups" },
   { icon: CalendarDays, label: "Schedule", path: "/league/schedule", matchPath: "/league/schedule" },
+  { icon: Bot, label: "AI Chat", path: "/league/ai-chat", matchPath: "/league/ai-chat" },
+];
+
+const globalNavItems = [
+  { icon: Home, label: "Home", path: "/league", matchPath: "/league" },
+  { icon: UserSearch, label: "Players", path: "/league/players", matchPath: "/league/players" },
+  { icon: ArrowRightLeft, label: "Trades", path: "/league/trade-calculator", matchPath: "/league/trade-calculator" },
+  { icon: BarChart3, label: "Leaders", path: "/league/stat-leaders", matchPath: "/league/stat-leaders" },
   { icon: Bot, label: "AI Chat", path: "/league/ai-chat", matchPath: "/league/ai-chat" },
 ];
 
@@ -22,6 +30,9 @@ export function MobileBottomNav() {
 
   const isLeaguePage = location.startsWith("/league");
   if (!isLeaguePage) return null;
+
+  const hasSpecificLeague = !!leagueId && leagueId !== "all";
+  const navItems = hasSpecificLeague ? leagueNavItems : globalNavItems;
 
   return (
     <nav

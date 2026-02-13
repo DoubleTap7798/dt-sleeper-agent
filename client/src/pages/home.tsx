@@ -948,7 +948,7 @@ export default function HomePage() {
               ))}
             </div>
           ) : leaguesOverview.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2" data-testid="leagues-overview-grid">
+            <div className="grid gap-2 sm:gap-3 sm:grid-cols-2" data-testid="leagues-overview-grid">
               {[...leaguesOverview].sort((a, b) => {
                 switch (leagueSort) {
                   case "record": {
@@ -967,99 +967,98 @@ export default function HomePage() {
                     data-testid={`card-league-overview-${idx}`}
                   >
                     <Link href={`/league?id=${lo.leagueId}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-2 mb-3">
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <Avatar className="h-8 w-8 shrink-0">
+                          <Avatar className="h-7 w-7 sm:h-8 sm:w-8 shrink-0">
                             <AvatarImage src={lo.leagueAvatar || undefined} />
-                            <AvatarFallback className="text-xs font-bold">
+                            <AvatarFallback className="text-[10px] sm:text-xs font-bold">
                               {lo.leagueName.slice(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="font-semibold text-sm truncate" data-testid={`text-league-name-${idx}`}>
                               {lo.leagueName}
                             </p>
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <Badge variant="secondary" className="text-[10px]">{lo.leagueType}</Badge>
                               <span className="text-[10px] text-muted-foreground">{lo.season}</span>
                             </div>
                           </div>
                         </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 mb-3">
-                        <div className="text-center p-2 rounded bg-muted/50">
-                          <p className="text-xs text-muted-foreground">Record</p>
-                          <p className="font-bold text-sm" data-testid={`text-league-record-${idx}`}>
+                      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-2">
+                        <div className="text-center py-1.5 px-1 rounded bg-muted/50">
+                          <p className="text-[10px] text-muted-foreground">Record</p>
+                          <p className="font-bold text-xs sm:text-sm" data-testid={`text-league-record-${idx}`}>
                             {lo.record.wins}-{lo.record.losses}{lo.record.ties ? `-${lo.record.ties}` : ""}
                           </p>
                         </div>
-                        <div className="text-center p-2 rounded bg-muted/50">
-                          <p className="text-xs text-muted-foreground">Rank</p>
-                          <p className="font-bold text-sm" data-testid={`text-league-rank-${idx}`}>
+                        <div className="text-center py-1.5 px-1 rounded bg-muted/50">
+                          <p className="text-[10px] text-muted-foreground">Rank</p>
+                          <p className="font-bold text-xs sm:text-sm" data-testid={`text-league-rank-${idx}`}>
                             #{lo.rank}<span className="text-muted-foreground font-normal">/{lo.totalTeams}</span>
                           </p>
                         </div>
-                        <div className="text-center p-2 rounded bg-muted/50">
-                          <p className="text-xs text-muted-foreground">Points</p>
-                          <p className="font-bold text-sm" data-testid={`text-league-pts-${idx}`}>
+                        <div className="text-center py-1.5 px-1 rounded bg-muted/50">
+                          <p className="text-[10px] text-muted-foreground">Points</p>
+                          <p className="font-bold text-xs sm:text-sm" data-testid={`text-league-pts-${idx}`}>
                             {lo.pointsFor > 0 ? lo.pointsFor.toFixed(1) : "--"}
                           </p>
                         </div>
                       </div>
 
                       {lo.upcomingMatchup ? (
-                        <div className="flex items-center gap-2 p-2 rounded bg-muted/30 border border-border/50" data-testid={`matchup-preview-${idx}`}>
+                        <div className="flex items-center gap-2 p-1.5 sm:p-2 rounded bg-muted/30 border border-border/50" data-testid={`matchup-preview-${idx}`}>
                           <div className="flex-1 min-w-0">
                             <p className="text-[10px] text-muted-foreground mb-0.5">
-                              Week {lo.upcomingMatchup.week} Matchup
+                              Wk {lo.upcomingMatchup.week}
                             </p>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-medium">vs</span>
-                              <Avatar className="h-5 w-5 shrink-0">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] sm:text-xs font-medium">vs</span>
+                              <Avatar className="h-4 w-4 sm:h-5 sm:w-5 shrink-0">
                                 <AvatarImage src={lo.upcomingMatchup.opponentAvatar || undefined} />
-                                <AvatarFallback className="text-[8px]">
+                                <AvatarFallback className="text-[7px] sm:text-[8px]">
                                   {lo.upcomingMatchup.opponentName.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
-                              <span className="text-xs font-medium truncate">{lo.upcomingMatchup.opponentName}</span>
-                              <span className="text-[10px] text-muted-foreground shrink-0">({lo.upcomingMatchup.opponentRecord})</span>
+                              <span className="text-[10px] sm:text-xs font-medium truncate">{lo.upcomingMatchup.opponentName}</span>
                             </div>
                           </div>
                           {(lo.upcomingMatchup.userPoints > 0 || lo.upcomingMatchup.opponentPoints > 0) && (
                             <div className="text-right shrink-0">
-                              <p className="text-xs font-bold">
+                              <p className="text-[10px] sm:text-xs font-bold">
                                 {lo.upcomingMatchup.userPoints.toFixed(1)} - {lo.upcomingMatchup.opponentPoints.toFixed(1)}
                               </p>
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 p-2 rounded bg-muted/30 border border-border/50">
-                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">No upcoming matchup</span>
+                        <div className="flex items-center gap-1.5 p-1.5 sm:p-2 rounded bg-muted/30 border border-border/50">
+                          <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+                          <span className="text-[10px] sm:text-xs text-muted-foreground">No upcoming matchup</span>
                         </div>
                       )}
                     </CardContent>
                     </Link>
 
-                    <div className="flex items-center gap-1.5 px-4 pb-3 flex-wrap" data-testid={`league-actions-${idx}`}>
+                    <div className="flex items-center gap-1 px-3 pb-2 sm:px-4 sm:pb-3 flex-wrap border-t border-border/20 pt-1.5" data-testid={`league-actions-${idx}`}>
                       <Link href={`/league/roster?id=${lo.leagueId}`}>
-                        <Button variant="ghost" size="sm" className="text-[11px] gap-1" data-testid={`link-roster-${idx}`}>
+                        <Button variant="ghost" size="sm" className="text-[10px] sm:text-[11px] gap-0.5 sm:gap-1" data-testid={`link-roster-${idx}`}>
                           <Users className="h-3 w-3" />
                           Roster
                         </Button>
                       </Link>
                       <Link href={`/league/matchups?id=${lo.leagueId}`}>
-                        <Button variant="ghost" size="sm" className="text-[11px] gap-1" data-testid={`link-matchups-${idx}`}>
+                        <Button variant="ghost" size="sm" className="text-[10px] sm:text-[11px] gap-0.5 sm:gap-1" data-testid={`link-matchups-${idx}`}>
                           <Target className="h-3 w-3" />
                           Matchups
                         </Button>
                       </Link>
                       <Link href={`/league/standings?id=${lo.leagueId}`}>
-                        <Button variant="ghost" size="sm" className="text-[11px] gap-1" data-testid={`link-standings-${idx}`}>
+                        <Button variant="ghost" size="sm" className="text-[10px] sm:text-[11px] gap-0.5 sm:gap-1" data-testid={`link-standings-${idx}`}>
                           <BarChart3 className="h-3 w-3" />
                           Standings
                         </Button>
