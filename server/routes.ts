@@ -7423,15 +7423,63 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         return valueResult.value;
       };
 
-      // Calculate position group values for ALL teams using weighted top-N approach
-      // This prevents teams with many mediocre players from outranking teams with fewer elite players
-      const topNByPosition: Record<string, number> = { QB: 3, RB: 5, WR: 5, TE: 3 };
+      // Parse league roster format for format-aware recommendations
+      const rosterPositions = (league?.roster_positions || []).filter((pos: string) => pos !== "BN");
+
+      // Count required starters per position (direct slots only)
+      const directSlots: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+      for (const slot of rosterPositions) {
+        if (slot in directSlots) directSlots[slot as keyof typeof directSlots]++;
+      }
+
+      // Count each flex type for demand calculation
+      const flexSlotsByType: Record<string, { count: number; eligible: string[] }> = {
+        "FLEX": { count: 0, eligible: ["RB", "WR", "TE"] },
+        "SUPER_FLEX": { count: 0, eligible: ["QB", "RB", "WR", "TE"] },
+        "REC_FLEX": { count: 0, eligible: ["WR", "TE"] },
+        "WRRB_FLEX": { count: 0, eligible: ["WR", "RB"] },
+      };
+      for (const slot of rosterPositions) {
+        if (slot in flexSlotsByType) flexSlotsByType[slot].count++;
+      }
+      const totalFlexSlots = Object.values(flexSlotsByType).reduce((s, v) => s + v.count, 0);
+
+      // Calculate effective starter demand: direct slots + proportional share of each flex type
+      const effectiveDemand: Record<string, number> = { ...directSlots };
+      for (const [, { count, eligible }] of Object.entries(flexSlotsByType)) {
+        if (count === 0) continue;
+        const share = count / eligible.length;
+        for (const pos of eligible) {
+          effectiveDemand[pos] = (effectiveDemand[pos] || 0) + share;
+        }
+      }
+      // In SF, QB gets extra demand weight since it's almost always optimal to start a QB there
+      if (flexSlotsByType["SUPER_FLEX"].count > 0) {
+        effectiveDemand["QB"] += flexSlotsByType["SUPER_FLEX"].count * 0.5;
+      }
+
+      // Derive top-N from effective demand (round up, minimum 2 for QB, 3 for others)
+      const topNByPosition: Record<string, number> = {};
+      for (const pos of ["QB", "RB", "WR", "TE"]) {
+        const minN = pos === "QB" ? 2 : 3;
+        topNByPosition[pos] = Math.max(minN, Math.ceil(effectiveDemand[pos] * 1.5));
+      }
+
+      // Production tier thresholds (PPR PPG)
+      const elitePPG: Record<string, number> = { QB: 18, RB: 14, WR: 14, TE: 12 };
+      const starterPPG: Record<string, number> = { QB: 14, RB: 10, WR: 10, TE: 8 };
+
       const teamPositionValues: Record<string, { QB: number; RB: number; WR: number; TE: number }> = {};
       const teamAges: Record<string, number[]> = {};
+
+      // Track user's player-level detail for quality tier analysis
+      type PlayerDetail = { name: string; value: number; ppg: number; gp: number; age: number };
+      let userPositionPlayers: Record<string, PlayerDetail[]> = { QB: [], RB: [], WR: [], TE: [] };
       
       for (const roster of rosters) {
         const ownerId = roster.owner_id;
         const rosterPlayers = roster.players || [];
+        const isUserRoster = ownerId === userProfile.sleeperUserId;
         
         const posPlayerValues: Record<string, number[]> = { QB: [], RB: [], WR: [], TE: [] };
         const ages: number[] = [];
@@ -7445,10 +7493,23 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             const value = getBlendedValue(pid, player);
             posPlayerValues[pos].push(value);
             if (player.age) ages.push(player.age);
+
+            if (isUserRoster) {
+              const pStats = stats?.[pid] || {} as any;
+              const gp = pStats.gp || 0;
+              const pts = pStats.pts_ppr || 0;
+              const ppg = gp > 0 ? pts / gp : 0;
+              userPositionPlayers[pos].push({
+                name: player.full_name || `${player.first_name} ${player.last_name}`,
+                value,
+                ppg,
+                gp,
+                age: player.age || 25,
+              });
+            }
           }
         }
         
-        // Score each position: top-N players get full weight, rest get diminishing weight
         const posValues = { QB: 0, RB: 0, WR: 0, TE: 0 };
         for (const pos of ["QB", "RB", "WR", "TE"] as const) {
           const sorted = posPlayerValues[pos].sort((a, b) => b - a);
@@ -7456,9 +7517,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           let total = 0;
           for (let i = 0; i < sorted.length; i++) {
             if (i < topN) {
-              total += sorted[i]; // Full weight for top-N
+              total += sorted[i];
             } else {
-              total += sorted[i] * 0.15; // Depth pieces count very little
+              total += sorted[i] * 0.15;
             }
           }
           posValues[pos] = total;
@@ -7466,6 +7527,11 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         
         teamPositionValues[ownerId] = posValues;
         teamAges[ownerId] = ages;
+      }
+
+      // Sort user's position players by value descending
+      for (const pos of ["QB", "RB", "WR", "TE"]) {
+        userPositionPlayers[pos].sort((a, b) => b.value - a.value);
       }
 
       // Rank each position group
@@ -7489,16 +7555,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         };
       }
 
-      // Calculate roster strength as percentage (0-100) based on RANK
-      // Higher rank (worse) = lower bar, lower rank (better) = higher bar
-      // e.g., #1 of 12 = 100%, #6 of 12 = 58%, #12 of 12 = 8%
       const rosterStrength: Record<string, number> = {};
       for (const pos of positions) {
         const { rank, total } = positionRanks[pos];
-        // Formula: ((total - rank + 1) / total) * 100
-        // Rank 1 of 12 = (12 - 1 + 1)/12 * 100 = 100%
-        // Rank 6 of 12 = (12 - 6 + 1)/12 * 100 = 58%
-        // Rank 12 of 12 = (12 - 12 + 1)/12 * 100 = 8%
         rosterStrength[pos] = total > 0 ? Math.round(((total - rank + 1) / total) * 100) : 0;
       }
 
@@ -7510,61 +7569,181 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       
       let teamProfile: "contender" | "balanced" | "rebuild" = "balanced";
       if (avgAge >= 27 || oldPlayers > youngPlayers * 1.5) {
-        teamProfile = "contender"; // Older roster, win-now
+        teamProfile = "contender";
       } else if (avgAge <= 24 || youngPlayers > oldPlayers * 1.5) {
-        teamProfile = "rebuild"; // Young roster, building
+        teamProfile = "rebuild";
       }
 
-      // Find biggest need
-      const weakestPos = positions.reduce((weakest, pos) => {
-        if (!weakest || positionRanks[pos].rank > positionRanks[weakest].rank) {
-          return pos;
-        }
-        return weakest;
-      }, null as string | null);
-      
-      const biggestNeed = weakestPos ? {
-        position: weakestPos,
-        rank: positionRanks[weakestPos].rank,
-        total: leagueSize,
-        message: `Your ${weakestPos} room ranks #${positionRanks[weakestPos].rank} of ${leagueSize}`
-      } : null;
+      // Build quality tier analysis for each position
+      // Uses both production stats AND dynasty value to classify players:
+      //   - Elite: proven top-tier production OR very high dynasty value (handles injury/limited games)
+      //   - Starter: solid production OR strong dynasty value
+      //   - Depth: everything else (speculative, unproven, low value)
+      const eliteValueThreshold = 70;
+      const starterValueThreshold = 40;
+      const positionQuality: Record<string, { eliteCount: number; starterCount: number; depthCount: number; totalCount: number; hasProvenSurplus: boolean; bestPlayerPPG: number }> = {};
+      for (const pos of positions) {
+        const players = userPositionPlayers[pos];
+        const eliteThreshold = elitePPG[pos];
+        const starterThreshold = starterPPG[pos];
 
-      // Generate recommendations
+        const elites = players.filter(p =>
+          (p.gp >= 4 && p.ppg >= eliteThreshold) || p.value >= eliteValueThreshold
+        );
+        const nonElites = players.filter(p => !elites.includes(p));
+        const starters = nonElites.filter(p =>
+          (p.gp >= 4 && p.ppg >= starterThreshold) || p.value >= starterValueThreshold
+        );
+        const depth = nonElites.filter(p => !starters.includes(p));
+        const neededStarters = Math.ceil(effectiveDemand[pos]);
+        const provenCount = elites.length + starters.length;
+
+        positionQuality[pos] = {
+          eliteCount: elites.length,
+          starterCount: starters.length,
+          depthCount: depth.length,
+          totalCount: players.length,
+          hasProvenSurplus: provenCount > neededStarters,
+          bestPlayerPPG: players[0]?.ppg || 0,
+        };
+      }
+
+      // Find biggest need — weighted by how far below league median + format demand
+      let biggestNeed: { position: string; rank: number; total: number; message: string } | null = null;
+      let worstNeedScore = -Infinity;
+      for (const pos of positions) {
+        const rank = positionRanks[pos].rank;
+        const demand = effectiveDemand[pos];
+        const quality = positionQuality[pos];
+        const provenCount = quality.eliteCount + quality.starterCount;
+        const neededStarters = Math.ceil(demand);
+        const starterGap = neededStarters - provenCount;
+        const rankPct = rank / leagueSize;
+        // Need score: combines league rank percentile (0-1, higher = worse) + starter gap
+        const needScore = rankPct + (starterGap > 0 ? starterGap * 0.25 : 0);
+        if (needScore > worstNeedScore) {
+          worstNeedScore = needScore;
+          biggestNeed = {
+            position: pos,
+            rank,
+            total: leagueSize,
+            message: provenCount < neededStarters
+              ? `Your ${pos} room ranks #${rank} of ${leagueSize} — you need ${starterGap} more proven starter${starterGap > 1 ? "s" : ""}`
+              : `Your ${pos} room ranks #${rank} of ${leagueSize}`
+          };
+        }
+      }
+
+      // Generate format-aware, quality-aware recommendations
       const recommendations: Array<{ type: string; priority: "high" | "medium" | "low"; title: string; description: string; action?: string }> = [];
 
-      // Waiver recommendation based on need
-      if (biggestNeed && biggestNeed.rank > leagueSize / 2) {
-        recommendations.push({
-          type: "waiver",
-          priority: "high",
-          title: `Add ${biggestNeed.position} depth`,
-          description: `Your ${biggestNeed.position} room needs help. Check the waiver wire for options.`,
-          action: `/league/waivers?id=${leagueId}&position=${biggestNeed.position}`,
-        });
-      }
-
-      // Trade recommendation based on surplus
+      // Find strongest position (for trade-from suggestions)
       const strongestPos = positions.reduce((strongest, pos) => {
-        if (!strongest || positionRanks[pos].rank < positionRanks[strongest].rank) {
-          return pos;
-        }
+        if (!strongest || positionRanks[pos].rank < positionRanks[strongest].rank) return pos;
         return strongest;
       }, null as string | null);
 
+      // 1. Waiver recommendation — only if position truly needs help
+      if (biggestNeed && biggestNeed.rank > leagueSize / 2) {
+        const quality = positionQuality[biggestNeed.position];
+        const neededStarters = Math.ceil(effectiveDemand[biggestNeed.position]);
+        const provenCount = quality.eliteCount + quality.starterCount;
+
+        if (provenCount < neededStarters) {
+          recommendations.push({
+            type: "waiver",
+            priority: "high",
+            title: `Upgrade ${biggestNeed.position}`,
+            description: `You have ${provenCount} proven ${biggestNeed.position}${provenCount !== 1 ? "s" : ""} but need ~${neededStarters} starters in this format. Look for a reliable producer.`,
+            action: `/league/waivers?id=${leagueId}&position=${biggestNeed.position}`,
+          });
+        } else {
+          recommendations.push({
+            type: "waiver",
+            priority: "medium",
+            title: `Add ${biggestNeed.position} depth`,
+            description: `Your ${biggestNeed.position} room ranks #${biggestNeed.rank} — consider adding depth behind your starters.`,
+            action: `/league/waivers?id=${leagueId}&position=${biggestNeed.position}`,
+          });
+        }
+      }
+
+      // 2. Trade recommendation — format-aware, quality-aware
       if (strongestPos && biggestNeed && strongestPos !== biggestNeed.position) {
-        if (positionRanks[strongestPos].rank <= 3 && positionRanks[biggestNeed.position].rank > leagueSize / 2) {
+        const strongQuality = positionQuality[strongestPos];
+        const weakQuality = positionQuality[biggestNeed.position];
+        const strongRank = positionRanks[strongestPos].rank;
+        const weakRank = positionRanks[biggestNeed.position].rank;
+
+        if (strongRank <= 3 && weakRank > leagueSize / 2) {
+          // Only recommend trading from strongest if they have PROVEN surplus
+          if (strongQuality.hasProvenSurplus) {
+            const surplusProven = (strongQuality.eliteCount + strongQuality.starterCount) - Math.ceil(effectiveDemand[strongestPos]);
+            if (surplusProven > 0) {
+              // Check if target position actually needs a proven asset or just depth
+              const targetNeedsElite = weakQuality.eliteCount === 0;
+              recommendations.push({
+                type: "trade",
+                priority: "high",
+                title: targetNeedsElite
+                  ? `Trade ${strongestPos} depth for a ${biggestNeed.position} upgrade`
+                  : `Move ${strongestPos} surplus to bolster ${biggestNeed.position}`,
+                description: `You have ${surplusProven} extra proven ${strongestPos}${surplusProven > 1 ? "s" : ""} beyond what you start. ${
+                  targetNeedsElite
+                    ? `Your ${biggestNeed.position} room lacks an elite option — package depth for a top-end upgrade.`
+                    : `Consider moving a piece for ${biggestNeed.position} help.`
+                }`,
+                action: `/league/trade?id=${leagueId}`,
+              });
+            }
+          } else {
+            // Strong rank but no proven surplus — mostly young/speculative assets
+            // Don't recommend trading them, they're upside pieces not tradeable surplus
+            if (teamProfile === "contender") {
+              recommendations.push({
+                type: "trade",
+                priority: "medium",
+                title: `Target a proven ${biggestNeed.position}`,
+                description: `As a contender, look to acquire an established ${biggestNeed.position} — your ${strongestPos} group ranks well but your assets there are mostly upside plays, not tradeable surplus.`,
+                action: `/league/trade?id=${leagueId}`,
+              });
+            }
+          }
+        }
+      }
+
+      // 3. Format-specific recommendation for SF/Flex leagues
+      if (isSuperflex && positionRanks["QB"]?.rank > leagueSize * 0.6) {
+        const qbQuality = positionQuality["QB"];
+        if (qbQuality.eliteCount + qbQuality.starterCount < 2) {
           recommendations.push({
             type: "trade",
-            priority: "medium",
-            title: `Trade ${strongestPos} for ${biggestNeed.position}`,
-            description: `You're stacked at ${strongestPos} (ranked #${positionRanks[strongestPos].rank}). Consider trading depth for a ${biggestNeed.position} upgrade.`,
+            priority: "high",
+            title: "Acquire a starting QB",
+            description: `In Superflex, QB is king. You only have ${qbQuality.eliteCount + qbQuality.starterCount} reliable QB${qbQuality.eliteCount + qbQuality.starterCount !== 1 ? "s" : ""} — a 2nd starter will significantly boost your weekly floor.`,
             action: `/league/trade?id=${leagueId}`,
           });
         }
       }
 
-      // Lineup check
+      // 4. Leverage strength recommendation (for positions where user has elite assets in flex-heavy formats)
+      if (totalFlexSlots >= 2 && strongestPos && ["WR", "RB"].includes(strongestPos)) {
+        const quality = positionQuality[strongestPos];
+        if (quality.eliteCount >= 2 && positionRanks[strongestPos].rank <= 2) {
+          // Don't tell them to add depth — they should leverage their elite players through flex
+          const alreadyHasTradeRec = recommendations.some(r => r.type === "trade");
+          if (!alreadyHasTradeRec) {
+            recommendations.push({
+              type: "strategy",
+              priority: "low",
+              title: `Leverage your elite ${strongestPos} room`,
+              description: `With ${quality.eliteCount} elite ${strongestPos}s and ${totalFlexSlots} flex spots, your ${strongestPos} room is a huge advantage. Keep starting them in flex — no need to trade strength away.`,
+            });
+          }
+        }
+      }
+
+      // 5. Lineup check
       recommendations.push({
         type: "lineup",
         priority: "low",
@@ -7574,12 +7753,13 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       });
 
       // Generate weekly blurb
+      const formatNote = isSuperflex ? " (Superflex)" : totalFlexSlots >= 2 ? ` (${totalFlexSlots} Flex)` : "";
       const blurbOptions = [
         teamProfile === "contender" 
-          ? "Your roster is built to win now. Focus on maximizing points and making win-now moves."
+          ? `Your roster is built to win now${formatNote}. Focus on maximizing points and making win-now moves.`
           : teamProfile === "rebuild"
-          ? "Your young roster has upside. Prioritize acquiring future picks and developing players."
-          : "Your roster is well-balanced. Look for opportunities to tip the scales in your favor.",
+          ? `Your young roster has upside${formatNote}. Prioritize acquiring future picks and developing players.`
+          : `Your roster is well-balanced${formatNote}. Look for opportunities to tip the scales in your favor.`,
       ];
       const weeklyBlurb = blurbOptions[0];
 
