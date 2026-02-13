@@ -14,6 +14,8 @@ import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { getNFLTeamLogo } from "@/lib/team-logos";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { ExportButton } from "@/components/export-button";
+import { formatRosterForShare } from "@/lib/export-utils";
 
 interface DevyInfo {
   devyName: string;
@@ -375,6 +377,22 @@ function RosterContent({ leagueId }: { leagueId: string }) {
           <Users className="h-6 w-6" />
           <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-page-title">My Roster</h1>
         </div>
+        {data?.players && data.players.length > 0 && (
+          <ExportButton
+            data={data.players.map(p => ({
+              name: p.name,
+              position: p.position,
+              team: p.team,
+              age: p.age,
+              status: p.isStarter ? p.slotPosition : "Bench",
+              dynastyValue: p.dynastyValue,
+              projectedPoints: p.projectedPoints,
+              injuryStatus: p.injuryStatus || "",
+            }))}
+            filename="my-roster"
+            shareText={formatRosterForShare(data.players, data.teamName || "My Team")}
+          />
+        )}
       </div>
 
       {data?.positionRankings && Object.keys(data.positionRankings).length > 0 && (

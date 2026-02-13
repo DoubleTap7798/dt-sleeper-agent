@@ -15,6 +15,8 @@ import {
 import { ChevronLeft, ChevronRight, ChevronDown, Zap, Clock, CheckCircle2, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { InfoTooltip } from "@/components/metric-tooltip";
+import { ExportButton } from "@/components/export-button";
+import { formatMatchupsForShare } from "@/lib/export-utils";
 
 interface PlayerScore {
   playerId: string;
@@ -146,6 +148,18 @@ export default function MatchupsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <ExportButton
+            data={data.matchups.map(m => ({
+              matchupId: m.matchupId,
+              teamA: m.teamA.ownerName,
+              teamAPoints: m.teamA.totalPoints.toFixed(1),
+              teamB: m.teamB?.ownerName || "BYE",
+              teamBPoints: m.teamB?.totalPoints.toFixed(1) || "",
+              winner: m.teamB ? (m.teamA.totalPoints > m.teamB.totalPoints ? m.teamA.ownerName : m.teamB.totalPoints > m.teamA.totalPoints ? m.teamB.ownerName : "Tie") : m.teamA.ownerName,
+            }))}
+            filename={`matchups-week-${displayWeek}`}
+            shareText={formatMatchupsForShare(data.matchups, displayWeek)}
+          />
           <Button
             variant="outline"
             size="icon"

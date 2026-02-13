@@ -27,6 +27,8 @@ import {
 import type { TradeAsset, TradeAnalysisResult } from "@/lib/sleeper-types";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { InfoTooltip } from "@/components/metric-tooltip";
+import { ExportButton } from "@/components/export-button";
+import { formatTradeAnalysisForShare } from "@/lib/export-utils";
 
 interface RosterWithOwner {
   rosterId: number;
@@ -257,6 +259,74 @@ export default function TradeCalculatorPage() {
                 Trade Analysis
               </CardTitle>
               <div className="flex items-center gap-2">
+                <ExportButton
+                  data={[
+                    ...teamAAssets.map(a => ({
+                      side: teamA?.ownerName || "Team A",
+                      direction: "Trading Away",
+                      name: a.name,
+                      type: a.type,
+                      position: a.position || "",
+                      value: a.value,
+                    })),
+                    ...teamBAssets.map(a => ({
+                      side: teamB?.ownerName || "Team B",
+                      direction: "Trading Away",
+                      name: a.name,
+                      type: a.type,
+                      position: a.position || "",
+                      value: a.value,
+                    })),
+                    {
+                      side: "Summary",
+                      direction: "",
+                      name: "Grade",
+                      type: "",
+                      position: "",
+                      value: analysis.grade,
+                    },
+                    {
+                      side: teamA?.ownerName || "Team A",
+                      direction: "Summary",
+                      name: "Raw Total",
+                      type: "",
+                      position: "",
+                      value: analysis.teamA.totalValue,
+                    },
+                    {
+                      side: teamA?.ownerName || "Team A",
+                      direction: "Summary",
+                      name: "Adjusted Total",
+                      type: "",
+                      position: "",
+                      value: analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue,
+                    },
+                    {
+                      side: teamB?.ownerName || "Team B",
+                      direction: "Summary",
+                      name: "Raw Total",
+                      type: "",
+                      position: "",
+                      value: analysis.teamB.totalValue,
+                    },
+                    {
+                      side: teamB?.ownerName || "Team B",
+                      direction: "Summary",
+                      name: "Adjusted Total",
+                      type: "",
+                      position: "",
+                      value: analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue,
+                    },
+                  ]}
+                  filename="trade-analysis"
+                  shareText={formatTradeAnalysisForShare(
+                    analysis,
+                    teamA?.ownerName || "Team A",
+                    teamB?.ownerName || "Team B",
+                    teamAAssets,
+                    teamBAssets
+                  )}
+                />
                 <InfoTooltip
                   title="Trade Grade"
                   description="Overall letter grade (A+ to F) based on fairness, value balance, and positional impact. A+ means both sides benefit roughly equally."

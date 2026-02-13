@@ -58,34 +58,109 @@ export function formatPowerRankingsForShare(rankings: any[]): string {
   return lines.join("\n");
 }
 
-export function formatTradeForShare(tradeData: any): string {
-  const lines = ["Trade Analysis", ""];
+export function formatTradeAnalysisForShare(
+  analysis: any,
+  teamAName: string,
+  teamBName: string,
+  teamAAssets: any[],
+  teamBAssets: any[]
+): string {
+  const lines = [
+    "Trade Analysis - DT Sleeper Agent",
+    `Grade: ${analysis.grade}`,
+    "",
+  ];
 
-  if (tradeData.sideA) {
-    lines.push("Side A:");
-    if (tradeData.sideA.players?.length) {
-      tradeData.sideA.players.forEach((p: any) => lines.push(`  ${p.name} (${p.value})`));
-    }
-    if (tradeData.sideA.picks?.length) {
-      tradeData.sideA.picks.forEach((p: any) => lines.push(`  ${p.name} (${p.value})`));
-    }
-    lines.push(`  Total: ${tradeData.sideA.totalValue}`);
+  lines.push(`${teamAName} trades away:`);
+  if (teamAAssets.length > 0) {
+    teamAAssets.forEach((a: any) => {
+      lines.push(`  ${a.name} (${a.position || "Pick"}) - Value: ${a.value?.toLocaleString() ?? "N/A"}`);
+    });
+  } else {
+    lines.push("  (no assets)");
+  }
+  lines.push(`  Raw Total: ${(analysis.teamA?.totalValue ?? 0).toLocaleString()}`);
+  if (analysis.teamA?.adjustedTotal != null) {
+    lines.push(`  Adjusted Total: ${analysis.teamA.adjustedTotal.toLocaleString()}`);
   }
 
-  if (tradeData.sideB) {
-    lines.push("Side B:");
-    if (tradeData.sideB.players?.length) {
-      tradeData.sideB.players.forEach((p: any) => lines.push(`  ${p.name} (${p.value})`));
-    }
-    if (tradeData.sideB.picks?.length) {
-      tradeData.sideB.picks.forEach((p: any) => lines.push(`  ${p.name} (${p.value})`));
-    }
-    lines.push(`  Total: ${tradeData.sideB.totalValue}`);
+  lines.push("");
+  lines.push(`${teamBName} trades away:`);
+  if (teamBAssets.length > 0) {
+    teamBAssets.forEach((a: any) => {
+      lines.push(`  ${a.name} (${a.position || "Pick"}) - Value: ${a.value?.toLocaleString() ?? "N/A"}`);
+    });
+  } else {
+    lines.push("  (no assets)");
+  }
+  lines.push(`  Raw Total: ${(analysis.teamB?.totalValue ?? 0).toLocaleString()}`);
+  if (analysis.teamB?.adjustedTotal != null) {
+    lines.push(`  Adjusted Total: ${analysis.teamB.adjustedTotal.toLocaleString()}`);
   }
 
-  if (tradeData.verdict) {
-    lines.push("", `Verdict: ${tradeData.verdict}`);
+  lines.push("");
+  if (analysis.isFair || analysis.winner === "even") {
+    lines.push("Verdict: This trade is fairly even!");
+  } else {
+    const winner = analysis.winner === "A" ? teamAName : teamBName;
+    const pctDiff = analysis.fairnessPercent ?? analysis.percentageDiff ?? 0;
+    lines.push(`Verdict: ${winner} gets the better deal by ${Math.abs(pctDiff).toFixed(1)}%`);
   }
 
+  if (analysis.aiAnalysis) {
+    lines.push("", "AI Analysis:", analysis.aiAnalysis);
+  }
+
+  return lines.join("\n");
+}
+
+export function formatTradeHistoryForShare(trades: any[]): string {
+  const lines = ["Trade History - DT Sleeper Agent", ""];
+  trades.forEach((trade, idx) => {
+    const date = new Date(trade.timestamp).toLocaleDateString("en-US", {
+      month: "short", day: "numeric", year: "numeric",
+    });
+    lines.push(`Trade #${idx + 1} (${date} - ${trade.season})`);
+    lines.push(`  ${trade.team1.ownerName} received: ${trade.team1.received.map((a: any) => a.displayName || a.name).join(", ")}`);
+    lines.push(`  ${trade.team2.ownerName} received: ${trade.team2.received.map((a: any) => a.displayName || a.name).join(", ")}`);
+    if (trade.absValueDiff > 0) {
+      lines.push(`  Value difference: ${trade.absValueDiff.toLocaleString()}`);
+    }
+    lines.push("");
+  });
+  return lines.join("\n");
+}
+
+export function formatRosterForShare(players: any[], teamName: string): string {
+  const lines = [`${teamName} - Roster`, ""];
+  const starters = players.filter((p: any) => p.isStarter);
+  const bench = players.filter((p: any) => !p.isStarter);
+
+  if (starters.length > 0) {
+    lines.push("Starters:");
+    starters.forEach((p: any) => {
+      lines.push(`  ${p.slotPosition || p.position} - ${p.name} (${p.team}) - Dynasty Value: ${p.dynastyValue?.toLocaleString() ?? "N/A"}`);
+    });
+  }
+
+  if (bench.length > 0) {
+    lines.push("", "Bench:");
+    bench.forEach((p: any) => {
+      lines.push(`  ${p.position} - ${p.name} (${p.team}) - Dynasty Value: ${p.dynastyValue?.toLocaleString() ?? "N/A"}`);
+    });
+  }
+
+  return lines.join("\n");
+}
+
+export function formatMatchupsForShare(matchups: any[], week: number): string {
+  const lines = [`Week ${week} Matchups`, ""];
+  matchups.forEach((m: any) => {
+    if (m.teamB) {
+      lines.push(`${m.teamA.ownerName} (${m.teamA.totalPoints.toFixed(1)}) vs ${m.teamB.ownerName} (${m.teamB.totalPoints.toFixed(1)})`);
+    } else {
+      lines.push(`${m.teamA.ownerName} (${m.teamA.totalPoints.toFixed(1)}) - BYE`);
+    }
+  });
   return lines.join("\n");
 }

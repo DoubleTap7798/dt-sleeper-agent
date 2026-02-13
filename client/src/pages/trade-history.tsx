@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/accordion";
 import { ArrowLeftRight, Calendar, Trophy, Sparkles, TrendingUp } from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { ExportButton } from "@/components/export-button";
+import { formatTradeHistoryForShare } from "@/lib/export-utils";
 
 interface TradeAssetDisplay {
   id: string;
@@ -115,13 +117,34 @@ export default function TradeHistoryPage() {
   return (
     <PremiumGate featureName="Trade History">
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight" data-testid="text-history-title">
-          Trade History
-        </h2>
-        <p className="text-muted-foreground">
-          {data.totalTrades} trades across {data.leagueHistory.length} season{data.leagueHistory.length > 1 ? "s" : ""}
-        </p>
+      <div className="flex items-center gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight" data-testid="text-history-title">
+            Trade History
+          </h2>
+          <p className="text-muted-foreground">
+            {data.totalTrades} trades across {data.leagueHistory.length} season{data.leagueHistory.length > 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="ml-auto">
+          <ExportButton
+            data={displayTrades.map((trade, idx) => ({
+              tradeNumber: idx + 1,
+              date: new Date(trade.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+              season: trade.season,
+              week: trade.week || "",
+              team1: trade.team1.ownerName,
+              team1Received: trade.team1.received.map(a => a.displayName || a.name).join("; "),
+              team1Value: trade.team1.value,
+              team2: trade.team2.ownerName,
+              team2Received: trade.team2.received.map(a => a.displayName || a.name).join("; "),
+              team2Value: trade.team2.value,
+              valueDifference: trade.absValueDiff,
+            }))}
+            filename={`trade-history${selectedSeason !== "all" ? `-${selectedSeason}` : ""}`}
+            shareText={formatTradeHistoryForShare(displayTrades)}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
