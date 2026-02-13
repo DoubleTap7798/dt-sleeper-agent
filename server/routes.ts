@@ -858,7 +858,13 @@ ${urls}
 
       const state = await sleeperApi.getState();
       const leagueSeason = state?.league_season || state?.season || "2026";
-      const leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, leagueSeason);
+      let leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, leagueSeason);
+
+      if ((!leagues || leagues.length === 0) && parseInt(leagueSeason) > 2020) {
+        const previousSeason = String(parseInt(leagueSeason) - 1);
+        console.log(`[Leagues] No leagues found for ${leagueSeason}, trying ${previousSeason}`);
+        leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, previousSeason);
+      }
 
       const commishMap = new Map<string, string>();
       await Promise.all(
