@@ -20,6 +20,8 @@ import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { useMutation } from "@tanstack/react-query";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { InfoTooltip } from "@/components/metric-tooltip";
+import { ExportButton } from "@/components/export-button";
+import { formatDevyForShare } from "@/lib/export-utils";
 
 interface DataSourceStatus {
   sourceId: string;
@@ -205,6 +207,21 @@ export default function DevyPage() {
               College players eligible for future NFL drafts
             </p>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <ExportButton
+            data={sortedPlayers.map((p) => ({
+              Rank: p.rank,
+              Name: p.name,
+              Position: p.position,
+              School: p.college,
+              Class: p.draftEligibleYear,
+              Value: p.value,
+            }))}
+            filename="devy-rankings"
+            shareText={formatDevyForShare(sortedPlayers)}
+          />
         </div>
 
         <div className="flex items-center gap-2" data-testid="devy-filters">

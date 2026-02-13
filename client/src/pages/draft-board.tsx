@@ -37,6 +37,8 @@ import {
 import { DraftProfileModal } from "@/components/draft-profile-modal";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { InfoTooltip } from "@/components/metric-tooltip";
+import { ExportButton } from "@/components/export-button";
+import { formatDraftBoardForShare } from "@/lib/export-utils";
 
 interface CombineData {
   fortyYard: number | null;
@@ -248,6 +250,19 @@ export default function DraftBoardPage() {
             </p>
           </div>
         </div>
+        <ExportButton
+          data={sortedPlayers.map((p) => ({
+            Rank: p.rank,
+            Name: p.name,
+            Position: p.position,
+            College: p.college,
+            Height: p.height,
+            Weight: p.weight,
+            Stock: p.stockStatus,
+          }))}
+          filename="draft-board-2026"
+          shareText={formatDraftBoardForShare(sortedPlayers)}
+        />
       </div>
 
       <div className="grid grid-cols-3 gap-3">

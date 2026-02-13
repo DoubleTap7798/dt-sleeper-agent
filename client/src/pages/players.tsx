@@ -27,6 +27,8 @@ import { PlayerProfileModal } from "@/components/player-profile-modal";
 import { getNFLTeamLogo } from "@/lib/team-logos";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { ExportButton } from "@/components/export-button";
+import { formatPlayersForShare } from "@/lib/export-utils";
 
 interface Player {
   id: string;
@@ -300,18 +302,32 @@ export default function PlayersPage() {
             {data.isCustomScoring && " (approximate)"}
           </p>
         </div>
-        <Select value={selectedYear} onValueChange={setSelectedYear}>
-          <SelectTrigger className="w-[90px]" data-testid="select-year">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {AVAILABLE_YEARS.map((year) => (
-              <SelectItem key={year} value={year} data-testid={`option-year-${year}`}>
-                {year}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <ExportButton
+            data={filteredPlayers.slice(0, 200).map((p) => ({
+              Name: p.fullName,
+              Position: p.position,
+              Team: p.team,
+              Age: p.age ?? "",
+              "Dynasty Value": p.dynastyValue,
+              Experience: p.yearsExp,
+            }))}
+            filename="nfl-players"
+            shareText={formatPlayersForShare(filteredPlayers)}
+          />
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger className="w-[90px]" data-testid="select-year">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {AVAILABLE_YEARS.map((year) => (
+                <SelectItem key={year} value={year} data-testid={`option-year-${year}`}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="relative">

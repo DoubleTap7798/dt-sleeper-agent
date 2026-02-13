@@ -153,13 +153,61 @@ export function formatRosterForShare(players: any[], teamName: string): string {
   return lines.join("\n");
 }
 
+export function formatScheduleForShare(schedule: any[]): string {
+  const lines = ["Season Schedule", ""];
+  schedule.forEach((week: any) => {
+    const opponentName = week.opponent?.ownerName || "BYE";
+    const result = week.result === "bye" ? "BYE" :
+      ((week.userPoints ?? 0) > 0 || (week.opponentPoints ?? 0) > 0)
+        ? `${(week.userPoints ?? 0).toFixed(1)} - ${(week.opponentPoints ?? 0).toFixed(1)}`
+        : "TBD";
+    lines.push(`Week ${week.week}: vs ${opponentName} - ${result}`);
+  });
+  return lines.join("\n");
+}
+
+export function formatPlayersForShare(players: any[]): string {
+  const lines = ["Top NFL Players", ""];
+  players.slice(0, 50).forEach((p: any) => {
+    lines.push(`#${p.overallRank ?? "-"} ${p.fullName} (${p.position} - ${p.team || "FA"}) - Pts: ${(p.fantasyPoints ?? 0).toFixed(1)}`);
+  });
+  return lines.join("\n");
+}
+
+export function formatWatchlistForShare(watchlist: any[]): string {
+  const lines = ["Watchlist", ""];
+  watchlist.forEach((item: any) => {
+    const vc = item.valueChange ?? 0;
+    const change = vc > 0 ? `+${vc}` : `${vc}`;
+    lines.push(`${item.playerName} (${item.position} - ${item.team || "FA"}) - Value: ${item.currentValue ?? 0} (${change})`);
+  });
+  return lines.join("\n");
+}
+
+export function formatDevyForShare(players: any[]): string {
+  const lines = ["Devy Rankings", ""];
+  players.slice(0, 50).forEach((p: any) => {
+    lines.push(`#${p.rank ?? "-"} ${p.name} (${p.position}) - ${p.college || "N/A"} - ${p.draftEligibleYear || "TBD"} - Value: ${p.value ?? 0}`);
+  });
+  return lines.join("\n");
+}
+
+export function formatDraftBoardForShare(players: any[]): string {
+  const lines = ["2026 NFL Draft Board", ""];
+  players.slice(0, 50).forEach((p: any) => {
+    const stock = p.stockStatus === "rising" ? " ^" : p.stockStatus === "falling" ? " v" : "";
+    lines.push(`#${p.rank} ${p.name} (${p.position}) - ${p.college}${stock}`);
+  });
+  return lines.join("\n");
+}
+
 export function formatMatchupsForShare(matchups: any[], week: number): string {
   const lines = [`Week ${week} Matchups`, ""];
   matchups.forEach((m: any) => {
     if (m.teamB) {
-      lines.push(`${m.teamA.ownerName} (${m.teamA.totalPoints.toFixed(1)}) vs ${m.teamB.ownerName} (${m.teamB.totalPoints.toFixed(1)})`);
+      lines.push(`${m.teamA.ownerName} (${(m.teamA.totalPoints ?? 0).toFixed(1)}) vs ${m.teamB.ownerName} (${(m.teamB.totalPoints ?? 0).toFixed(1)})`);
     } else {
-      lines.push(`${m.teamA.ownerName} (${m.teamA.totalPoints.toFixed(1)}) - BYE`);
+      lines.push(`${m.teamA.ownerName} (${(m.teamA.totalPoints ?? 0).toFixed(1)}) - BYE`);
     }
   });
   return lines.join("\n");

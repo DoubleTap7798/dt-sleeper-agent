@@ -126,6 +126,7 @@ const navigationGroups: NavGroup[] = [
     icon: Search,
     items: [
       { title: "NFL Players", url: "/league/players", icon: UserCircle },
+      { title: "Stat Leaders", url: "/league/stat-leaders", icon: BarChart3 },
       { title: "Waiver Wire", url: "/league/waivers", icon: UserCog, requiresLeague: true, premium: true },
       { title: "Player Trends", url: "/league/trends", icon: Activity, premium: true },
       { title: "Compare", url: "/league/compare", icon: GitCompare, premium: true },

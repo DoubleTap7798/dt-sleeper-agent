@@ -28,6 +28,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, TrendingUp, TrendingDown, Minus, Trash2, Plus, Search, StickyNote } from "lucide-react";
 import { MetricTooltip } from "@/components/metric-tooltip";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { ExportButton } from "@/components/export-button";
+import { formatWatchlistForShare } from "@/lib/export-utils";
 
 interface WatchlistItem {
   id: string;
@@ -168,10 +170,25 @@ export default function WatchlistPage() {
             Track player values and monitor targets
           </p>
         </div>
-        <Button onClick={() => setAddDialogOpen(true)} data-testid="btn-add-player">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Player
-        </Button>
+        <div className="flex items-center gap-2">
+          {filteredWatchlist.length > 0 && (
+            <ExportButton
+              data={filteredWatchlist.map((item) => ({
+                Name: item.playerName,
+                Position: item.position,
+                Team: item.team || "FA",
+                "Dynasty Value": item.currentValue,
+                Notes: item.notes || "",
+              }))}
+              filename="watchlist"
+              shareText={formatWatchlistForShare(filteredWatchlist)}
+            />
+          )}
+          <Button onClick={() => setAddDialogOpen(true)} data-testid="btn-add-player">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Player
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}

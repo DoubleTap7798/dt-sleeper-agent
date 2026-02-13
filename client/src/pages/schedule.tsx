@@ -10,6 +10,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Progress } from "@/components/ui/progress";
 import { Calendar, Trophy, XCircle, Minus, Clock, CircleDot, BarChart3, TrendingUp, TrendingDown, Shield } from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { ExportButton } from "@/components/export-button";
+import { formatScheduleForShare } from "@/lib/export-utils";
 
 interface Opponent {
   rosterId: number;
@@ -175,6 +177,17 @@ export default function SchedulePage() {
               {record.wins}-{record.losses}{record.ties > 0 ? `-${record.ties}` : ""}
             </span>
           </Badge>
+          <ExportButton
+            data={schedule.map((game) => ({
+              Week: game.week,
+              Opponent: game.result === "bye" ? "BYE" : (game.opponent?.ownerName || "TBD"),
+              Result: game.result === "bye" ? "BYE" : game.result.toUpperCase(),
+              "Points For": game.userPoints.toFixed(1),
+              "Points Against": game.opponentPoints.toFixed(1),
+            }))}
+            filename="schedule"
+            shareText={formatScheduleForShare(schedule)}
+          />
         </div>
       </div>
 

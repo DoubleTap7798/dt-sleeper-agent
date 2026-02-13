@@ -41,6 +41,7 @@ import AIChatPage from "@/pages/ai-chat";
 import PowerRankingsPage from "@/pages/power-rankings";
 import DraftPickValuePage from "@/pages/draft-pick-value";
 import LeagueTimelinePage from "@/pages/league-timeline";
+import StatLeadersPage from "@/pages/stat-leaders";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -298,6 +299,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <UpgradePage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/stat-leaders">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <StatLeadersPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

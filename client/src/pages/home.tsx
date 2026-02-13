@@ -708,6 +708,7 @@ export default function HomePage() {
   
   // State for position player modal (must be at top level before any returns)
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
+  const [leagueSort, setLeagueSort] = useState<string>("rank");
 
   const { data: leagues = [] } = useQuery<SleeperLeague[]>({
     queryKey: ["/api/sleeper/leagues"],
@@ -913,10 +914,25 @@ export default function HomePage() {
         </div>
 
         <div>
-          <h2 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Your Leagues
-          </h2>
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+            <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Your Leagues
+            </h2>
+            {leaguesOverview.length > 1 && (
+              <Select value={leagueSort} onValueChange={setLeagueSort}>
+                <SelectTrigger className="w-[140px]" data-testid="select-league-sort">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rank">Best Rank</SelectItem>
+                  <SelectItem value="record">Best Record</SelectItem>
+                  <SelectItem value="points">Most Points</SelectItem>
+                  <SelectItem value="name">Name A-Z</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           {overviewLoading ? (
             <div className="grid gap-3 sm:grid-cols-2">
               {[1, 2, 3].map(i => (
@@ -933,12 +949,24 @@ export default function HomePage() {
             </div>
           ) : leaguesOverview.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2" data-testid="leagues-overview-grid">
-              {leaguesOverview.map((lo, idx) => (
-                <Link key={lo.leagueId} href={`/league?id=${lo.leagueId}`}>
+              {[...leaguesOverview].sort((a, b) => {
+                switch (leagueSort) {
+                  case "record": {
+                    const aWinPct = (a.record.wins + a.record.losses) > 0 ? a.record.wins / (a.record.wins + a.record.losses) : 0;
+                    const bWinPct = (b.record.wins + b.record.losses) > 0 ? b.record.wins / (b.record.wins + b.record.losses) : 0;
+                    return bWinPct - aWinPct;
+                  }
+                  case "points": return b.pointsFor - a.pointsFor;
+                  case "name": return a.leagueName.localeCompare(b.leagueName);
+                  case "rank": default: return a.rank - b.rank;
+                }
+              }).map((lo, idx) => (
                   <Card
+                    key={lo.leagueId}
                     className="hover-elevate cursor-pointer transition-colors"
                     data-testid={`card-league-overview-${idx}`}
                   >
+                    <Link href={`/league?id=${lo.leagueId}`}>
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-2 mb-3">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -1015,8 +1043,29 @@ export default function HomePage() {
                         </div>
                       )}
                     </CardContent>
+                    </Link>
+
+                    <div className="flex items-center gap-1.5 px-4 pb-3 flex-wrap" data-testid={`league-actions-${idx}`}>
+                      <Link href={`/league/roster?id=${lo.leagueId}`}>
+                        <Button variant="ghost" size="sm" className="text-[11px] gap-1" data-testid={`link-roster-${idx}`}>
+                          <Users className="h-3 w-3" />
+                          Roster
+                        </Button>
+                      </Link>
+                      <Link href={`/league/matchups?id=${lo.leagueId}`}>
+                        <Button variant="ghost" size="sm" className="text-[11px] gap-1" data-testid={`link-matchups-${idx}`}>
+                          <Target className="h-3 w-3" />
+                          Matchups
+                        </Button>
+                      </Link>
+                      <Link href={`/league/standings?id=${lo.leagueId}`}>
+                        <Button variant="ghost" size="sm" className="text-[11px] gap-1" data-testid={`link-standings-${idx}`}>
+                          <BarChart3 className="h-3 w-3" />
+                          Standings
+                        </Button>
+                      </Link>
+                    </div>
                   </Card>
-                </Link>
               ))}
             </div>
           ) : (
