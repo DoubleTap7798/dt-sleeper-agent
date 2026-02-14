@@ -858,16 +858,29 @@ ${urls}
         : Promise.resolve([]),
     ]);
 
+    const supersededIds = new Set<string>();
+    for (const league of (currentLeagues || [])) {
+      if (league.previous_league_id) {
+        supersededIds.add(league.previous_league_id);
+      }
+    }
+
     const seen = new Set<string>();
     const merged: any[] = [];
-    for (const league of [...(currentLeagues || []), ...(prevLeagues || [])]) {
+    for (const league of (currentLeagues || [])) {
       if (!seen.has(league.league_id)) {
         seen.add(league.league_id);
         merged.push(league);
       }
     }
+    for (const league of (prevLeagues || [])) {
+      if (!seen.has(league.league_id) && !supersededIds.has(league.league_id)) {
+        seen.add(league.league_id);
+        merged.push(league);
+      }
+    }
 
-    console.log(`[Leagues] Found ${currentLeagues?.length || 0} leagues for ${leagueSeason}, ${prevLeagues?.length || 0} for ${previousSeason}, ${merged.length} total after dedup`);
+    console.log(`[Leagues] Found ${currentLeagues?.length || 0} for ${leagueSeason}, ${prevLeagues?.length || 0} for ${previousSeason}, ${supersededIds.size} superseded, ${merged.length} after dedup`);
     return merged;
   }
 
