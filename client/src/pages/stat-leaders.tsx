@@ -194,7 +194,10 @@ function PositionFilteredLeaderboards({ categoryKey, categoryData, searchQuery }
 
 export default function StatLeadersPage() {
   usePageTitle("NFL Stat Leaders");
-  const [selectedSeason, setSelectedSeason] = useState("2024");
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const defaultSeason = currentMonth < 8 ? String(currentYear - 1) : String(currentYear);
+  const [selectedSeason, setSelectedSeason] = useState(defaultSeason);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("receiving");
 
@@ -294,6 +297,7 @@ export default function StatLeadersPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="2025" data-testid="select-season-2025">2025</SelectItem>
               <SelectItem value="2024" data-testid="select-season-2024">2024</SelectItem>
               <SelectItem value="2023" data-testid="select-season-2023">2023</SelectItem>
               <SelectItem value="2022" data-testid="select-season-2022">2022</SelectItem>

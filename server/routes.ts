@@ -4489,7 +4489,7 @@ Return ONLY valid JSON, no other text.`;
   app.get("/api/nflverse/stats", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { getNFLVerseStats } = await import('./nflverse-stats');
-      const season = req.query.season ? parseInt(req.query.season as string) : 2024;
+      const season = req.query.season ? parseInt(req.query.season as string) : undefined;
       const stats = await getNFLVerseStats(season);
       
       res.json({
@@ -4509,7 +4509,10 @@ Return ONLY valid JSON, no other text.`;
     try {
       const { getPlayerSeasonStats, getPlayerWeeklyStats } = await import('./nflverse-stats');
       const playerName = decodeURIComponent(req.params.playerName);
-      const season = req.query.season ? parseInt(req.query.season as string) : 2024;
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      const autoSeason = currentMonth < 8 ? currentYear - 1 : currentYear;
+      const season = req.query.season ? parseInt(req.query.season as string) : autoSeason;
       const includeWeekly = req.query.weekly === 'true';
 
       const seasonStats = await getPlayerSeasonStats(playerName, season);
@@ -10332,6 +10335,12 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         content: m.content,
       }));
 
+      const currentDate = new Date();
+      const currentDateStr = currentDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      const aiCurrentMonth = currentDate.getMonth();
+      const aiCurrentYear = currentDate.getFullYear();
+      const mostRecentSeason = aiCurrentMonth < 8 ? aiCurrentYear - 1 : aiCurrentYear;
+
       const systemPrompt = `You are the DT Sleeper Agent AI Assistant — an expert dynasty fantasy football advisor. You help users with:
 - Start/sit decisions and lineup advice
 - Trade evaluations and dynasty value analysis  
@@ -10341,6 +10350,8 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
 - Draft strategy (rookie drafts, startup drafts)
 - League strategy and playoff positioning
 - Devy (college prospect) scouting and rankings
+
+IMPORTANT DATE CONTEXT: Today is ${currentDateStr}. The most recently completed NFL season is ${mostRecentSeason}. The upcoming NFL season is ${mostRecentSeason + 1}. All player recommendations, buy-low targets, sell-high candidates, and analysis should be based on the ${mostRecentSeason} season performance and the upcoming ${mostRecentSeason + 1} season outlook. Do NOT reference outdated seasons.
 
 ${contextParts.length > 0 ? `\nCurrent context about the user's fantasy situation:\n${contextParts.join("\n")}` : ""}
 
