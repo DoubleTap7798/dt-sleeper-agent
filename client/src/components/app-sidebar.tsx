@@ -138,10 +138,17 @@ const navigationGroups: NavGroup[] = [
       { title: "Usage Trends", url: "/league/usage-trends", icon: Activity, requiresLeague: true, premium: true },
       { title: "Compare", url: "/league/compare", icon: GitCompare, premium: true },
       { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true, premium: true },
+      { title: "Depth Charts", url: "/league/depth-chart", icon: Layers },
+    ],
+  },
+  {
+    title: "Draft Central",
+    icon: Target,
+    items: [
       { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
       { title: "Draft War Room", url: "/league/war-room", icon: Swords, requiresLeague: true, premium: true },
       { title: "Devy Rankings", url: "/league/devy", icon: GraduationCap, premium: true },
-      { title: "Depth Charts", url: "/league/depth-chart", icon: Layers },
+      { title: "Pick Values", url: "/league/draft-pick-values", icon: TrendingUp },
     ],
   },
   {
@@ -151,7 +158,6 @@ const navigationGroups: NavGroup[] = [
     items: [
       { title: "Trade Calculator", url: "/league/trade", icon: RefreshCw, requiresLeague: true, premium: true },
       { title: "Trade History", url: "/league/history", icon: History, requiresLeague: true, premium: true },
-      { title: "Pick Values", url: "/league/draft-pick-values", icon: TrendingUp, requiresLeague: false },
     ],
   },
 ];
