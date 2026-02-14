@@ -244,7 +244,7 @@ export default function DevyPage() {
 
   return (
     <PremiumGate featureName="Devy Rankings">
-    <div className="space-y-6" data-testid="devy-page">
+    <div className="space-y-6 min-w-0 overflow-x-hidden" data-testid="devy-page">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <GraduationCap className="h-8 w-8" />
@@ -273,7 +273,7 @@ export default function DevyPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2" data-testid="devy-filters">
+        <div className="flex items-center gap-2 flex-wrap" data-testid="devy-filters">
           <div className="flex items-center gap-1 border rounded-md p-0.5">
             <Button 
               variant={viewMode === "all" ? "default" : "ghost"} 
@@ -298,10 +298,10 @@ export default function DevyPage() {
             </Button>
           </div>
 
-          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
           
           <Select value={positionFilter} onValueChange={setPositionFilter}>
-            <SelectTrigger className="w-[120px]" data-testid="select-position-filter">
+            <SelectTrigger className="w-[100px]" data-testid="select-position-filter">
               <SelectValue placeholder="Position" />
             </SelectTrigger>
             <SelectContent>
@@ -315,7 +315,7 @@ export default function DevyPage() {
           </Select>
 
           <Select value={yearFilter} onValueChange={setYearFilter}>
-            <SelectTrigger className="w-[130px]" data-testid="select-year-filter">
+            <SelectTrigger className="w-[110px]" data-testid="select-year-filter">
               <SelectValue placeholder="Draft Year" />
             </SelectTrigger>
             <SelectContent>

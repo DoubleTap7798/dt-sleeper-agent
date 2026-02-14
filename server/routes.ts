@@ -3677,6 +3677,8 @@ ${urls}
       const devyPlayers = ktcValues.getDevyPlayers();
       const devyByName = new Map(devyPlayers.map(p => [p.name.toLowerCase().trim(), p]));
 
+      const allPlayers = await sleeperApi.getAllPlayers();
+
       const ownedDevy: Array<{
         devyPlayerId: string;
         devyName: string;
@@ -3688,60 +3690,73 @@ ${urls}
       }> = [];
 
       const leagueNames: Array<{ id: string; name: string }> = [];
+      const seenKeys = new Set<string>();
 
       for (const league of leagues) {
         leagueNames.push({ id: league.league_id, name: league.name });
 
         try {
           const rosters = await sleeperApi.getLeagueRosters(league.league_id);
-
           const userRoster = rosters?.find(r => r.owner_id === sleeperUserId);
-
           if (!userRoster) continue;
 
-          const metadata = userRoster.metadata || {};
-          for (const [key, val] of Object.entries(metadata)) {
-            if (key.startsWith("p_nick_") && typeof val === "string" && val.includes("DEVY")) {
-              const parsed = parseDevyNote(val.trim());
-              if (parsed) {
-                const matchKey = parsed.devyName.toLowerCase().trim();
-                const devyMatch = devyByName.get(matchKey);
-                ownedDevy.push({
-                  devyPlayerId: devyMatch?.id || `unmatched-${matchKey}`,
-                  devyName: parsed.devyName,
-                  devyPosition: parsed.devyPosition,
-                  devySchool: parsed.devySchool,
-                  leagueId: league.league_id,
-                  leagueName: league.name,
-                  matched: !!devyMatch,
-                });
-              }
-            }
-          }
+          const rosterPositions = league.roster_positions || [];
+          const hasKickerSlot = rosterPositions.includes("K");
+          const hasDefSlot = rosterPositions.includes("DEF");
+          const idpSlots = ["DL", "LB", "DB", "IDP_FLEX"];
+          const isIDPLeague = rosterPositions.some((p: string) => idpSlots.includes(p));
+          const allPlayerIds = userRoster.players || [];
+
+          const isPlaceholderPlayer = (playerId: string): boolean => {
+            const player = allPlayers[playerId];
+            if (!player) return false;
+            const playerPos = player.position || "?";
+            const isKicker = playerPos === "K";
+            const isDef = playerPos === "DEF";
+            const isRetired = !player.team && (player.status === "Inactive" || player.active === false);
+            const isIDPPlayer = ["CB", "S", "DB", "LB", "ILB", "OLB", "MLB", "DL", "DE", "DT", "NT", "EDGE", "ED", "FS", "SS"].includes(playerPos);
+            const isPlaceholderByPosition = (isKicker && !hasKickerSlot) || (isDef && !hasDefSlot) || (isIDPPlayer && !isIDPLeague);
+            return isPlaceholderByPosition || isRetired;
+          };
+
+          const addDevy = (parsed: { devyName: string; devyPosition: string; devySchool: string }) => {
+            const dedupKey = `${parsed.devyName.toLowerCase().trim()}-${league.league_id}`;
+            if (seenKeys.has(dedupKey)) return;
+            seenKeys.add(dedupKey);
+            const matchKey = parsed.devyName.toLowerCase().trim();
+            const devyMatch = devyByName.get(matchKey);
+            ownedDevy.push({
+              devyPlayerId: devyMatch?.id || `unmatched-${matchKey}`,
+              devyName: parsed.devyName,
+              devyPosition: parsed.devyPosition,
+              devySchool: parsed.devySchool,
+              leagueId: league.league_id,
+              leagueName: league.name,
+              matched: !!devyMatch,
+            });
+          };
 
           for (const roster of rosters || []) {
             if (roster.roster_id !== userRoster.roster_id) continue;
             const rosterMeta = roster.metadata || {};
             for (const [key, val] of Object.entries(rosterMeta)) {
-              if (key.startsWith("p_nick_") && typeof val === "string" && val.includes("DEVY")) {
+              if (!val || typeof val !== 'string') continue;
+              let targetPlayerId: string | null = null;
+              if (key.startsWith('p_nick_')) {
+                targetPlayerId = key.replace('p_nick_', '');
+              } else if (key.startsWith('p_note_')) {
+                targetPlayerId = key.replace('p_note_', '');
+              }
+              if (!targetPlayerId) continue;
+              if (!allPlayerIds.includes(targetPlayerId)) continue;
+
+              const hasDevyKeyword = val.toUpperCase().includes("DEVY");
+              const isPlaceholder = isPlaceholderPlayer(targetPlayerId);
+
+              if (hasDevyKeyword || isPlaceholder) {
                 const parsed = parseDevyNote(val.trim());
-                if (parsed) {
-                  const alreadyAdded = ownedDevy.some(
-                    d => d.devyName.toLowerCase() === parsed.devyName.toLowerCase() && d.leagueId === league.league_id
-                  );
-                  if (!alreadyAdded) {
-                    const matchKey = parsed.devyName.toLowerCase().trim();
-                    const devyMatch = devyByName.get(matchKey);
-                    ownedDevy.push({
-                      devyPlayerId: devyMatch?.id || `unmatched-${matchKey}`,
-                      devyName: parsed.devyName,
-                      devyPosition: parsed.devyPosition,
-                      devySchool: parsed.devySchool,
-                      leagueId: league.league_id,
-                      leagueName: league.name,
-                      matched: !!devyMatch,
-                    });
-                  }
+                if (parsed && parsed.devyName.length > 1) {
+                  addDevy(parsed);
                 }
               }
             }
@@ -3801,12 +3816,14 @@ ${urls}
       const totalDevyCount = trueDevyPlayers.length;
 
       const playersWithConsensus = trueDevyPlayers.map((player, index) => {
-        const dynastyValue = dynastyEngine.calculateDevyValue(
-          player.tier,
-          player.draftEligibleYear,
-          1,
-          currentYear
-        );
+        const dynastyValue = player.value > 0 
+          ? player.value 
+          : dynastyEngine.calculateDevyValue(
+              player.tier,
+              player.draftEligibleYear,
+              1,
+              currentYear
+            );
         
         const dtRank = index + 1;
         const fpRank = getFantasyProsRankByName(player.name, player.position);
