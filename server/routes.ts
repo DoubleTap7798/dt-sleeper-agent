@@ -846,6 +846,31 @@ ${urls}
     }
   });
 
+  async function getAllUserLeagues(sleeperUserId: string): Promise<any[]> {
+    const state = await sleeperApi.getState();
+    const leagueSeason = state?.league_season || state?.season || "2026";
+    const previousSeason = String(parseInt(leagueSeason) - 1);
+
+    const [currentLeagues, prevLeagues] = await Promise.all([
+      sleeperApi.getUserLeagues(sleeperUserId, leagueSeason),
+      parseInt(leagueSeason) > 2020
+        ? sleeperApi.getUserLeagues(sleeperUserId, previousSeason)
+        : Promise.resolve([]),
+    ]);
+
+    const seen = new Set<string>();
+    const merged: any[] = [];
+    for (const league of [...(currentLeagues || []), ...(prevLeagues || [])]) {
+      if (!seen.has(league.league_id)) {
+        seen.add(league.league_id);
+        merged.push(league);
+      }
+    }
+
+    console.log(`[Leagues] Found ${currentLeagues?.length || 0} leagues for ${leagueSeason}, ${prevLeagues?.length || 0} for ${previousSeason}, ${merged.length} total after dedup`);
+    return merged;
+  }
+
   // Get user's leagues (enriched with commissioner names and league type)
   app.get("/api/sleeper/leagues", isAuthenticated, async (req: any, res: Response) => {
     try {
@@ -856,15 +881,7 @@ ${urls}
         return res.json([]);
       }
 
-      const state = await sleeperApi.getState();
-      const leagueSeason = state?.league_season || state?.season || "2026";
-      let leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, leagueSeason);
-
-      if ((!leagues || leagues.length === 0) && parseInt(leagueSeason) > 2020) {
-        const previousSeason = String(parseInt(leagueSeason) - 1);
-        console.log(`[Leagues] No leagues found for ${leagueSeason}, trying ${previousSeason}`);
-        leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, previousSeason);
-      }
+      let leagues = await getAllUserLeagues(profile.sleeperUserId);
 
       const commishMap = new Map<string, string>();
       await Promise.all(
@@ -914,13 +931,7 @@ ${urls}
       }
 
       const state = await sleeperApi.getState();
-      const leagueSeason = state?.league_season || state?.season || "2026";
-      let leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, leagueSeason);
-
-      if ((!leagues || leagues.length === 0) && parseInt(leagueSeason) > 2020) {
-        const previousSeason = String(parseInt(leagueSeason) - 1);
-        leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, previousSeason);
-      }
+      let leagues = await getAllUserLeagues(profile.sleeperUserId);
 
       const currentWeek = state?.display_week || state?.week || 1;
 
@@ -5677,16 +5688,12 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
   // NOTIFICATIONS & REAL-TIME UPDATES
   // ============================================
 
-  // Helper to verify user belongs to a league
   async function verifyUserInLeague(userId: string, leagueId: string): Promise<boolean> {
     try {
       const profile = await storage.getUserProfile(userId);
       if (!profile?.sleeperUserId) return false;
       
-      // Use league_season for dynasty leagues that have rolled over
-      const state = await sleeperApi.getState();
-      const leagueSeason = state?.league_season || state?.season || "2026";
-      const leagues = await sleeperApi.getUserLeagues(profile.sleeperUserId, leagueSeason);
+      const leagues = await getAllUserLeagues(profile.sleeperUserId);
       return leagues?.some(l => l.league_id === leagueId) || false;
     } catch {
       return false;
@@ -6779,7 +6786,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         return res.json(cached.data);
       }
 
-      const currentLeagues = await sleeperApi.getUserLeagues(userProfile.sleeperUserId);
+      const currentLeagues = await getAllUserLeagues(userProfile.sleeperUserId);
       
       const processedLeagueIds = new Set<string>();
       // Cache league data to avoid duplicate API calls
