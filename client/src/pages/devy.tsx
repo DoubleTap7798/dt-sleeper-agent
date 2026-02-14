@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight, Sparkles, Target, Zap, AlertTriangle, Database, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
+import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight, Sparkles, Target, Zap, AlertTriangle, Database, RefreshCw, CheckCircle, AlertCircle, Bookmark, Flame } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { useMutation } from "@tanstack/react-query";
@@ -85,8 +85,29 @@ interface DevyData {
   source: string;
 }
 
-type SortField = "rank" | "name" | "position" | "year" | "college" | "value" | "tier";
+type SortField = "rank" | "name" | "position" | "year" | "college" | "value" | "tier" | "dvi";
 type SortDirection = "asc" | "desc";
+
+function calculateDVI(player: DevyPlayer): number {
+  let score = 0;
+  const rankScore = Math.max(0, 40 - (player.rank - 1) * 0.5);
+  score += rankScore;
+  
+  score += (player.round1Pct / 100) * 15;
+  score += (player.top10Pct / 100) * 5;
+  
+  score += (player.elitePct / 100) * 15;
+  score -= (player.bustPct / 100) * 5;
+  
+  const trendBonus = Math.min(10, Math.max(-5, player.trend30Day * 0.5));
+  score += 5 + trendBonus;
+  
+  if (player.ageClass === "young-breakout") score += 10;
+  else if (player.ageClass === "normal") score += 6;
+  else score += 3;
+  
+  return Math.round(Math.min(100, Math.max(0, score)));
+}
 
 export default function DevyPage() {
   usePageTitle("Devy Rankings");
@@ -97,6 +118,7 @@ export default function DevyPage() {
   const [selectedPlayer, setSelectedPlayer] = useState<DevyPlayer | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [viewMode, setViewMode] = useState<"all" | "mydevy">("all");
 
   const { data, isLoading, error } = useQuery<DevyData>({
     queryKey: ["/api/sleeper/devy"],
@@ -106,6 +128,15 @@ export default function DevyPage() {
   const { data: sourcesData } = useQuery<{ sources: DataSourceStatus[] }>({
     queryKey: ["/api/sleeper/devy/sources"],
     ...CACHE_TIMES.STABLE,
+  });
+
+  const { data: myDevyData } = useQuery<{ ownedDevy: Array<{ devyPlayerId: string; devyName: string; devyPosition: string; devySchool: string; leagueId: string; leagueName: string; matched: boolean }>; leagues: Array<{ id: string; name: string }> }>({
+    queryKey: ["/api/sleeper/devy/my-players"],
+    ...CACHE_TIMES.STABLE,
+  });
+
+  const { data: watchlistData } = useQuery<{ watchlist: Array<{ playerId: string }> }>({
+    queryKey: ["/api/watchlist"],
   });
 
   const refreshMutation = useMutation({
@@ -135,8 +166,23 @@ export default function DevyPage() {
   const filteredPlayers = players.filter((player) => {
     if (positionFilter !== "all" && player.position !== positionFilter) return false;
     if (yearFilter !== "all" && player.draftEligibleYear !== parseInt(yearFilter)) return false;
+    if (viewMode === "mydevy") {
+      const ownedIds = new Set(myDevyData?.ownedDevy?.map(d => d.devyPlayerId) || []);
+      const watchlistIds = new Set(watchlistData?.watchlist?.map(w => w.playerId) || []);
+      const ownedNames = new Set(myDevyData?.ownedDevy?.map(d => d.devyName.toLowerCase().trim()) || []);
+      if (!ownedIds.has(player.playerId) && !watchlistIds.has(player.playerId) && !ownedNames.has(player.name.toLowerCase().trim())) {
+        return false;
+      }
+    }
     return true;
   });
+
+  const getOwnedLeagues = (playerId: string, playerName: string): string[] => {
+    if (!myDevyData?.ownedDevy) return [];
+    return myDevyData.ownedDevy
+      .filter(d => d.devyPlayerId === playerId || d.devyName.toLowerCase().trim() === playerName.toLowerCase().trim())
+      .map(d => d.leagueName);
+  };
 
   const sortedPlayers = [...filteredPlayers].sort((a, b) => {
     let comparison = 0;
@@ -161,6 +207,9 @@ export default function DevyPage() {
         break;
       case "tier":
         comparison = a.tier - b.tier;
+        break;
+      case "dvi":
+        comparison = calculateDVI(a) - calculateDVI(b);
         break;
     }
     return sortDirection === "asc" ? comparison : -comparison;
@@ -225,6 +274,30 @@ export default function DevyPage() {
         </div>
 
         <div className="flex items-center gap-2" data-testid="devy-filters">
+          <div className="flex items-center gap-1 border rounded-md p-0.5">
+            <Button 
+              variant={viewMode === "all" ? "default" : "ghost"} 
+              size="sm"
+              onClick={() => setViewMode("all")}
+              data-testid="button-view-all"
+            >
+              All Rankings
+            </Button>
+            <Button 
+              variant={viewMode === "mydevy" ? "default" : "ghost"}
+              size="sm" 
+              onClick={() => setViewMode("mydevy")}
+              className="gap-1"
+              data-testid="button-view-mydevy"
+            >
+              <Bookmark className="h-3.5 w-3.5" />
+              My Devy
+              {myDevyData?.ownedDevy && myDevyData.ownedDevy.length > 0 && (
+                <Badge variant="secondary" className="ml-1 text-[10px]">{myDevyData.ownedDevy.length}</Badge>
+              )}
+            </Button>
+          </div>
+
           <Filter className="h-4 w-4 text-muted-foreground" />
           
           <Select value={positionFilter} onValueChange={setPositionFilter}>
@@ -256,6 +329,85 @@ export default function DevyPage() {
           </Select>
         </div>
       </div>
+
+      {data && (() => {
+        const risers = players.filter(p => p.trend30Day >= 5).sort((a, b) => b.trend30Day - a.trend30Day).slice(0, 5);
+        const fallers = players.filter(p => p.trend30Day <= -5).sort((a, b) => a.trend30Day - b.trend30Day).slice(0, 5);
+        const breakouts = players.filter(p => p.ageClass === "young-breakout" && p.trend30Day > 0).slice(0, 3);
+        
+        if (risers.length === 0 && fallers.length === 0) return null;
+        
+        return (
+          <Card data-testid="card-devy-alerts">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Flame className="h-5 w-5 text-primary" />
+                <h3 className="font-semibold">Devy Alerts</h3>
+                <span className="text-xs text-muted-foreground">Last 30 days</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {risers.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1 mb-2">
+                      <TrendingUp className="h-3.5 w-3.5 text-green-500" />
+                      <span className="text-xs font-medium text-green-500">Rising</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {risers.map(p => (
+                        <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1.5 rounded" onClick={() => handlePlayerClick(p)} data-testid={`alert-riser-${p.playerId}`}>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                            <span className="font-medium">{abbreviateName(p.name)}</span>
+                          </div>
+                          <span className="text-green-500 font-medium">+{p.trend30Day}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {fallers.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1 mb-2">
+                      <TrendingDown className="h-3.5 w-3.5 text-red-500" />
+                      <span className="text-xs font-medium text-red-500">Falling</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {fallers.map(p => (
+                        <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1.5 rounded" onClick={() => handlePlayerClick(p)} data-testid={`alert-faller-${p.playerId}`}>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                            <span className="font-medium">{abbreviateName(p.name)}</span>
+                          </div>
+                          <span className="text-red-500 font-medium">{p.trend30Day}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {breakouts.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1 mb-2">
+                      <Zap className="h-3.5 w-3.5 text-yellow-500" />
+                      <span className="text-xs font-medium text-yellow-500">Young Breakouts</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {breakouts.map(p => (
+                        <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1.5 rounded" onClick={() => handlePlayerClick(p)} data-testid={`alert-breakout-${p.playerId}`}>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                            <span className="font-medium">{abbreviateName(p.name)}</span>
+                          </div>
+                          <span className="text-yellow-500 font-medium">DVI {calculateDVI(p)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <Card data-testid="card-devy-table">
         <CardHeader className="pb-3">
@@ -386,8 +538,8 @@ export default function DevyPage() {
                   </th>
                   <th className="p-3 w-28 text-center">
                     <span className="font-medium flex items-center justify-center gap-1">
-                      Pick Value
-                      <InfoTooltip title="Pick Value" description="How many draft picks this prospect is worth. A 1.5x multiplier means they're worth 1.5 first-round picks in a trade." />
+                      DVI
+                      <InfoTooltip title="Devy Value Index" description="Composite score (0-100) factoring production trend, class year, NFL draft projection, positional scarcity, hit rates, and depth chart opportunities. Higher = more valuable prospect." />
                     </span>
                   </th>
                   <th className="p-3 w-32 text-center">
@@ -472,6 +624,17 @@ export default function DevyPage() {
                               Comp: {player.comps[0].name} ({player.comps[0].matchPct}%)
                             </span>
                           )}
+                          {viewMode === "mydevy" && (() => {
+                            const leagues = getOwnedLeagues(player.playerId, player.name);
+                            if (leagues.length === 0) return null;
+                            return (
+                              <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                                {leagues.map((league, i) => (
+                                  <Badge key={i} variant="secondary" className="text-[10px]">{league}</Badge>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </td>
                       <td className="p-3">
@@ -494,12 +657,26 @@ export default function DevyPage() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className="text-xs">
-                              <span className="font-medium text-primary">{player.pickMultiplier.toFixed(1)}x</span>
-                              <div className="text-muted-foreground truncate max-w-[100px]">{player.pickEquivalent.split(" ").slice(0, 2).join(" ")}</div>
+                              <span className={`text-lg font-bold ${
+                                calculateDVI(player) >= 80 ? "text-green-500" :
+                                calculateDVI(player) >= 60 ? "text-primary" :
+                                calculateDVI(player) >= 40 ? "text-yellow-500" :
+                                "text-red-500"
+                              }`}>
+                                {calculateDVI(player)}
+                              </span>
+                              <div className="text-muted-foreground text-[10px]">
+                                {player.trend30Day > 0 ? "+" : ""}{player.trend30Day} last 30d
+                              </div>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p className="font-medium">{player.pickEquivalent}</p>
+                            <div className="space-y-1 text-xs">
+                              <p className="font-medium">Devy Value Index: {calculateDVI(player)}/100</p>
+                              <p>Pick Value: {player.pickMultiplier.toFixed(1)}x ({player.pickEquivalent})</p>
+                              <p>Elite: {player.elitePct}% | Bust: {player.bustPct}%</p>
+                              <p>Round 1: {player.round1Pct}% | Top 10: {player.top10Pct}%</p>
+                            </div>
                           </TooltipContent>
                         </Tooltip>
                       </td>
@@ -651,7 +828,15 @@ export default function DevyPage() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
-                        <div className="font-medium text-sm text-primary">{player.pickMultiplier.toFixed(1)}x</div>
+                        <div className="font-medium text-sm">
+                          <span className={`${
+                            calculateDVI(player) >= 80 ? "text-green-500" :
+                            calculateDVI(player) >= 60 ? "text-primary" :
+                            calculateDVI(player) >= 40 ? "text-yellow-500" :
+                            "text-red-500"
+                          }`}>{calculateDVI(player)}</span>
+                          <span className="text-[10px] text-muted-foreground ml-1">DVI</span>
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           <span className="text-green-500">{player.elitePct}%</span>
                           <span className="mx-0.5">/</span>

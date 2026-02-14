@@ -3649,6 +3649,115 @@ ${urls}
     }
   });
 
+  app.get("/api/sleeper/devy/my-players", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId));
+      if (!profile?.sleeperUsername) {
+        return res.json({ ownedDevy: [], leagues: [] });
+      }
+
+      const sleeperUser = await sleeperApi.getSleeperUser(profile.sleeperUsername);
+      if (!sleeperUser) {
+        return res.json({ ownedDevy: [], leagues: [] });
+      }
+      const sleeperUserId = sleeperUser.user_id;
+
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      const season = currentMonth < 3 ? String(currentYear - 1) : String(currentYear);
+
+      const leagues = await sleeperApi.getUserLeagues(sleeperUserId, season);
+      if (!leagues?.length) {
+        return res.json({ ownedDevy: [], leagues: [] });
+      }
+
+      const devyPlayers = ktcValues.getDevyPlayers();
+      const devyByName = new Map(devyPlayers.map(p => [p.name.toLowerCase().trim(), p]));
+
+      const ownedDevy: Array<{
+        devyPlayerId: string;
+        devyName: string;
+        devyPosition: string;
+        devySchool: string;
+        leagueId: string;
+        leagueName: string;
+        matched: boolean;
+      }> = [];
+
+      const leagueNames: Array<{ id: string; name: string }> = [];
+
+      for (const league of leagues) {
+        leagueNames.push({ id: league.league_id, name: league.name });
+
+        try {
+          const rosters = await sleeperApi.getLeagueRosters(league.league_id);
+
+          const userRoster = rosters?.find(r => r.owner_id === sleeperUserId);
+
+          if (!userRoster) continue;
+
+          const metadata = userRoster.metadata || {};
+          for (const [key, val] of Object.entries(metadata)) {
+            if (key.startsWith("p_nick_") && typeof val === "string" && val.includes("DEVY")) {
+              const parsed = parseDevyNote(val.trim());
+              if (parsed) {
+                const matchKey = parsed.devyName.toLowerCase().trim();
+                const devyMatch = devyByName.get(matchKey);
+                ownedDevy.push({
+                  devyPlayerId: devyMatch?.id || `unmatched-${matchKey}`,
+                  devyName: parsed.devyName,
+                  devyPosition: parsed.devyPosition,
+                  devySchool: parsed.devySchool,
+                  leagueId: league.league_id,
+                  leagueName: league.name,
+                  matched: !!devyMatch,
+                });
+              }
+            }
+          }
+
+          for (const roster of rosters || []) {
+            if (roster.roster_id !== userRoster.roster_id) continue;
+            const rosterMeta = roster.metadata || {};
+            for (const [key, val] of Object.entries(rosterMeta)) {
+              if (key.startsWith("p_nick_") && typeof val === "string" && val.includes("DEVY")) {
+                const parsed = parseDevyNote(val.trim());
+                if (parsed) {
+                  const alreadyAdded = ownedDevy.some(
+                    d => d.devyName.toLowerCase() === parsed.devyName.toLowerCase() && d.leagueId === league.league_id
+                  );
+                  if (!alreadyAdded) {
+                    const matchKey = parsed.devyName.toLowerCase().trim();
+                    const devyMatch = devyByName.get(matchKey);
+                    ownedDevy.push({
+                      devyPlayerId: devyMatch?.id || `unmatched-${matchKey}`,
+                      devyName: parsed.devyName,
+                      devyPosition: parsed.devyPosition,
+                      devySchool: parsed.devySchool,
+                      leagueId: league.league_id,
+                      leagueName: league.name,
+                      matched: !!devyMatch,
+                    });
+                  }
+                }
+              }
+            }
+          }
+        } catch (leagueErr) {
+          console.error(`Error processing league ${league.league_id}:`, leagueErr);
+        }
+      }
+
+      res.json({ ownedDevy, leagues: leagueNames });
+    } catch (error) {
+      console.error("Error fetching my devy players:", error);
+      res.status(500).json({ message: "Failed to fetch owned devy players" });
+    }
+  });
+
   // Get devy players with rankings and draft eligibility
   // Devy = college players NOT yet drafted or rostered on an NFL team
   app.get("/api/sleeper/devy", isAuthenticated, async (req: any, res: Response) => {

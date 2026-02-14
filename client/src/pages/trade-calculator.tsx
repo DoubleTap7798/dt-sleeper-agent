@@ -88,6 +88,11 @@ export default function TradeCalculatorPage() {
     staleTime: 1000 * 60 * 60,
   });
 
+  const { data: devyData } = useQuery<{ players: Array<{ playerId: string; name: string; position: string; school: string; rank: number; value: number; pickEquivalent: string; pickMultiplier: number }> }>({
+    queryKey: ["/api/sleeper/devy"],
+    staleTime: 1000 * 60 * 60,
+  });
+
   const analyzeMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/trade/analyze", {
@@ -224,6 +229,7 @@ export default function TradeCalculatorPage() {
           isStartup={data?.isStartup}
           draftType={data?.draftType}
           reversalRound={data?.reversalRound}
+          devyPlayers={devyData?.players}
         />
 
         <TradeSide
@@ -238,6 +244,7 @@ export default function TradeCalculatorPage() {
           isStartup={data?.isStartup}
           draftType={data?.draftType}
           reversalRound={data?.reversalRound}
+          devyPlayers={devyData?.players}
         />
       </div>
 
@@ -657,6 +664,7 @@ interface TradeSideProps {
   isStartup?: boolean;
   draftType?: string;
   reversalRound?: number;
+  devyPlayers?: Array<{ playerId: string; name: string; position: string; school: string; rank: number; value: number; pickEquivalent: string; pickMultiplier: number }>;
 }
 
 function TradeSide({
@@ -671,6 +679,7 @@ function TradeSide({
   isStartup,
   draftType,
   reversalRound,
+  devyPlayers,
 }: TradeSideProps) {
   const availableRosters = rosters.filter((r) => r.ownerId !== otherTeamId);
   const totalValue = selectedAssets.reduce((sum, a) => sum + a.value, 0);
@@ -806,10 +815,114 @@ function TradeSide({
                 </div>
               </>
             )}
+
+            {devyPlayers && devyPlayers.length > 0 && (
+              <>
+                <Separator />
+                <DevyPlayerSearch 
+                  devyPlayers={devyPlayers}
+                  selectedAssets={selectedAssets}
+                  onAddAsset={onAddAsset}
+                  side={side}
+                />
+              </>
+            )}
           </>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function DevyPlayerSearch({
+  devyPlayers,
+  selectedAssets,
+  onAddAsset,
+  side,
+}: {
+  devyPlayers: Array<{ playerId: string; name: string; position: string; school: string; rank: number; value: number; pickEquivalent: string; pickMultiplier: number }>;
+  selectedAssets: TradeAsset[];
+  onAddAsset: (asset: TradeAsset) => void;
+  side: "A" | "B";
+}) {
+  const [devySearch, setDevySearch] = useState("");
+  const [showDevy, setShowDevy] = useState(false);
+
+  const filteredDevy = devyPlayers
+    .filter(p => !selectedAssets.find(a => a.id === `devy-${p.playerId}`))
+    .filter(p => {
+      if (!devySearch) return true;
+      const search = devySearch.toLowerCase();
+      return p.name.toLowerCase().includes(search) || p.school.toLowerCase().includes(search) || p.position.toLowerCase().includes(search);
+    })
+    .slice(0, 20);
+
+  const addDevyPlayer = (player: typeof devyPlayers[0]) => {
+    const devyAsset: TradeAsset = {
+      id: `devy-${player.playerId}`,
+      name: `${player.name} (Devy)`,
+      type: "player",
+      value: Math.round(player.value * 0.7),
+      position: player.position,
+    };
+    onAddAsset(devyAsset);
+  };
+
+  return (
+    <div>
+      <Collapsible open={showDevy} onOpenChange={setShowDevy}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground justify-start" data-testid={`button-toggle-devy-${side.toLowerCase()}`}>
+            <Plus className="h-3.5 w-3.5" />
+            <span>Add Devy Prospect</span>
+            {showDevy ? <ChevronUp className="h-3.5 w-3.5 ml-auto" /> : <ChevronDown className="h-3.5 w-3.5 ml-auto" />}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="space-y-2 mt-2">
+            <input
+              type="text"
+              placeholder="Search devy players..."
+              value={devySearch}
+              onChange={(e) => setDevySearch(e.target.value)}
+              className="w-full px-3 py-2 text-sm border rounded-md bg-background"
+              data-testid={`input-devy-search-${side.toLowerCase()}`}
+            />
+            <ScrollArea className="h-[150px]">
+              <div className="space-y-1">
+                {filteredDevy.map((player) => (
+                  <button
+                    key={player.playerId}
+                    onClick={() => addDevyPlayer(player)}
+                    className="w-full flex items-center justify-between p-2 rounded-md hover-elevate text-left"
+                    data-testid={`button-add-devy-${player.playerId}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={`text-xs ${getPositionColorClass(player.position)}`}>
+                        {player.position}
+                      </Badge>
+                      <div>
+                        <span className="text-sm font-medium">{player.name}</span>
+                        <span className="text-xs text-muted-foreground ml-1.5">{player.school}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-mono text-primary">
+                        {Math.round(player.value * 0.7).toLocaleString()}
+                      </span>
+                      <div className="text-[10px] text-muted-foreground">{player.pickEquivalent}</div>
+                    </div>
+                  </button>
+                ))}
+                {filteredDevy.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">No devy players found</p>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
   );
 }
 

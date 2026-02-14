@@ -433,6 +433,14 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               <Newspaper className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
               Analysis
             </TabsTrigger>
+            <TabsTrigger value="projections" className="text-xs sm:text-sm" data-testid="tab-projections">
+              <Target className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Projections
+            </TabsTrigger>
+            <TabsTrigger value="tradevalue" className="text-xs sm:text-sm" data-testid="tab-tradevalue">
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Trade Value
+            </TabsTrigger>
           </TabsList>
 
           <div className="flex-1 min-h-0 overflow-hidden">
@@ -923,6 +931,237 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                       No analysis notes available
                     </div>
                   )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="projections" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-projections">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
+                      <Card>
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <Target className="h-4 w-4" />
+                            Breakout Probability
+                          </h3>
+                          <div className="space-y-3">
+                            <div>
+                              <div className="flex items-center justify-between text-sm mb-1">
+                                <span>Fantasy Starter</span>
+                                <span className="font-medium">{player.starterPct ?? 0}%</span>
+                              </div>
+                              <div className="w-full bg-muted rounded-full h-2">
+                                <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${player.starterPct ?? 0}%` }} />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between text-sm mb-1">
+                                <span>Elite Producer</span>
+                                <span className="font-medium text-green-500">{player.elitePct ?? 0}%</span>
+                              </div>
+                              <div className="w-full bg-muted rounded-full h-2">
+                                <div className="bg-green-500 h-2 rounded-full" style={{ width: `${player.elitePct ?? 0}%` }} />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between text-sm mb-1">
+                                <span>Bust Risk</span>
+                                <span className="font-medium text-red-500">{player.bustPct ?? 0}%</span>
+                              </div>
+                              <div className="w-full bg-muted rounded-full h-2">
+                                <div className="bg-red-500 h-2 rounded-full" style={{ width: `${player.bustPct ?? 0}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <Star className="h-4 w-4" />
+                            NFL Draft Projection
+                          </h3>
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-3 gap-3">
+                              <div className="text-center p-3 bg-muted/50 rounded">
+                                <div className="text-2xl font-bold text-primary">{player.top10Pct ?? 0}%</div>
+                                <div className="text-xs text-muted-foreground">Top 10 Pick</div>
+                              </div>
+                              <div className="text-center p-3 bg-muted/50 rounded">
+                                <div className="text-2xl font-bold">{player.round1Pct ?? 0}%</div>
+                                <div className="text-xs text-muted-foreground">Round 1</div>
+                              </div>
+                              <div className="text-center p-3 bg-muted/50 rounded">
+                                <div className="text-2xl font-bold text-muted-foreground">{player.round2PlusPct ?? 0}%</div>
+                                <div className="text-xs text-muted-foreground">Round 2+</div>
+                              </div>
+                            </div>
+                            {data?.scoutingReport?.draftProjection && (
+                              <div className="p-3 border rounded bg-muted/30">
+                                <div className="text-xs text-muted-foreground mb-1">Draft Range</div>
+                                <div className="text-sm font-medium">{data.scoutingReport.draftProjection}</div>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            Projected Role
+                          </h3>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                              <span className="text-sm text-muted-foreground">Depth Chart</span>
+                              <span className="text-sm font-medium">{player.depthRole ?? "Unknown"}</span>
+                            </div>
+                            <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                              <span className="text-sm text-muted-foreground">Path Context</span>
+                              <span className="text-sm font-medium">{player.pathContext ?? "N/A"}</span>
+                            </div>
+                            <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                              <span className="text-sm text-muted-foreground">Age Profile</span>
+                              <span className={`text-sm font-medium ${
+                                player.ageClass === "young-breakout" ? "text-green-500" :
+                                player.ageClass === "old-producer" ? "text-yellow-500" : ""
+                              }`}>
+                                {player.ageClass === "young-breakout" ? "Young Breakout" :
+                                 player.ageClass === "old-producer" ? "Older Producer" : "Normal"}
+                              </span>
+                            </div>
+                            {data?.scoutingReport?.fantasyOutlook && (
+                              <div className="p-3 border rounded bg-muted/30 mt-2">
+                                <div className="text-xs text-muted-foreground mb-1">Fantasy Outlook</div>
+                                <div className="text-sm">{data.scoutingReport.fantasyOutlook}</div>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="tradevalue" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-tradevalue">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
+                      <Card>
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            Dynasty Trade Value
+                          </h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="text-center p-4 bg-primary/10 border border-primary/30 rounded">
+                              <div className="text-3xl font-bold text-primary">{player.pickMultiplier?.toFixed(1) ?? "0.0"}x</div>
+                              <div className="text-xs text-muted-foreground mt-1">Pick Multiplier</div>
+                            </div>
+                            <div className="text-center p-4 bg-muted/50 rounded">
+                              <div className="text-3xl font-bold">{player.value?.toLocaleString() ?? 0}</div>
+                              <div className="text-xs text-muted-foreground mt-1">Dynasty Value</div>
+                            </div>
+                          </div>
+                          {player.pickEquivalent && (
+                            <div className="mt-3 p-3 border rounded bg-muted/30">
+                              <div className="text-xs text-muted-foreground mb-1">Pick Equivalent</div>
+                              <div className="text-sm font-medium">{player.pickEquivalent}</div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <BarChart3 className="h-4 w-4" />
+                            Value Trend
+                          </h3>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="text-center p-3 bg-muted/50 rounded">
+                              <div className={`text-xl font-bold ${(player.trend7Day ?? 0) > 0 ? "text-green-500" : (player.trend7Day ?? 0) < 0 ? "text-red-500" : ""}`}>
+                                {(player.trend7Day ?? 0) > 0 ? "+" : ""}{player.trend7Day ?? 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground">7 Day</div>
+                            </div>
+                            <div className="text-center p-3 bg-muted/50 rounded">
+                              <div className={`text-xl font-bold ${(player.trend30Day ?? 0) > 0 ? "text-green-500" : (player.trend30Day ?? 0) < 0 ? "text-red-500" : ""}`}>
+                                {(player.trend30Day ?? 0) > 0 ? "+" : ""}{player.trend30Day ?? 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground">30 Day</div>
+                            </div>
+                            <div className="text-center p-3 bg-muted/50 rounded">
+                              <div className={`text-xl font-bold ${(player.seasonChange ?? 0) > 0 ? "text-green-500" : (player.seasonChange ?? 0) < 0 ? "text-red-500" : ""}`}>
+                                {(player.seasonChange ?? 0) > 0 ? "+" : ""}{player.seasonChange ?? 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Season</div>
+                            </div>
+                          </div>
+                          <div className="mt-3 p-3 bg-muted/30 rounded">
+                            <div className="text-xs text-muted-foreground mb-1">Market Direction</div>
+                            <div className="flex items-center gap-2">
+                              {(player.trend30Day ?? 0) > 5 ? (
+                                <>
+                                  <TrendingUp className="h-4 w-4 text-green-500" />
+                                  <span className="text-sm font-medium text-green-500">Rising - Strong upward momentum</span>
+                                </>
+                              ) : (player.trend30Day ?? 0) > 0 ? (
+                                <>
+                                  <TrendingUp className="h-4 w-4 text-green-500" />
+                                  <span className="text-sm font-medium text-green-500">Slightly Rising</span>
+                                </>
+                              ) : (player.trend30Day ?? 0) < -5 ? (
+                                <>
+                                  <TrendingDown className="h-4 w-4 text-red-500" />
+                                  <span className="text-sm font-medium text-red-500">Falling - Significant decline</span>
+                                </>
+                              ) : (player.trend30Day ?? 0) < 0 ? (
+                                <>
+                                  <TrendingDown className="h-4 w-4 text-red-500" />
+                                  <span className="text-sm font-medium text-red-500">Slightly Falling</span>
+                                </>
+                              ) : (
+                                <span className="text-sm font-medium text-muted-foreground">Stable - No significant movement</span>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3">Trade Tips</h3>
+                          <div className="space-y-2 text-sm">
+                            {(player.trend30Day ?? 0) > 5 && (
+                              <div className="p-2 bg-green-500/10 border border-green-500/30 rounded text-green-400">
+                                Value is rising fast. Consider holding or selling at peak if you need depth.
+                              </div>
+                            )}
+                            {(player.trend30Day ?? 0) < -5 && (
+                              <div className="p-2 bg-red-500/10 border border-red-500/30 rounded text-red-400">
+                                Value is dropping. Buy-low window may be open if you believe in the talent.
+                              </div>
+                            )}
+                            {(player.elitePct ?? 0) >= 30 && (player.pickMultiplier ?? 0) >= 1.5 && (
+                              <div className="p-2 bg-primary/10 border border-primary/30 rounded">
+                                Premium prospect with high upside. Worth a 1st+ in most dynasty formats.
+                              </div>
+                            )}
+                            {(player.bustPct ?? 0) >= 40 && (
+                              <div className="p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400">
+                                High bust risk. Consider trading for more reliable assets if risk-averse.
+                              </div>
+                            )}
+                            {(player.elitePct ?? 0) < 30 && (player.bustPct ?? 0) < 40 && Math.abs(player.trend30Day ?? 0) <= 5 && (
+                              <div className="p-2 bg-muted/50 rounded text-muted-foreground">
+                                Stable value, moderate upside. Fair trade target at current price.
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
                   </ScrollArea>
                 </TabsContent>
