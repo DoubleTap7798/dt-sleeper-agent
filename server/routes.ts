@@ -4311,29 +4311,29 @@ Return ONLY valid JSON, no other text.`;
   app.get("/api/nfl/key-dates", async (_req: Request, res: Response) => {
     try {
       const keyDates = [
-        { date: "2025-02-06", event: "Super Bowl LIX", description: "Super Bowl LIX at Caesars Superdome, New Orleans", category: "postseason" },
-        { date: "2025-02-10", event: "Franchise Tag Window Opens", description: "Teams can begin designating franchise/transition tags", category: "offseason" },
-        { date: "2025-02-24", event: "NFL Combine Begins", description: "NFL Scouting Combine at Lucas Oil Stadium, Indianapolis", category: "draft" },
-        { date: "2025-03-12", event: "Free Agency Begins", description: "New league year and free agency officially open", category: "offseason" },
-        { date: "2025-04-24", event: "NFL Draft Round 1", description: "2025 NFL Draft begins in Green Bay, Wisconsin", category: "draft" },
-        { date: "2025-04-25", event: "NFL Draft Rounds 2-3", description: "Day 2 of the 2025 NFL Draft", category: "draft" },
-        { date: "2025-04-26", event: "NFL Draft Rounds 4-7", description: "Final day of the 2025 NFL Draft", category: "draft" },
-        { date: "2025-05-01", event: "Rookie Minicamp Window", description: "Teams can hold rookie minicamps", category: "offseason" },
-        { date: "2025-06-17", event: "Mandatory Minicamp", description: "Teams hold mandatory minicamps", category: "offseason" },
-        { date: "2025-07-22", event: "Training Camp Opens", description: "Veteran players report for training camp", category: "offseason" },
-        { date: "2025-08-02", event: "Hall of Fame Game", description: "NFL preseason kicks off with Hall of Fame Game", category: "preseason" },
-        { date: "2025-09-04", event: "Regular Season Kickoff", description: "2025 NFL regular season begins", category: "regular" },
-        { date: "2025-09-05", event: "Sleeper Leagues Begin", description: "Fantasy football regular season starts", category: "fantasy" },
-        { date: "2025-10-28", event: "NFL Trade Deadline", description: "Last day for in-season trades", category: "regular" },
-        { date: "2025-11-25", event: "Thanksgiving Games", description: "Thanksgiving Day NFL games", category: "regular" },
-        { date: "2025-12-22", event: "Fantasy Playoffs Begin", description: "Most fantasy leagues begin playoff rounds", category: "fantasy" },
-        { date: "2026-01-04", event: "Regular Season Ends", description: "Final week of the 2025 regular season", category: "regular" },
-        { date: "2026-01-10", event: "Wild Card Round", description: "NFL Playoff Wild Card Weekend", category: "postseason" },
-        { date: "2026-01-17", event: "Divisional Round", description: "NFL Playoff Divisional Round", category: "postseason" },
-        { date: "2026-01-25", event: "Conference Championships", description: "AFC and NFC Championship Games", category: "postseason" },
         { date: "2026-02-08", event: "Super Bowl LX", description: "Super Bowl LX at Levi's Stadium, Santa Clara", category: "postseason" },
+        { date: "2026-02-16", event: "Franchise Tag Window Opens", description: "Teams can begin designating franchise/transition tags", category: "offseason" },
+        { date: "2026-02-23", event: "NFL Combine Begins", description: "NFL Scouting Combine at Lucas Oil Stadium, Indianapolis", category: "draft" },
+        { date: "2026-03-18", event: "Free Agency Begins", description: "New league year and free agency officially open", category: "offseason" },
+        { date: "2026-04-23", event: "NFL Draft Round 1", description: "2026 NFL Draft begins in Pittsburgh, Pennsylvania", category: "draft" },
+        { date: "2026-04-24", event: "NFL Draft Rounds 2-3", description: "Day 2 of the 2026 NFL Draft", category: "draft" },
+        { date: "2026-04-25", event: "NFL Draft Rounds 4-7", description: "Final day of the 2026 NFL Draft", category: "draft" },
+        { date: "2026-05-04", event: "Rookie Minicamp Window", description: "Teams can hold rookie minicamps", category: "offseason" },
+        { date: "2026-06-15", event: "Mandatory Minicamp", description: "Teams hold mandatory minicamps", category: "offseason" },
+        { date: "2026-07-21", event: "Training Camp Opens", description: "Veteran players report for training camp", category: "offseason" },
+        { date: "2026-08-01", event: "Hall of Fame Game", description: "NFL preseason kicks off with Hall of Fame Game", category: "preseason" },
+        { date: "2026-09-10", event: "Regular Season Kickoff", description: "2026 NFL regular season begins", category: "regular" },
+        { date: "2026-09-11", event: "Sleeper Leagues Begin", description: "Fantasy football regular season starts", category: "fantasy" },
+        { date: "2026-11-03", event: "NFL Trade Deadline", description: "Last day for in-season trades", category: "regular" },
+        { date: "2026-11-26", event: "Thanksgiving Games", description: "Thanksgiving Day NFL games", category: "regular" },
+        { date: "2026-12-21", event: "Fantasy Playoffs Begin", description: "Most fantasy leagues begin playoff rounds", category: "fantasy" },
+        { date: "2027-01-03", event: "Regular Season Ends", description: "Final week of the 2026 regular season", category: "regular" },
+        { date: "2027-01-09", event: "Wild Card Round", description: "NFL Playoff Wild Card Weekend", category: "postseason" },
+        { date: "2027-01-16", event: "Divisional Round", description: "NFL Playoff Divisional Round", category: "postseason" },
+        { date: "2027-01-24", event: "Conference Championships", description: "AFC and NFC Championship Games", category: "postseason" },
+        { date: "2027-02-07", event: "Super Bowl LXI", description: "Super Bowl LXI at SoFi Stadium, Inglewood", category: "postseason" },
       ];
-      res.json({ season: "2025-2026", dates: keyDates });
+      res.json({ season: "2026-2027", dates: keyDates });
     } catch (error) {
       console.error("Error fetching key dates:", error);
       res.status(500).json({ message: "Failed to fetch key dates" });
@@ -4343,7 +4343,7 @@ Return ONLY valid JSON, no other text.`;
   app.get("/api/nfl/schedule", async (req: Request, res: Response) => {
     try {
       const week = parseInt(req.query.week as string) || 1;
-      const season = 2025;
+      const season = 2026;
       const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${week}&dates=${season}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error("ESPN API error");
@@ -4395,7 +4395,7 @@ Return ONLY valid JSON, no other text.`;
 
   app.get("/api/nfl/standings", async (_req: Request, res: Response) => {
     try {
-      const url = "https://site.api.espn.com/apis/v2/sports/football/nfl/standings?season=2025";
+      const url = "https://site.api.espn.com/apis/v2/sports/football/nfl/standings?season=2026";
       const response = await fetch(url);
       if (!response.ok) throw new Error("ESPN API error");
       const data = await response.json() as any;
@@ -4454,7 +4454,7 @@ Return ONLY valid JSON, no other text.`;
         }
       }
       
-      res.json({ season: 2025, divisions });
+      res.json({ season: 2026, divisions });
     } catch (error) {
       console.error("Error fetching NFL standings:", error);
       res.status(500).json({ message: "Failed to fetch NFL standings" });
