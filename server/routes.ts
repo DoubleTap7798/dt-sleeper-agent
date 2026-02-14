@@ -7280,6 +7280,186 @@ Return JSON with: {starters: [...], bench: [...], suggestions: [...], overallAna
     }
   });
 
+  // Matchup History - Last 5 games a player played vs a specific opponent
+  app.get("/api/fantasy/matchup-history/:playerId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { playerId } = req.params;
+      const { opponent, leagueId } = req.query;
+
+      if (!opponent || !leagueId) {
+        return res.status(400).json({ message: "opponent and leagueId required" });
+      }
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const player = allPlayers[playerId];
+      if (!player) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+
+      const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
+      const position = player.position || "?";
+
+      const league = await sleeperApi.getLeague(leagueId as string);
+      const scoring = league?.scoring_settings || {};
+
+      const pprValue = scoring.rec || 0;
+      const passTdPts = scoring.pass_td || 4;
+      const rushTdPts = scoring.rush_td || 6;
+      const recTdPts = scoring.rec_td || 6;
+      const passYdPts = scoring.pass_yd || 0.04;
+      const rushYdPts = scoring.rush_yd || 0.1;
+      const recYdPts = scoring.rec_yd || 0.1;
+      const passIntPts = scoring.pass_int || -1;
+      const fumLostPts = scoring.fum_lost || -2;
+      const gameLogs = await playerStatsService.getPlayerGameLogs(playerId, playerName);
+
+      const normalizeTeam = (t: string) => t.replace(/^(vs\.?\s*|@\s*)/i, "").replace(/\s*\(.*\)/, "").trim().toUpperCase();
+      const opponentAbbrev = normalizeTeam(opponent as string);
+
+      const matchedGames = gameLogs
+        .filter(g => normalizeTeam(g.opponent) === opponentAbbrev)
+        .slice(0, 5);
+
+      const bonusRecTe = scoring.bonus_rec_te || 0;
+      const bonusRecRb = scoring.bonus_rec_rb || 0;
+      const bonusRecWr = scoring.bonus_rec_wr || 0;
+      const bonus100Rushing = scoring.bonus_rush_yd_100 || 0;
+      const bonus100Receiving = scoring.bonus_rec_yd_100 || 0;
+      const bonus300Passing = scoring.bonus_pass_yd_300 || 0;
+
+      const calculateFantasyPoints = (stats: Record<string, number | string>): number => {
+        let pts = 0;
+        const n = (key: string) => {
+          const v = stats[key];
+          return typeof v === "number" ? v : parseFloat(String(v)) || 0;
+        };
+
+        const passYds = n("passingYards") || n("PYDS") || n("YDS");
+        const passTds = n("passingTouchdowns") || n("PTD") || n("TD");
+        const ints = n("interceptions") || n("INT");
+        const rushYds = n("rushingYards") || n("RYDS");
+        const rushTds = n("rushingTouchdowns") || n("RTD");
+        const recYds = n("receivingYards") || n("RECYDS");
+        const recTds = n("receivingTouchdowns") || n("RECTD");
+        const receptions = n("receptions") || n("REC");
+        const fumbles = n("fumbles") || n("FUM") || n("fumblesLost");
+
+        if (position === "QB") {
+          pts += passYds * passYdPts;
+          pts += passTds * passTdPts;
+          pts += ints * passIntPts;
+          pts += rushYds * rushYdPts;
+          pts += rushTds * rushTdPts;
+          pts += receptions * pprValue;
+          pts += recYds * recYdPts;
+          pts += fumbles * fumLostPts;
+          if (passYds >= 300) pts += bonus300Passing;
+        } else if (position === "RB") {
+          pts += rushYds * rushYdPts;
+          pts += rushTds * rushTdPts;
+          pts += receptions * (pprValue + bonusRecRb);
+          pts += recYds * recYdPts;
+          pts += recTds * recTdPts;
+          pts += fumbles * fumLostPts;
+          if (rushYds >= 100) pts += bonus100Rushing;
+          if (recYds >= 100) pts += bonus100Receiving;
+        } else if (position === "WR") {
+          pts += receptions * (pprValue + bonusRecWr);
+          pts += recYds * recYdPts;
+          pts += recTds * recTdPts;
+          pts += rushYds * rushYdPts;
+          pts += rushTds * rushTdPts;
+          pts += fumbles * fumLostPts;
+          if (recYds >= 100) pts += bonus100Receiving;
+          if (rushYds >= 100) pts += bonus100Rushing;
+        } else if (position === "TE") {
+          pts += receptions * (pprValue + bonusRecTe);
+          pts += recYds * recYdPts;
+          pts += recTds * recTdPts;
+          pts += rushYds * rushYdPts;
+          pts += rushTds * rushTdPts;
+          pts += fumbles * fumLostPts;
+          if (recYds >= 100) pts += bonus100Receiving;
+        }
+
+        return Math.round(pts * 10) / 10;
+      };
+
+      const games = matchedGames.map(g => {
+        const stats = g.stats;
+        const fantasyPts = calculateFantasyPoints(stats);
+
+        const keyStats: Record<string, number> = {};
+        const n = (key: string) => {
+          const v = stats[key];
+          return typeof v === "number" ? v : parseFloat(String(v)) || 0;
+        };
+
+        if (position === "QB") {
+          keyStats.passYds = n("passingYards") || n("YDS");
+          keyStats.passTds = n("passingTouchdowns") || n("TD");
+          keyStats.ints = n("interceptions") || n("INT");
+          keyStats.rushYds = n("rushingYards");
+          keyStats.rushTds = n("rushingTouchdowns");
+        } else if (position === "RB") {
+          keyStats.rushYds = n("rushingYards") || n("YDS");
+          keyStats.rushTds = n("rushingTouchdowns") || n("TD");
+          keyStats.carries = n("rushingAttempts") || n("CAR");
+          keyStats.receptions = n("receptions") || n("REC");
+          keyStats.recYds = n("receivingYards");
+          keyStats.recTds = n("receivingTouchdowns");
+        } else if (position === "WR" || position === "TE") {
+          keyStats.receptions = n("receptions") || n("REC");
+          keyStats.recYds = n("receivingYards") || n("YDS");
+          keyStats.recTds = n("receivingTouchdowns") || n("TD");
+          keyStats.targets = n("receivingTargets") || n("TAR");
+          keyStats.rushYds = n("rushingYards");
+        }
+
+        return {
+          season: g.season,
+          week: g.week,
+          date: g.date,
+          homeAway: g.homeAway,
+          result: g.result,
+          score: g.score,
+          fantasyPoints: fantasyPts,
+          keyStats,
+        };
+      });
+
+      const avgFantasyPts = games.length > 0
+        ? Math.round((games.reduce((s, g) => s + g.fantasyPoints, 0) / games.length) * 10) / 10
+        : 0;
+
+      let verdict: "strong_start" | "average" | "tough_matchup" | "no_data" = "no_data";
+      if (games.length > 0) {
+        if (avgFantasyPts >= 15 && position === "QB") verdict = "strong_start";
+        else if (avgFantasyPts >= 12 && (position === "RB" || position === "WR")) verdict = "strong_start";
+        else if (avgFantasyPts >= 10 && position === "TE") verdict = "strong_start";
+        else if (avgFantasyPts >= 10 && position === "QB") verdict = "average";
+        else if (avgFantasyPts >= 7 && (position === "RB" || position === "WR")) verdict = "average";
+        else if (avgFantasyPts >= 5 && position === "TE") verdict = "average";
+        else verdict = "tough_matchup";
+      }
+
+      res.json({
+        playerName,
+        position,
+        team: player.team,
+        opponent: opponentAbbrev,
+        gamesFound: games.length,
+        games,
+        avgFantasyPts,
+        verdict,
+        scoringType: pprValue >= 1 ? "PPR" : pprValue >= 0.5 ? "Half PPR" : "Standard",
+      });
+    } catch (error) {
+      console.error("Error fetching matchup history:", error);
+      res.status(500).json({ message: "Failed to fetch matchup history" });
+    }
+  });
+
   // Advanced Projections - ROS outlook
   // ROS Projections (Premium)
   app.get("/api/fantasy/projections", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
