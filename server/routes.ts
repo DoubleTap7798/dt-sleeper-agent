@@ -9994,8 +9994,54 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         }
       }
 
+      // Determine if league supports IDP positions based on roster_positions
+      const leagueRosterPositions = league?.roster_positions || [];
+      const IDP_ROSTER_SLOTS = ["DL", "LB", "DB", "IDP_FLEX", "EDGE", "DL1T", "DL3T", "DL5T", "ILB", "CB", "S"];
+      const IDP_POSITION_GROUPS = new Set(["EDGE", "DL", "LB", "CB", "S"]);
+      const hasIDPSlots = leagueRosterPositions.some((pos: string) => IDP_ROSTER_SLOTS.includes(pos));
+
       // Analyze roster needs - include BOTH existing roster AND user's draft picks from this draft
       const positionCounts: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+      
+      // Add IDP position tracking if league has IDP slots
+      if (hasIDPSlots) {
+        // Count IDP roster slot targets from league settings
+        for (const pos of leagueRosterPositions) {
+          if (IDP_ROSTER_SLOTS.includes(pos)) {
+            // Map IDP slots to trackable position groups
+            if (pos === "DL" || pos === "DL1T" || pos === "DL3T" || pos === "DL5T") {
+              if (!positionCounts["DL"]) positionCounts["DL"] = 0;
+            } else if (pos === "LB" || pos === "ILB") {
+              if (!positionCounts["LB"]) positionCounts["LB"] = 0;
+            } else if (pos === "DB" || pos === "CB") {
+              if (!positionCounts["CB"]) positionCounts["CB"] = 0;
+            } else if (pos === "S") {
+              if (!positionCounts["S"]) positionCounts["S"] = 0;
+            } else if (pos === "EDGE") {
+              if (!positionCounts["EDGE"]) positionCounts["EDGE"] = 0;
+            } else if (pos === "IDP_FLEX") {
+              // IDP_FLEX can be filled by any IDP - ensure all IDP groups are tracked
+              if (!positionCounts["DL"]) positionCounts["DL"] = 0;
+              if (!positionCounts["LB"]) positionCounts["LB"] = 0;
+              if (!positionCounts["CB"]) positionCounts["CB"] = 0;
+              if (!positionCounts["S"]) positionCounts["S"] = 0;
+              if (!positionCounts["EDGE"]) positionCounts["EDGE"] = 0;
+            }
+          }
+        }
+      }
+      
+      // Map specific IDP positions to their tracked group
+      const mapToIDPGroup = (pos: string): string => {
+        if (["DL", "DE", "DT", "DL1T", "DL3T", "DL5T"].includes(pos)) return "DL";
+        if (["LB", "ILB", "OLB"].includes(pos)) return "LB";
+        if (["CB"].includes(pos)) return "CB";
+        if (["S", "SS", "FS"].includes(pos)) return "S";
+        if (["EDGE"].includes(pos)) return "EDGE";
+        if (["DB"].includes(pos)) return "CB"; // DB maps to CB group
+        return pos;
+      };
+      
       const rosterPlayers: any[] = [];
       const countedPlayerIds = new Set<string>(); // Prevent double-counting
       
@@ -10005,7 +10051,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           countedPlayerIds.add(playerId);
           const player = allPlayers[playerId];
           if (player?.position) {
-            positionCounts[player.position] = (positionCounts[player.position] || 0) + 1;
+            const countPos = hasIDPSlots && IDP_POSITION_GROUPS.has(player.position) 
+              ? mapToIDPGroup(player.position) 
+              : player.position;
+            positionCounts[countPos] = (positionCounts[countPos] || 0) + 1;
             const playerStats = stats?.[playerId] || {};
             const gp = (playerStats as any).gp || 0;
             rosterPlayers.push({
@@ -10023,17 +10072,19 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       for (const pick of userDraftPicks) {
         if (countedPlayerIds.has(pick.playerId)) continue; // Skip duplicates
         
-        if (pick.position && positionCounts[pick.position] !== undefined) {
-          countedPlayerIds.add(pick.playerId);
-          positionCounts[pick.position]++;
-          rosterPlayers.push({
-            id: pick.playerId,
-            name: pick.name,
-            position: pick.position,
-            age: allPlayers[pick.playerId]?.age,
-            ppg: 0,
-          });
-        }
+        const countPos = hasIDPSlots && IDP_POSITION_GROUPS.has(pick.position)
+          ? mapToIDPGroup(pick.position)
+          : pick.position;
+        
+        countedPlayerIds.add(pick.playerId);
+        positionCounts[countPos] = (positionCounts[countPos] || 0) + 1;
+        rosterPlayers.push({
+          id: pick.playerId,
+          name: pick.name,
+          position: pick.position,
+          age: allPlayers[pick.playerId]?.age,
+          ppg: 0,
+        });
       }
 
       // Calculate roster age average
@@ -10041,17 +10092,41 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       const avgAge = ages.length > 0 ? ages.reduce((a, b) => a + b, 0) / ages.length : 0;
 
       // Determine biggest needs based on position counts
+      // Calculate IDP slot targets from league roster settings
+      const idpSlotCounts: Record<string, number> = {};
+      if (hasIDPSlots) {
+        for (const pos of leagueRosterPositions) {
+          if (pos === "DL" || pos === "DL1T" || pos === "DL3T" || pos === "DL5T") {
+            idpSlotCounts["DL"] = (idpSlotCounts["DL"] || 0) + 1;
+          } else if (pos === "LB" || pos === "ILB") {
+            idpSlotCounts["LB"] = (idpSlotCounts["LB"] || 0) + 1;
+          } else if (pos === "DB" || pos === "CB") {
+            idpSlotCounts["CB"] = (idpSlotCounts["CB"] || 0) + 1;
+          } else if (pos === "S") {
+            idpSlotCounts["S"] = (idpSlotCounts["S"] || 0) + 1;
+          } else if (pos === "EDGE") {
+            idpSlotCounts["EDGE"] = (idpSlotCounts["EDGE"] || 0) + 1;
+          }
+        }
+      }
+      
       const needs: string[] = [];
       if (positionCounts.QB < 2 && isSuperflex) needs.push("QB");
       if (positionCounts.RB < 4) needs.push("RB");
       if (positionCounts.WR < 5) needs.push("WR");
       if (positionCounts.TE < 2) needs.push("TE");
-
-      // Determine if league supports IDP positions based on roster_positions
-      const leagueRosterPositions = league?.roster_positions || [];
-      const IDP_ROSTER_SLOTS = ["DL", "LB", "DB", "IDP_FLEX", "EDGE", "DL1T", "DL3T", "DL5T", "ILB", "CB", "S"];
-      const IDP_POSITION_GROUPS = new Set(["EDGE", "DL", "LB", "CB", "S"]);
-      const hasIDPSlots = leagueRosterPositions.some((pos: string) => IDP_ROSTER_SLOTS.includes(pos));
+      
+      // Add IDP needs if league has IDP slots
+      if (hasIDPSlots) {
+        for (const [idpPos, slotCount] of Object.entries(idpSlotCounts)) {
+          const currentCount = positionCounts[idpPos] || 0;
+          // Need at least 1.5x the required starters for depth
+          const targetCount = Math.ceil(slotCount * 1.5);
+          if (currentCount < targetCount) {
+            needs.push(idpPos);
+          }
+        }
+      }
 
       // Get available players (not drafted yet)
       const draftedPlayerIds = new Set(draftPicks.map(p => p.player_id));
@@ -10205,25 +10280,60 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         const leagueScoring = dynastyEngine.parseLeagueScoringSettings(league);
         const rosterSettings = dynastyEngine.parseLeagueRosterSettings(league);
         
+        // Determine allowed positions: always include offensive + IDP if league has IDP slots
+        const OFFENSIVE_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
+        const IDP_POSITIONS_SET = new Set(["DL", "LB", "DB", "EDGE", "CB", "S", "DE", "DT", "ILB", "OLB", "SS", "FS"]);
+        const allowedPositions = new Set(OFFENSIVE_POSITIONS);
+        if (hasIDPSlots) {
+          Array.from(IDP_POSITIONS_SET).forEach(pos => allowedPositions.add(pos));
+        }
+        
+        // Build a set of drafted player names for secondary matching (handles edge cases)
+        const draftedStartupNames = new Set<string>();
+        for (const pick of draftPicks) {
+          const p = allPlayers[pick.player_id];
+          if (p?.full_name) draftedStartupNames.add(p.full_name.toLowerCase().trim());
+          if (pick.metadata?.first_name && pick.metadata?.last_name) {
+            draftedStartupNames.add(`${pick.metadata.first_name} ${pick.metadata.last_name}`.toLowerCase().trim());
+          }
+        }
+        
         for (const [playerId, player] of Object.entries(allPlayers)) {
           if (draftedPlayerIds.has(playerId)) continue;
           if (!player || !player.position) continue;
-          if (!["QB", "RB", "WR", "TE"].includes(player.position)) continue;
+          if (!allowedPositions.has(player.position)) continue;
+          
+          // Filter out rookies/undrafted players that aren't real NFL contributors
+          // In startup drafts, we only want established NFL players
+          const yearsExp = player.years_exp || 0;
+          const hasTeam = player.team && player.team !== "";
+          const playerStatus = player.status;
+          
+          // Skip players with no NFL experience AND no current team (likely college/undrafted prospects)
+          if (yearsExp === 0 && !hasTeam) continue;
+          // Skip inactive/retired players with no team
+          if (!hasTeam && playerStatus === "Inactive") continue;
+          
+          // Secondary drafted player name check (catches cases where player ID doesn't match)
+          const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
+          if (draftedStartupNames.has(playerName.toLowerCase().trim())) continue;
           
           const playerStats = stats?.[playerId] || {};
           const gamesPlayed = playerStats.gp || 0;
           const ppg = gamesPlayed > 0 ? (playerStats.pts_ppr || 0) / gamesPlayed : 0;
-          const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
           
           // Look up consensus value from DynastyProcess/KTC
           const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, player.position, isSuperflex);
           
+          // Map IDP positions to their general group for dynasty value calculation
+          const posForValue = IDP_POSITIONS_SET.has(player.position) ? player.position : player.position;
+          
           const blendedValue = dynastyEngine.getBlendedPlayerValue(
             playerId,
             playerName,
-            player.position,
+            posForValue,
             player.age || null,
-            player.years_exp || 0,
+            yearsExp,
             player.injury_status || null,
             { points: playerStats.pts_ppr || 0, games: gamesPlayed, ppg },
             player.depth_chart_order || null,
@@ -10234,7 +10344,8 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           );
 
           if (blendedValue.value > 500) {
-            const needFit = needs.includes(player.position) ? "High" : "Medium";
+            const mappedPos = hasIDPSlots && IDP_POSITIONS_SET.has(player.position) ? mapToIDPGroup(player.position) : player.position;
+            const needFit = needs.includes(player.position) || needs.includes(mappedPos) ? "High" : "Medium";
             
             availablePlayers.push({
               playerId,
@@ -10283,7 +10394,16 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       // Get top recommendations by category
       const bestValue = availablePlayers.slice(0, 5);
       const bestForNeeds = availablePlayers
-        .filter(p => needs.includes(p.position) || needs.includes(p.position === 'WRS' ? 'WR' : p.position))
+        .filter(p => {
+          if (needs.includes(p.position)) return true;
+          if (p.position === 'WRS' && needs.includes('WR')) return true;
+          // Map IDP positions to their tracked group for need matching
+          if (hasIDPSlots) {
+            const mapped = mapToIDPGroup(p.position);
+            if (needs.includes(mapped)) return true;
+          }
+          return false;
+        })
         .slice(0, 5);
       const bestUpside = isRookieDraft
         ? availablePlayers
@@ -10343,6 +10463,8 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           needs,
           avgAge: Math.round(avgAge * 10) / 10,
           profile: avgAge > 27 ? "Contender" : avgAge < 25 ? "Rebuild" : "Balanced",
+          hasIDP: hasIDPSlots,
+          idpSlotTargets: hasIDPSlots ? idpSlotCounts : undefined,
         },
         positionalRuns: activeRuns,
         mode,
@@ -10400,7 +10522,6 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           })
           .sort((a, b) => a.pickNo - b.pickNo),
         myPicks: userDraftPicks.sort((a, b) => a.pickNo - b.pickNo),
-        mode,
       });
     } catch (error) {
       console.error("Error generating draft recommendations:", error);

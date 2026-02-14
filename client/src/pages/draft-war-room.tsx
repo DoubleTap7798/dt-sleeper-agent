@@ -105,6 +105,8 @@ interface DraftRecommendationsResponse {
     needs: string[];
     avgAge: number;
     profile: string;
+    hasIDP?: boolean;
+    idpSlotTargets?: Record<string, number>;
   };
   positionalRuns: { position: string; count: number }[];
   draft: {
@@ -220,8 +222,22 @@ function ValueDropAlert({ player }: { player: ValueDrop }) {
 }
 
 function RosterBuildVisual({ analysis }: { analysis: DraftRecommendationsResponse["rosterAnalysis"] }) {
-  const positions = ["QB", "RB", "WR", "TE"];
-  const targets = { QB: 2, RB: 6, WR: 8, TE: 2 };
+  const offensivePositions = ["QB", "RB", "WR", "TE"];
+  const offensiveTargets: Record<string, number> = { QB: 2, RB: 6, WR: 8, TE: 2 };
+  
+  const idpPositions = analysis.hasIDP 
+    ? Object.keys(analysis.idpSlotTargets || {}).filter(pos => !offensivePositions.includes(pos))
+    : [];
+  
+  const getTarget = (pos: string): number => {
+    if (offensiveTargets[pos]) return offensiveTargets[pos];
+    if (analysis.idpSlotTargets?.[pos]) {
+      return Math.ceil(analysis.idpSlotTargets[pos] * 1.5);
+    }
+    return 2;
+  };
+  
+  const allPositions = [...offensivePositions, ...idpPositions];
   
   return (
     <Card data-testid="card-roster-build">
@@ -232,24 +248,26 @@ function RosterBuildVisual({ analysis }: { analysis: DraftRecommendationsRespons
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {positions.map(pos => {
+        {allPositions.map(pos => {
           const count = analysis.positionCounts[pos] || 0;
-          const target = targets[pos as keyof typeof targets];
+          const target = getTarget(pos);
           const pct = Math.min(100, (count / target) * 100);
           const isNeed = analysis.needs.includes(pos);
+          const isIDP = idpPositions.includes(pos);
           
           return (
             <div key={pos} className="space-y-1" data-testid={`roster-position-${pos}`}>
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className={`font-medium ${isNeed ? "text-yellow-400" : ""}`}>
                   {pos} {isNeed && "(Need)"}
+                  {isIDP && <span className="text-muted-foreground font-normal ml-1">IDP</span>}
                 </span>
                 <span className="text-muted-foreground">{count}/{target}</span>
               </div>
               <div className="h-2 bg-secondary rounded-full overflow-hidden">
                 <div 
                   className={`h-full transition-all ${
-                    isNeed ? "bg-yellow-500" : "bg-primary"
+                    isNeed ? "bg-yellow-500" : isIDP ? "bg-purple-500" : "bg-primary"
                   }`}
                   style={{ width: `${pct}%` }}
                 />
