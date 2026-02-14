@@ -5261,6 +5261,10 @@ ${fantasyOutlookSection}
 
       // Check if league is Superflex/2QB
       const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+      
+      // Check if league is a startup (hasn't completed startup draft yet)
+      const isStartup = dynastyEngine.isLeagueStartup(league, drafts);
+      const startupRounds = isStartup ? dynastyEngine.getStartupRoundCount(league) : 0;
 
       if (!rosters || rosters.length === 0) {
         return res.json({ rosters: [] });
@@ -5412,22 +5416,19 @@ ${fantasyOutlookSection}
           }
         }
 
-        // Add standard future picks (current year + 2 years, rounds 1-4)
-        // A roster owns their own pick UNLESS it's been traded away (owner_id !== roster.roster_id)
+        // Add draft picks based on league type
         const currentYear = new Date().getFullYear();
         const currentPicks = new Set(picks.map((p) => p.id));
-        [String(currentYear), String(currentYear + 1), String(currentYear + 2)].forEach((season) => {
-          [1, 2, 3, 4].forEach((round) => {
-            const id = `${season}-${round}-${roster.roster_id}`;
-            // Check if this roster's own pick has been traded away
-            const ownership = pickOwnershipMap.get(id);
-            const tradedAway = ownership && ownership.owner_id !== roster.roster_id;
-            if (!currentPicks.has(id) && !tradedAway) {
-              // Get pick position from actual slot or default to mid
-              const thisPickPosition = getPickPosition(roster.roster_id, season);
-              const pickValue = dynastyEngine.getDraftPickValue(season, round, thisPickPosition);
-              // Use actual slot display if available (e.g., "1.06"), otherwise show position label
-              const slotDisplay = getActualSlotDisplay(roster.roster_id, season, round);
+        
+        if (isStartup) {
+          // Startup league: generate all startup draft rounds
+          const totalStartupRounds = startupRounds || 25;
+          for (let round = 1; round <= totalStartupRounds; round++) {
+            const id = `startup-${round}-${roster.roster_id}`;
+            if (!currentPicks.has(id)) {
+              const thisPickPosition = getPickPosition(roster.roster_id, String(currentYear));
+              const pickValue = dynastyEngine.getStartupDraftPickValue(round, thisPickPosition);
+              const slotDisplay = getActualSlotDisplay(roster.roster_id, String(currentYear), round);
               const pickLabel = slotDisplay || `${thisPickPosition.charAt(0).toUpperCase() + thisPickPosition.slice(1)} ${pickValue.displayName}`;
               picks.push({
                 id,
@@ -5437,8 +5438,55 @@ ${fantasyOutlookSection}
                 pickPosition: thisPickPosition,
               });
             }
+          }
+          // Also add future rookie picks (next 2 years, rounds 1-4)
+          [String(currentYear + 1), String(currentYear + 2)].forEach((season) => {
+            [1, 2, 3, 4].forEach((round) => {
+              const id = `${season}-${round}-${roster.roster_id}`;
+              const ownership = pickOwnershipMap.get(id);
+              const tradedAway = ownership && ownership.owner_id !== roster.roster_id;
+              if (!currentPicks.has(id) && !tradedAway) {
+                const thisPickPosition = getPickPosition(roster.roster_id, season);
+                const pickValue = dynastyEngine.getDraftPickValue(season, round, thisPickPosition);
+                const slotDisplay = getActualSlotDisplay(roster.roster_id, season, round);
+                const pickLabel = slotDisplay || `${thisPickPosition.charAt(0).toUpperCase() + thisPickPosition.slice(1)} ${pickValue.displayName}`;
+                picks.push({
+                  id,
+                  name: pickLabel,
+                  type: "pick" as const,
+                  value: pickValue.value,
+                  pickPosition: thisPickPosition,
+                });
+              }
+            });
           });
-        });
+        } else {
+          // Established league: standard rookie picks (current year + 2 years, rounds 1-4)
+          // A roster owns their own pick UNLESS it's been traded away (owner_id !== roster.roster_id)
+          [String(currentYear), String(currentYear + 1), String(currentYear + 2)].forEach((season) => {
+            [1, 2, 3, 4].forEach((round) => {
+              const id = `${season}-${round}-${roster.roster_id}`;
+              // Check if this roster's own pick has been traded away
+              const ownership = pickOwnershipMap.get(id);
+              const tradedAway = ownership && ownership.owner_id !== roster.roster_id;
+              if (!currentPicks.has(id) && !tradedAway) {
+                // Get pick position from actual slot or default to mid
+                const thisPickPosition = getPickPosition(roster.roster_id, season);
+                const pickValue = dynastyEngine.getDraftPickValue(season, round, thisPickPosition);
+                // Use actual slot display if available (e.g., "1.06"), otherwise show position label
+                const slotDisplay = getActualSlotDisplay(roster.roster_id, season, round);
+                const pickLabel = slotDisplay || `${thisPickPosition.charAt(0).toUpperCase() + thisPickPosition.slice(1)} ${pickValue.displayName}`;
+                picks.push({
+                  id,
+                  name: pickLabel,
+                  type: "pick" as const,
+                  value: pickValue.value,
+                  pickPosition: thisPickPosition,
+                });
+              }
+            });
+          });
+        }
 
         return {
           rosterId: roster.roster_id,
@@ -5449,7 +5497,7 @@ ${fantasyOutlookSection}
         };
       });
 
-      res.json({ rosters: rostersWithAssets });
+      res.json({ rosters: rostersWithAssets, isStartup, startupRounds: isStartup ? startupRounds : undefined });
     } catch (error) {
       console.error("Error fetching rosters:", error);
       res.status(500).json({ message: "Failed to fetch rosters" });

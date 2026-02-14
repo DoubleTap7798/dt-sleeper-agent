@@ -41,6 +41,8 @@ interface RosterWithOwner {
 interface TradeData {
   rosters: RosterWithOwner[];
   availablePicks: TradeAsset[];
+  isStartup?: boolean;
+  startupRounds?: number;
 }
 
 interface ECRPlayer {
@@ -196,7 +198,10 @@ export default function TradeCalculatorPage() {
                   <li>Injury status — injured players have temporarily reduced values</li>
                 </ul>
                 <p>
-                  <strong>Draft picks</strong> start with base values (1st round = 8,000, 2nd = 5,500, 3rd = 3,500, 4th = 1,800) and decrease slightly for future years since there's more uncertainty.
+                  <strong>Rookie draft picks</strong> start with base values (1st round = 8,000, 2nd = 5,500, 3rd = 3,500, 4th = 1,800) and decrease slightly for future years since there's more uncertainty.
+                </p>
+                <p>
+                  <strong>Startup draft picks</strong> are valued differently — early startup picks are worth significantly more (1st round up to 9,800) since you're drafting proven NFL players, not just rookies. Values taper off through all roster rounds.
                 </p>
               </CardContent>
             </Card>
@@ -214,6 +219,7 @@ export default function TradeCalculatorPage() {
           onTeamChange={(id) => handleTeamChange("A", id)}
           onAddAsset={(asset) => addAsset("A", asset)}
           onRemoveAsset={(id) => removeAsset("A", id)}
+          isStartup={data?.isStartup}
         />
 
         <TradeSide
@@ -225,6 +231,7 @@ export default function TradeCalculatorPage() {
           onTeamChange={(id) => handleTeamChange("B", id)}
           onAddAsset={(asset) => addAsset("B", asset)}
           onRemoveAsset={(id) => removeAsset("B", id)}
+          isStartup={data?.isStartup}
         />
       </div>
 
@@ -641,6 +648,7 @@ interface TradeSideProps {
   onTeamChange: (id: string) => void;
   onAddAsset: (asset: TradeAsset) => void;
   onRemoveAsset: (id: string) => void;
+  isStartup?: boolean;
 }
 
 function TradeSide({
@@ -652,6 +660,7 @@ function TradeSide({
   onTeamChange,
   onAddAsset,
   onRemoveAsset,
+  isStartup,
 }: TradeSideProps) {
   const availableRosters = rosters.filter((r) => r.ownerId !== otherTeamId);
   const totalValue = selectedAssets.reduce((sum, a) => sum + a.value, 0);
@@ -755,8 +764,15 @@ function TradeSide({
               <>
                 <Separator />
                 <div>
-                  <p className="text-sm text-muted-foreground mb-2">Draft Picks:</p>
-                  <ScrollArea className="h-[120px]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-sm text-muted-foreground">
+                      {isStartup ? "Startup & Future Picks:" : "Draft Picks:"}
+                    </p>
+                    {isStartup && (
+                      <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">Startup</Badge>
+                    )}
+                  </div>
+                  <ScrollArea className={isStartup ? "h-[240px]" : "h-[120px]"}>
                     <div className="space-y-1">
                       {roster.picks
                         .filter((p) => !selectedAssets.find((a) => a.id === p.id))

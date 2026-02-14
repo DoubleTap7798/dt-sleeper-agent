@@ -701,6 +701,39 @@ const PICK_POSITION_ADJUSTMENTS: Record<string, number> = {
   late: 0.80,
 };
 
+const STARTUP_PICK_BASE_VALUES: Record<number, number> = {
+  1: 9800,
+  2: 9200,
+  3: 8500,
+  4: 7800,
+  5: 7000,
+  6: 6200,
+  7: 5500,
+  8: 4800,
+  9: 4200,
+  10: 3600,
+  11: 3100,
+  12: 2600,
+  13: 2200,
+  14: 1800,
+  15: 1500,
+  16: 1200,
+  17: 1000,
+  18: 800,
+  19: 650,
+  20: 500,
+  21: 400,
+  22: 300,
+  23: 250,
+  24: 200,
+  25: 150,
+  26: 120,
+  27: 100,
+  28: 80,
+  29: 60,
+  30: 50,
+};
+
 export function getDraftPickValue(
   season: string,
   round: number,
@@ -736,6 +769,49 @@ export function getDraftPickValue(
   };
 }
 
+export function getStartupDraftPickValue(
+  round: number,
+  pickPosition?: "early" | "mid" | "late",
+): DraftPickValue {
+  const baseValue = STARTUP_PICK_BASE_VALUES[round] || Math.max(10, 50 - (round - 30) * 5);
+  const positionMult = pickPosition ? PICK_POSITION_ADJUSTMENTS[pickPosition] : 1.0;
+  
+  let value = Math.round(Math.min(10000, baseValue * positionMult));
+  
+  const ordinal = round === 1 ? "1st" : round === 2 ? "2nd" : round === 3 ? "3rd" : `${round}th`;
+  const displayName = `Startup ${ordinal}`;
+  
+  return {
+    season: "startup",
+    round,
+    value,
+    displayName,
+  };
+}
+
+export function isLeagueStartup(league: any, drafts?: any[]): boolean {
+  if (!league) return false;
+  if (!league.previous_league_id && league.status === "pre_draft") return true;
+  if (!league.previous_league_id && league.status === "drafting") return true;
+  if (drafts && drafts.length > 0) {
+    const startupDraft = drafts.find((d: any) => {
+      const playerType = d.settings?.player_type;
+      const rounds = d.settings?.rounds || 0;
+      return playerType === 0 || rounds >= 15;
+    });
+    if (startupDraft && startupDraft.status !== "complete") return true;
+  }
+  return false;
+}
+
+export function getStartupRoundCount(league: any): number {
+  if (!league) return 25;
+  const rosterPositions = league.roster_positions || [];
+  const activeSlots = rosterPositions.filter((p: string) => p !== "BN").length;
+  const benchSlots = rosterPositions.filter((p: string) => p === "BN").length;
+  return activeSlots + benchSlots;
+}
+
 export function getAllDraftPickValues(currentYear: number = new Date().getFullYear()): DraftPickValue[] {
   const picks: DraftPickValue[] = [];
   
@@ -750,6 +826,22 @@ export function getAllDraftPickValues(currentYear: number = new Date().getFullYe
       } else {
         picks.push(getDraftPickValue(season, round, undefined, currentYear));
       }
+    }
+  }
+  
+  return picks;
+}
+
+export function getAllStartupDraftPickValues(totalRounds: number = 25): DraftPickValue[] {
+  const picks: DraftPickValue[] = [];
+  
+  for (let round = 1; round <= totalRounds; round++) {
+    if (round <= 3) {
+      picks.push(getStartupDraftPickValue(round, "early"));
+      picks.push(getStartupDraftPickValue(round, "mid"));
+      picks.push(getStartupDraftPickValue(round, "late"));
+    } else {
+      picks.push(getStartupDraftPickValue(round));
     }
   }
   
