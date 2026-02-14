@@ -7314,24 +7314,109 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
     }
   });
 
-  // Player Trends - Multi-season analysis (no auth required - public player data)
-  // Player trends (Premium)
+  // Multi-season trend analysis cache
+  let multiSeasonCache: { data: any; time: number; seasons: number[] } | null = null;
+  const MULTI_SEASON_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+  async function getMultiSeasonData() {
+    const now = Date.now();
+    if (multiSeasonCache && now - multiSeasonCache.time < MULTI_SEASON_CACHE_TTL) {
+      return multiSeasonCache;
+    }
+
+    const allPlayers = await sleeperApi.getAllPlayers();
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const latestSeason = currentMonth < 3 ? currentYear - 1 : currentYear;
+    const seasons = [latestSeason - 4, latestSeason - 3, latestSeason - 2, latestSeason - 1, latestSeason];
+
+    const seasonStatsMap: Record<number, any> = {};
+    await Promise.all(seasons.map(async (season) => {
+      try {
+        const stats = await sleeperApi.getSeasonStats(String(season), "regular");
+        seasonStatsMap[season] = stats || {};
+      } catch {
+        seasonStatsMap[season] = {};
+      }
+    }));
+
+    const positionRanksBySeason: Record<number, Record<string, Array<{ id: string; ppg: number }>>> = {};
+    for (const season of seasons) {
+      const stats = seasonStatsMap[season];
+      const byPos: Record<string, Array<{ id: string; ppg: number }>> = {};
+      for (const [pid, pStats] of Object.entries(stats)) {
+        const player = allPlayers[pid];
+        if (!player || !["QB", "RB", "WR", "TE"].includes(player.position)) continue;
+        const gp = (pStats as any).gp || 0;
+        const pts = (pStats as any).pts_ppr || 0;
+        if (gp < 4) continue;
+        const pos = player.position;
+        if (!byPos[pos]) byPos[pos] = [];
+        byPos[pos].push({ id: pid, ppg: pts / gp });
+      }
+      for (const pos of Object.keys(byPos)) {
+        byPos[pos].sort((a, b) => b.ppg - a.ppg);
+      }
+      positionRanksBySeason[season] = byPos;
+    }
+
+    multiSeasonCache = {
+      data: { allPlayers, seasonStatsMap, positionRanksBySeason },
+      time: now,
+      seasons,
+    };
+    return multiSeasonCache;
+  }
+
+  // Player trends (Premium) - Multi-season analysis with real Sleeper stats
   app.get("/api/fantasy/trends", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
-      const allPlayers = await sleeperApi.getAllPlayers();
-      
-      // Get established players sorted by search rank (best first)
-      const establishedPlayers = Object.entries(allPlayers)
-        .filter(([_, p]: [string, any]) => 
-          p && ["QB", "RB", "WR", "TE"].includes(p.position) && 
-          p.team && p.years_exp && p.years_exp >= 2 &&
-          p.search_rank && p.search_rank < 200
-        )
-        .map(([id, p]: [string, any]) => ({ id, ...p }))
-        .sort((a, b) => (a.search_rank || 999) - (b.search_rank || 999))
-        .slice(0, 50);
-      
-      // Calculate trends based on age and position curves
+      const leagueId = req.query.leagueId as string | undefined;
+      const mode = (req.query.mode as string) || "browse";
+      const searchQuery = (req.query.search as string || "").toLowerCase().trim();
+      const positionFilter = (req.query.position as string || "all").toUpperCase();
+
+      const cached = await getMultiSeasonData();
+      const { allPlayers, seasonStatsMap, positionRanksBySeason } = cached.data;
+      const seasons = cached.seasons;
+
+      let targetPlayerIds: string[] = [];
+
+      if (mode === "roster" && leagueId) {
+        const userId = req.user.claims.sub;
+        const [profile] = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId));
+        if (profile?.sleeperUsername) {
+          const sleeperUser = await sleeperApi.getSleeperUser(profile.sleeperUsername);
+          if (sleeperUser) {
+            const rosters = await sleeperApi.getLeagueRosters(leagueId);
+            const userRoster = rosters?.find(r => r.owner_id === sleeperUser.user_id);
+            targetPlayerIds = userRoster?.players || [];
+          }
+        }
+      } else {
+        const validPositions = ["QB", "RB", "WR", "TE"];
+        const candidates = Object.entries(allPlayers)
+          .filter(([_, p]: [string, any]) =>
+            p && validPositions.includes(p.position) &&
+            p.team && p.years_exp && p.years_exp >= 2 &&
+            p.search_rank && p.search_rank < 300
+          )
+          .map(([id, p]: [string, any]) => ({ id, ...p }));
+
+        let filtered = candidates;
+        if (positionFilter !== "ALL") {
+          filtered = filtered.filter(p => p.position === positionFilter);
+        }
+        if (searchQuery) {
+          filtered = filtered.filter(p =>
+            (p.full_name || "").toLowerCase().includes(searchQuery) ||
+            (p.team || "").toLowerCase().includes(searchQuery)
+          );
+        }
+        filtered.sort((a, b) => (a.search_rank || 999) - (b.search_rank || 999));
+        targetPlayerIds = filtered.slice(0, 60).map(p => p.id);
+      }
+
       const getPositionPeakAge = (pos: string) => {
         switch (pos) {
           case "QB": return { peak: 28, decline: 35 };
@@ -7341,62 +7426,119 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
           default: return { peak: 27, decline: 30 };
         }
       };
-      
-      const getBasePpg = (pos: string) => {
-        switch (pos) {
-          case "QB": return { avg: 18, high: 25, low: 12 };
-          case "RB": return { avg: 12, high: 20, low: 6 };
-          case "WR": return { avg: 14, high: 22, low: 8 };
-          case "TE": return { avg: 10, high: 16, low: 5 };
-          default: return { avg: 10, high: 15, low: 5 };
+
+      const players = targetPlayerIds.map(pid => {
+        const p = allPlayers[pid];
+        if (!p || !["QB", "RB", "WR", "TE"].includes(p.position)) return null;
+
+        const seasonData: Array<{
+          season: number;
+          games: number;
+          points: number;
+          ppg: number;
+          positionRank: number;
+          rank: number;
+        }> = [];
+
+        for (const season of seasons) {
+          const stats = seasonStatsMap[season]?.[pid];
+          if (!stats) continue;
+          const gp = (stats as any).gp || 0;
+          const pts = (stats as any).pts_ppr || 0;
+          if (gp < 1) continue;
+          const ppg = Math.round((pts / gp) * 10) / 10;
+
+          const posRanks = positionRanksBySeason[season]?.[p.position] || [];
+          const posRank = posRanks.findIndex((r: { id: string; ppg: number }) => r.id === pid) + 1;
+
+          const allPosRanks = Object.values(positionRanksBySeason[season] || {}).flat() as Array<{ id: string; ppg: number }>;
+          allPosRanks.sort((a, b) => b.ppg - a.ppg);
+          const overallRank = allPosRanks.findIndex((r) => r.id === pid) + 1;
+
+          seasonData.push({
+            season,
+            games: gp,
+            points: Math.round(pts * 10) / 10,
+            ppg,
+            positionRank: posRank || 999,
+            rank: overallRank || 999,
+          });
         }
-      };
-      
-      const players = establishedPlayers.map((p, idx) => {
+
+        if (seasonData.length === 0) return null;
+
+        const ppgValues = seasonData.map(s => s.ppg);
+        const careerHigh = Math.max(...ppgValues);
+        const careerLow = Math.min(...ppgValues);
+        const avgPpg = Math.round((ppgValues.reduce((a, b) => a + b, 0) / ppgValues.length) * 10) / 10;
+        const peakSeason = seasonData.find(s => s.ppg === careerHigh)?.season || seasons[0];
+
+        let trend: "up" | "down" | "stable" | "breakout" = "stable";
+        let trajectory = "";
         const age = p.age || 25;
         const { peak, decline } = getPositionPeakAge(p.position);
-        const basePpg = getBasePpg(p.position);
-        
-        // Determine trend based on age relative to position peak
-        let trend: "up" | "down" | "stable" = "stable";
-        let trajectory = "";
-        
-        if (age < peak - 1) {
-          trend = "up";
-          trajectory = `${p.full_name} is entering prime years at age ${age}. Expect continued development.`;
-        } else if (age > decline) {
-          trend = "down";
-          trajectory = `At ${age}, ${p.full_name} is past typical ${p.position} peak. May see gradual decline.`;
-        } else if (age >= peak - 1 && age <= peak + 2) {
-          trend = "stable";
-          trajectory = `${p.full_name} is in prime years at age ${age}. Peak production expected.`;
+
+        if (seasonData.length >= 2) {
+          const recent = seasonData.slice(-2);
+          const ppgDelta = recent[1].ppg - recent[0].ppg;
+          const pctChange = recent[0].ppg > 0 ? ppgDelta / recent[0].ppg : 0;
+
+          if (pctChange >= 0.3 && recent[1].games >= 8) {
+            trend = "breakout";
+            trajectory = `${p.full_name} broke out in ${recent[1].season} with ${recent[1].ppg} PPG (+${Math.round(pctChange * 100)}% increase).`;
+          } else if (seasonData.length >= 3) {
+            const last3 = seasonData.slice(-3);
+            const ascending = last3[2].ppg > last3[1].ppg && last3[1].ppg > last3[0].ppg;
+            const declining = last3[2].ppg < last3[1].ppg && last3[1].ppg < last3[0].ppg;
+            if (ascending) {
+              trend = "up";
+              trajectory = `${p.full_name} has shown consistent improvement over ${last3.length} seasons, trending upward at age ${age}.`;
+            } else if (declining) {
+              trend = "down";
+              trajectory = `${p.full_name} has declined over the last ${last3.length} seasons. ${age > decline ? `At ${age}, past typical ${p.position} peak.` : "May bounce back."}`;
+            } else {
+              trend = ppgDelta > 0 ? "up" : ppgDelta < -1 ? "down" : "stable";
+              trajectory = age <= peak + 2 && age >= peak - 1
+                ? `${p.full_name} is in prime years at age ${age}. Peak PPG: ${careerHigh} (${peakSeason}).`
+                : `${p.full_name} has maintained steady production. Career avg: ${avgPpg} PPG across ${seasonData.length} seasons.`;
+            }
+          } else {
+            trend = ppgDelta > 1 ? "up" : ppgDelta < -1 ? "down" : "stable";
+            trajectory = `${p.full_name} went from ${recent[0].ppg} to ${recent[1].ppg} PPG year-over-year.`;
+          }
         } else {
-          trend = "stable";
-          trajectory = `${p.full_name} remains a consistent performer entering year ${p.years_exp + 1}.`;
+          trajectory = `${p.full_name} has ${seasonData[0].games} games at ${seasonData[0].ppg} PPG in ${seasonData[0].season}.`;
         }
-        
-        // Adjust PPG based on search rank (better rank = higher production)
-        const rankMultiplier = Math.max(0.5, 1 - (p.search_rank || 100) / 400);
-        const avgPpg = Math.round((basePpg.avg * rankMultiplier + basePpg.avg) / 2 * 10) / 10;
-        const careerHigh = Math.round((basePpg.high * rankMultiplier + basePpg.high) / 2 * 10) / 10;
-        const careerLow = Math.round(basePpg.low * 10) / 10;
-        
+
+        const miniSeries = seasons.map(s => {
+          const sd = seasonData.find(d => d.season === s);
+          return sd ? sd.ppg : 0;
+        });
+
         return {
-          playerId: p.id,
+          playerId: pid,
           name: p.full_name || "Unknown",
           position: p.position || "?",
           team: p.team || "FA",
           age,
+          seasons: seasonData,
           trend,
-          avgPpg,
           careerHigh,
           careerLow,
+          avgPpg,
           trajectory,
-          seasons: [], // Would need historical data for actual seasons
+          peakSeason,
+          miniSeries,
+          yearsExp: p.years_exp || 0,
         };
-      });
+      }).filter(Boolean);
 
-      res.json({ players });
+      players.sort((a: any, b: any) => b.avgPpg - a.avgPpg);
+
+      res.json({
+        players,
+        availableSeasons: seasons,
+      });
     } catch (error) {
       console.error("Error fetching player trends:", error);
       res.status(500).json({ message: "Failed to fetch trends" });
