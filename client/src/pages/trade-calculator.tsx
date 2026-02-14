@@ -43,6 +43,8 @@ interface TradeData {
   availablePicks: TradeAsset[];
   isStartup?: boolean;
   startupRounds?: number;
+  draftType?: string;
+  reversalRound?: number;
 }
 
 interface ECRPlayer {
@@ -220,6 +222,8 @@ export default function TradeCalculatorPage() {
           onAddAsset={(asset) => addAsset("A", asset)}
           onRemoveAsset={(id) => removeAsset("A", id)}
           isStartup={data?.isStartup}
+          draftType={data?.draftType}
+          reversalRound={data?.reversalRound}
         />
 
         <TradeSide
@@ -232,6 +236,8 @@ export default function TradeCalculatorPage() {
           onAddAsset={(asset) => addAsset("B", asset)}
           onRemoveAsset={(id) => removeAsset("B", id)}
           isStartup={data?.isStartup}
+          draftType={data?.draftType}
+          reversalRound={data?.reversalRound}
         />
       </div>
 
@@ -649,6 +655,8 @@ interface TradeSideProps {
   onAddAsset: (asset: TradeAsset) => void;
   onRemoveAsset: (id: string) => void;
   isStartup?: boolean;
+  draftType?: string;
+  reversalRound?: number;
 }
 
 function TradeSide({
@@ -661,6 +669,8 @@ function TradeSide({
   onAddAsset,
   onRemoveAsset,
   isStartup,
+  draftType,
+  reversalRound,
 }: TradeSideProps) {
   const availableRosters = rosters.filter((r) => r.ownerId !== otherTeamId);
   const totalValue = selectedAssets.reduce((sum, a) => sum + a.value, 0);
@@ -769,7 +779,9 @@ function TradeSide({
                       {isStartup ? "Startup & Future Picks:" : "Draft Picks:"}
                     </p>
                     {isStartup && (
-                      <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">Startup</Badge>
+                      <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
+                        {draftType === "snake" ? (reversalRound && reversalRound > 1 ? `Snake (R${reversalRound} reversal)` : "Snake") : draftType === "linear" ? "Linear" : "Startup"}
+                      </Badge>
                     )}
                   </div>
                   <ScrollArea className={isStartup ? "h-[240px]" : "h-[120px]"}>

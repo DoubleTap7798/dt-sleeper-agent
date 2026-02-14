@@ -5319,13 +5319,45 @@ ${fantasyOutlookSection}
         return "mid";
       };
       
-      // Helper: get actual slot display (e.g., "1.06") if available
+      // Get draft settings for snake/reversal logic
+      const draftSettingsBySeason = new Map<string, { type: string; reversalRound: number; totalTeams: number }>();
+      for (const draft of drafts || []) {
+        draftSettingsBySeason.set(draft.season, {
+          type: draft.type || "snake",
+          reversalRound: draft.settings?.reversal_round || 1,
+          totalTeams: draft.settings?.teams || totalRosters,
+        });
+      }
+
+      // Helper: get actual slot display (e.g., "1.06") with snake/reversal awareness
       const getActualSlotDisplay = (rosterId: number, season: string, round: number): string | null => {
         const seasonSlots = draftSlotsBySeason.get(season);
         if (seasonSlots) {
           const slot = seasonSlots.get(rosterId);
           if (slot !== undefined) {
-            return `${round}.${slot.toString().padStart(2, '0')}`;
+            const draftSettings = draftSettingsBySeason.get(season);
+            const draftType = draftSettings?.type || "snake";
+            const reversalRound = draftSettings?.reversalRound || 1;
+            const teams = draftSettings?.totalTeams || totalRosters;
+
+            if (draftType === "linear") {
+              return `${round}.${slot.toString().padStart(2, '0')}`;
+            }
+
+            // Snake draft: compute actual pick position per round
+            // Track direction through rounds (forward = ascending order)
+            let forward = true;
+            for (let r = 2; r <= round; r++) {
+              if (r === reversalRound) {
+                // Reversal round: direction stays the same (skip the flip)
+              } else {
+                // Normal snake: flip direction each round
+                forward = !forward;
+              }
+            }
+
+            const actualPick = forward ? slot : (teams - slot + 1);
+            return `${round}.${actualPick.toString().padStart(2, '0')}`;
           }
         }
         return null;
@@ -5423,10 +5455,30 @@ ${fantasyOutlookSection}
         if (isStartup) {
           // Startup league: generate all startup draft rounds
           const totalStartupRounds = startupRounds || 25;
+          const seasonSlots = draftSlotsBySeason.get(String(currentYear));
+          const baseSlot = seasonSlots?.get(roster.roster_id);
+          const draftSettings = draftSettingsBySeason.get(String(currentYear));
+          
           for (let round = 1; round <= totalStartupRounds; round++) {
             const id = `startup-${round}-${roster.roster_id}`;
             if (!currentPicks.has(id)) {
-              const thisPickPosition = getPickPosition(roster.roster_id, String(currentYear));
+              // For snake drafts, pick position changes each round
+              let thisPickPosition = getPickPosition(roster.roster_id, String(currentYear));
+              if (baseSlot !== undefined && draftSettings && draftSettings.type === "snake") {
+                // Determine if this round is forward or reversed
+                let forward = true;
+                for (let r = 2; r <= round; r++) {
+                  if (r === draftSettings.reversalRound) {
+                    // Reversal round: skip the flip
+                  } else {
+                    forward = !forward;
+                  }
+                }
+                const actualPick = forward ? baseSlot : (draftSettings.totalTeams - baseSlot + 1);
+                const position = (actualPick - 1) / draftSettings.totalTeams;
+                thisPickPosition = position < 0.33 ? "early" : position < 0.67 ? "mid" : "late";
+              }
+              
               const pickValue = dynastyEngine.getStartupDraftPickValue(round, thisPickPosition);
               const slotDisplay = getActualSlotDisplay(roster.roster_id, String(currentYear), round);
               const pickLabel = slotDisplay || `${thisPickPosition.charAt(0).toUpperCase() + thisPickPosition.slice(1)} ${pickValue.displayName}`;
@@ -5497,7 +5549,14 @@ ${fantasyOutlookSection}
         };
       });
 
-      res.json({ rosters: rostersWithAssets, isStartup, startupRounds: isStartup ? startupRounds : undefined });
+      const startupDraft = isStartup ? (drafts || []).find(d => d.settings?.player_type === 0 || d.settings?.rounds >= 15) : null;
+      res.json({ 
+        rosters: rostersWithAssets, 
+        isStartup, 
+        startupRounds: isStartup ? startupRounds : undefined,
+        draftType: startupDraft?.type || "snake",
+        reversalRound: startupDraft?.settings?.reversal_round || 1,
+      });
     } catch (error) {
       console.error("Error fetching rosters:", error);
       res.status(500).json({ message: "Failed to fetch rosters" });
@@ -5583,13 +5642,41 @@ ${fantasyOutlookSection}
         return "mid";
       };
       
-      // Helper: get actual slot display (e.g., "1.06") if available
+      // Get draft settings for snake/reversal logic
+      const draftSettingsBySeason2 = new Map<string, { type: string; reversalRound: number; totalTeams: number }>();
+      for (const draft of drafts || []) {
+        draftSettingsBySeason2.set(draft.season, {
+          type: draft.type || "snake",
+          reversalRound: draft.settings?.reversal_round || 1,
+          totalTeams: draft.settings?.teams || totalTeams,
+        });
+      }
+
+      // Helper: get actual slot display (e.g., "1.06") with snake/reversal awareness
       const getSlotDisplay = (rostId: number, season: string, round: number): string | null => {
         const seasonSlots = draftSlotsBySeason.get(season);
         if (seasonSlots) {
           const slot = seasonSlots.get(rostId);
           if (slot !== undefined) {
-            return `${round}.${slot.toString().padStart(2, '0')}`;
+            const ds = draftSettingsBySeason2.get(season);
+            const draftType = ds?.type || "snake";
+            const reversalRound = ds?.reversalRound || 1;
+            const teams = ds?.totalTeams || totalTeams;
+
+            if (draftType === "linear") {
+              return `${round}.${slot.toString().padStart(2, '0')}`;
+            }
+
+            let forward = true;
+            for (let r = 2; r <= round; r++) {
+              if (r === reversalRound) {
+                // skip flip
+              } else {
+                forward = !forward;
+              }
+            }
+            const actualPick = forward ? slot : (teams - slot + 1);
+            return `${round}.${actualPick.toString().padStart(2, '0')}`;
           }
         }
         return null;
