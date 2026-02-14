@@ -3676,6 +3676,40 @@ ${urls}
 
       const devyPlayers = ktcValues.getDevyPlayers();
       const devyByName = new Map(devyPlayers.map(p => [p.name.toLowerCase().trim(), p]));
+      const devyByLastName = new Map<string, typeof devyPlayers[0][]>();
+      for (const p of devyPlayers) {
+        const parts = p.name.toLowerCase().trim().split(' ');
+        const lastName = parts[parts.length - 1];
+        if (!devyByLastName.has(lastName)) devyByLastName.set(lastName, []);
+        devyByLastName.get(lastName)!.push(p);
+      }
+
+      const fuzzyMatchDevy = (parsedName: string, parsedPos: string): typeof devyPlayers[0] | undefined => {
+        const nameKey = parsedName.toLowerCase().trim();
+        const exact = devyByName.get(nameKey);
+        if (exact) return exact;
+
+        const nameParts = nameKey.split(' ');
+        const lastName = nameParts[nameParts.length - 1];
+        const candidates = devyByLastName.get(lastName) || [];
+        
+        if (candidates.length === 1) return candidates[0];
+        
+        if (parsedPos && parsedPos !== '?') {
+          const posMatch = candidates.filter(c => c.position === parsedPos.toUpperCase());
+          if (posMatch.length === 1) return posMatch[0];
+        }
+        
+        for (const c of candidates) {
+          const cFirst = c.name.toLowerCase().split(' ')[0];
+          const pFirst = nameParts[0];
+          if (pFirst.length === 1 && cFirst.startsWith(pFirst)) return c;
+          if (cFirst.length === 1 && pFirst.startsWith(cFirst)) return c;
+          if (pFirst.endsWith('.') && cFirst.startsWith(pFirst.replace('.', ''))) return c;
+        }
+        
+        return undefined;
+      };
 
       const allPlayers = await sleeperApi.getAllPlayers();
 
@@ -3723,10 +3757,9 @@ ${urls}
             const dedupKey = `${parsed.devyName.toLowerCase().trim()}-${league.league_id}`;
             if (seenKeys.has(dedupKey)) return;
             seenKeys.add(dedupKey);
-            const matchKey = parsed.devyName.toLowerCase().trim();
-            const devyMatch = devyByName.get(matchKey);
+            const devyMatch = fuzzyMatchDevy(parsed.devyName, parsed.devyPosition);
             ownedDevy.push({
-              devyPlayerId: devyMatch?.id || `unmatched-${matchKey}`,
+              devyPlayerId: devyMatch?.id || `unmatched-${parsed.devyName.toLowerCase().trim()}`,
               devyName: parsed.devyName,
               devyPosition: parsed.devyPosition,
               devySchool: parsed.devySchool,

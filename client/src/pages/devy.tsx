@@ -163,24 +163,45 @@ export default function DevyPage() {
 
   const { players, positions, years } = data;
 
+  const fuzzyNameMatch = (name1: string, name2: string): boolean => {
+    const a = name1.toLowerCase().trim();
+    const b = name2.toLowerCase().trim();
+    if (a === b) return true;
+    const aParts = a.split(' ');
+    const bParts = b.split(' ');
+    const aLast = aParts[aParts.length - 1];
+    const bLast = bParts[bParts.length - 1];
+    if (aLast !== bLast) return false;
+    const aFirst = aParts[0];
+    const bFirst = bParts[0];
+    if (aFirst.replace('.', '') === bFirst.replace('.', '')) return true;
+    if (aFirst.length <= 2 && bFirst.startsWith(aFirst.replace('.', ''))) return true;
+    if (bFirst.length <= 2 && aFirst.startsWith(bFirst.replace('.', ''))) return true;
+    return false;
+  };
+
   const filteredPlayers = players.filter((player) => {
     if (positionFilter !== "all" && player.position !== positionFilter) return false;
     if (yearFilter !== "all" && player.draftEligibleYear !== parseInt(yearFilter)) return false;
     if (viewMode === "mydevy") {
       const ownedIds = new Set(myDevyData?.ownedDevy?.map(d => d.devyPlayerId) || []);
       const watchlistIds = new Set(watchlistData?.watchlist?.map(w => w.playerId) || []);
-      const ownedNames = new Set(myDevyData?.ownedDevy?.map(d => d.devyName.toLowerCase().trim()) || []);
-      if (!ownedIds.has(player.playerId) && !watchlistIds.has(player.playerId) && !ownedNames.has(player.name.toLowerCase().trim())) {
-        return false;
-      }
+      const isOwned = ownedIds.has(player.playerId) || watchlistIds.has(player.playerId) ||
+        (myDevyData?.ownedDevy || []).some(d => fuzzyNameMatch(d.devyName, player.name));
+      if (!isOwned) return false;
     }
     return true;
   });
 
+  const unmatchedDevy = viewMode === "mydevy" ? (myDevyData?.ownedDevy || []).filter(d => {
+    if (d.matched) return false;
+    return !players.some(p => p.playerId === d.devyPlayerId || fuzzyNameMatch(d.devyName, p.name));
+  }) : [];
+
   const getOwnedLeagues = (playerId: string, playerName: string): string[] => {
     if (!myDevyData?.ownedDevy) return [];
     return myDevyData.ownedDevy
-      .filter(d => d.devyPlayerId === playerId || d.devyName.toLowerCase().trim() === playerName.toLowerCase().trim())
+      .filter(d => d.devyPlayerId === playerId || fuzzyNameMatch(d.devyName, playerName))
       .map(d => d.leagueName);
   };
 
@@ -413,7 +434,7 @@ export default function DevyPage() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle className="text-lg" data-testid="text-showing-count">
-              Showing {sortedPlayers.length} of {players.length} players
+              Showing {sortedPlayers.length + unmatchedDevy.length} of {viewMode === "mydevy" ? `${(myDevyData?.ownedDevy?.length || 0)} owned` : `${players.length} players`}
             </CardTitle>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Click a player for details</span>
@@ -865,6 +886,30 @@ export default function DevyPage() {
               ))
             )}
           </div>
+
+          {unmatchedDevy.length > 0 && (
+            <div className="border-t p-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                Additional Owned Devy ({unmatchedDevy.length} not in rankings)
+              </h3>
+              <div className="space-y-2">
+                {unmatchedDevy.map((d, i) => (
+                  <div key={`unmatched-${i}`} className="flex items-center justify-between gap-2 p-3 rounded-lg bg-muted/30" data-testid={`card-unmatched-devy-${i}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className={`text-xs shrink-0 ${getPositionColorClass(d.devyPosition)}`}>
+                        {d.devyPosition}
+                      </Badge>
+                      <div className="min-w-0">
+                        <span className="font-medium text-sm truncate block">{d.devyName}</span>
+                        <span className="text-xs text-muted-foreground">{d.devySchool}</span>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="text-[10px] shrink-0">{d.leagueName}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
