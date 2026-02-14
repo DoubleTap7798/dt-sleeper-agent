@@ -4308,6 +4308,159 @@ Return ONLY valid JSON, no other text.`;
     }
   });
 
+  app.get("/api/nfl/key-dates", async (_req: Request, res: Response) => {
+    try {
+      const keyDates = [
+        { date: "2025-02-06", event: "Super Bowl LIX", description: "Super Bowl LIX at Caesars Superdome, New Orleans", category: "postseason" },
+        { date: "2025-02-10", event: "Franchise Tag Window Opens", description: "Teams can begin designating franchise/transition tags", category: "offseason" },
+        { date: "2025-02-24", event: "NFL Combine Begins", description: "NFL Scouting Combine at Lucas Oil Stadium, Indianapolis", category: "draft" },
+        { date: "2025-03-12", event: "Free Agency Begins", description: "New league year and free agency officially open", category: "offseason" },
+        { date: "2025-04-24", event: "NFL Draft Round 1", description: "2025 NFL Draft begins in Green Bay, Wisconsin", category: "draft" },
+        { date: "2025-04-25", event: "NFL Draft Rounds 2-3", description: "Day 2 of the 2025 NFL Draft", category: "draft" },
+        { date: "2025-04-26", event: "NFL Draft Rounds 4-7", description: "Final day of the 2025 NFL Draft", category: "draft" },
+        { date: "2025-05-01", event: "Rookie Minicamp Window", description: "Teams can hold rookie minicamps", category: "offseason" },
+        { date: "2025-06-17", event: "Mandatory Minicamp", description: "Teams hold mandatory minicamps", category: "offseason" },
+        { date: "2025-07-22", event: "Training Camp Opens", description: "Veteran players report for training camp", category: "offseason" },
+        { date: "2025-08-02", event: "Hall of Fame Game", description: "NFL preseason kicks off with Hall of Fame Game", category: "preseason" },
+        { date: "2025-09-04", event: "Regular Season Kickoff", description: "2025 NFL regular season begins", category: "regular" },
+        { date: "2025-09-05", event: "Sleeper Leagues Begin", description: "Fantasy football regular season starts", category: "fantasy" },
+        { date: "2025-10-28", event: "NFL Trade Deadline", description: "Last day for in-season trades", category: "regular" },
+        { date: "2025-11-25", event: "Thanksgiving Games", description: "Thanksgiving Day NFL games", category: "regular" },
+        { date: "2025-12-22", event: "Fantasy Playoffs Begin", description: "Most fantasy leagues begin playoff rounds", category: "fantasy" },
+        { date: "2026-01-04", event: "Regular Season Ends", description: "Final week of the 2025 regular season", category: "regular" },
+        { date: "2026-01-10", event: "Wild Card Round", description: "NFL Playoff Wild Card Weekend", category: "postseason" },
+        { date: "2026-01-17", event: "Divisional Round", description: "NFL Playoff Divisional Round", category: "postseason" },
+        { date: "2026-01-25", event: "Conference Championships", description: "AFC and NFC Championship Games", category: "postseason" },
+        { date: "2026-02-08", event: "Super Bowl LX", description: "Super Bowl LX at Levi's Stadium, Santa Clara", category: "postseason" },
+      ];
+      res.json({ season: "2025-2026", dates: keyDates });
+    } catch (error) {
+      console.error("Error fetching key dates:", error);
+      res.status(500).json({ message: "Failed to fetch key dates" });
+    }
+  });
+
+  app.get("/api/nfl/schedule", async (req: Request, res: Response) => {
+    try {
+      const week = parseInt(req.query.week as string) || 1;
+      const season = 2025;
+      const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${week}&dates=${season}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("ESPN API error");
+      const data = await response.json() as any;
+      
+      const games = (data.events || []).map((event: any) => {
+        const competition = event.competitions?.[0];
+        const homeTeam = competition?.competitors?.find((c: any) => c.homeAway === "home");
+        const awayTeam = competition?.competitors?.find((c: any) => c.homeAway === "away");
+        const status = competition?.status;
+        
+        return {
+          id: event.id,
+          date: event.date,
+          name: event.name || event.shortName,
+          shortName: event.shortName,
+          homeTeam: {
+            name: homeTeam?.team?.displayName || "TBD",
+            abbreviation: homeTeam?.team?.abbreviation || "TBD",
+            logo: homeTeam?.team?.logo || "",
+            score: homeTeam?.score || "0",
+            record: homeTeam?.records?.[0]?.summary || "",
+          },
+          awayTeam: {
+            name: awayTeam?.team?.displayName || "TBD",
+            abbreviation: awayTeam?.team?.abbreviation || "TBD",
+            logo: awayTeam?.team?.logo || "",
+            score: awayTeam?.score || "0",
+            record: awayTeam?.records?.[0]?.summary || "",
+          },
+          status: {
+            completed: status?.type?.completed || false,
+            inProgress: status?.type?.state === "in",
+            detail: status?.type?.shortDetail || status?.type?.detail || "",
+            period: status?.period || 0,
+            clock: status?.displayClock || "",
+          },
+          broadcast: competition?.broadcasts?.[0]?.names?.[0] || "",
+          venue: competition?.venue?.fullName || "",
+        };
+      });
+      
+      res.json({ season, week, games });
+    } catch (error) {
+      console.error("Error fetching NFL schedule:", error);
+      res.status(500).json({ message: "Failed to fetch NFL schedule" });
+    }
+  });
+
+  app.get("/api/nfl/standings", async (_req: Request, res: Response) => {
+    try {
+      const url = "https://site.api.espn.com/apis/v2/sports/football/nfl/standings?season=2025";
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("ESPN API error");
+      const data = await response.json() as any;
+      
+      const divisions: Array<{
+        conference: string;
+        division: string;
+        teams: Array<{
+          name: string;
+          abbreviation: string;
+          logo: string;
+          wins: number;
+          losses: number;
+          ties: number;
+          pct: string;
+          pointsFor: number;
+          pointsAgainst: number;
+          streak: string;
+          divisionRecord: string;
+          conferenceRecord: string;
+        }>;
+      }> = [];
+      
+      for (const child of (data.children || [])) {
+        const conference = child.abbreviation || child.name || "";
+        for (const divChild of (child.children || [])) {
+          const division = divChild.name || "";
+          const teams = (divChild.standings?.entries || []).map((entry: any) => {
+            const stats = entry.stats || [];
+            const getStat = (name: string) => {
+              const s = stats.find((st: any) => st.name === name || st.abbreviation === name);
+              return s?.value || 0;
+            };
+            const getStatDisplay = (name: string) => {
+              const s = stats.find((st: any) => st.name === name || st.abbreviation === name);
+              return s?.displayValue || s?.value?.toString() || "0";
+            };
+            
+            return {
+              name: entry.team?.displayName || "",
+              abbreviation: entry.team?.abbreviation || "",
+              logo: entry.team?.logos?.[0]?.href || "",
+              wins: getStat("wins"),
+              losses: getStat("losses"),
+              ties: getStat("ties"),
+              pct: getStatDisplay("winPercent"),
+              pointsFor: getStat("pointsFor"),
+              pointsAgainst: getStat("pointsAgainst"),
+              streak: getStatDisplay("streak"),
+              divisionRecord: getStatDisplay("divisionRecord"),
+              conferenceRecord: getStatDisplay("conferenceRecord"),
+            };
+          });
+          
+          divisions.push({ conference, division, teams });
+        }
+      }
+      
+      res.json({ season: 2025, divisions });
+    } catch (error) {
+      console.error("Error fetching NFL standings:", error);
+      res.status(500).json({ message: "Failed to fetch NFL standings" });
+    }
+  });
+
   app.get("/api/nfl/stat-leaders", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { getStatLeaders } = await import('./nflverse-stats');

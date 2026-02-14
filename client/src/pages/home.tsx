@@ -16,7 +16,8 @@ import {
   Trophy, Users, TrendingUp, Calendar, Target, Crown, Medal, Activity, 
   ArrowRightLeft, UserPlus, RefreshCw, Zap, AlertTriangle, ChevronRight,
   ArrowUpRight, ArrowUp, ArrowDown, Minus, Rocket, Shield, Hourglass, HelpCircle, Lightbulb, X,
-  Share2, Copy, Check, Crosshair, Flame, BarChart3, Gauge, Brain
+  Share2, Copy, Check, Crosshair, Flame, BarChart3, Gauge, Brain,
+  Globe, ListOrdered
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -699,6 +700,326 @@ function RecommendationCard({ rec, leagueId }: { rec: DashboardData["recommendat
   return content;
 }
 
+function NFLKeyDatesSection() {
+  const { data, isLoading } = useQuery<{ season: string; dates: Array<{ date: string; event: string; description: string; category: string }> }>({
+    queryKey: ["/api/nfl/key-dates"],
+    staleTime: 1000 * 60 * 60 * 24,
+  });
+
+  const categoryConfig: Record<string, { color: string; label: string }> = {
+    postseason: { color: "bg-purple-500/20 text-purple-400 border-purple-500/30", label: "Postseason" },
+    offseason: { color: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: "Offseason" },
+    draft: { color: "bg-green-500/20 text-green-400 border-green-500/30", label: "Draft" },
+    preseason: { color: "bg-orange-500/20 text-orange-400 border-orange-500/30", label: "Preseason" },
+    regular: { color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30", label: "Regular Season" },
+    fantasy: { color: "bg-pink-500/20 text-pink-400 border-pink-500/30", label: "Fantasy" },
+  };
+
+  const isPast = (dateStr: string) => new Date(dateStr + "T00:00:00") < new Date();
+  const nextUpIdx = data?.dates?.findIndex(d => !isPast(d.date)) ?? -1;
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Calendar className="h-5 w-5" />Key Dates</CardTitle></CardHeader>
+        <CardContent><div className="space-y-3">{Array.from({length:6}).map((_,i) => <Skeleton key={i} className="h-16" />)}</div></CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card data-testid="card-key-dates">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Calendar className="h-5 w-5" />
+          Key Dates
+          {data && <Badge variant="outline" className="text-xs ml-auto">{data.season}</Badge>}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {data?.dates?.map((item, idx) => {
+            const past = isPast(item.date);
+            const isNext = idx === nextUpIdx;
+            const cat = categoryConfig[item.category] || categoryConfig.regular;
+            const dateObj = new Date(item.date + "T00:00:00");
+            const formatted = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            
+            return (
+              <div 
+                key={idx}
+                className={`flex items-start gap-3 p-3 rounded-lg border ${isNext ? "border-primary/50 bg-primary/5" : "border-border/50 bg-muted/30"} ${past ? "opacity-50" : ""}`}
+                data-testid={`key-date-${idx}`}
+              >
+                <div className="text-center shrink-0 w-14">
+                  <p className="text-xs text-muted-foreground">{dateObj.toLocaleDateString("en-US", { month: "short" })}</p>
+                  <p className="text-lg font-bold">{dateObj.getDate()}</p>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm">{item.event}</span>
+                    {isNext && <Badge variant="default" className="text-[10px]">Up Next</Badge>}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{formatted}</p>
+                </div>
+                <Badge variant="outline" className={`text-[10px] shrink-0 ${cat.color}`}>
+                  {cat.label}
+                </Badge>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function NFLScheduleSection() {
+  const [selectedWeek, setSelectedWeek] = useState("1");
+  const { data, isLoading, error } = useQuery<{
+    season: number;
+    week: number;
+    games: Array<{
+      id: string;
+      date: string;
+      name: string;
+      shortName: string;
+      homeTeam: { name: string; abbreviation: string; logo: string; score: string; record: string };
+      awayTeam: { name: string; abbreviation: string; logo: string; score: string; record: string };
+      status: { completed: boolean; inProgress: boolean; detail: string; period: number; clock: string };
+      broadcast: string;
+      venue: string;
+    }>;
+  }>({
+    queryKey: [`/api/nfl/schedule?week=${selectedWeek}`],
+    staleTime: 1000 * 60 * 5,
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Globe className="h-5 w-5" />NFL Schedule</CardTitle>
+        </CardHeader>
+        <CardContent><div className="space-y-3">{Array.from({length:8}).map((_,i) => <Skeleton key={i} className="h-20" />)}</div></CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card data-testid="card-nfl-schedule">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe className="h-5 w-5" />
+            NFL Schedule
+          </CardTitle>
+          <Select value={selectedWeek} onValueChange={setSelectedWeek}>
+            <SelectTrigger className="w-[120px]" data-testid="select-nfl-week">
+              <SelectValue placeholder="Week" />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({length: 18}, (_, i) => (
+                <SelectItem key={i + 1} value={String(i + 1)}>Week {i + 1}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Unable to load schedule. Try again later.</p>
+        ) : data?.games?.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">No games scheduled for Week {selectedWeek}.</p>
+        ) : (
+          <div className="space-y-2">
+            {data?.games?.map((game, idx) => (
+              <div
+                key={game.id || idx}
+                className={`p-3 rounded-lg border ${game.status.inProgress ? "border-primary/50 bg-primary/5" : "border-border/50 bg-muted/30"}`}
+                data-testid={`schedule-game-${idx}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <img
+                        src={game.awayTeam.logo}
+                        alt={game.awayTeam.abbreviation}
+                        className="h-6 w-6 object-contain"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                      <div className="min-w-0">
+                        <span className="text-sm font-semibold">{game.awayTeam.abbreviation}</span>
+                        {game.awayTeam.record && <span className="text-[10px] text-muted-foreground ml-1">({game.awayTeam.record})</span>}
+                      </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">@</span>
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <img
+                        src={game.homeTeam.logo}
+                        alt={game.homeTeam.abbreviation}
+                        className="h-6 w-6 object-contain"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                      <div className="min-w-0">
+                        <span className="text-sm font-semibold">{game.homeTeam.abbreviation}</span>
+                        {game.homeTeam.record && <span className="text-[10px] text-muted-foreground ml-1">({game.homeTeam.record})</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {(game.status.completed || game.status.inProgress) ? (
+                      <p className="text-sm font-bold">{game.awayTeam.score} - {game.homeTeam.score}</p>
+                    ) : null}
+                    <div className="flex items-center gap-1 justify-end">
+                      {game.status.inProgress && <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />}
+                      <span className="text-[10px] text-muted-foreground">{game.status.detail}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  {game.broadcast && <Badge variant="outline" className="text-[10px]">{game.broadcast}</Badge>}
+                  {game.venue && <span className="text-[10px] text-muted-foreground truncate">{game.venue}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function NFLStandingsSection() {
+  const { data, isLoading, error } = useQuery<{
+    season: number;
+    divisions: Array<{
+      conference: string;
+      division: string;
+      teams: Array<{
+        name: string;
+        abbreviation: string;
+        logo: string;
+        wins: number;
+        losses: number;
+        ties: number;
+        pct: string;
+        pointsFor: number;
+        pointsAgainst: number;
+        streak: string;
+        divisionRecord: string;
+        conferenceRecord: string;
+      }>;
+    }>;
+  }>({
+    queryKey: ["/api/nfl/standings"],
+    staleTime: 1000 * 60 * 30,
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><ListOrdered className="h-5 w-5" />NFL Standings</CardTitle></CardHeader>
+        <CardContent><div className="space-y-3">{Array.from({length:8}).map((_,i) => <Skeleton key={i} className="h-12" />)}</div></CardContent>
+      </Card>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Card data-testid="card-nfl-standings-error">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><ListOrdered className="h-5 w-5" />NFL Standings</CardTitle></CardHeader>
+        <CardContent><p className="text-sm text-muted-foreground text-center py-4">Unable to load standings. Try again later.</p></CardContent>
+      </Card>
+    );
+  }
+
+  const conferences = [...new Set(data.divisions.map(d => d.conference))];
+
+  return (
+    <Card data-testid="card-nfl-standings">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ListOrdered className="h-5 w-5" />
+            NFL Standings
+          </CardTitle>
+          <Badge variant="outline" className="text-[10px]">{data.season} Season</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue={conferences[0] || "AFC"}>
+          <TabsList className="w-full justify-start gap-1">
+            {conferences.map(conf => (
+              <TabsTrigger key={conf} value={conf} className="text-xs" data-testid={`tab-standings-${conf}`}>
+                {conf}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {conferences.map(conf => {
+            const confDivisions = data.divisions.filter(d => d.conference === conf);
+            return (
+              <TabsContent key={conf} value={conf} className="mt-4 space-y-6">
+                {confDivisions.map(div => (
+                  <div key={div.division} data-testid={`standings-division-${div.division.replace(/\s+/g, '-').toLowerCase()}`}>
+                    <h4 className="text-sm font-semibold mb-2">{div.division}</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-border/50">
+                            <th className="text-left py-1.5 px-1 font-medium text-muted-foreground">Team</th>
+                            <th className="text-center py-1.5 px-1 font-medium text-muted-foreground">W</th>
+                            <th className="text-center py-1.5 px-1 font-medium text-muted-foreground">L</th>
+                            <th className="text-center py-1.5 px-1 font-medium text-muted-foreground">T</th>
+                            <th className="text-center py-1.5 px-1 font-medium text-muted-foreground">PCT</th>
+                            <th className="text-center py-1.5 px-1 font-medium text-muted-foreground hidden sm:table-cell">PF</th>
+                            <th className="text-center py-1.5 px-1 font-medium text-muted-foreground hidden sm:table-cell">PA</th>
+                            <th className="text-center py-1.5 px-1 font-medium text-muted-foreground hidden md:table-cell">STRK</th>
+                            <th className="text-center py-1.5 px-1 font-medium text-muted-foreground hidden md:table-cell">DIV</th>
+                            <th className="text-center py-1.5 px-1 font-medium text-muted-foreground hidden lg:table-cell">CONF</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {div.teams.map((team, tIdx) => (
+                            <tr key={team.abbreviation} className="border-b border-border/20" data-testid={`standings-team-${team.abbreviation}`}>
+                              <td className="py-2 px-1">
+                                <div className="flex items-center gap-1.5">
+                                  <img
+                                    src={team.logo}
+                                    alt={team.abbreviation}
+                                    className="h-5 w-5 object-contain"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                  <span className="font-medium hidden sm:inline">{team.name}</span>
+                                  <span className="font-medium sm:hidden">{team.abbreviation}</span>
+                                </div>
+                              </td>
+                              <td className="text-center py-2 px-1 font-medium">{team.wins}</td>
+                              <td className="text-center py-2 px-1">{team.losses}</td>
+                              <td className="text-center py-2 px-1">{team.ties}</td>
+                              <td className="text-center py-2 px-1 font-medium">{team.pct}</td>
+                              <td className="text-center py-2 px-1 hidden sm:table-cell">{team.pointsFor}</td>
+                              <td className="text-center py-2 px-1 hidden sm:table-cell">{team.pointsAgainst}</td>
+                              <td className="text-center py-2 px-1 hidden md:table-cell">{team.streak}</td>
+                              <td className="text-center py-2 px-1 hidden md:table-cell">{team.divisionRecord}</td>
+                              <td className="text-center py-2 px-1 hidden lg:table-cell">{team.conferenceRecord}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function HomePage() {
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
@@ -913,175 +1234,210 @@ export default function HomePage() {
           </Card>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-            <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Your Leagues
-            </h2>
-            {leaguesOverview.length > 1 && (
-              <Select value={leagueSort} onValueChange={setLeagueSort}>
-                <SelectTrigger className="w-[140px]" data-testid="select-league-sort">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="rank">Best Rank</SelectItem>
-                  <SelectItem value="record">Best Record</SelectItem>
-                  <SelectItem value="points">Most Points</SelectItem>
-                  <SelectItem value="name">Name A-Z</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          {overviewLoading ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[1, 2, 3].map(i => (
-                <Card key={i}>
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <Skeleton className="h-5 w-3/4" />
-                      <Skeleton className="h-4 w-1/2" />
-                      <Skeleton className="h-12 w-full" />
+        <Tabs defaultValue="my-leagues" data-testid="all-leagues-tabs">
+          <TabsList className="w-full justify-start flex-wrap h-auto gap-1 py-1">
+            <TabsTrigger value="my-leagues" className="text-xs gap-1" data-testid="tab-my-leagues">
+              <Users className="h-3 w-3" />
+              My Leagues
+            </TabsTrigger>
+            <TabsTrigger value="key-dates" className="text-xs gap-1" data-testid="tab-key-dates">
+              <Calendar className="h-3 w-3" />
+              Key Dates
+            </TabsTrigger>
+            <TabsTrigger value="nfl-schedule" className="text-xs gap-1" data-testid="tab-nfl-schedule">
+              <Globe className="h-3 w-3" />
+              NFL Schedule
+            </TabsTrigger>
+            <TabsTrigger value="nfl-standings" className="text-xs gap-1" data-testid="tab-nfl-standings">
+              <ListOrdered className="h-3 w-3" />
+              NFL Standings
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="my-leagues" className="mt-4 space-y-6">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Your Leagues
+                </h2>
+                {leaguesOverview.length > 1 && (
+                  <Select value={leagueSort} onValueChange={setLeagueSort}>
+                    <SelectTrigger className="w-[140px]" data-testid="select-league-sort">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rank">Best Rank</SelectItem>
+                      <SelectItem value="record">Best Record</SelectItem>
+                      <SelectItem value="points">Most Points</SelectItem>
+                      <SelectItem value="name">Name A-Z</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              {overviewLoading ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[1, 2, 3].map(i => (
+                    <Card key={i}>
+                      <CardContent className="p-4">
+                        <div className="space-y-3">
+                          <Skeleton className="h-5 w-3/4" />
+                          <Skeleton className="h-4 w-1/2" />
+                          <Skeleton className="h-12 w-full" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : leaguesOverview.length > 0 ? (
+                <div className="grid gap-2 sm:gap-3 sm:grid-cols-2 min-w-0" data-testid="leagues-overview-grid">
+                  {[...leaguesOverview].sort((a, b) => {
+                    switch (leagueSort) {
+                      case "record": {
+                        const aWinPct = (a.record.wins + a.record.losses) > 0 ? a.record.wins / (a.record.wins + a.record.losses) : 0;
+                        const bWinPct = (b.record.wins + b.record.losses) > 0 ? b.record.wins / (b.record.wins + b.record.losses) : 0;
+                        return bWinPct - aWinPct;
+                      }
+                      case "points": return b.pointsFor - a.pointsFor;
+                      case "name": return a.leagueName.localeCompare(b.leagueName);
+                      case "rank": default: return a.rank - b.rank;
+                    }
+                  }).map((lo, idx) => (
+                      <Card
+                        key={lo.leagueId}
+                        className="hover-elevate cursor-pointer transition-colors overflow-hidden min-w-0"
+                        data-testid={`card-league-overview-${idx}`}
+                      >
+                        <Link href={`/league?id=${lo.leagueId}`}>
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <Avatar className="h-7 w-7 sm:h-8 sm:w-8 shrink-0">
+                                <AvatarImage src={lo.leagueAvatar || undefined} />
+                                <AvatarFallback className="text-[10px] sm:text-xs font-bold">
+                                  {lo.leagueName.slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-sm truncate" data-testid={`text-league-name-${idx}`}>
+                                  {lo.leagueName}
+                                </p>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <Badge variant="secondary" className="text-[10px]">{lo.leagueType}</Badge>
+                                  <span className="text-[10px] text-muted-foreground">{lo.season}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-2">
+                            <div className="text-center py-1.5 px-1 rounded bg-muted/50">
+                              <p className="text-[10px] text-muted-foreground">Record</p>
+                              <p className="font-bold text-xs sm:text-sm" data-testid={`text-league-record-${idx}`}>
+                                {lo.record.wins}-{lo.record.losses}{lo.record.ties ? `-${lo.record.ties}` : ""}
+                              </p>
+                            </div>
+                            <div className="text-center py-1.5 px-1 rounded bg-muted/50">
+                              <p className="text-[10px] text-muted-foreground">Rank</p>
+                              <p className="font-bold text-xs sm:text-sm" data-testid={`text-league-rank-${idx}`}>
+                                #{lo.rank}<span className="text-muted-foreground font-normal">/{lo.totalTeams}</span>
+                              </p>
+                            </div>
+                            <div className="text-center py-1.5 px-1 rounded bg-muted/50">
+                              <p className="text-[10px] text-muted-foreground">Points</p>
+                              <p className="font-bold text-xs sm:text-sm" data-testid={`text-league-pts-${idx}`}>
+                                {lo.pointsFor > 0 ? lo.pointsFor.toFixed(1) : "--"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {lo.upcomingMatchup ? (
+                            <div className="flex items-center gap-2 p-1.5 sm:p-2 rounded bg-muted/30 border border-border/50" data-testid={`matchup-preview-${idx}`}>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[10px] text-muted-foreground mb-0.5">
+                                  Wk {lo.upcomingMatchup.week}
+                                </p>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] sm:text-xs font-medium">vs</span>
+                                  <Avatar className="h-4 w-4 sm:h-5 sm:w-5 shrink-0">
+                                    <AvatarImage src={lo.upcomingMatchup.opponentAvatar || undefined} />
+                                    <AvatarFallback className="text-[7px] sm:text-[8px]">
+                                      {lo.upcomingMatchup.opponentName.charAt(0).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-[10px] sm:text-xs font-medium truncate">{lo.upcomingMatchup.opponentName}</span>
+                                </div>
+                              </div>
+                              {(lo.upcomingMatchup.userPoints > 0 || lo.upcomingMatchup.opponentPoints > 0) && (
+                                <div className="text-right shrink-0">
+                                  <p className="text-[10px] sm:text-xs font-bold">
+                                    {lo.upcomingMatchup.userPoints.toFixed(1)} - {lo.upcomingMatchup.opponentPoints.toFixed(1)}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 p-1.5 sm:p-2 rounded bg-muted/30 border border-border/50">
+                              <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+                              <span className="text-[10px] sm:text-xs text-muted-foreground">No upcoming matchup</span>
+                            </div>
+                          )}
+                        </CardContent>
+                        </Link>
+
+                        <div className="flex items-center gap-1 px-3 pb-2 sm:px-4 sm:pb-3 flex-wrap border-t border-border/20 pt-1.5" data-testid={`league-actions-${idx}`}>
+                          <Link href={`/league/roster?id=${lo.leagueId}`}>
+                            <Button variant="ghost" size="sm" className="text-[10px] sm:text-[11px] gap-0.5 sm:gap-1" data-testid={`link-roster-${idx}`}>
+                              <Users className="h-3 w-3" />
+                              Roster
+                            </Button>
+                          </Link>
+                          <Link href={`/league/matchups?id=${lo.leagueId}`}>
+                            <Button variant="ghost" size="sm" className="text-[10px] sm:text-[11px] gap-0.5 sm:gap-1" data-testid={`link-matchups-${idx}`}>
+                              <Target className="h-3 w-3" />
+                              Matchups
+                            </Button>
+                          </Link>
+                          <Link href={`/league/standings?id=${lo.leagueId}`}>
+                            <Button variant="ghost" size="sm" className="text-[10px] sm:text-[11px] gap-0.5 sm:gap-1" data-testid={`link-standings-${idx}`}>
+                              <BarChart3 className="h-3 w-3" />
+                              Standings
+                            </Button>
+                          </Link>
+                        </div>
+                      </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="text-center">
+                      <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                      <p className="text-muted-foreground" data-testid="text-no-leagues">
+                        No leagues found. Connect your Sleeper account to get started.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              )}
             </div>
-          ) : leaguesOverview.length > 0 ? (
-            <div className="grid gap-2 sm:gap-3 sm:grid-cols-2 min-w-0" data-testid="leagues-overview-grid">
-              {[...leaguesOverview].sort((a, b) => {
-                switch (leagueSort) {
-                  case "record": {
-                    const aWinPct = (a.record.wins + a.record.losses) > 0 ? a.record.wins / (a.record.wins + a.record.losses) : 0;
-                    const bWinPct = (b.record.wins + b.record.losses) > 0 ? b.record.wins / (b.record.wins + b.record.losses) : 0;
-                    return bWinPct - aWinPct;
-                  }
-                  case "points": return b.pointsFor - a.pointsFor;
-                  case "name": return a.leagueName.localeCompare(b.leagueName);
-                  case "rank": default: return a.rank - b.rank;
-                }
-              }).map((lo, idx) => (
-                  <Card
-                    key={lo.leagueId}
-                    className="hover-elevate cursor-pointer transition-colors overflow-hidden min-w-0"
-                    data-testid={`card-league-overview-${idx}`}
-                  >
-                    <Link href={`/league?id=${lo.leagueId}`}>
-                    <CardContent className="p-3 sm:p-4">
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <Avatar className="h-7 w-7 sm:h-8 sm:w-8 shrink-0">
-                            <AvatarImage src={lo.leagueAvatar || undefined} />
-                            <AvatarFallback className="text-[10px] sm:text-xs font-bold">
-                              {lo.leagueName.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-sm truncate" data-testid={`text-league-name-${idx}`}>
-                              {lo.leagueName}
-                            </p>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <Badge variant="secondary" className="text-[10px]">{lo.leagueType}</Badge>
-                              <span className="text-[10px] text-muted-foreground">{lo.season}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                      </div>
 
-                      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-2">
-                        <div className="text-center py-1.5 px-1 rounded bg-muted/50">
-                          <p className="text-[10px] text-muted-foreground">Record</p>
-                          <p className="font-bold text-xs sm:text-sm" data-testid={`text-league-record-${idx}`}>
-                            {lo.record.wins}-{lo.record.losses}{lo.record.ties ? `-${lo.record.ties}` : ""}
-                          </p>
-                        </div>
-                        <div className="text-center py-1.5 px-1 rounded bg-muted/50">
-                          <p className="text-[10px] text-muted-foreground">Rank</p>
-                          <p className="font-bold text-xs sm:text-sm" data-testid={`text-league-rank-${idx}`}>
-                            #{lo.rank}<span className="text-muted-foreground font-normal">/{lo.totalTeams}</span>
-                          </p>
-                        </div>
-                        <div className="text-center py-1.5 px-1 rounded bg-muted/50">
-                          <p className="text-[10px] text-muted-foreground">Points</p>
-                          <p className="font-bold text-xs sm:text-sm" data-testid={`text-league-pts-${idx}`}>
-                            {lo.pointsFor > 0 ? lo.pointsFor.toFixed(1) : "--"}
-                          </p>
-                        </div>
-                      </div>
+            <StatLeadersSection />
+          </TabsContent>
 
-                      {lo.upcomingMatchup ? (
-                        <div className="flex items-center gap-2 p-1.5 sm:p-2 rounded bg-muted/30 border border-border/50" data-testid={`matchup-preview-${idx}`}>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[10px] text-muted-foreground mb-0.5">
-                              Wk {lo.upcomingMatchup.week}
-                            </p>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] sm:text-xs font-medium">vs</span>
-                              <Avatar className="h-4 w-4 sm:h-5 sm:w-5 shrink-0">
-                                <AvatarImage src={lo.upcomingMatchup.opponentAvatar || undefined} />
-                                <AvatarFallback className="text-[7px] sm:text-[8px]">
-                                  {lo.upcomingMatchup.opponentName.charAt(0).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="text-[10px] sm:text-xs font-medium truncate">{lo.upcomingMatchup.opponentName}</span>
-                            </div>
-                          </div>
-                          {(lo.upcomingMatchup.userPoints > 0 || lo.upcomingMatchup.opponentPoints > 0) && (
-                            <div className="text-right shrink-0">
-                              <p className="text-[10px] sm:text-xs font-bold">
-                                {lo.upcomingMatchup.userPoints.toFixed(1)} - {lo.upcomingMatchup.opponentPoints.toFixed(1)}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 p-1.5 sm:p-2 rounded bg-muted/30 border border-border/50">
-                          <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
-                          <span className="text-[10px] sm:text-xs text-muted-foreground">No upcoming matchup</span>
-                        </div>
-                      )}
-                    </CardContent>
-                    </Link>
+          <TabsContent value="key-dates" className="mt-4">
+            <NFLKeyDatesSection />
+          </TabsContent>
 
-                    <div className="flex items-center gap-1 px-3 pb-2 sm:px-4 sm:pb-3 flex-wrap border-t border-border/20 pt-1.5" data-testid={`league-actions-${idx}`}>
-                      <Link href={`/league/roster?id=${lo.leagueId}`}>
-                        <Button variant="ghost" size="sm" className="text-[10px] sm:text-[11px] gap-0.5 sm:gap-1" data-testid={`link-roster-${idx}`}>
-                          <Users className="h-3 w-3" />
-                          Roster
-                        </Button>
-                      </Link>
-                      <Link href={`/league/matchups?id=${lo.leagueId}`}>
-                        <Button variant="ghost" size="sm" className="text-[10px] sm:text-[11px] gap-0.5 sm:gap-1" data-testid={`link-matchups-${idx}`}>
-                          <Target className="h-3 w-3" />
-                          Matchups
-                        </Button>
-                      </Link>
-                      <Link href={`/league/standings?id=${lo.leagueId}`}>
-                        <Button variant="ghost" size="sm" className="text-[10px] sm:text-[11px] gap-0.5 sm:gap-1" data-testid={`link-standings-${idx}`}>
-                          <BarChart3 className="h-3 w-3" />
-                          Standings
-                        </Button>
-                      </Link>
-                    </div>
-                  </Card>
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="py-8">
-                <div className="text-center">
-                  <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                  <p className="text-muted-foreground" data-testid="text-no-leagues">
-                    No leagues found. Connect your Sleeper account to get started.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+          <TabsContent value="nfl-schedule" className="mt-4">
+            <NFLScheduleSection />
+          </TabsContent>
 
-        <StatLeadersSection />
+          <TabsContent value="nfl-standings" className="mt-4">
+            <NFLStandingsSection />
+          </TabsContent>
+        </Tabs>
       </div>
     );
   }
