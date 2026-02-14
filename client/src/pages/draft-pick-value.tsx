@@ -30,11 +30,11 @@ interface DraftPickValues {
 }
 
 function getValueColor(value: number): string {
-  if (value >= 8000) return "hsl(45, 93%, 47%)";
-  if (value >= 6000) return "hsl(45, 80%, 55%)";
-  if (value >= 4000) return "hsl(40, 60%, 55%)";
-  if (value >= 2000) return "hsl(30, 40%, 50%)";
-  return "hsl(0, 0%, 55%)";
+  if (value >= 80) return "hsl(187, 100%, 50%)";
+  if (value >= 60) return "hsl(187, 80%, 45%)";
+  if (value >= 40) return "hsl(187, 60%, 40%)";
+  if (value >= 20) return "hsl(187, 40%, 35%)";
+  return "hsl(187, 25%, 30%)";
 }
 
 function getRoundAvgHitRate(round: RoundData): number {
@@ -59,11 +59,11 @@ function ValueChartView({ rounds }: { rounds: RoundData[] }) {
                   <div
                     className="h-full rounded-md transition-all duration-300"
                     style={{
-                      width: `${Math.min(pick.value / 100, 100)}%`,
+                      width: `${Math.min(pick.value, 100)}%`,
                       backgroundColor: getValueColor(pick.value),
                     }}
                   />
-                  <span className="absolute inset-0 flex items-center px-2 text-xs font-medium" style={{ color: pick.value > 3000 ? "hsl(0, 0%, 10%)" : undefined }}>
+                  <span className="absolute inset-0 flex items-center px-2 text-xs font-medium" style={{ color: pick.value > 50 ? "hsl(0, 0%, 10%)" : undefined }}>
                     {pick.value.toLocaleString()}
                   </span>
                 </div>
