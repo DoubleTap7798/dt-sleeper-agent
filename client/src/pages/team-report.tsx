@@ -46,6 +46,7 @@ interface TeamReportData {
   avgAge: number;
   topPlayers: TopPlayer[];
   positionBreakdown: { QB: number; RB: number; WR: number; TE: number };
+  positionRanks: Record<string, { rank: number; total: number }>;
   strengths: string[];
   weaknesses: string[];
   shareText: string;
@@ -185,7 +186,6 @@ function TeamReportContent({ leagueId }: { leagueId: string }) {
   }
 
   const profileCfg = PROFILE_CONFIG[data.profile] || PROFILE_CONFIG.Balanced;
-  const maxPosCount = Math.max(data.positionBreakdown.QB, data.positionBreakdown.RB, data.positionBreakdown.WR, data.positionBreakdown.TE, 1);
 
   return (
     <div className="space-y-6">
@@ -301,25 +301,31 @@ function TeamReportContent({ leagueId }: { leagueId: string }) {
               Position Breakdown
             </h3>
             <div className="space-y-2">
-              {(["QB", "RB", "WR", "TE"] as const).map((pos) => (
-                <div key={pos} className="flex items-center gap-3">
-                  <Badge
-                    variant="outline"
-                    className={`${getPositionColorClass(pos)} text-xs w-10 justify-center shrink-0`}
-                  >
-                    {pos}
-                  </Badge>
-                  <div className="flex-1">
-                    <Progress
-                      value={(data.positionBreakdown[pos] / maxPosCount) * 100}
-                      className="h-2"
-                    />
+              {(["QB", "RB", "WR", "TE"] as const).map((pos) => {
+                const rankInfo = data.positionRanks?.[pos];
+                const rank = rankInfo?.rank || 0;
+                const total = rankInfo?.total || 1;
+                const pct = total > 0 ? ((total - rank + 1) / total) * 100 : 0;
+                return (
+                  <div key={pos} className="flex items-center gap-3">
+                    <Badge
+                      variant="outline"
+                      className={`${getPositionColorClass(pos)} text-xs w-10 justify-center shrink-0`}
+                    >
+                      {pos}
+                    </Badge>
+                    <div className="flex-1">
+                      <Progress
+                        value={pct}
+                        className="h-2"
+                      />
+                    </div>
+                    <span className="text-sm font-medium text-right shrink-0" data-testid={`pos-rank-${pos.toLowerCase()}`}>
+                      #{rank} of {total}
+                    </span>
                   </div>
-                  <span className="text-sm font-medium w-8 text-right shrink-0" data-testid={`pos-count-${pos.toLowerCase()}`}>
-                    {data.positionBreakdown[pos]}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

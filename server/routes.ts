@@ -1773,6 +1773,15 @@ ${urls}
       teamDynastyValues.sort((a, b) => b.value - a.value);
       const dynastyRank = teamDynastyValues.findIndex(t => t.rosterId === userRoster.roster_id) + 1;
 
+      const positionRanks: Record<string, { rank: number; total: number }> = {};
+      for (const pos of positions) {
+        const vals = leaguePositionValues[pos];
+        const sorted = [...vals].sort((a, b) => b - a);
+        const userVal = positionValues[pos] || 0;
+        const rank = sorted.findIndex(v => v <= userVal) + 1;
+        positionRanks[pos] = { rank: rank || sorted.length, total: sorted.length };
+      }
+
       const strengths: string[] = [];
       const weaknesses: string[] = [];
 
@@ -1821,6 +1830,7 @@ ${urls}
         avgAge,
         topPlayers,
         positionBreakdown,
+        positionRanks,
         strengths,
         weaknesses,
         shareText,
