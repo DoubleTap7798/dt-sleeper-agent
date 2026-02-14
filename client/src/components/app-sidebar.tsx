@@ -32,6 +32,8 @@ import {
   Bot,
   Zap,
   Clock,
+  ShieldAlert,
+  Share2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -99,8 +101,10 @@ const navigationGroups: NavGroup[] = [
     icon: Trophy,
     requiresLeague: true,
     items: [
+      { title: "Activity Feed", url: "/league/activity", icon: Activity, requiresLeague: false },
       { title: "Standings", url: "/league/standings", icon: BarChart3, requiresLeague: true },
       { title: "Power Rankings", url: "/league/power-rankings", icon: Zap, requiresLeague: true },
+      { title: "Season Projections", url: "/league/season-projections", icon: TrendingUp, requiresLeague: true, premium: true },
       { title: "Playoff Bracket", url: "/league/bracket", icon: GitBranch, requiresLeague: true },
       { title: "Rivalries", url: "/league/rivalries", icon: Swords, requiresLeague: true },
       { title: "Trophy Room", url: "/league/trophies", icon: Trophy, requiresLeague: true },
@@ -118,7 +122,9 @@ const navigationGroups: NavGroup[] = [
       { title: "Lineup Optimizer", url: "/league/lineup-optimizer", icon: Zap, requiresLeague: true, premium: true },
       { title: "Matchups", url: "/league/matchups", icon: Gamepad2, requiresLeague: true },
       { title: "Schedule", url: "/league/schedule", icon: CalendarDays, requiresLeague: true },
+      { title: "Injury Report", url: "/league/injuries", icon: ShieldAlert, requiresLeague: true },
       { title: "Watchlist", url: "/league/watchlist", icon: Eye, premium: true },
+      { title: "Team Report", url: "/league/team-report", icon: Share2, requiresLeague: true, premium: true },
     ],
   },
   {
@@ -129,6 +135,7 @@ const navigationGroups: NavGroup[] = [
       { title: "Stat Leaders", url: "/league/stat-leaders", icon: BarChart3 },
       { title: "Waiver Wire", url: "/league/waivers", icon: UserCog, requiresLeague: true, premium: true },
       { title: "Player Trends", url: "/league/trends", icon: Activity, premium: true },
+      { title: "Usage Trends", url: "/league/usage-trends", icon: Activity, requiresLeague: true, premium: true },
       { title: "Compare", url: "/league/compare", icon: GitCompare, premium: true },
       { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true, premium: true },
       { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },

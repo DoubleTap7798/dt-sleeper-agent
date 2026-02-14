@@ -1,6 +1,6 @@
 import { Switch, Route, useLocation } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient, localStoragePersister } from "./lib/queryClient";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -42,6 +42,11 @@ import PowerRankingsPage from "@/pages/power-rankings";
 import DraftPickValuePage from "@/pages/draft-pick-value";
 import LeagueTimelinePage from "@/pages/league-timeline";
 import StatLeadersPage from "@/pages/stat-leaders";
+import ActivityFeedPage from "@/pages/activity-feed";
+import SeasonProjectionsPage from "@/pages/season-projections";
+import UsageTrendsPage from "@/pages/usage-trends";
+import InjuryTrackerPage from "@/pages/injury-tracker";
+import TeamReportPage from "@/pages/team-report";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -110,6 +115,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <LeagueInfoPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/activity">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <ActivityFeedPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
@@ -302,6 +314,34 @@ function Router() {
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
+      <Route path="/league/season-projections">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <SeasonProjectionsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/usage-trends">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <UsageTrendsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/injuries">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <InjuryTrackerPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/team-report">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <TeamReportPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
       <Route path="/league/stat-leaders">
         <AuthenticatedRoute>
           <LeagueLayout>
@@ -321,14 +361,34 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister: localStoragePersister,
+        maxAge: 24 * 60 * 60 * 1000,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (query) => {
+            const key = query.queryKey[0] as string;
+            if (typeof key !== "string") return false;
+            const persistPaths = [
+              "/api/sleeper/players",
+              "/api/sleeper/league-info",
+              "/api/sleeper/standings",
+              "/api/fantasy/roster",
+              "/api/user",
+            ];
+            return query.state.status === "success" && persistPaths.some((p) => key.startsWith(p));
+          },
+        },
+      }}
+    >
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 

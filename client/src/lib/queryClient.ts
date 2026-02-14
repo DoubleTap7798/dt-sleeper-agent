@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -109,3 +110,23 @@ export async function prefetchPlayerData() {
     // Silently fail
   });
 }
+
+export const localStoragePersister = createSyncStoragePersister({
+  storage: typeof window !== "undefined" ? window.localStorage : undefined,
+  key: "dt-sleeper-cache",
+  throttleTime: 1000,
+  serialize: (data) => {
+    try {
+      return JSON.stringify(data);
+    } catch {
+      return "";
+    }
+  },
+  deserialize: (data) => {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return { clientState: { queries: [], mutations: [] }, timestamp: 0, buster: "" };
+    }
+  },
+});

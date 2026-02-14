@@ -1200,6 +1200,637 @@ ${urls}
     }
   });
 
+  // Season-long projections with Monte Carlo simulation
+  app.get("/api/fantasy/season-projections/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+      if (!profile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [league, state, rosters, users] = await Promise.all([
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+      ]);
+
+      if (!league || !state) {
+        return res.status(404).json({ message: "League not found" });
+      }
+
+      const currentWeek = state.display_week || state.week || 1;
+      const playoffWeekStart = league.settings?.playoff_week_start || 15;
+      const playoffTeams = league.settings?.playoff_teams || 6;
+      const totalWeeks = playoffWeekStart - 1;
+      const userMap = new Map((users || []).map((u) => [u.user_id, u]));
+
+      const allZeroRecords = rosters.every(r => (r.settings?.wins || 0) === 0 && (r.settings?.losses || 0) === 0);
+      if (currentWeek <= 1 && allZeroRecords) {
+        return res.json({ message: "Season hasn't started yet - projections will be available once games begin", projections: [] });
+      }
+
+      const teamPowerScores = new Map<number, number>();
+      const maxFpts = Math.max(...rosters.map(ro => (ro.settings?.fpts || 0) + (ro.settings?.fpts_decimal || 0) / 100), 1);
+      rosters.forEach(r => {
+        const wins = r.settings?.wins || 0;
+        const losses = r.settings?.losses || 0;
+        const fpts = (r.settings?.fpts || 0) + (r.settings?.fpts_decimal || 0) / 100;
+        const totalGames = wins + losses;
+        const winPct = totalGames > 0 ? wins / totalGames : 0.5;
+        const fptsNorm = maxFpts > 0 ? fpts / maxFpts : 0.5;
+        const powerScore = Math.max((winPct * 0.5 + fptsNorm * 0.5) * 100, 5);
+        teamPowerScores.set(r.roster_id, Math.round(powerScore * 10) / 10);
+      });
+
+      const sortedByPower = Array.from(teamPowerScores.entries()).sort((a, b) => b[1] - a[1]);
+      const currentRankMap = new Map(sortedByPower.map(([rid], idx) => [rid, idx + 1]));
+
+      const remainingWeeks: number[] = [];
+      for (let w = currentWeek; w < playoffWeekStart; w++) {
+        remainingWeeks.push(w);
+      }
+
+      const weekMatchups = await Promise.all(
+        remainingWeeks.map(w => sleeperApi.getMatchups(leagueId, w).then(m => ({ week: w, matchups: m })).catch(() => ({ week: w, matchups: [] })))
+      );
+
+      interface ScheduleGame { week: number; rosterId: number; opponentId: number; }
+      const schedule: ScheduleGame[] = [];
+
+      weekMatchups.forEach(({ week, matchups }) => {
+        if (!matchups || matchups.length === 0) return;
+        const matchupGroups = new Map<number, any[]>();
+        matchups.forEach((m: any) => {
+          if (m.matchup_id == null) return;
+          if (!matchupGroups.has(m.matchup_id)) matchupGroups.set(m.matchup_id, []);
+          matchupGroups.get(m.matchup_id)!.push(m);
+        });
+        matchupGroups.forEach(group => {
+          if (group.length !== 2) return;
+          const [a, b] = group;
+          schedule.push({ week, rosterId: a.roster_id, opponentId: b.roster_id });
+          schedule.push({ week, rosterId: b.roster_id, opponentId: a.roster_id });
+        });
+      });
+
+      const SIMULATION_COUNT = 500;
+      const rosterIds = rosters.map(r => r.roster_id);
+      const totalWinsAccum = new Map<number, number>();
+      const totalLossesAccum = new Map<number, number>();
+      const playoffCountAccum = new Map<number, number>();
+      const bestWins = new Map<number, number>();
+      const worstWins = new Map<number, number>();
+
+      rosterIds.forEach(rid => {
+        const currentWins = rosters.find(r => r.roster_id === rid)?.settings?.wins || 0;
+        totalWinsAccum.set(rid, 0);
+        totalLossesAccum.set(rid, 0);
+        playoffCountAccum.set(rid, 0);
+        bestWins.set(rid, currentWins);
+        worstWins.set(rid, currentWins + remainingWeeks.length);
+      });
+
+      for (let sim = 0; sim < SIMULATION_COUNT; sim++) {
+        const simWins = new Map<number, number>();
+        rosterIds.forEach(rid => {
+          simWins.set(rid, rosters.find(r => r.roster_id === rid)?.settings?.wins || 0);
+        });
+
+        const processed = new Set<string>();
+        schedule.forEach(game => {
+          const key = `${game.week}-${Math.min(game.rosterId, game.opponentId)}-${Math.max(game.rosterId, game.opponentId)}`;
+          if (processed.has(key)) return;
+          processed.add(key);
+
+          const teamPower = teamPowerScores.get(game.rosterId) || 5;
+          const oppPower = teamPowerScores.get(game.opponentId) || 5;
+          let winProb = teamPower / (teamPower + oppPower);
+          winProb = Math.max(0.2, Math.min(0.8, winProb));
+
+          if (Math.random() < winProb) {
+            simWins.set(game.rosterId, (simWins.get(game.rosterId) || 0) + 1);
+          } else {
+            simWins.set(game.opponentId, (simWins.get(game.opponentId) || 0) + 1);
+          }
+        });
+
+        rosterIds.forEach(rid => {
+          const wins = simWins.get(rid) || 0;
+          totalWinsAccum.set(rid, (totalWinsAccum.get(rid) || 0) + wins);
+          const losses = totalWeeks - wins;
+          totalLossesAccum.set(rid, (totalLossesAccum.get(rid) || 0) + losses);
+          if (wins > (bestWins.get(rid) || 0)) bestWins.set(rid, wins);
+          if (wins < (worstWins.get(rid) || totalWeeks)) worstWins.set(rid, wins);
+        });
+
+        const ranked = rosterIds.map(rid => ({ rid, wins: simWins.get(rid) || 0 })).sort((a, b) => b.wins - a.wins);
+        ranked.slice(0, playoffTeams).forEach(({ rid }) => {
+          playoffCountAccum.set(rid, (playoffCountAccum.get(rid) || 0) + 1);
+        });
+      }
+
+      const projections = rosters.map(r => {
+        const rid = r.roster_id;
+        const user = userMap.get(r.owner_id);
+        const currentWins = r.settings?.wins || 0;
+        const currentLosses = r.settings?.losses || 0;
+        const projectedWins = Math.round(((totalWinsAccum.get(rid) || 0) / SIMULATION_COUNT) * 10) / 10;
+        const projectedLosses = Math.round((totalWeeks - projectedWins) * 10) / 10;
+        const playoffOdds = Math.round(((playoffCountAccum.get(rid) || 0) / SIMULATION_COUNT) * 1000) / 10;
+        const best = bestWins.get(rid) || currentWins;
+        const worst = worstWins.get(rid) || currentWins;
+        const powerScore = teamPowerScores.get(rid) || 0;
+        const currentRank = currentRankMap.get(rid) || rosterIds.length;
+
+        return {
+          rosterId: rid,
+          ownerName: user?.display_name || user?.username || `Team ${rid}`,
+          avatar: user?.avatar ? sleeperApi.getAvatarUrl(user.avatar) : null,
+          currentRecord: `${currentWins}-${currentLosses}`,
+          projectedWins,
+          projectedLosses,
+          playoffOdds,
+          bestCase: `${best}-${totalWeeks - best}`,
+          worstCase: `${worst}-${totalWeeks - worst}`,
+          currentRank,
+          projectedRank: 0,
+          powerScore,
+          trend: "steady" as "rising" | "falling" | "steady",
+        };
+      });
+
+      projections.sort((a, b) => b.playoffOdds - a.playoffOdds);
+      projections.forEach((p, idx) => {
+        p.projectedRank = idx + 1;
+        if (p.currentRank > p.projectedRank + 1) p.trend = "rising";
+        else if (p.currentRank < p.projectedRank - 1) p.trend = "falling";
+        else p.trend = "steady";
+      });
+
+      res.json({
+        projections,
+        simulationCount: SIMULATION_COUNT,
+        playoffSpots: playoffTeams,
+        remainingWeeks: remainingWeeks.length,
+        totalWeeks,
+      });
+    } catch (error) {
+      console.error("Error fetching season projections:", error);
+      res.status(500).json({ message: "Failed to fetch season projections" });
+    }
+  });
+
+  // Player usage trends from nflverse data
+  app.get("/api/fantasy/usage-trends/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+      if (!profile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, allPlayers, league] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeague(leagueId),
+      ]);
+
+      const userRoster = rosters.find(r => r.owner_id === profile.sleeperUserId);
+      if (!userRoster || !userRoster.players || userRoster.players.length === 0) {
+        return res.json({ players: [] });
+      }
+
+      const { getPlayerWeeklyStats } = await import('./nflverse-stats');
+
+      const skillPositions = new Set(["QB", "RB", "WR", "TE"]);
+      const rosterPlayers = userRoster.players
+        .map(pid => {
+          const p = allPlayers[pid];
+          if (!p) return null;
+          if (!skillPositions.has(p.position)) return null;
+          return { id: pid, name: `${p.first_name} ${p.last_name}`, position: p.position, team: p.team || "FA" };
+        })
+        .filter(Boolean) as { id: string; name: string; position: string; team: string }[];
+
+      type TrendDirection = "rising" | "falling" | "steady";
+      const calcTrend = (last3Val: number, seasonVal: number): TrendDirection => {
+        if (seasonVal === 0) return "steady";
+        if (last3Val > seasonVal * 1.15) return "rising";
+        if (last3Val < seasonVal * 0.85) return "falling";
+        return "steady";
+      };
+
+      const batchSize = 5;
+      const results: any[] = [];
+
+      for (let i = 0; i < rosterPlayers.length; i += batchSize) {
+        const batch = rosterPlayers.slice(i, i + batchSize);
+        const batchResults = await Promise.all(
+          batch.map(async (player) => {
+            try {
+              const weeklyStats = await getPlayerWeeklyStats(player.name);
+              if (weeklyStats.length < 3) return null;
+
+              const weeklyData = weeklyStats.map(w => ({
+                week: w.week,
+                targets: w.targets,
+                receptions: w.receptions,
+                carries: w.carries,
+                rushingYards: w.rushing_yards,
+                receivingYards: w.receiving_yards,
+                fantasyPoints: w.fantasy_points_ppr,
+                targetShare: w.target_share,
+                airYardsShare: w.air_yards_share,
+              }));
+
+              const totalWeeks = weeklyData.length;
+              const seasonTotalFP = weeklyData.reduce((s, w) => s + w.fantasyPoints, 0);
+
+              const seasonAvg = {
+                targets: weeklyData.reduce((s, w) => s + w.targets, 0) / totalWeeks,
+                carries: weeklyData.reduce((s, w) => s + w.carries, 0) / totalWeeks,
+                fantasyPoints: seasonTotalFP / totalWeeks,
+                targetShare: weeklyData.reduce((s, w) => s + w.targetShare, 0) / totalWeeks,
+              };
+
+              const last3 = weeklyData.slice(-3);
+              const last3Avg = {
+                targets: last3.reduce((s, w) => s + w.targets, 0) / 3,
+                carries: last3.reduce((s, w) => s + w.carries, 0) / 3,
+                fantasyPoints: last3.reduce((s, w) => s + w.fantasyPoints, 0) / 3,
+                targetShare: last3.reduce((s, w) => s + w.targetShare, 0) / 3,
+              };
+
+              const trends = {
+                targetShareTrend: calcTrend(last3Avg.targetShare, seasonAvg.targetShare),
+                usageTrend: calcTrend(last3Avg.targets + last3Avg.carries, seasonAvg.targets + seasonAvg.carries),
+                pointsTrend: calcTrend(last3Avg.fantasyPoints, seasonAvg.fantasyPoints),
+              };
+
+              return {
+                playerId: player.id,
+                name: player.name,
+                position: player.position,
+                team: player.team,
+                weeklyData,
+                trends,
+                seasonAvg,
+                last3Avg,
+                _totalFP: seasonTotalFP,
+              };
+            } catch {
+              return null;
+            }
+          })
+        );
+        results.push(...batchResults.filter(Boolean));
+      }
+
+      results.sort((a, b) => b._totalFP - a._totalFP);
+      const limited = results.slice(0, 25).map(({ _totalFP, ...rest }) => rest);
+
+      res.json({ players: limited });
+    } catch (error) {
+      console.error("Error fetching usage trends:", error);
+      res.status(500).json({ message: "Failed to fetch usage trends" });
+    }
+  });
+
+  app.get("/api/fantasy/injury-report/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+      if (!profile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, allPlayers, league] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeague(leagueId),
+      ]);
+
+      const userRoster = rosters.find(r => r.owner_id === profile.sleeperUserId);
+      if (!userRoster || !userRoster.players || userRoster.players.length === 0) {
+        return res.json({ injuries: [], healthyCount: 0, injuredCount: 0, irCount: 0, leagueName: league?.name || "Unknown" });
+      }
+
+      const severityMap: Record<string, "minor" | "moderate" | "severe"> = {
+        Questionable: "minor",
+        Doubtful: "moderate",
+        Out: "severe",
+        IR: "severe",
+        PUP: "severe",
+        Suspended: "severe",
+      };
+
+      const injured: any[] = [];
+      const healthy: any[] = [];
+      let irCount = 0;
+
+      for (const pid of userRoster.players) {
+        const p = allPlayers[pid];
+        if (!p) continue;
+        const injuryStatus = p.injury_status || null;
+        if (injuryStatus) {
+          if (injuryStatus === "IR" || injuryStatus === "PUP") irCount++;
+          injured.push({
+            playerId: pid,
+            name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+            position: p.position || "Unknown",
+            team: p.team || null,
+            injuryStatus,
+            injuryBodyPart: p.injury_body_part || null,
+            injuryNotes: p.injury_notes || null,
+            injuryStartDate: p.injury_start_date || null,
+            severity: severityMap[injuryStatus] || "moderate",
+            years_exp: p.years_exp || 0,
+            age: p.age || 0,
+          });
+        } else {
+          healthy.push({
+            playerId: pid,
+            name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+            position: p.position || "Unknown",
+            team: p.team || null,
+            years_exp: p.years_exp || 0,
+            age: p.age || 0,
+          });
+        }
+      }
+
+      const rosteredPlayerIds = new Set<string>();
+      for (const roster of rosters) {
+        if (roster.players) {
+          for (const pid of roster.players) {
+            rosteredPlayerIds.add(pid);
+          }
+        }
+      }
+
+      const injuriesWithReplacements = injured.map(inj => {
+        const samePositionHealthy = healthy
+          .filter(h => h.position === inj.position)
+          .sort((a, b) => (b.years_exp - a.years_exp) || (b.age - a.age));
+        const rosterReplacement = samePositionHealthy.length > 0
+          ? { name: samePositionHealthy[0].name, position: samePositionHealthy[0].position, playerId: samePositionHealthy[0].playerId }
+          : null;
+
+        const waiverOptions: { name: string; position: string; team: string; playerId: string }[] = [];
+        const allPlayerEntries = Object.entries(allPlayers);
+        const freeAgents = allPlayerEntries
+          .filter(([pid, p]) => {
+            if (rosteredPlayerIds.has(pid)) return false;
+            if (!p || p.position !== inj.position) return false;
+            if (!p.active) return false;
+            return true;
+          })
+          .sort(([, a], [, b]) => ((b.years_exp || 0) - (a.years_exp || 0)))
+          .slice(0, 3);
+
+        for (const [pid, p] of freeAgents) {
+          waiverOptions.push({
+            name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+            position: p.position,
+            team: p.team || "FA",
+            playerId: pid,
+          });
+        }
+
+        return {
+          playerId: inj.playerId,
+          name: inj.name,
+          position: inj.position,
+          team: inj.team,
+          injuryStatus: inj.injuryStatus,
+          injuryBodyPart: inj.injuryBodyPart,
+          injuryNotes: inj.injuryNotes,
+          injuryStartDate: inj.injuryStartDate,
+          severity: inj.severity,
+          rosterReplacement,
+          waiverOptions,
+        };
+      });
+
+      res.json({
+        injuries: injuriesWithReplacements,
+        healthyCount: healthy.length,
+        injuredCount: injured.length,
+        irCount,
+        leagueName: league?.name || "Unknown",
+      });
+    } catch (error) {
+      console.error("Error fetching injury report:", error);
+      res.status(500).json({ message: "Failed to fetch injury report" });
+    }
+  });
+
+  // Team Report - shareable team summary card
+  app.get("/api/fantasy/team-report/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+
+      if (!profile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, allPlayers, league, users, stats] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getSeasonStats("2025", "regular"),
+      ]);
+
+      try { await dynastyConsensusService.fetchAndCacheValues(); } catch(e) {}
+      const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+      const leagueScoring = league ? dynastyEngine.parseLeagueScoringSettings(league) : null;
+
+      const userRoster = rosters.find(r => r.owner_id === profile.sleeperUserId);
+      if (!userRoster) {
+        return res.status(404).json({ message: "Roster not found in this league" });
+      }
+
+      const userEntry = users.find(u => u.user_id === profile.sleeperUserId);
+      const teamName = userEntry?.display_name || userEntry?.username || "My Team";
+      const avatar = userEntry?.avatar ? `https://sleepercdn.com/avatars/${userEntry.avatar}` : null;
+      const leagueName = league?.name || "Unknown League";
+
+      const getBlendedValue = (playerId: string, player: any) => {
+        const pos = player?.position || "?";
+        const playerName = player?.full_name || `${player?.first_name} ${player?.last_name}`;
+        const playerStats = stats?.[playerId] || {};
+        const gamesPlayed = (playerStats as any).gp || 0;
+        const fantasyPoints = (playerStats as any).pts_ppr || 0;
+        const pointsPerGame = gamesPlayed > 0 ? fantasyPoints / gamesPlayed : 0;
+        const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, pos, isSuperflex);
+        const valueResult = dynastyEngine.getBlendedPlayerValue(
+          playerId, playerName, pos, player?.age || 25, player?.years_exp || 0,
+          player?.injury_status,
+          { points: fantasyPoints, games: gamesPlayed, ppg: pointsPerGame },
+          null, leagueScoring, consensusValue, 0.5,
+          dynastyEngine.parseLeagueRosterSettings(league)
+        );
+        return valueResult.value;
+      };
+
+      const wins = (userRoster.settings as any)?.wins || 0;
+      const losses = (userRoster.settings as any)?.losses || 0;
+      const ties = (userRoster.settings as any)?.ties || 0;
+      const totalPoints = parseFloat(String((userRoster.settings as any)?.fpts || 0)) + parseFloat(String((userRoster.settings as any)?.fpts_decimal || 0)) / 100;
+      const gamesPlayed = wins + losses + ties;
+      const pointsPerGame = gamesPlayed > 0 ? Math.round((totalPoints / gamesPlayed) * 10) / 10 : 0;
+      const record = `${wins}-${losses}${ties > 0 ? `-${ties}` : ""}`;
+
+      const sortedByRecord = [...rosters].sort((a, b) => {
+        const aWins = (a.settings as any)?.wins || 0;
+        const bWins = (b.settings as any)?.wins || 0;
+        if (bWins !== aWins) return bWins - aWins;
+        const aPts = parseFloat(String((a.settings as any)?.fpts || 0));
+        const bPts = parseFloat(String((b.settings as any)?.fpts || 0));
+        return bPts - aPts;
+      });
+      const rank = sortedByRecord.findIndex(r => r.roster_id === userRoster.roster_id) + 1;
+      const totalTeams = rosters.length;
+
+      const allPointTotals = rosters.map(r => parseFloat(String((r.settings as any)?.fpts || 0)));
+      allPointTotals.sort((a, b) => b - a);
+      const top25Threshold = allPointTotals[Math.floor(allPointTotals.length * 0.25)] || 0;
+
+      const playerIds = userRoster.players || [];
+      const positions = ["QB", "RB", "WR", "TE"];
+
+      const positionBreakdown: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+      const positionValues: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+
+      interface PlayerInfo { name: string; position: string; points: number; value: number; age: number; }
+      const rosterPlayers: PlayerInfo[] = [];
+
+      let totalDynastyValue = 0;
+      let totalAge = 0;
+      let ageCount = 0;
+
+      for (const pid of playerIds) {
+        const player = allPlayers[pid];
+        if (!player) continue;
+        const pos = player.position || "?";
+        const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
+        const playerStats = stats?.[pid] || {};
+        const fantasyPoints = (playerStats as any).pts_ppr || 0;
+        const value = getBlendedValue(pid, player);
+        totalDynastyValue += value;
+
+        if (positions.includes(pos)) {
+          positionBreakdown[pos] = (positionBreakdown[pos] || 0) + 1;
+          positionValues[pos] = (positionValues[pos] || 0) + value;
+        }
+
+        const age = player.age || 0;
+        if (age > 0) {
+          totalAge += age;
+          ageCount++;
+        }
+
+        rosterPlayers.push({ name: playerName, position: pos, points: fantasyPoints, value, age });
+      }
+
+      const avgAge = ageCount > 0 ? Math.round((totalAge / ageCount) * 10) / 10 : 0;
+
+      const topPlayers = [...rosterPlayers]
+        .sort((a, b) => b.points - a.points)
+        .slice(0, 5)
+        .map(p => ({ name: p.name, position: p.position, points: Math.round(p.points * 10) / 10, value: p.value }));
+
+      const leaguePositionValues: Record<string, number[]> = { QB: [], RB: [], WR: [], TE: [] };
+      const teamDynastyValues: { rosterId: number; value: number }[] = [];
+
+      for (const roster of rosters) {
+        let teamValue = 0;
+        const teamPosValues: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0 };
+        for (const pid of (roster.players || [])) {
+          const player = allPlayers[pid];
+          if (!player) continue;
+          const pos = player.position || "?";
+          const value = getBlendedValue(pid, player);
+          teamValue += value;
+          if (positions.includes(pos)) {
+            teamPosValues[pos] += value;
+          }
+        }
+        teamDynastyValues.push({ rosterId: roster.roster_id, value: teamValue });
+        for (const pos of positions) {
+          leaguePositionValues[pos].push(teamPosValues[pos]);
+        }
+      }
+
+      teamDynastyValues.sort((a, b) => b.value - a.value);
+      const dynastyRank = teamDynastyValues.findIndex(t => t.rosterId === userRoster.roster_id) + 1;
+
+      const strengths: string[] = [];
+      const weaknesses: string[] = [];
+
+      for (const pos of positions) {
+        const vals = leaguePositionValues[pos];
+        const avg = vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+        const userVal = positionValues[pos] || 0;
+        if (avg > 0 && userVal > avg * 1.2) {
+          strengths.push(`Strong ${pos} room`);
+        } else if (avg > 0 && userVal < avg * 0.8) {
+          weaknesses.push(`Weak at ${pos}`);
+        }
+      }
+
+      if (avgAge > 28) weaknesses.push("Aging roster");
+      if (avgAge > 0 && avgAge < 24) strengths.push("Youth advantage");
+      if (rank <= 3) strengths.push("Top 3 contender");
+      if (totalPoints >= top25Threshold && top25Threshold > 0) strengths.push("High-scoring team");
+
+      let profileLabel: "Contender" | "Rebuild" | "Balanced" = "Balanced";
+      if (avgAge > 0 && avgAge >= 27) profileLabel = "Contender";
+      if (avgAge > 0 && avgAge < 25) profileLabel = "Rebuild";
+
+      const top3Names = topPlayers.slice(0, 3).map(p => p.name).join(", ");
+      const shareText = [
+        `${teamName} - ${leagueName}`,
+        `Record: ${record} (Rank #${rank}/${totalTeams})`,
+        `Dynasty Value: ${totalDynastyValue.toLocaleString()} (#${dynastyRank})`,
+        `Profile: ${profileLabel} | Avg Age: ${avgAge}`,
+        `Top Players: ${top3Names}`,
+        `Powered by DT Sleeper Agent`,
+      ].join("\n");
+
+      res.json({
+        teamName,
+        leagueName,
+        avatar,
+        record,
+        rank,
+        totalTeams,
+        totalPoints: Math.round(totalPoints * 10) / 10,
+        pointsPerGame,
+        dynastyValue: totalDynastyValue,
+        dynastyRank,
+        profile: profileLabel,
+        avgAge,
+        topPlayers,
+        positionBreakdown,
+        strengths,
+        weaknesses,
+        shareText,
+      });
+    } catch (error) {
+      console.error("Error generating team report:", error);
+      res.status(500).json({ message: "Failed to generate team report" });
+    }
+  });
+
   // Get league transactions
   app.get("/api/sleeper/transactions/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
@@ -1225,6 +1856,145 @@ ${urls}
     } catch (error) {
       console.error("Error fetching transactions:", error);
       res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  // Cross-league activity feed
+  app.get("/api/fantasy/activity-feed", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+
+      if (!profile?.sleeperUserId) {
+        return res.json({ activities: [], lastUpdated: Date.now() });
+      }
+
+      const leagues = await getAllUserLeagues(profile.sleeperUserId);
+      if (!leagues || leagues.length === 0) {
+        return res.json({ activities: [], lastUpdated: Date.now() });
+      }
+
+      const state = await sleeperApi.getState();
+      const currentWeek = state?.week || 1;
+      const weeksToFetch: number[] = [];
+      for (let w = currentWeek; w >= Math.max(1, currentWeek - 2); w--) {
+        weeksToFetch.push(w);
+      }
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+
+      const batchSize = 10;
+      const allActivities: any[] = [];
+
+      for (let i = 0; i < leagues.length; i += batchSize) {
+        const batch = leagues.slice(i, i + batchSize);
+        const batchResults = await Promise.all(
+          batch.map(async (league: any) => {
+            try {
+              const [leagueUsers, rosters, ...weekTransactions] = await Promise.all([
+                sleeperApi.getLeagueUsers(league.league_id),
+                sleeperApi.getLeagueRosters(league.league_id),
+                ...weeksToFetch.map(w => sleeperApi.getLeagueTransactions(league.league_id, w)),
+              ]);
+
+              const rosterOwnerMap = new Map<number, string>();
+              const userNameMap = new Map<string, string>();
+              for (const u of (leagueUsers || [])) {
+                userNameMap.set(u.user_id, u.display_name || u.username || "Unknown");
+              }
+              for (const r of (rosters || [])) {
+                const ownerName = userNameMap.get(r.owner_id) || "Unknown Team";
+                rosterOwnerMap.set(r.roster_id, ownerName);
+              }
+
+              const transactions = weekTransactions.flat().filter((t: any) => t.status === "complete");
+
+              return transactions.map((tx: any) => {
+                const players: any[] = [];
+                if (tx.adds) {
+                  for (const [playerId, rosterId] of Object.entries(tx.adds)) {
+                    const p = allPlayers[playerId];
+                    players.push({
+                      name: p?.full_name || "Unknown Player",
+                      position: p?.position || "?",
+                      action: "added",
+                    });
+                  }
+                }
+                if (tx.drops) {
+                  for (const [playerId, rosterId] of Object.entries(tx.drops)) {
+                    const p = allPlayers[playerId];
+                    players.push({
+                      name: p?.full_name || "Unknown Player",
+                      position: p?.position || "?",
+                      action: "dropped",
+                    });
+                  }
+                }
+
+                const draftPicks = (tx.draft_picks || []).map((pick: any) => {
+                  const fromTeam = rosterOwnerMap.get(pick.previous_owner_id) || "Unknown";
+                  const toTeam = rosterOwnerMap.get(pick.owner_id) || "Unknown";
+                  return `${pick.season} Round ${pick.round} (${fromTeam} → ${toTeam})`;
+                });
+
+                const teams = (tx.roster_ids || []).map((rid: number) => rosterOwnerMap.get(rid) || "Unknown Team");
+
+                let description = "";
+                if (tx.type === "trade") {
+                  description = `Trade between ${teams.join(" and ")}`;
+                } else if (tx.type === "waiver") {
+                  const added = players.filter((p: any) => p.action === "added").map((p: any) => p.name);
+                  const dropped = players.filter((p: any) => p.action === "dropped").map((p: any) => p.name);
+                  const team = teams[0] || "Unknown Team";
+                  if (added.length > 0 && dropped.length > 0) {
+                    description = `${team} claimed ${added.join(", ")} and dropped ${dropped.join(", ")}`;
+                  } else if (added.length > 0) {
+                    description = `${team} claimed ${added.join(", ")} off waivers`;
+                  } else {
+                    description = `${team} waiver move`;
+                  }
+                } else if (tx.type === "free_agent") {
+                  const added = players.filter((p: any) => p.action === "added").map((p: any) => p.name);
+                  const dropped = players.filter((p: any) => p.action === "dropped").map((p: any) => p.name);
+                  const team = teams[0] || "Unknown Team";
+                  if (added.length > 0 && dropped.length > 0) {
+                    description = `${team} added ${added.join(", ")} and dropped ${dropped.join(", ")}`;
+                  } else if (added.length > 0) {
+                    description = `${team} added ${added.join(", ")} as free agent`;
+                  } else if (dropped.length > 0) {
+                    description = `${team} dropped ${dropped.join(", ")}`;
+                  } else {
+                    description = `${team} roster move`;
+                  }
+                }
+
+                return {
+                  id: `${tx.transaction_id}_${league.league_id}`,
+                  type: tx.type,
+                  leagueId: league.league_id,
+                  leagueName: league.name,
+                  timestamp: tx.status_updated || tx.created || 0,
+                  description,
+                  players,
+                  draftPicks,
+                  teams,
+                };
+              });
+            } catch (err) {
+              console.error(`Error fetching activity for league ${league.league_id}:`, err);
+              return [];
+            }
+          })
+        );
+        allActivities.push(...batchResults.flat());
+      }
+
+      allActivities.sort((a, b) => b.timestamp - a.timestamp);
+      res.json({ activities: allActivities.slice(0, 50), lastUpdated: Date.now() });
+    } catch (error) {
+      console.error("Error fetching activity feed:", error);
+      res.status(500).json({ message: "Failed to fetch activity feed" });
     }
   });
 
