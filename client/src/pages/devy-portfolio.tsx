@@ -27,7 +27,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Briefcase, Plus, ChevronRight, TrendingUp, TrendingDown, Sparkles, Zap, AlertTriangle, Trash2, UserPlus } from "lucide-react";
+import { Briefcase, Plus, ChevronRight, TrendingUp, TrendingDown, Sparkles, Zap, AlertTriangle, Trash2, UserPlus, Pencil } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -53,8 +53,10 @@ export default function DevyPortfolioPage() {
   const { toast } = useToast();
   const { league: selectedLeague, isLoading: leagueLoading } = useSelectedLeague();
   const [selectedPlayer, setSelectedPlayer] = useState<DevyPlayer | null>(null);
+  const [selectedUnmatched, setSelectedUnmatched] = useState<{ name: string; position: string; school: string } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [newPlayer, setNewPlayer] = useState({ playerName: "", position: "QB", school: "", leagueId: "", leagueName: "", notes: "" });
 
   const { data: devyData, isLoading: devyLoading } = useQuery<DevyData>({
@@ -63,7 +65,7 @@ export default function DevyPortfolioPage() {
   });
 
   const { data: myDevyData, isLoading: myDevyLoading } = useQuery<{
-    ownedDevy: Array<{ devyPlayerId: string; devyName: string; devyPosition: string; devySchool: string; leagueId: string; leagueName: string; matched: boolean }>;
+    ownedDevy: Array<{ devyPlayerId: string; devyName: string; devyPosition: string; devySchool: string; leagueId: string; leagueName: string; matched: boolean; source: "system" | "manual"; manualEntryId?: string }>;
     leagues: Array<{ id: string; name: string }>;
     manualEntries: ManualEntry[];
   }>({
@@ -145,11 +147,28 @@ export default function DevyPortfolioPage() {
     return !players.some(p => p.playerId === d.devyPlayerId || fuzzyNameMatch(d.devyName, p.name));
   });
 
-  const getOwnedLeagues = (playerId: string, playerName: string): string[] => {
+  const getOwnedLeagues = (playerId: string, playerName: string): Array<{ name: string; source: "system" | "manual" }> => {
     const source = isAllLeagues ? allOwnedDevy : filteredOwnedDevy;
-    return source
-      .filter(d => d.devyPlayerId === playerId || fuzzyNameMatch(d.devyName, playerName))
-      .map(d => d.leagueName);
+    const seen = new Set<string>();
+    const results: Array<{ name: string; source: "system" | "manual" }> = [];
+    for (const d of source) {
+      if (d.devyPlayerId === playerId || fuzzyNameMatch(d.devyName, playerName)) {
+        const key = `${d.leagueName}-${d.source}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({ name: d.leagueName, source: d.source });
+        }
+      }
+    }
+    return results;
+  };
+
+  const hasManualEntry = (playerId: string, playerName: string): string | undefined => {
+    const source = isAllLeagues ? allOwnedDevy : filteredOwnedDevy;
+    const entry = source.find(d =>
+      (d.devyPlayerId === playerId || fuzzyNameMatch(d.devyName, playerName)) && d.manualEntryId
+    );
+    return entry?.manualEntryId;
   };
 
   const allManualEntries = myDevyData?.manualEntries || [];
@@ -191,6 +210,13 @@ export default function DevyPortfolioPage() {
               </p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            {manualEntries.length > 0 && (
+              <Button variant="outline" className="gap-2" onClick={() => setManageDialogOpen(true)} data-testid="button-manage-manual">
+                <Pencil className="h-4 w-4" />
+                Edit Manual ({manualEntries.length})
+              </Button>
+            )}
           <Dialog open={addDialogOpen} onOpenChange={(open) => {
             setAddDialogOpen(open);
             if (open && selectedLeague) {
@@ -302,6 +328,7 @@ export default function DevyPortfolioPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
       </div>
 
@@ -380,8 +407,10 @@ export default function DevyPortfolioPage() {
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className="text-xs text-muted-foreground">{player.college}</span>
                           <span className="text-xs text-muted-foreground">{player.draftEligibleYear}</span>
-                          {leagues.map((league, i) => (
-                            <Badge key={i} variant="secondary" className="text-[10px]">{league}</Badge>
+                          {leagues.map((l, i) => (
+                            <Badge key={i} variant="secondary" className={`text-[10px] ${l.source === "manual" ? "border-amber-600/30" : ""}`}>
+                              {l.name}
+                            </Badge>
                           ))}
                         </div>
                       </div>
@@ -432,7 +461,15 @@ export default function DevyPortfolioPage() {
             </div>
             <div className="divide-y divide-amber-800/10">
               {unmatchedDevy.map((d, i) => (
-                <div key={`unmatched-${i}`} className="p-4 flex items-center justify-between gap-3" data-testid={`row-unmatched-${i}`}>
+                <div
+                  key={`unmatched-${i}`}
+                  className="p-4 hover-elevate cursor-pointer flex items-center justify-between gap-3"
+                  onClick={() => {
+                    setSelectedUnmatched({ name: d.devyName, position: d.devyPosition, school: d.devySchool });
+                    setModalOpen(true);
+                  }}
+                  data-testid={`row-unmatched-${i}`}
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <Badge variant="outline" className={`text-xs shrink-0 ${getPositionColorClass(d.devyPosition)}`}>
                       {d.devyPosition}
@@ -442,7 +479,10 @@ export default function DevyPortfolioPage() {
                       {d.devySchool && <span className="text-xs text-muted-foreground ml-2">{d.devySchool}</span>}
                     </div>
                   </div>
-                  <Badge variant="secondary" className="text-[10px] shrink-0">{d.leagueName}</Badge>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="secondary" className={`text-[10px] ${d.source === "manual" ? "border-amber-600/30" : ""}`}>{d.leagueName}</Badge>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
                 </div>
               ))}
             </div>
@@ -450,18 +490,20 @@ export default function DevyPortfolioPage() {
         </Card>
       )}
 
-      {manualEntries.length > 0 && (
-        <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-manual-entries">
-          <CardContent className="p-0">
-            <div className="p-4 border-b border-amber-800/20">
-              <h3 className="font-semibold flex items-center gap-2 text-amber-100">
-                <UserPlus className="h-4 w-4 text-amber-500" />
-                Manually Added ({manualEntries.length})
-              </h3>
-            </div>
-            <div className="divide-y divide-amber-800/10">
-              {manualEntries.map((entry) => (
-                <div key={entry.id} className="p-4 flex items-center justify-between gap-3" data-testid={`row-manual-${entry.id}`}>
+      <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
+        <DialogContent className="max-w-lg" data-testid="dialog-manage-manual">
+          <DialogHeader>
+            <DialogTitle>Manage Manual Entries</DialogTitle>
+            <DialogDescription>
+              Edit or remove players you've manually added to your portfolio.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto divide-y divide-border">
+            {manualEntries.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No manual entries yet.</p>
+            ) : (
+              manualEntries.map((entry) => (
+                <div key={entry.id} className="py-3 flex items-center justify-between gap-3" data-testid={`manage-row-${entry.id}`}>
                   <div className="flex items-center gap-3 min-w-0">
                     <Badge variant="outline" className={`text-xs shrink-0 ${getPositionColorClass(entry.position)}`}>
                       {entry.position}
@@ -469,32 +511,37 @@ export default function DevyPortfolioPage() {
                     <div className="min-w-0">
                       <span className="font-medium text-sm">{entry.playerName}</span>
                       {entry.school && <span className="text-xs text-muted-foreground ml-2">{entry.school}</span>}
+                      {entry.leagueName && (
+                        <Badge variant="secondary" className="text-[10px] ml-2">{entry.leagueName}</Badge>
+                      )}
                       {entry.notes && <p className="text-xs text-muted-foreground mt-0.5">{entry.notes}</p>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {entry.leagueName && <Badge variant="secondary" className="text-[10px]">{entry.leagueName}</Badge>}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeMutation.mutate(entry.id)}
-                          disabled={removeMutation.isPending}
-                          data-testid={`button-remove-${entry.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Remove from portfolio</TooltipContent>
-                    </Tooltip>
-                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeMutation.mutate(entry.id)}
+                        disabled={removeMutation.isPending}
+                        data-testid={`button-remove-${entry.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Remove from portfolio</TooltipContent>
+                  </Tooltip>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" data-testid="button-close-manage">Close</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {totalCount === 0 && (
         <Card className="border-amber-800/20 bg-stone-950/60">
@@ -517,9 +564,13 @@ export default function DevyPortfolioPage() {
         open={modalOpen}
         onOpenChange={(open) => {
           setModalOpen(open);
-          if (!open) setSelectedPlayer(null);
+          if (!open) {
+            setSelectedPlayer(null);
+            setSelectedUnmatched(null);
+          }
         }}
         player={selectedPlayer}
+        unmatchedPlayer={selectedUnmatched}
       />
     </div>
     </PremiumGate>

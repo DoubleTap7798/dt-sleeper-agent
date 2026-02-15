@@ -190,17 +190,25 @@ interface DevyProfileModalProps {
     ageClass?: "young-breakout" | "normal" | "old-producer";
     isUnmatched?: boolean;
   } | null;
+  unmatchedPlayer?: { name: string; position: string; school: string } | null;
 }
 
-export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModalProps) {
-  const isUnmatched = player?.isUnmatched === true;
+export function DevyProfileModal({ open, onOpenChange, player, unmatchedPlayer }: DevyProfileModalProps) {
+  const effectivePlayer = player || (unmatchedPlayer ? {
+    playerId: `unmatched-${unmatchedPlayer.name.toLowerCase().trim()}`,
+    name: unmatchedPlayer.name,
+    position: unmatchedPlayer.position,
+    college: unmatchedPlayer.school || "Unknown",
+    isUnmatched: true,
+  } : null);
+  const isUnmatched = effectivePlayer?.isUnmatched === true;
   const { data, isLoading, error } = useQuery<DevyProfileData>({
     queryKey: [`/api/sleeper/devy/${player?.playerId}/profile`],
     enabled: !!player?.playerId && open && !isUnmatched,
     staleTime: 1000 * 60 * 10,
   });
 
-  if (!player) return null;
+  if (!effectivePlayer) return null;
 
   if (isUnmatched) {
     return (
@@ -211,24 +219,24 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               <div className="flex items-start gap-3">
                 <Avatar className="h-14 w-14 shrink-0">
                   <AvatarFallback className="text-lg bg-purple-500/20 text-purple-400">
-                    {player.college && player.college !== "Unknown" ? player.college.slice(0, 2) : "DV"}
+                    {effectivePlayer.college && effectivePlayer.college !== "Unknown" ? effectivePlayer.college.slice(0, 2) : "DV"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <DialogTitle className="text-xl" data-testid="text-player-name">
-                    {player.name}
+                    {effectivePlayer.name}
                   </DialogTitle>
                   <DialogDescription asChild>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      {player.position && player.position !== "?" && (
-                        <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid="badge-position">
-                          {player.position}
+                      {effectivePlayer.position && effectivePlayer.position !== "?" && (
+                        <Badge variant="outline" className={getPositionColorClass(effectivePlayer.position)} data-testid="badge-position">
+                          {effectivePlayer.position}
                         </Badge>
                       )}
-                      {player.college && player.college !== "Unknown" && (
+                      {effectivePlayer.college && effectivePlayer.college !== "Unknown" && (
                         <Badge variant="outline" data-testid="badge-college">
                           <GraduationCap className="h-3 w-3 mr-1" />
-                          {player.college}
+                          {effectivePlayer.college}
                         </Badge>
                       )}
                       <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/30">
@@ -256,11 +264,11 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               This prospect is not yet in our curated devy database. Detailed analytics, scouting notes, and projections will be available once they are added to the system.
             </p>
             <div className="flex flex-wrap gap-2 justify-center text-xs">
-              {player.position && player.position !== "?" && (
-                <span>Position: <span className="font-medium text-foreground">{player.position}</span></span>
+              {effectivePlayer.position && effectivePlayer.position !== "?" && (
+                <span>Position: <span className="font-medium text-foreground">{effectivePlayer.position}</span></span>
               )}
-              {player.college && player.college !== "Unknown" && (
-                <span>School: <span className="font-medium text-foreground">{player.college}</span></span>
+              {effectivePlayer.college && effectivePlayer.college !== "Unknown" && (
+                <span>School: <span className="font-medium text-foreground">{effectivePlayer.college}</span></span>
               )}
             </div>
           </div>
@@ -268,6 +276,8 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
       </Dialog>
     );
   }
+
+  const p = player!;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -278,28 +288,28 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               <Avatar className="h-14 w-14 shrink-0" data-testid="avatar-player">
                 <AvatarImage 
                   src={data?.player?.teamLogo || undefined} 
-                  alt={player.college}
+                  alt={p.college}
                 />
                 <AvatarFallback className="text-lg bg-muted">
-                  {player.college.slice(0, 2)}
+                  {p.college.slice(0, 2)}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <DialogTitle className="text-xl" data-testid="text-player-name">
-                  {player.name}
+                  {p.name}
                 </DialogTitle>
                 <DialogDescription asChild>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid="badge-position">
-                      {player.position}{player.positionRank ?? ""}
+                    <Badge variant="outline" className={getPositionColorClass(p.position)} data-testid="badge-position">
+                      {p.position}{p.positionRank ?? ""}
                     </Badge>
                     <Badge variant="outline" data-testid="badge-college">
                       <GraduationCap className="h-3 w-3 mr-1" />
-                      {player.college}
+                      {p.college}
                     </Badge>
-                    {player.draftEligibleYear && (
+                    {p.draftEligibleYear && (
                       <Badge variant="outline" data-testid="badge-draft-year">
-                        {player.draftEligibleYear} Draft
+                        {p.draftEligibleYear} Draft
                       </Badge>
                     )}
                   </div>
@@ -307,10 +317,10 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               </div>
             </div>
             <div className="flex items-start gap-3">
-              {player.rank != null && player.rank > 0 && (
+              {p.rank != null && p.rank > 0 && (
                 <div className="text-right shrink-0">
                   <div className="text-lg font-bold" data-testid="text-rank">
-                    #{player.rank}
+                    #{p.rank}
                   </div>
                   <div className="text-xs text-muted-foreground">Overall</div>
                 </div>
@@ -330,32 +340,32 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
 
           <div className="grid grid-cols-5 gap-2 mt-3">
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-pick-value">
-              <div className="text-lg font-bold text-primary">{(player.pickMultiplier ?? 0).toFixed(1)}x</div>
+              <div className="text-lg font-bold text-primary">{(p.pickMultiplier ?? 0).toFixed(1)}x</div>
               <div className="text-xs text-muted-foreground">Pick Value</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-elite">
-              <div className="text-lg font-bold text-green-500">{player.elitePct ?? 0}%</div>
+              <div className="text-lg font-bold text-green-500">{p.elitePct ?? 0}%</div>
               <div className="text-xs text-muted-foreground">Elite %</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-bust">
-              <div className="text-lg font-bold text-red-500">{player.bustPct ?? 0}%</div>
+              <div className="text-lg font-bold text-red-500">{p.bustPct ?? 0}%</div>
               <div className="text-xs text-muted-foreground">Bust %</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-round1">
-              <div className="text-lg font-bold">{player.round1Pct ?? 0}%</div>
+              <div className="text-lg font-bold">{p.round1Pct ?? 0}%</div>
               <div className="text-xs text-muted-foreground">Round 1</div>
             </div>
             <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-trend">
               <div className="text-lg font-bold flex items-center justify-center gap-1">
-                {(player.trend30Day ?? 0) > 0 ? (
+                {(p.trend30Day ?? 0) > 0 ? (
                   <>
                     <TrendingUp className="h-3 w-3 text-green-500" />
-                    <span className="text-green-500">+{player.trend30Day}</span>
+                    <span className="text-green-500">+{p.trend30Day}</span>
                   </>
-                ) : (player.trend30Day ?? 0) < 0 ? (
+                ) : (p.trend30Day ?? 0) < 0 ? (
                   <>
                     <TrendingDown className="h-3 w-3 text-red-500" />
-                    <span className="text-red-500">{player.trend30Day}</span>
+                    <span className="text-red-500">{p.trend30Day}</span>
                   </>
                 ) : (
                   "-"
@@ -371,40 +381,40 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
               <div className="text-xs text-muted-foreground mb-1">Market Share</div>
               <div className="grid grid-cols-3 gap-1 text-xs">
                 <div>
-                  <span className="font-medium">{player.dominatorRating ?? 0}%</span>
+                  <span className="font-medium">{p.dominatorRating ?? 0}%</span>
                   <span className="text-muted-foreground ml-0.5">Dom</span>
                 </div>
                 <div>
-                  <span className="font-medium">{player.yardShare ?? 0}%</span>
+                  <span className="font-medium">{p.yardShare ?? 0}%</span>
                   <span className="text-muted-foreground ml-0.5">Yds</span>
                 </div>
                 <div>
-                  <span className="font-medium">{player.tdShare ?? 0}%</span>
+                  <span className="font-medium">{p.tdShare ?? 0}%</span>
                   <span className="text-muted-foreground ml-0.5">TDs</span>
                 </div>
               </div>
-              {player.breakoutAge && (
+              {p.breakoutAge && (
                 <div className="text-xs mt-1">
                   <span className="text-muted-foreground">Breakout Age:</span>{" "}
-                  <span className={`font-medium ${player.breakoutAge <= 19 ? "text-green-500" : player.breakoutAge >= 21 ? "text-yellow-500" : ""}`}>
-                    {player.breakoutAge}
+                  <span className={`font-medium ${p.breakoutAge <= 19 ? "text-green-500" : p.breakoutAge >= 21 ? "text-yellow-500" : ""}`}>
+                    {p.breakoutAge}
                   </span>
                 </div>
               )}
             </div>
             <div className="p-2 bg-muted/50 rounded">
               <div className="text-xs text-muted-foreground mb-1">Path to Production</div>
-              <div className="text-sm font-medium">{player.depthRole ?? "Unknown"}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{player.pathContext ?? ""}</div>
+              <div className="text-sm font-medium">{p.depthRole ?? "Unknown"}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{p.pathContext ?? ""}</div>
             </div>
           </div>
 
           {/* Historical Comps */}
-          {player.comps && player.comps.length > 0 && (
+          {p.comps && p.comps.length > 0 && (
             <div className="mt-2 p-2 bg-muted/50 rounded">
               <div className="text-xs text-muted-foreground mb-1">Historical Comparisons</div>
               <div className="flex flex-wrap gap-2">
-                {player.comps.map((comp, idx) => (
+                {p.comps.map((comp, idx) => (
                   <div key={idx} className="flex items-center gap-1 text-xs">
                     <span className={`h-1.5 w-1.5 rounded-full ${comp.wasSuccess ? "bg-green-500" : "bg-red-500"}`} />
                     <span className="font-medium">{comp.name}</span>
@@ -558,7 +568,7 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                         <BarChart3 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                         <h3 className="font-semibold mb-2">Stats Not Available</h3>
                         <p className="text-sm text-muted-foreground">
-                          College statistics for {player.name} are not yet available from ESPN. 
+                          College statistics for {p.name} are not yet available from ESPN. 
                           This may be because the player is an incoming freshman or ESPN hasn't updated their data.
                         </p>
                       </CardContent>
@@ -630,13 +640,13 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                               <tr className="text-left text-muted-foreground">
                                 <th className="px-1.5 py-1">Yr</th>
                                 <th className="px-1.5 py-1">G</th>
-                                {player.position === "QB" ? (
+                                {p.position === "QB" ? (
                                   <>
                                     <th className="px-1.5 py-1">PaY</th>
                                     <th className="px-1.5 py-1">PaT</th>
                                     <th className="px-1.5 py-1">RuY</th>
                                   </>
-                                ) : player.position === "RB" ? (
+                                ) : p.position === "RB" ? (
                                   <>
                                     <th className="px-1.5 py-1">RuY</th>
                                     <th className="px-1.5 py-1">RuT</th>
@@ -656,13 +666,13 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                                 <tr key={idx} className={idx % 2 === 0 ? "bg-muted/30" : ""}>
                                   <td className="px-1.5 py-1 font-medium">{season.year}</td>
                                   <td className="px-1.5 py-1">{season.games}</td>
-                                  {player.position === "QB" ? (
+                                  {p.position === "QB" ? (
                                     <>
                                       <td className="px-1.5 py-1">{season.stats.passYds?.toLocaleString() || 0}</td>
                                       <td className="px-1.5 py-1">{season.stats.passTd || 0}</td>
                                       <td className="px-1.5 py-1">{season.stats.rushYds?.toLocaleString() || 0}</td>
                                     </>
-                                  ) : player.position === "RB" ? (
+                                  ) : p.position === "RB" ? (
                                     <>
                                       <td className="px-1.5 py-1">{season.stats.rushYds?.toLocaleString() || 0}</td>
                                       <td className="px-1.5 py-1">{season.stats.rushTd || 0}</td>
@@ -681,13 +691,13 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                           </table>
                         </div>
                         <div className="mt-2 text-[10px] text-muted-foreground flex flex-wrap gap-x-2">
-                            {player.position === "QB" ? (
+                            {p.position === "QB" ? (
                               <>
                                 <span><span className="font-medium">PaY</span>=Pass Yds</span>
                                 <span><span className="font-medium">PaT</span>=Pass TD</span>
                                 <span><span className="font-medium">RuY</span>=Rush Yds</span>
                               </>
-                            ) : player.position === "RB" ? (
+                            ) : p.position === "RB" ? (
                               <>
                                 <span><span className="font-medium">RuY</span>=Rush Yds</span>
                                 <span><span className="font-medium">RuT</span>=Rush TD</span>
@@ -744,7 +754,7 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                         <Calendar className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                         <h3 className="font-semibold mb-2">Game Logs Not Available</h3>
                         <p className="text-sm text-muted-foreground">
-                          Game-by-game statistics for {player.name} are not yet available from ESPN.
+                          Game-by-game statistics for {p.name} are not yet available from ESPN.
                           This may be because the player is an incoming freshman or ESPN hasn't updated their data.
                         </p>
                       </CardContent>
@@ -894,7 +904,7 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                                 <Activity className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                                 <h3 className="font-semibold mb-2">Advanced Data Not Available</h3>
                                 <p className="text-sm text-muted-foreground">
-                                  Advanced metrics for {player.name} from the College Football Data API are not available.
+                                  Advanced metrics for {p.name} from the College Football Data API are not available.
                                   This may be because the player hasn't logged enough snaps yet.
                                 </p>
                               </CardContent>
@@ -907,7 +917,7 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                             <Activity className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                             <h3 className="font-semibold mb-2">Advanced Analytics</h3>
                             <p className="text-sm text-muted-foreground">
-                              College Football Data API metrics are not available for {player.name} at this time.
+                              College Football Data API metrics are not available for {p.name} at this time.
                             </p>
                           </CardContent>
                         </Card>
@@ -926,10 +936,10 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                             Dynasty Recommendation
                           </h3>
                           {(() => {
-                            const elite = player.elitePct ?? 0;
-                            const bust = player.bustPct ?? 0;
-                            const trend = player.trend30Day ?? 0;
-                            const pickMult = player.pickMultiplier ?? 0;
+                            const elite = p.elitePct ?? 0;
+                            const bust = p.bustPct ?? 0;
+                            const trend = p.trend30Day ?? 0;
+                            const pickMult = p.pickMultiplier ?? 0;
                             let verdict = "";
                             let verdictColor = "";
                             let verdictDesc = "";
@@ -977,43 +987,43 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                             Value Drivers
                           </h3>
                           <div className="space-y-2">
-                            {(player.elitePct ?? 0) >= 20 && (
+                            {(p.elitePct ?? 0) >= 20 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-elite-upside">
                                 <Shield className="h-4 w-4 text-green-500 shrink-0" />
-                                <span>High elite ceiling ({player.elitePct}% chance of top-tier production)</span>
+                                <span>High elite ceiling ({p.elitePct}% chance of top-tier production)</span>
                               </div>
                             )}
-                            {(player.round1Pct ?? 0) >= 50 && (
+                            {(p.round1Pct ?? 0) >= 50 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-draft-capital">
                                 <Star className="h-4 w-4 text-green-500 shrink-0" />
-                                <span>Premium draft capital expected ({player.round1Pct}% Round 1 probability)</span>
+                                <span>Premium draft capital expected ({p.round1Pct}% Round 1 probability)</span>
                               </div>
                             )}
-                            {(player.dominatorRating ?? 0) >= 30 && (
+                            {(p.dominatorRating ?? 0) >= 30 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-dominator">
                                 <Zap className="h-4 w-4 text-green-500 shrink-0" />
-                                <span>Strong dominator rating ({player.dominatorRating}%) indicates alpha role</span>
+                                <span>Strong dominator rating ({p.dominatorRating}%) indicates alpha role</span>
                               </div>
                             )}
-                            {player.ageClass === "young-breakout" && (
+                            {p.ageClass === "young-breakout" && (
                               <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-age-curve">
                                 <Zap className="h-4 w-4 text-green-500 shrink-0" />
                                 <span>Young breakout profile - elite age curve for position</span>
                               </div>
                             )}
-                            {(player.trend30Day ?? 0) > 5 && (
+                            {(p.trend30Day ?? 0) > 5 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-momentum">
                                 <TrendingUp className="h-4 w-4 text-green-500 shrink-0" />
-                                <span>Strong upward momentum (+{player.trend30Day} in 30 days)</span>
+                                <span>Strong upward momentum (+{p.trend30Day} in 30 days)</span>
                               </div>
                             )}
-                            {player.breakoutAge && player.breakoutAge <= 19 && (
+                            {p.breakoutAge && p.breakoutAge <= 19 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-breakout-age">
                                 <Star className="h-4 w-4 text-green-500 shrink-0" />
-                                <span>Early breakout age ({player.breakoutAge}) - historically elite indicator</span>
+                                <span>Early breakout age ({p.breakoutAge}) - historically elite indicator</span>
                               </div>
                             )}
-                            {(player.elitePct ?? 0) < 20 && (player.round1Pct ?? 0) < 50 && (player.dominatorRating ?? 0) < 30 && player.ageClass !== "young-breakout" && (player.trend30Day ?? 0) <= 5 && (
+                            {(p.elitePct ?? 0) < 20 && (p.round1Pct ?? 0) < 50 && (p.dominatorRating ?? 0) < 30 && p.ageClass !== "young-breakout" && (p.trend30Day ?? 0) <= 5 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-muted/50 text-sm text-muted-foreground" data-testid="driver-none">
                                 <span>No standout value drivers identified yet. Monitor development closely.</span>
                               </div>
@@ -1029,37 +1039,37 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                             Risk Factors
                           </h3>
                           <div className="space-y-2">
-                            {(player.bustPct ?? 0) >= 30 && (
+                            {(p.bustPct ?? 0) >= 30 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-red-500/10 border border-red-500/20 text-sm" data-testid="risk-bust-rate">
                                 <Shield className="h-4 w-4 text-red-500 shrink-0" />
-                                <span>Elevated bust risk ({player.bustPct}% non-contributor probability)</span>
+                                <span>Elevated bust risk ({p.bustPct}% non-contributor probability)</span>
                               </div>
                             )}
-                            {player.ageClass === "old-producer" && (
+                            {p.ageClass === "old-producer" && (
                               <div className="flex items-center gap-2 p-2 rounded bg-red-500/10 border border-red-500/20 text-sm" data-testid="risk-age-concern">
                                 <Activity className="h-4 w-4 text-red-500 shrink-0" />
                                 <span>Older producer age profile - potential age curve concern</span>
                               </div>
                             )}
-                            {(player.trend30Day ?? 0) < -5 && (
+                            {(p.trend30Day ?? 0) < -5 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-red-500/10 border border-red-500/20 text-sm" data-testid="risk-declining-value">
                                 <TrendingDown className="h-4 w-4 text-red-500 shrink-0" />
-                                <span>Declining market value ({player.trend30Day} in 30 days)</span>
+                                <span>Declining market value ({p.trend30Day} in 30 days)</span>
                               </div>
                             )}
-                            {(player.round2PlusPct ?? 0) >= 60 && (
+                            {(p.round2PlusPct ?? 0) >= 60 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-yellow-500/10 border border-yellow-500/20 text-sm" data-testid="risk-draft-capital">
                                 <Star className="h-4 w-4 text-yellow-500 shrink-0" />
-                                <span>Likely Day 2+ draft capital ({player.round2PlusPct}% Round 2+ probability)</span>
+                                <span>Likely Day 2+ draft capital ({p.round2PlusPct}% Round 2+ probability)</span>
                               </div>
                             )}
-                            {(player.dominatorRating ?? 0) < 15 && (player.dominatorRating ?? 0) > 0 && (
+                            {(p.dominatorRating ?? 0) < 15 && (p.dominatorRating ?? 0) > 0 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-yellow-500/10 border border-yellow-500/20 text-sm" data-testid="risk-low-dominator">
                                 <Gauge className="h-4 w-4 text-yellow-500 shrink-0" />
-                                <span>Low dominator rating ({player.dominatorRating}%) suggests shared role</span>
+                                <span>Low dominator rating ({p.dominatorRating}%) suggests shared role</span>
                               </div>
                             )}
-                            {(player.bustPct ?? 0) < 30 && player.ageClass !== "old-producer" && (player.trend30Day ?? 0) >= -5 && (player.round2PlusPct ?? 0) < 60 && (
+                            {(p.bustPct ?? 0) < 30 && p.ageClass !== "old-producer" && (p.trend30Day ?? 0) >= -5 && (p.round2PlusPct ?? 0) < 60 && (
                               <div className="flex items-center gap-2 p-2 rounded bg-muted/50 text-sm text-muted-foreground" data-testid="risk-none">
                                 <span>No major red flags identified. Standard development risk applies.</span>
                               </div>
@@ -1112,28 +1122,28 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                             <div>
                               <div className="flex items-center justify-between text-sm mb-1">
                                 <span>Fantasy Starter</span>
-                                <span className="font-medium">{player.starterPct ?? 0}%</span>
+                                <span className="font-medium">{p.starterPct ?? 0}%</span>
                               </div>
                               <div className="w-full bg-muted rounded-full h-2">
-                                <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${player.starterPct ?? 0}%` }} />
+                                <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${p.starterPct ?? 0}%` }} />
                               </div>
                             </div>
                             <div>
                               <div className="flex items-center justify-between text-sm mb-1">
                                 <span>Elite Producer</span>
-                                <span className="font-medium text-green-500">{player.elitePct ?? 0}%</span>
+                                <span className="font-medium text-green-500">{p.elitePct ?? 0}%</span>
                               </div>
                               <div className="w-full bg-muted rounded-full h-2">
-                                <div className="bg-green-500 h-2 rounded-full" style={{ width: `${player.elitePct ?? 0}%` }} />
+                                <div className="bg-green-500 h-2 rounded-full" style={{ width: `${p.elitePct ?? 0}%` }} />
                               </div>
                             </div>
                             <div>
                               <div className="flex items-center justify-between text-sm mb-1">
                                 <span>Bust Risk</span>
-                                <span className="font-medium text-red-500">{player.bustPct ?? 0}%</span>
+                                <span className="font-medium text-red-500">{p.bustPct ?? 0}%</span>
                               </div>
                               <div className="w-full bg-muted rounded-full h-2">
-                                <div className="bg-red-500 h-2 rounded-full" style={{ width: `${player.bustPct ?? 0}%` }} />
+                                <div className="bg-red-500 h-2 rounded-full" style={{ width: `${p.bustPct ?? 0}%` }} />
                               </div>
                             </div>
                           </div>
@@ -1149,15 +1159,15 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                           <div className="space-y-3">
                             <div className="grid grid-cols-3 gap-3">
                               <div className="text-center p-3 bg-muted/50 rounded">
-                                <div className="text-2xl font-bold text-primary">{player.top10Pct ?? 0}%</div>
+                                <div className="text-2xl font-bold text-primary">{p.top10Pct ?? 0}%</div>
                                 <div className="text-xs text-muted-foreground">Top 10 Pick</div>
                               </div>
                               <div className="text-center p-3 bg-muted/50 rounded">
-                                <div className="text-2xl font-bold">{player.round1Pct ?? 0}%</div>
+                                <div className="text-2xl font-bold">{p.round1Pct ?? 0}%</div>
                                 <div className="text-xs text-muted-foreground">Round 1</div>
                               </div>
                               <div className="text-center p-3 bg-muted/50 rounded">
-                                <div className="text-2xl font-bold text-muted-foreground">{player.round2PlusPct ?? 0}%</div>
+                                <div className="text-2xl font-bold text-muted-foreground">{p.round2PlusPct ?? 0}%</div>
                                 <div className="text-xs text-muted-foreground">Round 2+</div>
                               </div>
                             </div>
@@ -1180,20 +1190,20 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                           <div className="space-y-2">
                             <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
                               <span className="text-sm text-muted-foreground">Depth Chart</span>
-                              <span className="text-sm font-medium">{player.depthRole ?? "Unknown"}</span>
+                              <span className="text-sm font-medium">{p.depthRole ?? "Unknown"}</span>
                             </div>
                             <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
                               <span className="text-sm text-muted-foreground">Path Context</span>
-                              <span className="text-sm font-medium">{player.pathContext ?? "N/A"}</span>
+                              <span className="text-sm font-medium">{p.pathContext ?? "N/A"}</span>
                             </div>
                             <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
                               <span className="text-sm text-muted-foreground">Age Profile</span>
                               <span className={`text-sm font-medium ${
-                                player.ageClass === "young-breakout" ? "text-green-500" :
-                                player.ageClass === "old-producer" ? "text-yellow-500" : ""
+                                p.ageClass === "young-breakout" ? "text-green-500" :
+                                p.ageClass === "old-producer" ? "text-yellow-500" : ""
                               }`}>
-                                {player.ageClass === "young-breakout" ? "Young Breakout" :
-                                 player.ageClass === "old-producer" ? "Older Producer" : "Normal"}
+                                {p.ageClass === "young-breakout" ? "Young Breakout" :
+                                 p.ageClass === "old-producer" ? "Older Producer" : "Normal"}
                               </span>
                             </div>
                             {data?.scoutingReport?.fantasyOutlook && (
@@ -1220,18 +1230,18 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                           </h3>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="text-center p-4 bg-primary/10 border border-primary/30 rounded">
-                              <div className="text-3xl font-bold text-primary">{player.pickMultiplier?.toFixed(1) ?? "0.0"}x</div>
+                              <div className="text-3xl font-bold text-primary">{p.pickMultiplier?.toFixed(1) ?? "0.0"}x</div>
                               <div className="text-xs text-muted-foreground mt-1">Pick Multiplier</div>
                             </div>
                             <div className="text-center p-4 bg-muted/50 rounded">
-                              <div className="text-3xl font-bold">{player.value?.toLocaleString() ?? 0}</div>
+                              <div className="text-3xl font-bold">{p.value?.toLocaleString() ?? 0}</div>
                               <div className="text-xs text-muted-foreground mt-1">Dynasty Value</div>
                             </div>
                           </div>
-                          {player.pickEquivalent && (
+                          {p.pickEquivalent && (
                             <div className="mt-3 p-3 border rounded bg-muted/30">
                               <div className="text-xs text-muted-foreground mb-1">Pick Equivalent</div>
-                              <div className="text-sm font-medium">{player.pickEquivalent}</div>
+                              <div className="text-sm font-medium">{p.pickEquivalent}</div>
                             </div>
                           )}
                         </CardContent>
@@ -1245,20 +1255,20 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                           </h3>
                           <div className="grid grid-cols-3 gap-3">
                             <div className="text-center p-3 bg-muted/50 rounded">
-                              <div className={`text-xl font-bold ${(player.trend7Day ?? 0) > 0 ? "text-green-500" : (player.trend7Day ?? 0) < 0 ? "text-red-500" : ""}`}>
-                                {(player.trend7Day ?? 0) > 0 ? "+" : ""}{player.trend7Day ?? 0}
+                              <div className={`text-xl font-bold ${(p.trend7Day ?? 0) > 0 ? "text-green-500" : (p.trend7Day ?? 0) < 0 ? "text-red-500" : ""}`}>
+                                {(p.trend7Day ?? 0) > 0 ? "+" : ""}{p.trend7Day ?? 0}
                               </div>
                               <div className="text-xs text-muted-foreground">7 Day</div>
                             </div>
                             <div className="text-center p-3 bg-muted/50 rounded">
-                              <div className={`text-xl font-bold ${(player.trend30Day ?? 0) > 0 ? "text-green-500" : (player.trend30Day ?? 0) < 0 ? "text-red-500" : ""}`}>
-                                {(player.trend30Day ?? 0) > 0 ? "+" : ""}{player.trend30Day ?? 0}
+                              <div className={`text-xl font-bold ${(p.trend30Day ?? 0) > 0 ? "text-green-500" : (p.trend30Day ?? 0) < 0 ? "text-red-500" : ""}`}>
+                                {(p.trend30Day ?? 0) > 0 ? "+" : ""}{p.trend30Day ?? 0}
                               </div>
                               <div className="text-xs text-muted-foreground">30 Day</div>
                             </div>
                             <div className="text-center p-3 bg-muted/50 rounded">
-                              <div className={`text-xl font-bold ${(player.seasonChange ?? 0) > 0 ? "text-green-500" : (player.seasonChange ?? 0) < 0 ? "text-red-500" : ""}`}>
-                                {(player.seasonChange ?? 0) > 0 ? "+" : ""}{player.seasonChange ?? 0}
+                              <div className={`text-xl font-bold ${(p.seasonChange ?? 0) > 0 ? "text-green-500" : (p.seasonChange ?? 0) < 0 ? "text-red-500" : ""}`}>
+                                {(p.seasonChange ?? 0) > 0 ? "+" : ""}{p.seasonChange ?? 0}
                               </div>
                               <div className="text-xs text-muted-foreground">Season</div>
                             </div>
@@ -1266,22 +1276,22 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                           <div className="mt-3 p-3 bg-muted/30 rounded">
                             <div className="text-xs text-muted-foreground mb-1">Market Direction</div>
                             <div className="flex items-center gap-2">
-                              {(player.trend30Day ?? 0) > 5 ? (
+                              {(p.trend30Day ?? 0) > 5 ? (
                                 <>
                                   <TrendingUp className="h-4 w-4 text-green-500" />
                                   <span className="text-sm font-medium text-green-500">Rising - Strong upward momentum</span>
                                 </>
-                              ) : (player.trend30Day ?? 0) > 0 ? (
+                              ) : (p.trend30Day ?? 0) > 0 ? (
                                 <>
                                   <TrendingUp className="h-4 w-4 text-green-500" />
                                   <span className="text-sm font-medium text-green-500">Slightly Rising</span>
                                 </>
-                              ) : (player.trend30Day ?? 0) < -5 ? (
+                              ) : (p.trend30Day ?? 0) < -5 ? (
                                 <>
                                   <TrendingDown className="h-4 w-4 text-red-500" />
                                   <span className="text-sm font-medium text-red-500">Falling - Significant decline</span>
                                 </>
-                              ) : (player.trend30Day ?? 0) < 0 ? (
+                              ) : (p.trend30Day ?? 0) < 0 ? (
                                 <>
                                   <TrendingDown className="h-4 w-4 text-red-500" />
                                   <span className="text-sm font-medium text-red-500">Slightly Falling</span>
@@ -1298,27 +1308,27 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                         <CardContent className="p-4">
                           <h3 className="font-semibold mb-3">Trade Tips</h3>
                           <div className="space-y-2 text-sm">
-                            {(player.trend30Day ?? 0) > 5 && (
+                            {(p.trend30Day ?? 0) > 5 && (
                               <div className="p-2 bg-green-500/10 border border-green-500/30 rounded text-green-400">
                                 Value is rising fast. Consider holding or selling at peak if you need depth.
                               </div>
                             )}
-                            {(player.trend30Day ?? 0) < -5 && (
+                            {(p.trend30Day ?? 0) < -5 && (
                               <div className="p-2 bg-red-500/10 border border-red-500/30 rounded text-red-400">
                                 Value is dropping. Buy-low window may be open if you believe in the talent.
                               </div>
                             )}
-                            {(player.elitePct ?? 0) >= 30 && (player.pickMultiplier ?? 0) >= 1.5 && (
+                            {(p.elitePct ?? 0) >= 30 && (p.pickMultiplier ?? 0) >= 1.5 && (
                               <div className="p-2 bg-primary/10 border border-primary/30 rounded">
                                 Premium prospect with high upside. Worth a 1st+ in most dynasty formats.
                               </div>
                             )}
-                            {(player.bustPct ?? 0) >= 40 && (
+                            {(p.bustPct ?? 0) >= 40 && (
                               <div className="p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-400">
                                 High bust risk. Consider trading for more reliable assets if risk-averse.
                               </div>
                             )}
-                            {(player.elitePct ?? 0) < 30 && (player.bustPct ?? 0) < 40 && Math.abs(player.trend30Day ?? 0) <= 5 && (
+                            {(p.elitePct ?? 0) < 30 && (p.bustPct ?? 0) < 40 && Math.abs(p.trend30Day ?? 0) <= 5 && (
                               <div className="p-2 bg-muted/50 rounded text-muted-foreground">
                                 Stable value, moderate upside. Fair trade target at current price.
                               </div>

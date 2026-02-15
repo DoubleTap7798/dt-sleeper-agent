@@ -3726,6 +3726,8 @@ ${urls}
         leagueId: string;
         leagueName: string;
         matched: boolean;
+        source: "system" | "manual";
+        manualEntryId?: string;
       }> = [];
 
       const leagueNames: Array<{ id: string; name: string }> = [];
@@ -3745,10 +3747,12 @@ ${urls}
           const idpSlots = ["DL", "LB", "DB", "IDP_FLEX"];
           const isIDPLeague = rosterPositions.some((p: string) => idpSlots.includes(p));
           const allPlayerIds = userRoster.players || [];
+          const taxiIds = new Set(userRoster.taxi || []);
 
           const isPlaceholderPlayer = (playerId: string): boolean => {
             const player = allPlayers[playerId];
             if (!player) return false;
+            if (taxiIds.has(playerId)) return true;
             const playerPos = player.position || "?";
             const isKicker = playerPos === "K";
             const isDef = playerPos === "DEF";
@@ -3771,8 +3775,11 @@ ${urls}
               leagueId: league.league_id,
               leagueName: league.name,
               matched: !!devyMatch,
+              source: "system",
             });
           };
+
+          const processedPlayerIds = new Set<string>();
 
           for (const roster of rosters || []) {
             if (roster.roster_id !== userRoster.roster_id) continue;
@@ -3788,15 +3795,46 @@ ${urls}
               if (!targetPlayerId) continue;
               if (!allPlayerIds.includes(targetPlayerId)) continue;
 
-              const hasDevyKeyword = val.toUpperCase().includes("DEVY");
+              const hasDevyKeyword = val.toUpperCase().includes("DEVY") || val.toUpperCase().includes("DEV ");
               const isPlaceholder = isPlaceholderPlayer(targetPlayerId);
 
               if (hasDevyKeyword || isPlaceholder) {
                 const parsed = parseDevyNote(val.trim());
                 if (parsed && parsed.devyName.length > 1) {
                   addDevy(parsed);
+                  processedPlayerIds.add(targetPlayerId);
                 }
               }
+            }
+          }
+
+          for (const playerId of allPlayerIds) {
+            if (processedPlayerIds.has(playerId)) continue;
+            const player = allPlayers[playerId];
+            if (!player) continue;
+
+            const isOnTaxi = taxiIds.has(playerId);
+            if (!isOnTaxi) continue;
+
+            const isPlaceholder = isPlaceholderPlayer(playerId);
+            if (isPlaceholder) {
+              const rosterMeta = userRoster.metadata || {};
+              const nickKey = `p_nick_${playerId}`;
+              const noteKey = `p_note_${playerId}`;
+              const noteVal = (rosterMeta as any)[nickKey] || (rosterMeta as any)[noteKey];
+              if (noteVal && typeof noteVal === 'string') {
+                const parsed = parseDevyNote(noteVal.trim());
+                if (parsed && parsed.devyName.length > 1) {
+                  addDevy(parsed);
+                  continue;
+                }
+              }
+              const playerName = player.full_name || player.first_name + " " + player.last_name || "Unknown";
+              addDevy({
+                devyName: playerName,
+                devyPosition: player.position || "?",
+                devySchool: player.college || player.team || "Unknown",
+              });
             }
           }
         } catch (leagueErr) {
@@ -3805,10 +3843,39 @@ ${urls}
       }
 
       const manualEntries = await db.select().from(schema.devyPortfolio).where(eq(schema.devyPortfolio.userId, userId));
+      
+      const normalizeForDedup = (name: string) => name.toLowerCase().trim().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ');
+      
       for (const entry of manualEntries) {
-        const key = `manual-${entry.id}`;
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
+        const normalizedName = normalizeForDedup(entry.playerName);
+        const alreadyInSystem = ownedDevy.some(d => {
+          const dNorm = normalizeForDedup(d.devyName);
+          if (dNorm === normalizedName) return true;
+          const aParts = dNorm.split(' ');
+          const bParts = normalizedName.split(' ');
+          const aLast = aParts[aParts.length - 1];
+          const bLast = bParts[bParts.length - 1];
+          if (aLast !== bLast) return false;
+          const aFirst = aParts[0];
+          const bFirst = bParts[0];
+          if (aFirst === bFirst) return true;
+          if (aFirst.length <= 2 && bFirst.startsWith(aFirst.replace('.', ''))) return true;
+          if (bFirst.length <= 2 && aFirst.startsWith(bFirst.replace('.', ''))) return true;
+          return false;
+        });
+
+        if (alreadyInSystem) {
+          const existing = ownedDevy.find(d => {
+            const dNorm = normalizeForDedup(d.devyName);
+            if (dNorm === normalizedName) return true;
+            const aParts = dNorm.split(' ');
+            const bParts = normalizedName.split(' ');
+            return aParts[aParts.length - 1] === bParts[bParts.length - 1];
+          });
+          if (existing) {
+            existing.manualEntryId = String(entry.id);
+          }
+        } else {
           const matchedDevy = fuzzyMatchDevy(entry.playerName, entry.position);
           ownedDevy.push({
             devyPlayerId: matchedDevy?.id || `manual-${entry.id}`,
@@ -3818,6 +3885,8 @@ ${urls}
             leagueId: entry.leagueId || "manual",
             leagueName: entry.leagueName || "Manual Add",
             matched: !!matchedDevy,
+            source: "manual",
+            manualEntryId: String(entry.id),
           });
         }
       }
