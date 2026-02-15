@@ -3674,11 +3674,7 @@ ${urls}
       }
       const sleeperUserId = sleeperUser.user_id;
 
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      const season = currentMonth < 3 ? String(currentYear - 1) : String(currentYear);
-
-      const leagues = await sleeperApi.getUserLeagues(sleeperUserId, season);
+      const leagues = await getAllUserLeagues(sleeperUserId);
       if (!leagues?.length) {
         return res.json({ ownedDevy: [], leagues: [] });
       }
