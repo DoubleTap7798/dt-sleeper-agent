@@ -25,13 +25,14 @@ const textSizeClasses = {
 export function Logo({ size = "md", showText = true, className = "" }: LogoProps) {
   return (
     <div className={`flex flex-col items-center gap-2 ${className}`} data-testid="logo">
-      <img 
-        src={dtLogo} 
-        alt="DT Sleeper Agent Logo" 
-        className={`${sizeClasses[size]} object-contain`}
-        style={{ mixBlendMode: "lighten" }}
-        data-testid="logo-icon"
-      />
+      <div className={`${sizeClasses[size]} rounded-full overflow-hidden flex-shrink-0`}>
+        <img 
+          src={dtLogo} 
+          alt="DT Sleeper Agent Logo" 
+          className="w-full h-full object-cover scale-110"
+          data-testid="logo-icon"
+        />
+      </div>
       {showText && (
         <div className="text-center">
           <h1 className={`font-bold tracking-tight ${textSizeClasses[size]}`} data-testid="logo-text">
