@@ -3719,7 +3719,22 @@ ${urls}
         manualEntryId: string;
       }> = [];
 
+      const playerLeagueMap = new Map<string, Set<string>>();
       for (const entry of manualEntries) {
+        const key = entry.playerName.toLowerCase().trim();
+        if (entry.leagueId) {
+          if (!playerLeagueMap.has(key)) playerLeagueMap.set(key, new Set());
+          playerLeagueMap.get(key)!.add(entry.leagueId);
+        }
+      }
+
+      const dedupedEntries = manualEntries.filter(entry => {
+        if (entry.leagueId) return true;
+        const key = entry.playerName.toLowerCase().trim();
+        return !playerLeagueMap.has(key);
+      });
+
+      for (const entry of dedupedEntries) {
         const matchedDevy = fuzzyMatchDevy(entry.playerName, entry.position);
         ownedDevy.push({
           devyPlayerId: matchedDevy?.id || `manual-${entry.id}`,
@@ -3733,7 +3748,7 @@ ${urls}
         });
       }
 
-      res.json({ ownedDevy, leagues: leagueNames, manualEntries });
+      res.json({ ownedDevy, leagues: leagueNames, manualEntries: dedupedEntries });
     } catch (error) {
       console.error("Error fetching my devy players:", error);
       res.status(500).json({ message: "Failed to fetch owned devy players" });
