@@ -17,6 +17,63 @@ import * as schema from "@shared/schema";
 import { eq, and, desc, sql, isNull } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, getLiveStripeClient } from "./stripeClient";
 
+// Server-side response cache for expensive API routes
+class RouteCache {
+  private cache = new Map<string, { data: any; timestamp: number }>();
+  private ttl: number;
+  private maxSize: number;
+
+  constructor(ttlMs: number, maxSize: number = 200) {
+    this.ttl = ttlMs;
+    this.maxSize = maxSize;
+  }
+
+  get(key: string): any | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > this.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.data;
+  }
+
+  set(key: string, data: any): void {
+    if (this.cache.size >= this.maxSize) {
+      let oldest: string | null = null;
+      let oldestTime = Infinity;
+      this.cache.forEach((v, k) => {
+        if (v.timestamp < oldestTime) {
+          oldestTime = v.timestamp;
+          oldest = k;
+        }
+      });
+      if (oldest) this.cache.delete(oldest);
+    }
+    this.cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  invalidate(keyPrefix: string): void {
+    const keys = Array.from(this.cache.keys());
+    for (const key of keys) {
+      if (key.startsWith(keyPrefix)) this.cache.delete(key);
+    }
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+const leaguesCache = new RouteCache(3 * 60 * 1000);
+const overviewCache = new RouteCache(2 * 60 * 1000);
+const rosterCache = new RouteCache(2 * 60 * 1000);
+const standingsCache = new RouteCache(3 * 60 * 1000);
+const matchupsCache = new RouteCache(2 * 60 * 1000);
+const leagueInfoCache = new RouteCache(10 * 60 * 1000);
+const externalApiCache = new RouteCache(5 * 60 * 1000);
+const playersCache = new RouteCache(15 * 60 * 1000);
+
 // Validation schemas
 const connectSleeperSchema = z.object({
   username: z.string().min(1, "Username is required").max(100),
@@ -894,6 +951,10 @@ ${urls}
         return res.json([]);
       }
 
+      const cacheKey = `leagues:${profile.sleeperUserId}`;
+      const cached = leaguesCache.get(cacheKey);
+      if (cached) return res.json(cached);
+
       const state = await sleeperApi.getState();
       const currentSeason = state?.league_season || state?.season || "2026";
       let leagues = await getAllUserLeagues(profile.sleeperUserId);
@@ -935,6 +996,7 @@ ${urls}
         };
       });
 
+      leaguesCache.set(cacheKey, enrichedLeagues);
       res.json(enrichedLeagues);
     } catch (error) {
       console.error("Error fetching leagues:", error);
@@ -951,6 +1013,10 @@ ${urls}
       if (!profile?.sleeperUserId) {
         return res.json([]);
       }
+
+      const ovCacheKey = `overview:${profile.sleeperUserId}`;
+      const ovCached = overviewCache.get(ovCacheKey);
+      if (ovCached) return res.json(ovCached);
 
       const state = await sleeperApi.getState();
       let leagues = await getAllUserLeagues(profile.sleeperUserId);
@@ -1034,7 +1100,9 @@ ${urls}
         })
       );
 
-      res.json(overviewResults.filter(Boolean));
+      const overviewData = overviewResults.filter(Boolean);
+      overviewCache.set(ovCacheKey, overviewData);
+      res.json(overviewData);
     } catch (error) {
       console.error("Error fetching leagues overview:", error);
       res.status(500).json({ message: "Failed to fetch leagues overview" });
@@ -2225,6 +2293,10 @@ ${urls}
     try {
       const { leagueId } = req.params;
 
+      const cacheKey = `standings:${leagueId}`;
+      const cached = standingsCache.get(cacheKey);
+      if (cached) return res.json(cached);
+
       const [league, rosters, users, state] = await Promise.all([
         sleeperApi.getLeague(leagueId),
         sleeperApi.getLeagueRosters(leagueId),
@@ -2279,11 +2351,13 @@ ${urls}
           return b.pointsFor - a.pointsFor;
         });
 
-      res.json({
+      const responseData = {
         standings,
         playoffTeams,
         currentWeek,
-      });
+      };
+      standingsCache.set(cacheKey, responseData);
+      res.json(responseData);
     } catch (error) {
       console.error("Error fetching standings:", error);
       res.status(500).json({ message: "Failed to fetch standings" });
@@ -3115,6 +3189,10 @@ ${urls}
       const { leagueId } = req.params;
       const requestedWeek = req.query.week ? parseInt(req.query.week as string) : null;
 
+      const cacheKey = `matchups:${leagueId}:${requestedWeek || 'current'}`;
+      const cached = matchupsCache.get(cacheKey);
+      if (cached) return res.json(cached);
+
       const [league, state, rosters, users, allPlayers] = await Promise.all([
         sleeperApi.getLeague(leagueId),
         sleeperApi.getState(),
@@ -3224,13 +3302,15 @@ ${urls}
         .filter((m) => m.teamA)
         .sort((a, b) => a.matchupId - b.matchupId);
 
-      res.json({
+      const responseData = {
         matchups,
         currentWeek,
         selectedWeek,
         seasonType: selectedWeek >= (league.settings?.playoff_week_start || 15) ? "playoff" : "regular",
         gamesInProgress,
-      });
+      };
+      matchupsCache.set(cacheKey, responseData);
+      res.json(responseData);
     } catch (error) {
       console.error("Error fetching matchups:", error);
       res.status(500).json({ message: "Failed to fetch matchups" });
@@ -4527,6 +4607,9 @@ Return ONLY valid JSON, no other text.`;
   app.get("/api/nfl/schedule", async (req: Request, res: Response) => {
     try {
       const week = parseInt(req.query.week as string) || 1;
+      const cacheKey = `nfl-schedule:${week}`;
+      const cached = externalApiCache.get(cacheKey);
+      if (cached) return res.json(cached);
       const season = 2026;
       const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${week}&dates=${season}`;
       const response = await fetch(url);
@@ -4570,7 +4653,9 @@ Return ONLY valid JSON, no other text.`;
         };
       });
       
-      res.json({ season, week, games });
+      const responseData = { season, week, games };
+      externalApiCache.set(cacheKey, responseData);
+      res.json(responseData);
     } catch (error) {
       console.error("Error fetching NFL schedule:", error);
       res.status(500).json({ message: "Failed to fetch NFL schedule" });
@@ -4579,6 +4664,9 @@ Return ONLY valid JSON, no other text.`;
 
   app.get("/api/nfl/standings", async (_req: Request, res: Response) => {
     try {
+      const cacheKey = `nfl-standings`;
+      const cached = externalApiCache.get(cacheKey);
+      if (cached) return res.json(cached);
       const url = "https://site.api.espn.com/apis/v2/sports/football/nfl/standings?season=2026";
       const response = await fetch(url);
       if (!response.ok) throw new Error("ESPN API error");
@@ -4638,7 +4726,9 @@ Return ONLY valid JSON, no other text.`;
         }
       }
       
-      res.json({ season: 2026, divisions });
+      const responseData = { season: 2026, divisions };
+      externalApiCache.set(cacheKey, responseData);
+      res.json(responseData);
     } catch (error) {
       console.error("Error fetching NFL standings:", error);
       res.status(500).json({ message: "Failed to fetch NFL standings" });
@@ -4838,6 +4928,10 @@ Return ONLY valid JSON, no other text.`;
     try {
       const leagueId = req.query.leagueId as string | undefined;
       const yearParam = req.query.year as string | undefined;
+      
+      const cacheKey = `players:${leagueId || 'all'}:${yearParam || 'auto'}`;
+      const cached = playersCache.get(cacheKey);
+      if (cached) return res.json(cached);
       
       // Fetch consensus values for blended dynasty values
       try {
@@ -5132,7 +5226,7 @@ Return ONLY valid JSON, no other text.`;
       const hasNonStandardTds = (scoringSettings.pass_td || 4) !== 4;
       const isCustomScoring = hasPositionBonuses || hasNonStandardTds;
       
-      res.json({
+      const responseData = {
         players: playersToReturn,
         totalCount: playersToReturn.length,
         season: statsSeason,
@@ -5140,7 +5234,9 @@ Return ONLY valid JSON, no other text.`;
         isCustomScoring,
         isIDPLeague,
         lastUpdated: new Date().toISOString(),
-      });
+      };
+      playersCache.set(cacheKey, responseData);
+      res.json(responseData);
     } catch (error) {
       console.error("Error fetching NFL players:", error);
       res.status(500).json({ message: "Failed to fetch players" });
@@ -8974,6 +9070,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         return res.status(400).json({ message: "League ID required" });
       }
 
+      const cacheKey = `roster:${userProfile.sleeperUserId}:${leagueId}`;
+      const cached = rosterCache.get(cacheKey);
+      if (cached) return res.json(cached);
+
       const [rosters, allPlayers, league, stats] = await Promise.all([
         sleeperApi.getLeagueRosters(leagueId as string),
         sleeperApi.getAllPlayers(),
@@ -9306,7 +9406,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
 
       const totalValue = players.reduce((sum, p) => sum + p.dynastyValue, 0);
 
-      res.json({
+      const responseData = {
         players,
         teamName: "My Team",
         ownerId: userProfile.sleeperUserId,
@@ -9315,7 +9415,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         positionRankings,
         leagueSize,
         isIDPLeague,
-      });
+      };
+      rosterCache.set(cacheKey, responseData);
+      res.json(responseData);
     } catch (error) {
       console.error("Error fetching roster:", error);
       res.status(500).json({ message: "Failed to fetch roster" });

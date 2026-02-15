@@ -103,6 +103,53 @@ export interface SleeperMatchup {
   players_points: Record<string, number>;
 }
 
+const apiCache = new Map<string, { data: any; time: number }>();
+const API_CACHE_MAX_SIZE = 500;
+const API_CACHE_TTL: Record<string, number> = {
+  state: 5 * 60 * 1000,
+  league: 5 * 60 * 1000,
+  rosters: 2 * 60 * 1000,
+  users: 5 * 60 * 1000,
+  userLeagues: 3 * 60 * 1000,
+  matchups: 2 * 60 * 1000,
+};
+
+function getCached<T>(key: string, ttlKey: string): T | null {
+  const entry = apiCache.get(key);
+  if (!entry) return null;
+  const ttl = API_CACHE_TTL[ttlKey] || 2 * 60 * 1000;
+  if (Date.now() - entry.time > ttl) {
+    apiCache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCache(key: string, data: any): void {
+  if (apiCache.size >= API_CACHE_MAX_SIZE) {
+    let oldest: string | null = null;
+    let oldestTime = Infinity;
+    apiCache.forEach((v, k) => {
+      if (v.time < oldestTime) {
+        oldestTime = v.time;
+        oldest = k;
+      }
+    });
+    if (oldest) apiCache.delete(oldest);
+  }
+  apiCache.set(key, { data, time: Date.now() });
+}
+
+setInterval(() => {
+  const now = Date.now();
+  const maxTTL = Math.max(...Object.values(API_CACHE_TTL));
+  const expired: string[] = [];
+  apiCache.forEach((entry, key) => {
+    if (now - entry.time > maxTTL) expired.push(key);
+  });
+  expired.forEach(key => apiCache.delete(key));
+}, 5 * 60 * 1000);
+
 async function fetchFromSleeper<T>(endpoint: string): Promise<T | null> {
   try {
     const response = await fetch(`${SLEEPER_API_BASE}${endpoint}`);
@@ -122,22 +169,42 @@ export async function getSleeperUser(username: string): Promise<SleeperUser | nu
 }
 
 export async function getUserLeagues(userId: string, season: string = "2026"): Promise<SleeperLeague[]> {
+  const cacheKey = `userLeagues:${userId}:${season}`;
+  const cached = getCached<SleeperLeague[]>(cacheKey, "userLeagues");
+  if (cached) return cached;
   const leagues = await fetchFromSleeper<SleeperLeague[]>(`/user/${userId}/leagues/nfl/${season}`);
-  return leagues || [];
+  const result = leagues || [];
+  setCache(cacheKey, result);
+  return result;
 }
 
 export async function getLeague(leagueId: string): Promise<SleeperLeague | null> {
-  return fetchFromSleeper<SleeperLeague>(`/league/${leagueId}`);
+  const cacheKey = `league:${leagueId}`;
+  const cached = getCached<SleeperLeague>(cacheKey, "league");
+  if (cached) return cached;
+  const league = await fetchFromSleeper<SleeperLeague>(`/league/${leagueId}`);
+  if (league) setCache(cacheKey, league);
+  return league;
 }
 
 export async function getLeagueRosters(leagueId: string): Promise<SleeperRoster[]> {
+  const cacheKey = `rosters:${leagueId}`;
+  const cached = getCached<SleeperRoster[]>(cacheKey, "rosters");
+  if (cached) return cached;
   const rosters = await fetchFromSleeper<SleeperRoster[]>(`/league/${leagueId}/rosters`);
-  return rosters || [];
+  const result = rosters || [];
+  setCache(cacheKey, result);
+  return result;
 }
 
 export async function getLeagueUsers(leagueId: string): Promise<SleeperUser[]> {
+  const cacheKey = `users:${leagueId}`;
+  const cached = getCached<SleeperUser[]>(cacheKey, "users");
+  if (cached) return cached;
   const users = await fetchFromSleeper<SleeperUser[]>(`/league/${leagueId}/users`);
-  return users || [];
+  const result = users || [];
+  setCache(cacheKey, result);
+  return result;
 }
 
 export async function getLeagueTransactions(leagueId: string, week: number): Promise<SleeperTransaction[]> {
@@ -283,8 +350,13 @@ export async function getDraftPicks(draftId: string): Promise<SleeperDraftPickRe
 }
 
 export async function getMatchups(leagueId: string, week: number): Promise<SleeperMatchup[]> {
+  const cacheKey = `matchups:${leagueId}:${week}`;
+  const cached = getCached<SleeperMatchup[]>(cacheKey, "matchups");
+  if (cached) return cached;
   const matchups = await fetchFromSleeper<SleeperMatchup[]>(`/league/${leagueId}/matchups/${week}`);
-  return matchups || [];
+  const result = matchups || [];
+  setCache(cacheKey, result);
+  return result;
 }
 
 export interface PlayoffBracketMatch {
@@ -341,7 +413,12 @@ export async function getAllHistoricalRosters(leagueId: string): Promise<SeasonR
 }
 
 export async function getState(): Promise<{ week: number; season: string; display_week: number; season_type: string; league_season: string } | null> {
-  return fetchFromSleeper<{ week: number; season: string; display_week: number; season_type: string; league_season: string }>("/state/nfl");
+  const cacheKey = "state:nfl";
+  const cached = getCached<{ week: number; season: string; display_week: number; season_type: string; league_season: string }>(cacheKey, "state");
+  if (cached) return cached;
+  const state = await fetchFromSleeper<{ week: number; season: string; display_week: number; season_type: string; league_season: string }>("/state/nfl");
+  if (state) setCache(cacheKey, state);
+  return state;
 }
 
 // Player stats types
