@@ -3749,10 +3749,15 @@ ${urls}
           const allPlayerIds = userRoster.players || [];
           const taxiIds = new Set(userRoster.taxi || []);
 
+          const isActiveNflPlayer = (playerId: string): boolean => {
+            const player = allPlayers[playerId];
+            if (!player) return false;
+            return !!(player.team && player.active !== false && player.status !== "Inactive" && player.status !== "Retired");
+          };
+
           const isPlaceholderPlayer = (playerId: string): boolean => {
             const player = allPlayers[playerId];
             if (!player) return false;
-            if (taxiIds.has(playerId)) return true;
             const playerPos = player.position || "?";
             const isKicker = playerPos === "K";
             const isDef = playerPos === "DEF";
@@ -3813,8 +3818,7 @@ ${urls}
             const player = allPlayers[playerId];
             if (!player) continue;
 
-            const isOnTaxi = taxiIds.has(playerId);
-            if (!isOnTaxi) continue;
+            if (isActiveNflPlayer(playerId)) continue;
 
             const isPlaceholder = isPlaceholderPlayer(playerId);
             if (isPlaceholder) {
