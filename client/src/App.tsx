@@ -19,6 +19,9 @@ import RivalryPage from "@/pages/rivalry";
 import MatchupsPage from "@/pages/matchups";
 import SchedulePage from "@/pages/schedule";
 import DevyPage from "@/pages/devy";
+import DevyRankingsPage from "@/pages/devy-rankings";
+import DevyPortfolioPage from "@/pages/devy-portfolio";
+import DevyMarketPage from "@/pages/devy-market";
 import PlayoffBracketPage from "@/pages/playoff-bracket";
 import PlayersPage from "@/pages/players";
 import NewsFeedPage from "@/pages/news-feed";
@@ -170,7 +173,28 @@ function Router() {
       <Route path="/league/devy">
         <AuthenticatedRoute>
           <LeagueLayout>
-            <DevyPage />
+            <DevyRankingsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/devy/rankings">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DevyRankingsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/devy/portfolio">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DevyPortfolioPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/devy/market">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DevyMarketPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

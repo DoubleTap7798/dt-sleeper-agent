@@ -3808,10 +3808,73 @@ ${urls}
         }
       }
 
-      res.json({ ownedDevy, leagues: leagueNames });
+      const manualEntries = await db.select().from(schema.devyPortfolio).where(eq(schema.devyPortfolio.userId, userId));
+      for (const entry of manualEntries) {
+        const key = `manual-${entry.id}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          const matchedDevy = fuzzyMatchDevy(entry.playerName, entry.position);
+          ownedDevy.push({
+            devyPlayerId: matchedDevy?.id || `manual-${entry.id}`,
+            devyName: entry.playerName,
+            devyPosition: entry.position,
+            devySchool: entry.school || "",
+            leagueId: "manual",
+            leagueName: entry.leagueName || "Manual Add",
+            matched: !!matchedDevy,
+          });
+        }
+      }
+
+      res.json({ ownedDevy, leagues: leagueNames, manualEntries });
     } catch (error) {
       console.error("Error fetching my devy players:", error);
       res.status(500).json({ message: "Failed to fetch owned devy players" });
+    }
+  });
+
+  app.post("/api/sleeper/devy/my-players", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const { playerName, position, school, leagueName, notes } = req.body;
+      if (!playerName || !position) {
+        return res.status(400).json({ message: "Player name and position are required" });
+      }
+
+      const [entry] = await db.insert(schema.devyPortfolio).values({
+        userId,
+        playerName,
+        position,
+        school: school || null,
+        leagueName: leagueName || null,
+        notes: notes || null,
+      }).returning();
+
+      res.json(entry);
+    } catch (error) {
+      console.error("Error adding manual devy player:", error);
+      res.status(500).json({ message: "Failed to add devy player" });
+    }
+  });
+
+  app.delete("/api/sleeper/devy/my-players/:id", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      await db.delete(schema.devyPortfolio).where(
+        and(
+          eq(schema.devyPortfolio.id, req.params.id),
+          eq(schema.devyPortfolio.userId, userId)
+        )
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing manual devy player:", error);
+      res.status(500).json({ message: "Failed to remove devy player" });
     }
   });
 

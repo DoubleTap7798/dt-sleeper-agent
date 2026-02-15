@@ -149,3 +149,22 @@ export const insertPlayerWatchlistSchema = createInsertSchema(playerWatchlist).o
 
 export type PlayerWatchlist = typeof playerWatchlist.$inferSelect;
 export type InsertPlayerWatchlist = z.infer<typeof insertPlayerWatchlistSchema>;
+
+export const devyPortfolio = pgTable("devy_portfolio", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  playerName: text("player_name").notNull(),
+  position: text("position").notNull(),
+  school: text("school"),
+  leagueName: text("league_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDevyPortfolioSchema = createInsertSchema(devyPortfolio).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type DevyPortfolioEntry = typeof devyPortfolio.$inferSelect;
+export type InsertDevyPortfolioEntry = z.infer<typeof insertDevyPortfolioSchema>;

@@ -34,6 +34,8 @@ import {
   Clock,
   ShieldAlert,
   Share2,
+  Briefcase,
+  Flame,
 } from "lucide-react";
 import {
   Sidebar,
@@ -142,12 +144,20 @@ const navigationGroups: NavGroup[] = [
     ],
   },
   {
+    title: "Devy Command Center",
+    icon: GraduationCap,
+    items: [
+      { title: "Rankings", url: "/league/devy/rankings", icon: Layers, premium: true },
+      { title: "My Portfolio", url: "/league/devy/portfolio", icon: Briefcase, premium: true },
+      { title: "Market Intel", url: "/league/devy/market", icon: Flame, premium: true },
+    ],
+  },
+  {
     title: "Draft Central",
     icon: Target,
     items: [
       { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
       { title: "Draft War Room", url: "/league/war-room", icon: Swords, requiresLeague: true, premium: true },
-      { title: "Devy Rankings", url: "/league/devy", icon: GraduationCap, premium: true },
       { title: "Pick Values", url: "/league/draft-pick-values", icon: TrendingUp },
     ],
   },
