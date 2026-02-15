@@ -1,4 +1,4 @@
-import dtLogo from "@assets/1768235453036_1769043440542.jpeg";
+import dtLogo from "@assets/5C7727FF-7D55-4538-97DE-3A329A1D5F25_1771180481564.png";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg" | "xl" | "2xl";
