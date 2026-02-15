@@ -10450,6 +10450,20 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       // Get available players (not drafted yet)
       const draftedPlayerIds = new Set(draftPicks.map(p => p.player_id));
       
+      // Draft phase intelligence
+      const currentRound = Math.floor(draftPicks.length / numTeams) + 1;
+      
+      // Calculate positional starter slots for scarcity analysis
+      const positionStarterSlots: Record<string, number> = {};
+      for (const pos of leagueRosterPositions) {
+        if (["QB","RB","WR","TE"].includes(pos) || (pos === "FLEX") || (pos === "SUPER_FLEX") || (pos === "REC_FLEX")) {
+          if (pos === "FLEX") { positionStarterSlots["RB"] = (positionStarterSlots["RB"] || 0) + 0.33; positionStarterSlots["WR"] = (positionStarterSlots["WR"] || 0) + 0.33; positionStarterSlots["TE"] = (positionStarterSlots["TE"] || 0) + 0.34; }
+          else if (pos === "SUPER_FLEX") { positionStarterSlots["QB"] = (positionStarterSlots["QB"] || 0) + 0.5; positionStarterSlots["RB"] = (positionStarterSlots["RB"] || 0) + 0.17; positionStarterSlots["WR"] = (positionStarterSlots["WR"] || 0) + 0.17; positionStarterSlots["TE"] = (positionStarterSlots["TE"] || 0) + 0.16; }
+          else if (pos === "REC_FLEX") { positionStarterSlots["WR"] = (positionStarterSlots["WR"] || 0) + 0.5; positionStarterSlots["TE"] = (positionStarterSlots["TE"] || 0) + 0.5; }
+          else { positionStarterSlots[pos] = (positionStarterSlots[pos] || 0) + 1; }
+        }
+      }
+      
       // Build player recommendations
       const availablePlayers: any[] = [];
       const isRookieDraft = mode === "rookie";
@@ -10554,27 +10568,38 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         };
         
         for (const prospect of draftBoardPlayers) {
-          // Skip if already drafted or owned (checks full name + last name/position fallback)
           if (isProspectTaken(prospect.name, prospect.position)) continue;
           
-          // Skip IDP prospects if league doesn't have IDP roster slots
           if (!hasIDPSlots && IDP_POSITION_GROUPS.has(prospect.positionGroup)) continue;
           
-          // Calculate a value score based on draft board rank (higher rank = higher value)
-          // Scale: Rank 1 = ~95 value, Rank 360 = ~10 value
           const totalProspects = draftBoardPlayers.length;
           const baseValue = Math.max(10, 95 - ((prospect.rank - 1) / Math.max(1, totalProspects - 1)) * 85);
           
-          // Stock status bonus/penalty
           let stockAdjust = 0;
           if (prospect.stockStatus === 'rising') stockAdjust = prospect.stockChange * 0.3;
           if (prospect.stockStatus === 'falling') stockAdjust = -prospect.stockChange * 0.3;
           
           const value = Math.round(Math.max(5, Math.min(99, baseValue + stockAdjust)));
           
-          // Map position group for need fitting (IDP positions map to broader groups)
           const mappedPos = prospect.positionGroup;
           const needFit = needs.includes(mappedPos) ? "High" : "Medium";
+          
+          const tags: string[] = [];
+          if (prospect.stockStatus === 'rising') tags.push("High Upside");
+          if (needFit === "High") tags.push("Roster Stabilizer");
+          if (prospect.rank <= 15) tags.push("Elite Prospect");
+          if (prospect.rank > 30 && prospect.stockStatus === 'rising') tags.push("Boom/Bust Dart");
+          
+          const tier = prospect.rank <= 10 ? 1 : prospect.rank <= 30 ? 2 : prospect.rank <= 60 ? 3 : 4;
+          
+          let recScore: number;
+          if (currentRound <= 2) {
+            recScore = value * 10;
+          } else if (currentRound <= 5) {
+            recScore = value * 8 + (needFit === "High" ? 150 : 0);
+          } else {
+            recScore = value * 5 + (needFit === "High" ? 250 : 0) + (prospect.stockStatus === 'rising' ? 200 : 0);
+          }
           
           availablePlayers.push({
             playerId: prospect.id,
@@ -10583,8 +10608,17 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             team: prospect.college,
             age: null,
             value,
+            recScore: Math.round(recScore),
             needFit,
             ppg: 0,
+            tags,
+            tier,
+            upsideScore: prospect.stockStatus === 'rising' ? 80 : prospect.stockStatus === 'falling' ? 30 : 50,
+            roleProbability: null,
+            scarcity: null,
+            leverageScore: null,
+            depthChartOrder: null,
+            explanation: null,
             draftRank: prospect.rank,
             college: prospect.college,
             stockStatus: prospect.stockStatus,
@@ -10595,11 +10629,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         }
       } else {
         // STARTUP DRAFT: Use Sleeper player pool with dynasty values
-        // Parse league scoring settings for format-aware valuation
         const leagueScoring = dynastyEngine.parseLeagueScoringSettings(league);
         const rosterSettings = dynastyEngine.parseLeagueRosterSettings(league);
         
-        // Determine allowed positions: always include offensive + IDP if league has IDP slots
         const OFFENSIVE_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
         const IDP_POSITIONS_SET = new Set(["DL", "LB", "DB", "EDGE", "CB", "S", "DE", "DT", "ILB", "OLB", "SS", "FS"]);
         const allowedPositions = new Set(OFFENSIVE_POSITIONS);
@@ -10607,7 +10639,6 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           Array.from(IDP_POSITIONS_SET).forEach(pos => allowedPositions.add(pos));
         }
         
-        // Build a set of drafted player names for secondary matching (handles edge cases)
         const draftedStartupNames = new Set<string>();
         for (const pick of draftPicks) {
           const p = allPlayers[pick.player_id];
@@ -10617,23 +10648,21 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           }
         }
         
+        // First pass: collect candidate players with base data
+        const startupCandidates: { playerId: string; player: any; blendedValue: any; gamesPlayed: number; ppg: number; needFit: string; depthOrder: number; upsideScore: number; roleProbability: number; rosterNeedFit: number }[] = [];
+        
         for (const [playerId, player] of Object.entries(allPlayers)) {
           if (draftedPlayerIds.has(playerId)) continue;
           if (!player || !player.position) continue;
           if (!allowedPositions.has(player.position)) continue;
           
-          // Filter out rookies/undrafted players that aren't real NFL contributors
-          // In startup drafts, we only want established NFL players
           const yearsExp = player.years_exp || 0;
           const hasTeam = player.team && player.team !== "";
           const playerStatus = player.status;
           
-          // Skip players with no NFL experience AND no current team (likely college/undrafted prospects)
           if (yearsExp === 0 && !hasTeam) continue;
-          // Skip inactive/retired players with no team
           if (!hasTeam && playerStatus === "Inactive") continue;
           
-          // Secondary drafted player name check (catches cases where player ID doesn't match)
           const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
           if (draftedStartupNames.has(playerName.toLowerCase().trim())) continue;
           
@@ -10641,10 +10670,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           const gamesPlayed = playerStats.gp || 0;
           const ppg = gamesPlayed > 0 ? (playerStats.pts_ppr || 0) / gamesPlayed : 0;
           
-          // Look up consensus value from DynastyProcess/KTC
           const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, player.position, isSuperflex);
-          
-          // Map IDP positions to their general group for dynasty value calculation
           const posForValue = IDP_POSITIONS_SET.has(player.position) ? player.position : player.position;
           
           const blendedValue = dynastyEngine.getBlendedPlayerValue(
@@ -10662,29 +10688,119 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             rosterSettings
           );
 
-          if (blendedValue.value > 500) {
-            const mappedPos = hasIDPSlots && IDP_POSITIONS_SET.has(player.position) ? mapToIDPGroup(player.position) : player.position;
-            const needFit = needs.includes(player.position) || needs.includes(mappedPos) ? "High" : "Medium";
-            
-            availablePlayers.push({
-              playerId,
-              name: player.full_name,
-              position: player.position,
-              team: player.team || "FA",
-              age: player.age,
-              value: blendedValue.value,
-              needFit,
-              ppg: Math.round(ppg * 10) / 10,
-            });
+          if (blendedValue.value <= 500) continue;
+          
+          const depthOrder = player.depth_chart_order || 99;
+          const hasTeamVal = player.team && player.team !== "" && player.team !== "FA" ? 1 : 0;
+          const snapFactor = gamesPlayed >= 14 ? 1.0 : gamesPlayed >= 8 ? 0.7 : gamesPlayed >= 1 ? 0.4 : 0.15;
+          const depthFactor = depthOrder <= 1 ? 1.0 : depthOrder <= 2 ? 0.7 : depthOrder <= 3 ? 0.4 : 0.2;
+          const roleProbability = hasTeamVal * (snapFactor * 0.5 + depthFactor * 0.5);
+          
+          if (currentRound > 15) {
+            const isActive = player.team && player.team !== "" && player.team !== "FA";
+            if (!isActive || roleProbability < 0.20) {
+              continue;
+            }
           }
+          
+          const ageVal = player.age || 26;
+          const upsideScore = ageVal <= 23 ? 1.0 : ageVal <= 25 ? 0.8 : ageVal <= 27 ? 0.5 : ageVal <= 30 ? 0.3 : 0.1;
+          
+          const mappedPos = hasIDPSlots && IDP_POSITIONS_SET.has(player.position) ? mapToIDPGroup(player.position) : player.position;
+          const needFit = needs.includes(player.position) || needs.includes(mappedPos) ? "High" : "Medium";
+          const rosterNeedFit = needs.includes(player.position) ? 1.0 : 0.5;
+          
+          startupCandidates.push({ playerId, player, blendedValue, gamesPlayed, ppg, needFit, depthOrder, upsideScore, roleProbability, rosterNeedFit });
+        }
+        
+        // Compute positional scarcity from collected candidates
+        const viableByPosition: Record<string, number> = {};
+        for (const c of startupCandidates) { viableByPosition[c.player.position] = (viableByPosition[c.player.position] || 0) + 1; }
+        const getScarcity = (pos: string) => {
+          const viable = viableByPosition[pos] || 1;
+          const slots = positionStarterSlots[pos] || 1;
+          const ratio = viable / (slots * numTeams);
+          return ratio <= 1 ? 1.0 : ratio <= 2 ? 0.8 : ratio <= 3 ? 0.5 : ratio <= 5 ? 0.3 : 0.1;
+        };
+        
+        // Second pass: compute recScore with scarcity and push to availablePlayers
+        for (const c of startupCandidates) {
+          const { playerId, player, blendedValue, gamesPlayed, ppg, needFit, depthOrder, upsideScore, roleProbability, rosterNeedFit } = c;
+          
+          let recScore: number;
+          if (currentRound <= 5) {
+            recScore = blendedValue.value * 0.70 + (upsideScore * 1000) * 0.10 + (roleProbability * 1000) * 0.15 + (rosterNeedFit * 1000) * 0.05;
+          } else if (currentRound <= 15) {
+            recScore = blendedValue.value * 0.40 + (upsideScore * 1000) * 0.20 + (roleProbability * 1000) * 0.15 + (getScarcity(player.position) * 1000) * 0.10 + (rosterNeedFit * 1000) * 0.15;
+          } else if (currentRound <= 30) {
+            recScore = blendedValue.value * 0.20 + (upsideScore * 1000) * 0.30 + (roleProbability * 1000) * 0.25 + (getScarcity(player.position) * 1000) * 0.10 + (rosterNeedFit * 1000) * 0.15;
+          } else {
+            recScore = (upsideScore * 1000) * 0.40 + (roleProbability * 1000) * 0.25 + (getScarcity(player.position) * 1000) * 0.20 + (rosterNeedFit * 1000) * 0.15;
+          }
+          
+          let leverageMultiplier = 1.0;
+          if (currentRound > 15) {
+            if (player.position === "RB" && depthOrder === 2 && gamesPlayed < 10) {
+              leverageMultiplier = 1.3;
+            }
+            if (depthOrder === 2 && player.injury_status === null && gamesPlayed >= 1) {
+              leverageMultiplier = Math.max(leverageMultiplier, 1.15);
+            }
+          }
+          recScore *= leverageMultiplier;
+          
+          const tags: string[] = [];
+          if (upsideScore >= 0.8) tags.push("High Upside");
+          if (player.position === "RB" && depthOrder === 2) tags.push("Handcuff");
+          if (depthOrder === 2 && player.injury_status === null && gamesPlayed >= 1) tags.push("Injury-Away Value");
+          if (getScarcity(player.position) >= 0.7) tags.push("Scarcity Play");
+          if (rosterNeedFit >= 1.0) tags.push("Roster Stabilizer");
+          if (upsideScore >= 0.6 && roleProbability < 0.4) tags.push("Boom/Bust Dart");
+          
+          let tier: number;
+          if (recScore >= 800) tier = 1;
+          else if (recScore >= 500) tier = 2;
+          else if (recScore >= 300) tier = 3;
+          else tier = 4;
+          
+          availablePlayers.push({
+            playerId,
+            name: player.full_name,
+            position: player.position,
+            team: player.team || "FA",
+            age: player.age,
+            value: blendedValue.value,
+            recScore: Math.round(recScore),
+            needFit,
+            ppg: Math.round(ppg * 10) / 10,
+            tags,
+            tier,
+            upsideScore: Math.round(upsideScore * 100),
+            roleProbability: Math.round(roleProbability * 100),
+            scarcity: Math.round(getScarcity(player.position) * 100),
+            leverageScore: leverageMultiplier > 1 ? Math.round(leverageMultiplier * 100) : null,
+            depthChartOrder: depthOrder <= 10 ? depthOrder : null,
+            explanation: null,
+          });
         }
       }
 
-      // Sort by value
-      availablePlayers.sort((a, b) => b.value - a.value);
+      // Sort by recScore (falling back to value)
+      availablePlayers.sort((a, b) => (b.recScore || b.value) - (a.recScore || a.value));
+
+      // Generate explanations for top 15 players
+      for (const p of availablePlayers.slice(0, 15)) {
+        const reasons: string[] = [];
+        if (p.needFit === "High") reasons.push("Fits roster need");
+        if (p.upsideScore >= 80) reasons.push("High ceiling relative to cost");
+        if (p.leverageScore) reasons.push("Strong leverage profile");
+        if (p.scarcity >= 70) reasons.push("Scarce position");
+        if (p.roleProbability >= 70) reasons.push("Strong role security");
+        if (p.tier <= 2) reasons.push("Impact-level talent");
+        p.explanation = reasons.length > 0 ? reasons.join(" | ") : null;
+      }
 
       // Detect positional runs in last 6 picks
-      // Determine if league actually uses K/DEF roster slots
       const hasKickerSlot = leagueRosterPositions.includes("K");
       const hasDefSlot = leagueRosterPositions.includes("DEF");
       
@@ -10694,19 +10810,34 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         const pos = pick.metadata?.position;
         if (!pos) continue;
         
-        // Skip K/DEF from positional runs if league doesn't use those roster slots
-        // (they're likely devy placeholders in leagues without K/DEF slots)
         if (pos === "K" && !hasKickerSlot) continue;
         if (pos === "DEF" && !hasDefSlot) continue;
         
         positionRuns[pos] = (positionRuns[pos] || 0) + 1;
       }
 
-      // Identify runs (3+ of same position in last 6)
       const activeRuns: { position: string; count: number }[] = [];
       for (const [pos, count] of Object.entries(positionRuns)) {
         if (count >= 3) {
           activeRuns.push({ position: pos, count });
+        }
+      }
+
+      // Detect tier cliffs
+      const tierCliffs: { position: string; message: string }[] = [];
+      const posGroups: Record<string, any[]> = {};
+      for (const p of availablePlayers.slice(0, 50)) {
+        if (!posGroups[p.position]) posGroups[p.position] = [];
+        posGroups[p.position].push(p);
+      }
+      for (const [pos, players] of Object.entries(posGroups)) {
+        if (players.length >= 2) {
+          const top = players[0];
+          const second = players[1];
+          const dropoff = (top.recScore || top.value) - (second.recScore || second.value);
+          if (dropoff > 200) {
+            tierCliffs.push({ position: pos, message: `${pos} Tier Cliff Approaching - big drop after ${top.name}` });
+          }
         }
       }
 
@@ -10716,20 +10847,26 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         .filter(p => {
           if (needs.includes(p.position)) return true;
           if (p.position === 'WRS' && needs.includes('WR')) return true;
-          // Map IDP positions to their tracked group for need matching
           if (hasIDPSlots) {
             const mapped = mapToIDPGroup(p.position);
             if (needs.includes(mapped)) return true;
           }
           return false;
         })
+        .sort((a, b) => (b.recScore || b.value) - (a.recScore || a.value))
         .slice(0, 5);
       const bestUpside = isRookieDraft
         ? availablePlayers
             .filter(p => p.stockStatus === 'rising' || p.draftRank <= 30)
+            .sort((a, b) => {
+              const aRising = a.stockStatus === 'rising' ? 1 : 0;
+              const bRising = b.stockStatus === 'rising' ? 1 : 0;
+              if (bRising !== aRising) return bRising - aRising;
+              return (a.draftRank || 999) - (b.draftRank || 999);
+            })
             .slice(0, 5)
-        : availablePlayers
-            .filter(p => p.age && p.age <= 24)
+        : [...availablePlayers]
+            .sort((a, b) => (b.upsideScore || 0) - (a.upsideScore || 0))
             .slice(0, 5);
 
       // Detect value drops - players whose draft board rank is much higher than current pick number
@@ -10786,6 +10923,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           idpSlotTargets: hasIDPSlots ? idpSlotCounts : undefined,
         },
         positionalRuns: activeRuns,
+        tierCliffs,
+        currentRound,
+        draftPhase: currentRound <= 5 ? "early" : currentRound <= 15 ? "mid" : currentRound <= 30 ? "late" : "deep",
         mode,
         draft: activeDraft ? {
           id: activeDraft.draft_id,

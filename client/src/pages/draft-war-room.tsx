@@ -19,6 +19,11 @@ import {
   ChevronRight,
   RefreshCw,
   ArrowDown,
+  Shield,
+  Flame,
+  Info,
+  Gauge,
+  Layers,
 } from "lucide-react";
 import {
   Table,
@@ -47,6 +52,30 @@ const POSITION_COLORS: Record<string, string> = {
   S: "bg-indigo-600 text-white border-indigo-700",
 };
 
+const TAG_STYLES: Record<string, string> = {
+  "High Upside": "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  "Injury-Away Value": "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  "Handcuff": "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+  "Scarcity Play": "bg-rose-500/15 text-rose-400 border-rose-500/30",
+  "Roster Stabilizer": "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  "Boom/Bust Dart": "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  "Elite Prospect": "bg-primary/15 text-primary border-primary/30",
+};
+
+const TIER_LABELS: Record<number, { label: string; color: string }> = {
+  1: { label: "Impact", color: "text-primary" },
+  2: { label: "Strong Role", color: "text-emerald-400" },
+  3: { label: "High Upside", color: "text-cyan-400" },
+  4: { label: "Lottery Ticket", color: "text-muted-foreground" },
+};
+
+const PHASE_INFO: Record<string, { label: string; strategy: string; color: string }> = {
+  early: { label: "Early Rounds", strategy: "Talent Maximization", color: "text-primary" },
+  mid: { label: "Mid Rounds", strategy: "Value + Structure", color: "text-emerald-400" },
+  late: { label: "Late Rounds", strategy: "Leverage + Upside + Scarcity", color: "text-amber-400" },
+  deep: { label: "Deep Rounds", strategy: "Pure Ceiling Plays", color: "text-rose-400" },
+};
+
 interface PlayerRecommendation {
   playerId: string;
   name: string;
@@ -54,6 +83,7 @@ interface PlayerRecommendation {
   team: string;
   age: number | null;
   value: number;
+  recScore?: number;
   needFit: string;
   ppg: number;
   draftRank?: number;
@@ -61,6 +91,14 @@ interface PlayerRecommendation {
   stockStatus?: 'rising' | 'falling' | 'steady';
   stockChange?: number;
   intangibles?: string[];
+  tags?: string[];
+  tier?: number;
+  upsideScore?: number;
+  roleProbability?: number;
+  scarcity?: number;
+  leverageScore?: number | null;
+  explanation?: string | null;
+  depthChartOrder?: number | null;
 }
 
 interface DraftBoardPick {
@@ -93,6 +131,11 @@ interface MyDraftPick {
   pickNo: number;
 }
 
+interface TierCliff {
+  position: string;
+  message: string;
+}
+
 interface DraftRecommendationsResponse {
   recommendations: {
     bestValue: PlayerRecommendation[];
@@ -109,6 +152,9 @@ interface DraftRecommendationsResponse {
     idpSlotTargets?: Record<string, number>;
   };
   positionalRuns: { position: string; count: number }[];
+  tierCliffs?: TierCliff[];
+  currentRound?: number;
+  draftPhase?: string;
   draft: {
     id: string;
     status: string;
@@ -122,68 +168,159 @@ interface DraftRecommendationsResponse {
   mode: string;
 }
 
+function DraftPhaseIndicator({ phase, round }: { phase?: string; round?: number }) {
+  if (!phase || !round) return null;
+  const info = PHASE_INFO[phase] || PHASE_INFO.early;
+
+  return (
+    <Card className="border-primary/20" data-testid="card-draft-phase">
+      <CardContent className="py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Gauge className="w-5 h-5 text-primary" />
+            <div>
+              <div className="text-xs text-muted-foreground">Round {round}</div>
+              <div className={`font-semibold ${info.color}`}>{info.label}</div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-muted-foreground">Strategy</div>
+            <div className={`text-sm font-medium ${info.color}`}>{info.strategy}</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LeverageMeter({ player }: { player: PlayerRecommendation }) {
+  const score = player.recScore || player.value;
+  const maxScore = 1200;
+  const pct = Math.min(100, (score / maxScore) * 100);
+
+  const reasons: string[] = [];
+  if (player.needFit === "High") reasons.push("Fills roster gap");
+  if (player.upsideScore && player.upsideScore >= 80) reasons.push("Elite ceiling");
+  if (player.leverageScore) reasons.push("Injury-away leverage");
+  if (player.scarcity && player.scarcity >= 70) reasons.push("Scarce position");
+  if (player.roleProbability && player.roleProbability >= 70) reasons.push("Locked-in role");
+
+  const leverageLevel = pct >= 70 ? "HIGH" : pct >= 40 ? "MED" : "LOW";
+  const leverageColor = pct >= 70 ? "text-emerald-400" : pct >= 40 ? "text-amber-400" : "text-muted-foreground";
+  const barColor = pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-muted-foreground/50";
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Leverage</span>
+        <span className={`text-xs font-bold ${leverageColor}`}>{leverageLevel}</span>
+      </div>
+      <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+        <div className={`h-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+      </div>
+      {reasons.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {reasons.map((r, i) => (
+            <span key={i} className="text-[9px] text-muted-foreground/80">{i > 0 ? " | " : ""}{r}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlayerRecommendationCard({ 
   player, 
   rank, 
-  showReason,
-  isRookieMode 
+  isRookieMode,
+  showLeverage,
 }: { 
   player: PlayerRecommendation; 
   rank: number;
-  showReason?: string;
   isRookieMode?: boolean;
+  showLeverage?: boolean;
 }) {
+  const tierInfo = player.tier ? TIER_LABELS[player.tier] : null;
+  const displayScore = player.recScore || Math.round(player.value);
+
   return (
     <div 
-      className="flex flex-wrap items-center gap-3 p-3 rounded-lg bg-card/50 border border-border/50 hover-elevate"
+      className="p-3 rounded-lg bg-card/50 border border-border/50 hover-elevate space-y-2"
       data-testid={`recommendation-player-${player.playerId}`}
     >
-      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 text-primary font-bold text-sm">
-        {isRookieMode && player.draftRank ? player.draftRank : rank}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium truncate">{player.name}</span>
-          <Badge variant="outline" className={POSITION_COLORS[player.position] || ""}>
-            {player.position}
-          </Badge>
-          {isRookieMode && player.stockStatus === 'rising' && (
-            <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px] px-1.5 py-0">
-              <TrendingUp className="w-3 h-3 mr-0.5" />
-              +{player.stockChange}
-            </Badge>
-          )}
-          {isRookieMode && player.stockStatus === 'falling' && (
-            <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30 text-[10px] px-1.5 py-0">
-              <TrendingDown className="w-3 h-3 mr-0.5" />
-              -{player.stockChange}
-            </Badge>
-          )}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 text-primary font-bold text-sm flex-shrink-0">
+          {isRookieMode && player.draftRank ? player.draftRank : rank}
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mt-0.5">
-          {isRookieMode && player.college ? (
-            <span>{player.college}</span>
-          ) : (
-            <>
-              <span>{player.team}</span>
-              {player.age && <span>Age {player.age}</span>}
-              <span>{player.ppg} PPG</span>
-            </>
-          )}
-          {isRookieMode && player.draftRank && (
-            <span className="text-primary/70">Board #{player.draftRank}</span>
-          )}
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium truncate">{player.name}</span>
+            <Badge variant="outline" className={POSITION_COLORS[player.position] || ""}>
+              {player.position}
+            </Badge>
+            {tierInfo && (
+              <span className={`text-[10px] font-semibold ${tierInfo.color}`}>T{player.tier}</span>
+            )}
+            {isRookieMode && player.stockStatus === 'rising' && (
+              <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px] px-1.5 py-0">
+                <TrendingUp className="w-3 h-3 mr-0.5" />
+                +{player.stockChange}
+              </Badge>
+            )}
+            {isRookieMode && player.stockStatus === 'falling' && (
+              <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30 text-[10px] px-1.5 py-0">
+                <TrendingDown className="w-3 h-3 mr-0.5" />
+                -{player.stockChange}
+              </Badge>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mt-0.5">
+            {isRookieMode && player.college ? (
+              <span>{player.college}</span>
+            ) : (
+              <>
+                <span>{player.team}</span>
+                {player.age && <span>Age {player.age}</span>}
+                {player.ppg > 0 && <span>{player.ppg} PPG</span>}
+              </>
+            )}
+            {isRookieMode && player.draftRank && (
+              <span className="text-primary/70">Board #{player.draftRank}</span>
+            )}
+            {!isRookieMode && player.roleProbability !== undefined && (
+              <span className="text-muted-foreground/70">{player.roleProbability}% Role</span>
+            )}
+          </div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <div className="text-lg font-bold text-primary">{displayScore}</div>
+          <div className="text-[10px] text-muted-foreground">Score</div>
         </div>
       </div>
-      <div className="text-right">
-        <div className="text-lg font-bold text-primary">{Math.round(player.value)}</div>
-        <div className="text-xs text-muted-foreground">Value</div>
-      </div>
-      {player.needFit === "High" && (
-        <Badge variant="default" className="bg-green-500/20 text-green-400 border-green-500/30">
-          Fits Need
-        </Badge>
+
+      {player.tags && player.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {player.tags.map(tag => (
+            <Badge 
+              key={tag} 
+              variant="outline" 
+              className={`text-[10px] px-1.5 py-0 ${TAG_STYLES[tag] || "bg-muted/20 text-muted-foreground border-border/50"}`}
+              data-testid={`tag-${tag.toLowerCase().replace(/[\s\/]/g, '-')}`}
+            >
+              {tag}
+            </Badge>
+          ))}
+        </div>
       )}
+
+      {player.explanation && (
+        <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground/80" data-testid={`text-explanation-${player.playerId}`}>
+          <Info className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary/50" />
+          <span>{player.explanation}</span>
+        </div>
+      )}
+
+      {showLeverage && <LeverageMeter player={player} />}
     </div>
   );
 }
@@ -194,10 +331,24 @@ function PositionRunAlert({ position, count }: { position: string; count: number
       className="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30"
       data-testid={`alert-position-run-${position}`}
     >
-      <AlertTriangle className="w-5 h-5 text-yellow-400" />
+      <Flame className="w-5 h-5 text-yellow-400" />
       <div>
         <span className="font-medium text-yellow-400">{position} Run Detected!</span>
         <span className="text-muted-foreground ml-2">{count} {position}s taken in last 6 picks</span>
+      </div>
+    </div>
+  );
+}
+
+function TierCliffAlert({ cliff }: { cliff: TierCliff }) {
+  return (
+    <div 
+      className="flex items-center gap-3 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30"
+      data-testid={`alert-tier-cliff-${cliff.position}`}
+    >
+      <Layers className="w-5 h-5 text-rose-400" />
+      <div>
+        <span className="font-medium text-rose-400">{cliff.message}</span>
       </div>
     </div>
   );
@@ -213,7 +364,7 @@ function ValueDropAlert({ player }: { player: ValueDrop }) {
       <div className="flex-1">
         <span className="font-medium text-green-400">{player.name}</span>
         <span className="text-muted-foreground ml-2">
-          fallen {player.spotsFallen} spots - grab at {player.value.toLocaleString()} value!
+          fallen {player.spotsFallen} spots - grab at {(player.recScore || player.value).toLocaleString()} value!
         </span>
       </div>
       <Badge className={POSITION_COLORS[player.position] || ""}>{player.position}</Badge>
@@ -307,7 +458,6 @@ function DraftBoard({ picks, currentPick }: {
   const currentPickRef = useRef<HTMLTableRowElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to current pick when it changes
   useEffect(() => {
     if (currentPickRef.current) {
       currentPickRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -330,7 +480,6 @@ function DraftBoard({ picks, currentPick }: {
     );
   }
 
-  // Sort picks by pickNo in descending order (most recent first)
   const sortedPicks = [...picks].sort((a, b) => b.pickNo - a.pickNo);
 
   return (
@@ -411,6 +560,7 @@ function DraftBoard({ picks, currentPick }: {
 export default function DraftWarRoomPage() {
   const { league } = useSelectedLeague();
   const [modeOverride, setModeOverride] = useState<"rookie" | "startup" | null>(null);
+  const [showLeverage, setShowLeverage] = useState(true);
 
   const queryMode = modeOverride ? `&mode=${modeOverride}` : "";
   const { data, isLoading, error, refetch } = useQuery<DraftRecommendationsResponse>({
@@ -469,6 +619,12 @@ export default function DraftWarRoomPage() {
     myPicks: [],
   };
 
+  const tierCliffs = (data as any)?.tierCliffs || [];
+  const currentRound = (data as any)?.currentRound;
+  const draftPhase = (data as any)?.draftPhase;
+
+  const hasAlerts = positionalRuns.length > 0 || valueDrops.length > 0 || tierCliffs.length > 0;
+
   return (
     <PremiumGate featureName="Draft War Room">
     <div className="p-6 space-y-6">
@@ -479,11 +635,11 @@ export default function DraftWarRoomPage() {
             Draft War Room
           </h1>
           <p className="text-muted-foreground text-sm">
-            AI-powered draft assistance for {league.name}
+            AI-powered draft intelligence for {league.name}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant={activeMode === "rookie" ? "default" : "outline"}
             size="sm"
@@ -503,6 +659,16 @@ export default function DraftWarRoomPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setShowLeverage(!showLeverage)}
+            data-testid="button-toggle-leverage"
+            className={showLeverage ? "border-primary/50" : ""}
+          >
+            <Gauge className="w-4 h-4 mr-1" />
+            {showLeverage ? "Leverage On" : "Leverage Off"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => refetch()}
             data-testid="button-refresh-draft"
           >
@@ -512,8 +678,13 @@ export default function DraftWarRoomPage() {
         </div>
       </div>
 
-      {(positionalRuns.length > 0 || valueDrops.length > 0) && (
+      <DraftPhaseIndicator phase={draftPhase} round={currentRound} />
+
+      {hasAlerts && (
         <div className="space-y-2" data-testid="alerts-container">
+          {tierCliffs.map((cliff: TierCliff) => (
+            <TierCliffAlert key={cliff.position} cliff={cliff} />
+          ))}
           {positionalRuns.map(run => (
             <PositionRunAlert key={run.position} position={run.position} count={run.count} />
           ))}
@@ -557,6 +728,12 @@ export default function DraftWarRoomPage() {
               <CardTitle className="text-lg flex flex-wrap items-center gap-2">
                 <Trophy className="w-5 h-5 text-primary" />
                 Smart Pick Recommendations
+                {draftPhase && (
+                  <Badge variant="outline" className="text-xs ml-2">
+                    <Shield className="w-3 h-3 mr-1" />
+                    Phase-Aware
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -564,7 +741,7 @@ export default function DraftWarRoomPage() {
                 <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="value" data-testid="tab-best-value">
                     <TrendingUp className="w-4 h-4 mr-1" />
-                    Best Value
+                    Best Picks
                   </TabsTrigger>
                   <TabsTrigger value="needs" data-testid="tab-best-needs">
                     <Target className="w-4 h-4 mr-1" />
@@ -579,7 +756,13 @@ export default function DraftWarRoomPage() {
                 <TabsContent value="value" className="space-y-2">
                   {recommendations.bestValue.length > 0 ? (
                     recommendations.bestValue.map((player, i) => (
-                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={activeMode === "rookie"} />
+                      <PlayerRecommendationCard 
+                        key={player.playerId} 
+                        player={player} 
+                        rank={i + 1} 
+                        isRookieMode={activeMode === "rookie"} 
+                        showLeverage={showLeverage}
+                      />
                     ))
                   ) : (
                     <p className="text-center text-muted-foreground py-4" data-testid="empty-state-best-value">
@@ -591,7 +774,13 @@ export default function DraftWarRoomPage() {
                 <TabsContent value="needs" className="space-y-2">
                   {recommendations.bestForNeeds.length > 0 ? (
                     recommendations.bestForNeeds.map((player, i) => (
-                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={activeMode === "rookie"} />
+                      <PlayerRecommendationCard 
+                        key={player.playerId} 
+                        player={player} 
+                        rank={i + 1} 
+                        isRookieMode={activeMode === "rookie"} 
+                        showLeverage={showLeverage}
+                      />
                     ))
                   ) : (
                     <p className="text-center text-muted-foreground py-4" data-testid="empty-state-best-needs">
@@ -603,7 +792,13 @@ export default function DraftWarRoomPage() {
                 <TabsContent value="upside" className="space-y-2">
                   {recommendations.bestUpside.length > 0 ? (
                     recommendations.bestUpside.map((player, i) => (
-                      <PlayerRecommendationCard key={player.playerId} player={player} rank={i + 1} isRookieMode={activeMode === "rookie"} />
+                      <PlayerRecommendationCard 
+                        key={player.playerId} 
+                        player={player} 
+                        rank={i + 1} 
+                        isRookieMode={activeMode === "rookie"} 
+                        showLeverage={showLeverage}
+                      />
                     ))
                   ) : (
                     <p className="text-center text-muted-foreground py-4" data-testid="empty-state-best-upside">
@@ -696,24 +891,75 @@ export default function DraftWarRoomPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Draft Tips</CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                Draft Strategy
+              </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground space-y-2">
-              <p className="flex items-start gap-2">
-                <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
-                {activeMode === "rookie" 
-                  ? "Focus on talent over landing spot for dynasty value"
-                  : "Balance youth and production for long-term success"
-                }
-              </p>
-              <p className="flex items-start gap-2">
-                <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
-                Watch for positional runs and react accordingly
-              </p>
-              <p className="flex items-start gap-2">
-                <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
-                Don't reach - let value come to you
-              </p>
+              {draftPhase === "early" && (
+                <>
+                  <p className="flex items-start gap-2">
+                    <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
+                    Prioritize elite production and stable starters
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
+                    Don't reach - let value come to you
+                  </p>
+                </>
+              )}
+              {draftPhase === "mid" && (
+                <>
+                  <p className="flex items-start gap-2">
+                    <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
+                    Balance value with roster construction
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
+                    Fill starting lineup gaps before depth
+                  </p>
+                </>
+              )}
+              {draftPhase === "late" && (
+                <>
+                  <p className="flex items-start gap-2">
+                    <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-amber-400" />
+                    Target upside and leverage plays
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-amber-400" />
+                    Handcuffs and backup RBs become gold
+                  </p>
+                </>
+              )}
+              {draftPhase === "deep" && (
+                <>
+                  <p className="flex items-start gap-2">
+                    <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-rose-400" />
+                    Pure ceiling plays - ignore floor/PPG
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-rose-400" />
+                    Lottery tickets with path to role
+                  </p>
+                </>
+              )}
+              {!draftPhase && (
+                <>
+                  <p className="flex items-start gap-2">
+                    <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
+                    {activeMode === "rookie" 
+                      ? "Focus on talent over landing spot for dynasty value"
+                      : "Balance youth and production for long-term success"
+                    }
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary" />
+                    Watch for positional runs and react accordingly
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
