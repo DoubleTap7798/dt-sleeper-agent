@@ -3819,7 +3819,7 @@ ${urls}
             devyName: entry.playerName,
             devyPosition: entry.position,
             devySchool: entry.school || "",
-            leagueId: "manual",
+            leagueId: entry.leagueId || "manual",
             leagueName: entry.leagueName || "Manual Add",
             matched: !!matchedDevy,
           });
@@ -3838,7 +3838,7 @@ ${urls}
       const userId = req.user.claims.sub;
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
 
-      const { playerName, position, school, leagueName, notes } = req.body;
+      const { playerName, position, school, leagueId, leagueName, notes } = req.body;
       if (!playerName || !position) {
         return res.status(400).json({ message: "Player name and position are required" });
       }
@@ -3848,6 +3848,7 @@ ${urls}
         playerName,
         position,
         school: school || null,
+        leagueId: leagueId || null,
         leagueName: leagueName || null,
         notes: notes || null,
       }).returning();
