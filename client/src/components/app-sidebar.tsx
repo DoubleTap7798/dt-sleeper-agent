@@ -36,6 +36,7 @@ import {
   Share2,
   Briefcase,
   Flame,
+  Heart,
 } from "lucide-react";
 import {
   Sidebar,
@@ -435,6 +436,21 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
             Upgrade to Premium
           </Button>
         )}
+        <a
+          href="https://buy.stripe.com/eVqfZ90Kf7gDdGh6II3ZK02"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+          data-testid="link-donate"
+        >
+          <Button
+            variant="outline"
+            className="w-full border-primary/40 text-primary"
+          >
+            <Heart className="h-4 w-4 mr-2" />
+            Donate to Support
+          </Button>
+        </a>
         
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
