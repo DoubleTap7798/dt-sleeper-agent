@@ -29,6 +29,11 @@ import {
   X,
   Zap,
   Activity,
+  Eye,
+  Shield,
+  Gauge,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 
 interface DevyPlayer {
@@ -428,6 +433,10 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
             <TabsTrigger value="advanced" className="text-xs sm:text-sm" data-testid="tab-advanced">
               <Activity className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
               Advanced
+            </TabsTrigger>
+            <TabsTrigger value="outlook" className="text-xs sm:text-sm" data-testid="tab-outlook">
+              <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Outlook
             </TabsTrigger>
             <TabsTrigger value="analysis" className="text-xs sm:text-sm" data-testid="tab-analysis">
               <Newspaper className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
@@ -903,6 +912,161 @@ export function DevyProfileModal({ open, onOpenChange, player }: DevyProfileModa
                           </CardContent>
                         </Card>
                       )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="outlook" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-outlook">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
+                      <Card data-testid="card-dynasty-recommendation">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <Gauge className="h-4 w-4" />
+                            Dynasty Recommendation
+                          </h3>
+                          {(() => {
+                            const elite = player.elitePct ?? 0;
+                            const bust = player.bustPct ?? 0;
+                            const trend = player.trend30Day ?? 0;
+                            const pickMult = player.pickMultiplier ?? 0;
+                            let verdict = "";
+                            let verdictColor = "";
+                            let verdictDesc = "";
+                            if (elite >= 30 && bust < 25 && pickMult >= 1.5) {
+                              verdict = "Must Own";
+                              verdictColor = "text-green-500";
+                              verdictDesc = "Elite upside with manageable risk. Prioritize acquiring in all dynasty formats.";
+                            } else if (elite >= 20 && bust < 35) {
+                              verdict = "Strong Hold";
+                              verdictColor = "text-blue-500";
+                              verdictDesc = "Quality prospect with solid trajectory. Hold unless offered premium value.";
+                            } else if (trend > 5 && bust >= 35) {
+                              verdict = "Sell High";
+                              verdictColor = "text-yellow-500";
+                              verdictDesc = "Rising value but significant bust risk. Consider selling at peak for safer assets.";
+                            } else if (trend < -5 && elite >= 20) {
+                              verdict = "Buy Low";
+                              verdictColor = "text-green-500";
+                              verdictDesc = "Talent still present despite dropping value. Potential buy-low window.";
+                            } else if (bust >= 40) {
+                              verdict = "Caution";
+                              verdictColor = "text-red-500";
+                              verdictDesc = "High bust probability. Only hold if you can absorb the risk in deeper leagues.";
+                            } else {
+                              verdict = "Monitor";
+                              verdictColor = "text-muted-foreground";
+                              verdictDesc = "Standard prospect. Watch development and draft capital before committing.";
+                            }
+                            return (
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30" data-testid="panel-dynasty-verdict">
+                                  <div className={`text-2xl font-bold ${verdictColor}`} data-testid="text-dynasty-verdict">{verdict}</div>
+                                </div>
+                                <p className="text-sm text-muted-foreground">{verdictDesc}</p>
+                              </div>
+                            );
+                          })()}
+                        </CardContent>
+                      </Card>
+
+                      <Card data-testid="card-value-drivers">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <ArrowUpRight className="h-4 w-4 text-green-500" />
+                            Value Drivers
+                          </h3>
+                          <div className="space-y-2">
+                            {(player.elitePct ?? 0) >= 20 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-elite-upside">
+                                <Shield className="h-4 w-4 text-green-500 shrink-0" />
+                                <span>High elite ceiling ({player.elitePct}% chance of top-tier production)</span>
+                              </div>
+                            )}
+                            {(player.round1Pct ?? 0) >= 50 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-draft-capital">
+                                <Star className="h-4 w-4 text-green-500 shrink-0" />
+                                <span>Premium draft capital expected ({player.round1Pct}% Round 1 probability)</span>
+                              </div>
+                            )}
+                            {(player.dominatorRating ?? 0) >= 30 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-dominator">
+                                <Zap className="h-4 w-4 text-green-500 shrink-0" />
+                                <span>Strong dominator rating ({player.dominatorRating}%) indicates alpha role</span>
+                              </div>
+                            )}
+                            {player.ageClass === "young-breakout" && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-age-curve">
+                                <Zap className="h-4 w-4 text-green-500 shrink-0" />
+                                <span>Young breakout profile - elite age curve for position</span>
+                              </div>
+                            )}
+                            {(player.trend30Day ?? 0) > 5 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-momentum">
+                                <TrendingUp className="h-4 w-4 text-green-500 shrink-0" />
+                                <span>Strong upward momentum (+{player.trend30Day} in 30 days)</span>
+                              </div>
+                            )}
+                            {player.breakoutAge && player.breakoutAge <= 19 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-green-500/10 border border-green-500/20 text-sm" data-testid="driver-breakout-age">
+                                <Star className="h-4 w-4 text-green-500 shrink-0" />
+                                <span>Early breakout age ({player.breakoutAge}) - historically elite indicator</span>
+                              </div>
+                            )}
+                            {(player.elitePct ?? 0) < 20 && (player.round1Pct ?? 0) < 50 && (player.dominatorRating ?? 0) < 30 && player.ageClass !== "young-breakout" && (player.trend30Day ?? 0) <= 5 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-muted/50 text-sm text-muted-foreground" data-testid="driver-none">
+                                <span>No standout value drivers identified yet. Monitor development closely.</span>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card data-testid="card-risk-factors">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <ArrowDownRight className="h-4 w-4 text-red-500" />
+                            Risk Factors
+                          </h3>
+                          <div className="space-y-2">
+                            {(player.bustPct ?? 0) >= 30 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-red-500/10 border border-red-500/20 text-sm" data-testid="risk-bust-rate">
+                                <Shield className="h-4 w-4 text-red-500 shrink-0" />
+                                <span>Elevated bust risk ({player.bustPct}% non-contributor probability)</span>
+                              </div>
+                            )}
+                            {player.ageClass === "old-producer" && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-red-500/10 border border-red-500/20 text-sm" data-testid="risk-age-concern">
+                                <Activity className="h-4 w-4 text-red-500 shrink-0" />
+                                <span>Older producer age profile - potential age curve concern</span>
+                              </div>
+                            )}
+                            {(player.trend30Day ?? 0) < -5 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-red-500/10 border border-red-500/20 text-sm" data-testid="risk-declining-value">
+                                <TrendingDown className="h-4 w-4 text-red-500 shrink-0" />
+                                <span>Declining market value ({player.trend30Day} in 30 days)</span>
+                              </div>
+                            )}
+                            {(player.round2PlusPct ?? 0) >= 60 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-yellow-500/10 border border-yellow-500/20 text-sm" data-testid="risk-draft-capital">
+                                <Star className="h-4 w-4 text-yellow-500 shrink-0" />
+                                <span>Likely Day 2+ draft capital ({player.round2PlusPct}% Round 2+ probability)</span>
+                              </div>
+                            )}
+                            {(player.dominatorRating ?? 0) < 15 && (player.dominatorRating ?? 0) > 0 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-yellow-500/10 border border-yellow-500/20 text-sm" data-testid="risk-low-dominator">
+                                <Gauge className="h-4 w-4 text-yellow-500 shrink-0" />
+                                <span>Low dominator rating ({player.dominatorRating}%) suggests shared role</span>
+                              </div>
+                            )}
+                            {(player.bustPct ?? 0) < 30 && player.ageClass !== "old-producer" && (player.trend30Day ?? 0) >= -5 && (player.round2PlusPct ?? 0) < 60 && (
+                              <div className="flex items-center gap-2 p-2 rounded bg-muted/50 text-sm text-muted-foreground" data-testid="risk-none">
+                                <span>No major red flags identified. Standard development risk applies.</span>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
                   </ScrollArea>
                 </TabsContent>

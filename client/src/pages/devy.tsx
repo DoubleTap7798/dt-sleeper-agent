@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight, Sparkles, Target, Zap, AlertTriangle, Database, RefreshCw, CheckCircle, AlertCircle, Bookmark, Flame } from "lucide-react";
+import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight, Sparkles, Target, Zap, AlertTriangle, Database, RefreshCw, CheckCircle, AlertCircle, Bookmark, Flame, Layers } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { useMutation } from "@tanstack/react-query";
@@ -110,7 +110,7 @@ function calculateDVI(player: DevyPlayer): number {
 }
 
 export default function DevyPage() {
-  usePageTitle("Devy Rankings");
+  usePageTitle("Devy Command Center");
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [yearFilter, setYearFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("rank");
@@ -119,6 +119,7 @@ export default function DevyPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [viewMode, setViewMode] = useState<"all" | "mydevy">("all");
+  const [groupByTier, setGroupByTier] = useState<boolean>(false);
 
   const { data, isLoading, error } = useQuery<DevyData>({
     queryKey: ["/api/sleeper/devy"],
@@ -271,10 +272,10 @@ export default function DevyPage() {
           <GraduationCap className="h-8 w-8" />
           <div>
             <h1 className="text-2xl font-bold" data-testid="text-devy-title">
-              Devy Rankings
+              Devy Command Center
             </h1>
             <p className="text-sm text-muted-foreground" data-testid="text-devy-subtitle">
-              College players eligible for future NFL drafts
+              Dynasty prospect intelligence hub
             </p>
           </div>
         </div>
@@ -348,30 +349,91 @@ export default function DevyPage() {
               ))}
             </SelectContent>
           </Select>
+
+          <Button
+            variant={groupByTier ? "default" : "outline"}
+            size="sm"
+            onClick={() => setGroupByTier(!groupByTier)}
+            className="gap-1.5 toggle-elevate"
+            data-testid="button-toggle-tiers"
+          >
+            <Layers className="h-3.5 w-3.5" />
+            Tiers
+          </Button>
         </div>
       </div>
+
+      {viewMode === "all" && (() => {
+        const tierCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        filteredPlayers.forEach(p => {
+          if (p.tier >= 1 && p.tier <= 5) tierCounts[p.tier]++;
+        });
+        const total = filteredPlayers.length || 1;
+        const tierConfig = [
+          { tier: 1, label: "Elite", color: "rgb(34, 197, 94)", bgClass: "bg-green-500" },
+          { tier: 2, label: "Blue Chip", color: "rgb(59, 130, 246)", bgClass: "bg-blue-500" },
+          { tier: 3, label: "Solid", color: "rgb(234, 179, 8)", bgClass: "bg-yellow-500" },
+          { tier: 4, label: "Developmental", color: "rgb(249, 115, 22)", bgClass: "bg-orange-500" },
+          { tier: 5, label: "Lottery", color: "rgb(239, 68, 68)", bgClass: "bg-red-500" },
+        ];
+        return (
+          <Card data-testid="card-tier-distribution">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Layers className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Tier Distribution</span>
+              </div>
+              <div className="flex h-3 rounded-full overflow-hidden" data-testid="bar-tier-distribution">
+                {tierConfig.map(tc => (
+                  <div
+                    key={tc.tier}
+                    className={tc.bgClass}
+                    style={{ width: `${(tierCounts[tc.tier] / total) * 100}%` }}
+                    data-testid={`bar-segment-tier-${tc.tier}`}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center justify-between mt-2 flex-wrap gap-1">
+                {tierConfig.map(tc => (
+                  <div key={tc.tier} className="flex items-center gap-1 text-xs" data-testid={`label-tier-${tc.tier}`}>
+                    <div className={`h-2.5 w-2.5 rounded-full ${tc.bgClass}`} />
+                    <span className="text-muted-foreground">{tc.label}</span>
+                    <span className="font-medium">{tierCounts[tc.tier]}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {data && (() => {
         const risers = players.filter(p => p.trend30Day >= 5).sort((a, b) => b.trend30Day - a.trend30Day).slice(0, 5);
         const fallers = players.filter(p => p.trend30Day <= -5).sort((a, b) => a.trend30Day - b.trend30Day).slice(0, 5);
         const breakouts = players.filter(p => p.ageClass === "young-breakout" && p.trend30Day > 0).slice(0, 3);
+        const buyLow = players.filter(p => p.trend30Day <= -5 && p.elitePct >= 20 && p.tier <= 3).sort((a, b) => a.trend30Day - b.trend30Day).slice(0, 3);
+        const sellHigh = players.filter(p => p.trend30Day >= 5 && p.bustPct >= 30).sort((a, b) => b.trend30Day - a.trend30Day).slice(0, 3);
+        const valuePlays = players.filter(p => p.elitePct >= 25 && p.pickMultiplier <= 1.2 && p.tier <= 3).slice(0, 3);
         
-        if (risers.length === 0 && fallers.length === 0) return null;
+        if (risers.length === 0 && fallers.length === 0 && breakouts.length === 0) return null;
         
         return (
-          <Card data-testid="card-devy-alerts">
+          <Card data-testid="card-market-intelligence">
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Flame className="h-5 w-5 text-primary" />
-                <h3 className="font-semibold">Devy Alerts</h3>
-                <span className="text-xs text-muted-foreground">Last 30 days</span>
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <Flame className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold">Market Intelligence</h3>
+                  <Badge variant="outline" className="text-[10px]">30-Day Window</Badge>
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {risers.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-1 mb-2">
-                      <TrendingUp className="h-3.5 w-3.5 text-green-500" />
-                      <span className="text-xs font-medium text-green-500">Rising</span>
+                  <div className="p-3 rounded-lg border border-green-500/20 bg-green-500/5" data-testid="panel-momentum-rising">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <TrendingUp className="h-4 w-4 text-green-500" />
+                      <span className="text-sm font-semibold text-green-500">Rising Momentum</span>
+                      <Badge variant="secondary" className="text-[10px] ml-auto">{risers.length}</Badge>
                     </div>
                     <div className="space-y-1.5">
                       {risers.map(p => (
@@ -387,10 +449,11 @@ export default function DevyPage() {
                   </div>
                 )}
                 {fallers.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-1 mb-2">
-                      <TrendingDown className="h-3.5 w-3.5 text-red-500" />
-                      <span className="text-xs font-medium text-red-500">Falling</span>
+                  <div className="p-3 rounded-lg border border-red-500/20 bg-red-500/5" data-testid="panel-momentum-falling">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <TrendingDown className="h-4 w-4 text-red-500" />
+                      <span className="text-sm font-semibold text-red-500">Falling Value</span>
+                      <Badge variant="secondary" className="text-[10px] ml-auto">{fallers.length}</Badge>
                     </div>
                     <div className="space-y-1.5">
                       {fallers.map(p => (
@@ -406,10 +469,11 @@ export default function DevyPage() {
                   </div>
                 )}
                 {breakouts.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-1 mb-2">
-                      <Zap className="h-3.5 w-3.5 text-yellow-500" />
-                      <span className="text-xs font-medium text-yellow-500">Young Breakouts</span>
+                  <div className="p-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5" data-testid="panel-breakout-alerts">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Zap className="h-4 w-4 text-yellow-500" />
+                      <span className="text-sm font-semibold text-yellow-500">Breakout Alerts</span>
+                      <Badge variant="secondary" className="text-[10px] ml-auto">{breakouts.length}</Badge>
                     </div>
                     <div className="space-y-1.5">
                       {breakouts.map(p => (
@@ -424,6 +488,113 @@ export default function DevyPage() {
                     </div>
                   </div>
                 )}
+              </div>
+              {(buyLow.length > 0 || sellHigh.length > 0 || valuePlays.length > 0) && (
+                <div className="mt-4 pt-4 border-t" data-testid="panel-trade-signals">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Target className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold">Trade Signals</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {buyLow.length > 0 && (
+                      <div data-testid="panel-buy-low">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <div className="h-2 w-2 rounded-full bg-green-500" />
+                          <span className="text-xs font-medium">Buy Low Targets</span>
+                        </div>
+                        <div className="space-y-1">
+                          {buyLow.map(p => (
+                            <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1 rounded" onClick={() => handlePlayerClick(p)} data-testid={`signal-buy-${p.playerId}`}>
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                                <span>{abbreviateName(p.name)}</span>
+                              </div>
+                              <span className="text-green-500 text-[10px]">{p.elitePct}% elite</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {sellHigh.length > 0 && (
+                      <div data-testid="panel-sell-high">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <div className="h-2 w-2 rounded-full bg-red-500" />
+                          <span className="text-xs font-medium">Sell High Candidates</span>
+                        </div>
+                        <div className="space-y-1">
+                          {sellHigh.map(p => (
+                            <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1 rounded" onClick={() => handlePlayerClick(p)} data-testid={`signal-sell-${p.playerId}`}>
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                                <span>{abbreviateName(p.name)}</span>
+                              </div>
+                              <span className="text-red-500 text-[10px]">{p.bustPct}% bust</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {valuePlays.length > 0 && (
+                      <div data-testid="panel-value-plays">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <div className="h-2 w-2 rounded-full bg-blue-500" />
+                          <span className="text-xs font-medium">Value Plays</span>
+                        </div>
+                        <div className="space-y-1">
+                          {valuePlays.map(p => (
+                            <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1 rounded" onClick={() => handlePlayerClick(p)} data-testid={`signal-value-${p.playerId}`}>
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                                <span>{abbreviateName(p.name)}</span>
+                              </div>
+                              <span className="text-blue-500 text-[10px]">T{p.tier} underpriced</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {viewMode === "mydevy" && filteredPlayers.length > 0 && (() => {
+        const totalValue = filteredPlayers.reduce((sum, p) => sum + p.value, 0);
+        const avgDvi = Math.round(filteredPlayers.reduce((sum, p) => sum + calculateDVI(p), 0) / filteredPlayers.length);
+        const posCounts: Record<string, number> = {};
+        filteredPlayers.forEach(p => { posCounts[p.position] = (posCounts[p.position] || 0) + 1; });
+        const avgElite = filteredPlayers.reduce((sum, p) => sum + p.elitePct, 0) / filteredPlayers.length;
+        const avgBust = filteredPlayers.reduce((sum, p) => sum + p.bustPct, 0) / filteredPlayers.length;
+        const portfolioHealth = Math.round(Math.min(100, Math.max(0, avgElite - avgBust)));
+        return (
+          <Card data-testid="card-portfolio-overview">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div data-testid="stat-total-value">
+                  <p className="text-xs text-muted-foreground">Total Portfolio Value</p>
+                  <p className="text-xl font-bold">{totalValue.toLocaleString()}</p>
+                </div>
+                <div data-testid="stat-avg-dvi">
+                  <p className="text-xs text-muted-foreground">Avg DVI Score</p>
+                  <p className={`text-xl font-bold ${avgDvi >= 70 ? "text-green-500" : avgDvi >= 50 ? "text-yellow-500" : "text-red-500"}`}>{avgDvi}</p>
+                </div>
+                <div data-testid="stat-position-balance">
+                  <p className="text-xs text-muted-foreground mb-1">Position Balance</p>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {["QB", "RB", "WR", "TE"].map(pos => (
+                      <Badge key={pos} variant="outline" className={`text-[10px] ${getPositionColorClass(pos)}`} data-testid={`badge-pos-count-${pos}`}>
+                        {pos} {posCounts[pos] || 0}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div data-testid="stat-portfolio-health">
+                  <p className="text-xs text-muted-foreground">Portfolio Health</p>
+                  <p className={`text-xl font-bold ${portfolioHealth >= 50 ? "text-green-500" : portfolioHealth >= 25 ? "text-yellow-500" : "text-red-500"}`}>{portfolioHealth}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -589,18 +760,41 @@ export default function DevyPage() {
               <tbody>
                 {sortedPlayers.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
+                    <td colSpan={12} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
                       No players match the selected filters
                     </td>
                   </tr>
                 ) : (
-                  sortedPlayers.map((player, index) => (
-                    <tr
-                      key={player.playerId}
-                      className={`cursor-pointer hover-elevate ${index % 2 === 0 ? "bg-muted/30" : ""}`}
-                      onClick={() => handlePlayerClick(player)}
-                      data-testid={`row-player-${player.playerId}`}
-                    >
+                  (() => {
+                    const tierNames: Record<number, string> = { 1: "Elite Prospects", 2: "Blue Chip", 3: "Solid Contributors", 4: "Developmental", 5: "Lottery Tickets" };
+                    const tierColors: Record<number, string> = { 1: "border-l-green-500 bg-green-500/5", 2: "border-l-blue-500 bg-blue-500/5", 3: "border-l-yellow-500 bg-yellow-500/5", 4: "border-l-orange-500 bg-orange-500/5", 5: "border-l-red-500 bg-red-500/5" };
+                    const tierArchetypes: Record<number, string> = { 1: "Elite", 2: "Blue Chip", 3: "Solid", 4: "Developmental", 5: "Lottery" };
+                    const showTierHeaders = groupByTier && sortField === "rank";
+                    let lastTier = 0;
+                    const rows: JSX.Element[] = [];
+                    sortedPlayers.forEach((player, index) => {
+                      if (showTierHeaders && player.tier !== lastTier) {
+                        const tierCount = sortedPlayers.filter(p => p.tier === player.tier).length;
+                        rows.push(
+                          <tr key={`tier-header-${player.tier}`} data-testid={`row-tier-header-${player.tier}`}>
+                            <td colSpan={12} className={`p-3 border-l-4 ${tierColors[player.tier] || "bg-muted/30"}`}>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-sm">{tierNames[player.tier] || `Tier ${player.tier}`}</span>
+                                <Badge variant="secondary" className="text-[10px]">{tierArchetypes[player.tier] || "Other"}</Badge>
+                                <span className="text-xs text-muted-foreground">{tierCount} players</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                        lastTier = player.tier;
+                      }
+                      rows.push(
+                        <tr
+                          key={player.playerId}
+                          className={`cursor-pointer hover-elevate ${index % 2 === 0 ? "bg-muted/30" : ""}`}
+                          onClick={() => handlePlayerClick(player)}
+                          data-testid={`row-player-${player.playerId}`}
+                        >
                       <td className="p-3 font-medium" data-testid={`text-rank-${player.playerId}`}>
                         {player.rank}
                       </td>
@@ -789,7 +983,10 @@ export default function DevyPage() {
                         )}
                       </td>
                     </tr>
-                  ))
+                      );
+                    });
+                    return rows;
+                  })()
                 )}
               </tbody>
             </table>
