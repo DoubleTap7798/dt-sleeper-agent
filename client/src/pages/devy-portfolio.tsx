@@ -32,6 +32,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useToast } from "@/hooks/use-toast";
+import { useSelectedLeague } from "./league-layout";
 import { calculateDVI } from "./devy-rankings";
 import type { DevyPlayer, DevyData, DevyComp } from "./devy-rankings";
 
@@ -41,6 +42,7 @@ interface ManualEntry {
   playerName: string;
   position: string;
   school: string | null;
+  leagueId: string | null;
   leagueName: string | null;
   notes: string | null;
   createdAt: string;
@@ -49,10 +51,11 @@ interface ManualEntry {
 export default function DevyPortfolioPage() {
   usePageTitle("My Devy Portfolio");
   const { toast } = useToast();
+  const { league: selectedLeague, isLoading: leagueLoading } = useSelectedLeague();
   const [selectedPlayer, setSelectedPlayer] = useState<DevyPlayer | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [newPlayer, setNewPlayer] = useState({ playerName: "", position: "QB", school: "", leagueName: "", notes: "" });
+  const [newPlayer, setNewPlayer] = useState({ playerName: "", position: "QB", school: "", leagueId: "", leagueName: "", notes: "" });
 
   const { data: devyData, isLoading: devyLoading } = useQuery<DevyData>({
     queryKey: ["/api/sleeper/devy"],
@@ -79,7 +82,7 @@ export default function DevyPortfolioPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sleeper/devy/my-players"] });
       setAddDialogOpen(false);
-      setNewPlayer({ playerName: "", position: "QB", school: "", leagueName: "", notes: "" });
+      setNewPlayer({ playerName: "", position: "QB", school: "", leagueId: "", leagueName: "", notes: "" });
       toast({ title: "Player added to your devy portfolio" });
     },
     onError: () => {
@@ -97,11 +100,14 @@ export default function DevyPortfolioPage() {
     },
   });
 
-  if (devyLoading || myDevyLoading) {
+  if (devyLoading || myDevyLoading || leagueLoading) {
     return <PortfolioSkeleton />;
   }
 
   const players = devyData?.players || [];
+  const isAllLeagues = !selectedLeague;
+  const activeLeagueId = selectedLeague?.league_id || null;
+  const activeLeagueName = selectedLeague?.name || "All Leagues";
 
   const fuzzyNameMatch = (name1: string, name2: string): boolean => {
     const a = name1.toLowerCase().trim();
@@ -120,25 +126,36 @@ export default function DevyPortfolioPage() {
     return false;
   };
 
-  const ownedIds = new Set(myDevyData?.ownedDevy?.map(d => d.devyPlayerId) || []);
+  const allOwnedDevy = myDevyData?.ownedDevy || [];
+  const filteredOwnedDevy = isAllLeagues
+    ? allOwnedDevy
+    : allOwnedDevy.filter(d => d.leagueId === activeLeagueId);
+
+  const ownedIds = new Set(filteredOwnedDevy.map(d => d.devyPlayerId));
   const watchlistIds = new Set(watchlistData?.watchlist?.map(w => w.playerId) || []);
 
   const matchedPlayers = players.filter(p => {
-    return ownedIds.has(p.playerId) || watchlistIds.has(p.playerId) ||
-      (myDevyData?.ownedDevy || []).some(d => fuzzyNameMatch(d.devyName, p.name));
+    return ownedIds.has(p.playerId) ||
+      (isAllLeagues && watchlistIds.has(p.playerId)) ||
+      filteredOwnedDevy.some(d => fuzzyNameMatch(d.devyName, p.name));
   });
 
-  const unmatchedDevy = (myDevyData?.ownedDevy || []).filter(d => {
+  const unmatchedDevy = filteredOwnedDevy.filter(d => {
     if (d.matched) return false;
     return !players.some(p => p.playerId === d.devyPlayerId || fuzzyNameMatch(d.devyName, p.name));
   });
 
   const getOwnedLeagues = (playerId: string, playerName: string): string[] => {
-    if (!myDevyData?.ownedDevy) return [];
-    return myDevyData.ownedDevy
+    const source = isAllLeagues ? allOwnedDevy : filteredOwnedDevy;
+    return source
       .filter(d => d.devyPlayerId === playerId || fuzzyNameMatch(d.devyName, playerName))
       .map(d => d.leagueName);
   };
+
+  const allManualEntries = myDevyData?.manualEntries || [];
+  const manualEntries = isAllLeagues
+    ? allManualEntries
+    : allManualEntries.filter(e => e.leagueId === activeLeagueId);
 
   const totalValue = matchedPlayers.reduce((sum, p) => sum + p.value, 0);
   const avgDvi = matchedPlayers.length > 0 ? Math.round(matchedPlayers.reduce((sum, p) => sum + calculateDVI(p), 0) / matchedPlayers.length) : 0;
@@ -149,7 +166,6 @@ export default function DevyPortfolioPage() {
   const portfolioHealth = Math.round(Math.min(100, Math.max(0, avgElite - avgBust)));
 
   const totalCount = matchedPlayers.length + unmatchedDevy.length;
-  const manualEntries = myDevyData?.manualEntries || [];
 
   const handlePlayerClick = (player: DevyPlayer) => {
     setSelectedPlayer(player);
@@ -171,11 +187,16 @@ export default function DevyPortfolioPage() {
                 My Devy Portfolio
               </h1>
               <p className="text-sm text-muted-foreground">
-                {totalCount} prospect{totalCount !== 1 ? "s" : ""} in your dynasty pipeline
+                {totalCount} prospect{totalCount !== 1 ? "s" : ""} {isAllLeagues ? "across all leagues" : `in ${activeLeagueName}`}
               </p>
             </div>
           </div>
-          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+          <Dialog open={addDialogOpen} onOpenChange={(open) => {
+            setAddDialogOpen(open);
+            if (open && selectedLeague) {
+              setNewPlayer(prev => ({ ...prev, leagueId: selectedLeague.league_id, leagueName: selectedLeague.name }));
+            }
+          }}>
             <DialogTrigger asChild>
               <Button className="gap-2" data-testid="button-add-devy">
                 <UserPlus className="h-4 w-4" />
@@ -225,13 +246,29 @@ export default function DevyPortfolioPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="leagueName">League</Label>
-                  <Input
-                    id="leagueName"
-                    value={newPlayer.leagueName}
-                    onChange={(e) => setNewPlayer(prev => ({ ...prev, leagueName: e.target.value }))}
-                    placeholder="e.g. Devy Degenerates"
-                    data-testid="input-league-name"
-                  />
+                  <Select
+                    value={newPlayer.leagueId || "none"}
+                    onValueChange={(v) => {
+                      if (v === "none") {
+                        setNewPlayer(prev => ({ ...prev, leagueId: "", leagueName: "" }));
+                      } else {
+                        const league = myDevyData?.leagues?.find(l => l.id === v);
+                        setNewPlayer(prev => ({ ...prev, leagueId: v, leagueName: league?.name || "" }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-league">
+                      <SelectValue placeholder="Select a league" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none" data-testid="option-league-none">No specific league</SelectItem>
+                      {(myDevyData?.leagues || []).map(league => (
+                        <SelectItem key={league.id} value={league.id} data-testid={`option-league-${league.id}`}>
+                          {league.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes</Label>
