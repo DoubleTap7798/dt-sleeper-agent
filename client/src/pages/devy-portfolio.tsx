@@ -57,7 +57,7 @@ export default function DevyPortfolioPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
-  const [newPlayer, setNewPlayer] = useState({ playerName: "", position: "QB", school: "", leagueId: "", leagueName: "", notes: "" });
+  const [newPlayer, setNewPlayer] = useState({ playerName: "", position: "QB", school: "", notes: "" });
 
   const { data: devyData, isLoading: devyLoading } = useQuery<DevyData>({
     queryKey: ["/api/sleeper/devy"],
@@ -65,7 +65,7 @@ export default function DevyPortfolioPage() {
   });
 
   const { data: myDevyData, isLoading: myDevyLoading } = useQuery<{
-    ownedDevy: Array<{ devyPlayerId: string; devyName: string; devyPosition: string; devySchool: string; leagueId: string; leagueName: string; matched: boolean; source: "system" | "manual"; manualEntryId?: string }>;
+    ownedDevy: Array<{ devyPlayerId: string; devyName: string; devyPosition: string; devySchool: string; leagueId: string | null; leagueName: string | null; matched: boolean; manualEntryId: string }>;
     leagues: Array<{ id: string; name: string }>;
     manualEntries: ManualEntry[];
   }>({
@@ -73,18 +73,14 @@ export default function DevyPortfolioPage() {
     ...CACHE_TIMES.STABLE,
   });
 
-  const { data: watchlistData } = useQuery<{ watchlist: Array<{ playerId: string }> }>({
-    queryKey: ["/api/watchlist"],
-  });
-
   const addMutation = useMutation({
-    mutationFn: async (data: typeof newPlayer) => {
+    mutationFn: async (data: { playerName: string; position: string; school: string; notes: string; leagueId: string; leagueName: string }) => {
       return apiRequest("POST", "/api/sleeper/devy/my-players", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sleeper/devy/my-players"] });
       setAddDialogOpen(false);
-      setNewPlayer({ playerName: "", position: "QB", school: "", leagueId: "", leagueName: "", notes: "" });
+      setNewPlayer({ playerName: "", position: "QB", school: "", notes: "" });
       toast({ title: "Player added to your devy portfolio" });
     },
     onError: () => {
@@ -134,11 +130,9 @@ export default function DevyPortfolioPage() {
     : allOwnedDevy.filter(d => d.leagueId === activeLeagueId);
 
   const ownedIds = new Set(filteredOwnedDevy.map(d => d.devyPlayerId));
-  const watchlistIds = new Set(watchlistData?.watchlist?.map(w => w.playerId) || []);
 
   const matchedPlayers = players.filter(p => {
     return ownedIds.has(p.playerId) ||
-      (isAllLeagues && watchlistIds.has(p.playerId)) ||
       filteredOwnedDevy.some(d => fuzzyNameMatch(d.devyName, p.name));
   });
 
@@ -147,28 +141,19 @@ export default function DevyPortfolioPage() {
     return !players.some(p => p.playerId === d.devyPlayerId || fuzzyNameMatch(d.devyName, p.name));
   });
 
-  const getOwnedLeagues = (playerId: string, playerName: string): Array<{ name: string; source: "system" | "manual" }> => {
+  const getOwnedLeagues = (playerId: string, playerName: string): string[] => {
     const source = isAllLeagues ? allOwnedDevy : filteredOwnedDevy;
     const seen = new Set<string>();
-    const results: Array<{ name: string; source: "system" | "manual" }> = [];
+    const results: string[] = [];
     for (const d of source) {
       if (d.devyPlayerId === playerId || fuzzyNameMatch(d.devyName, playerName)) {
-        const key = `${d.leagueName}-${d.source}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          results.push({ name: d.leagueName, source: d.source });
+        if (d.leagueName && !seen.has(d.leagueName)) {
+          seen.add(d.leagueName);
+          results.push(d.leagueName);
         }
       }
     }
     return results;
-  };
-
-  const hasManualEntry = (playerId: string, playerName: string): string | undefined => {
-    const source = isAllLeagues ? allOwnedDevy : filteredOwnedDevy;
-    const entry = source.find(d =>
-      (d.devyPlayerId === playerId || fuzzyNameMatch(d.devyName, playerName)) && d.manualEntryId
-    );
-    return entry?.manualEntryId;
   };
 
   const allManualEntries = myDevyData?.manualEntries || [];
@@ -180,6 +165,7 @@ export default function DevyPortfolioPage() {
   const avgDvi = matchedPlayers.length > 0 ? Math.round(matchedPlayers.reduce((sum, p) => sum + calculateDVI(p), 0) / matchedPlayers.length) : 0;
   const posCounts: Record<string, number> = {};
   matchedPlayers.forEach(p => { posCounts[p.position] = (posCounts[p.position] || 0) + 1; });
+  unmatchedDevy.forEach(d => { posCounts[d.devyPosition] = (posCounts[d.devyPosition] || 0) + 1; });
   const avgElite = matchedPlayers.length > 0 ? matchedPlayers.reduce((sum, p) => sum + p.elitePct, 0) / matchedPlayers.length : 0;
   const avgBust = matchedPlayers.length > 0 ? matchedPlayers.reduce((sum, p) => sum + p.bustPct, 0) / matchedPlayers.length : 0;
   const portfolioHealth = Math.round(Math.min(100, Math.max(0, avgElite - avgBust)));
@@ -189,6 +175,15 @@ export default function DevyPortfolioPage() {
   const handlePlayerClick = (player: DevyPlayer) => {
     setSelectedPlayer(player);
     setModalOpen(true);
+  };
+
+  const handleAddPlayer = () => {
+    if (!selectedLeague) return;
+    addMutation.mutate({
+      ...newPlayer,
+      leagueId: selectedLeague.league_id,
+      leagueName: selectedLeague.name,
+    });
   };
 
   return (
@@ -214,120 +209,101 @@ export default function DevyPortfolioPage() {
             {manualEntries.length > 0 && (
               <Button variant="outline" className="gap-2" onClick={() => setManageDialogOpen(true)} data-testid="button-manage-manual">
                 <Pencil className="h-4 w-4" />
-                Edit Manual ({manualEntries.length})
+                Manage ({manualEntries.length})
               </Button>
             )}
-          <Dialog open={addDialogOpen} onOpenChange={(open) => {
-            setAddDialogOpen(open);
-            if (open && selectedLeague) {
-              setNewPlayer(prev => ({ ...prev, leagueId: selectedLeague.league_id, leagueName: selectedLeague.name }));
-            }
-          }}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" data-testid="button-add-devy">
-                <UserPlus className="h-4 w-4" />
-                Add Player
-              </Button>
-            </DialogTrigger>
-            <DialogContent data-testid="dialog-add-devy">
-              <DialogHeader>
-                <DialogTitle>Add Devy Player</DialogTitle>
-                <DialogDescription>
-                  Manually add a prospect to your portfolio that the system didn't pick up.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="space-y-2">
-                  <Label htmlFor="playerName">Player Name *</Label>
-                  <Input
-                    id="playerName"
-                    value={newPlayer.playerName}
-                    onChange={(e) => setNewPlayer(prev => ({ ...prev, playerName: e.target.value }))}
-                    placeholder="e.g. Arch Manning"
-                    data-testid="input-player-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="position">Position *</Label>
-                  <Select value={newPlayer.position} onValueChange={(v) => setNewPlayer(prev => ({ ...prev, position: v }))}>
-                    <SelectTrigger data-testid="select-position">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["QB", "RB", "WR", "TE"].map(pos => (
-                        <SelectItem key={pos} value={pos} data-testid={`option-pos-${pos}`}>{pos}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="school">School</Label>
-                  <Input
-                    id="school"
-                    value={newPlayer.school}
-                    onChange={(e) => setNewPlayer(prev => ({ ...prev, school: e.target.value }))}
-                    placeholder="e.g. Texas"
-                    data-testid="input-school"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="leagueName">League</Label>
-                  {selectedLeague ? (
-                    <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
-                      <span className="text-sm">{selectedLeague.name}</span>
+            {selectedLeague ? (
+              <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" data-testid="button-add-devy">
+                    <UserPlus className="h-4 w-4" />
+                    Add Player
+                  </Button>
+                </DialogTrigger>
+                <DialogContent data-testid="dialog-add-devy">
+                  <DialogHeader>
+                    <DialogTitle>Add Devy Player</DialogTitle>
+                    <DialogDescription>
+                      Add a prospect to your portfolio in <span className="font-semibold text-amber-400">{selectedLeague.name}</span>
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="playerName">Player Name *</Label>
+                      <Input
+                        id="playerName"
+                        value={newPlayer.playerName}
+                        onChange={(e) => setNewPlayer(prev => ({ ...prev, playerName: e.target.value }))}
+                        placeholder="e.g. Arch Manning"
+                        data-testid="input-player-name"
+                      />
                     </div>
-                  ) : (
-                    <Select
-                      value={newPlayer.leagueId || "none"}
-                      onValueChange={(v) => {
-                        if (v === "none") {
-                          setNewPlayer(prev => ({ ...prev, leagueId: "", leagueName: "" }));
-                        } else {
-                          const league = myDevyData?.leagues?.find(l => l.id === v);
-                          setNewPlayer(prev => ({ ...prev, leagueId: v, leagueName: league?.name || "" }));
-                        }
-                      }}
+                    <div className="space-y-2">
+                      <Label htmlFor="position">Position *</Label>
+                      <Select value={newPlayer.position} onValueChange={(v) => setNewPlayer(prev => ({ ...prev, position: v }))}>
+                        <SelectTrigger data-testid="select-position">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["QB", "RB", "WR", "TE"].map(pos => (
+                            <SelectItem key={pos} value={pos} data-testid={`option-pos-${pos}`}>{pos}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="school">School</Label>
+                      <Input
+                        id="school"
+                        value={newPlayer.school}
+                        onChange={(e) => setNewPlayer(prev => ({ ...prev, school: e.target.value }))}
+                        placeholder="e.g. Texas"
+                        data-testid="input-school"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
+                      <span className="text-xs text-muted-foreground">League:</span>
+                      <span className="text-sm font-medium">{selectedLeague.name}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="notes">Notes</Label>
+                      <Textarea
+                        id="notes"
+                        value={newPlayer.notes}
+                        onChange={(e) => setNewPlayer(prev => ({ ...prev, notes: e.target.value }))}
+                        placeholder="Any notes about this prospect..."
+                        className="resize-none"
+                        data-testid="input-notes"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button variant="outline" data-testid="button-cancel-add">Cancel</Button>
+                    </DialogClose>
+                    <Button
+                      onClick={handleAddPlayer}
+                      disabled={!newPlayer.playerName.trim() || addMutation.isPending}
+                      data-testid="button-confirm-add"
                     >
-                      <SelectTrigger data-testid="select-league">
-                        <SelectValue placeholder="Select a league" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none" data-testid="option-league-none">No specific league</SelectItem>
-                        {(myDevyData?.leagues || []).map(league => (
-                          <SelectItem key={league.id} value={league.id} data-testid={`option-league-${league.id}`}>
-                            {league.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea
-                    id="notes"
-                    value={newPlayer.notes}
-                    onChange={(e) => setNewPlayer(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Any notes about this prospect..."
-                    className="resize-none"
-                    data-testid="input-notes"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline" data-testid="button-cancel-add">Cancel</Button>
-                </DialogClose>
-                <Button
-                  onClick={() => addMutation.mutate(newPlayer)}
-                  disabled={!newPlayer.playerName.trim() || addMutation.isPending}
-                  data-testid="button-confirm-add"
-                >
-                  {addMutation.isPending ? "Adding..." : "Add to Portfolio"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                      {addMutation.isPending ? "Adding..." : "Add to Portfolio"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button className="gap-2" disabled data-testid="button-add-devy-disabled">
+                      <UserPlus className="h-4 w-4" />
+                      Add Player
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Select a specific league to add devy players</TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </div>
       </div>
@@ -402,14 +378,15 @@ export default function DevyPortfolioPage() {
                           <Badge variant="outline" className={`text-xs ${getPositionColorClass(player.position)}`}>
                             {player.position}{player.positionRank}
                           </Badge>
+                          <Badge className="text-[10px] bg-purple-600/80 text-purple-100 border-purple-500/40">DEV</Badge>
                           {player.ageClass === "young-breakout" && <Zap className="h-3 w-3 text-green-500" />}
                         </div>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className="text-xs text-muted-foreground">{player.college}</span>
                           <span className="text-xs text-muted-foreground">{player.draftEligibleYear}</span>
-                          {leagues.map((l, i) => (
-                            <Badge key={i} variant="secondary" className={`text-[10px] ${l.source === "manual" ? "border-amber-600/30" : ""}`}>
-                              {l.name}
+                          {leagues.map((name, i) => (
+                            <Badge key={i} variant="secondary" className="text-[10px]">
+                              {name}
                             </Badge>
                           ))}
                         </div>
@@ -457,7 +434,7 @@ export default function DevyPortfolioPage() {
                 <AlertTriangle className="h-4 w-4 text-amber-500" />
                 Unranked Prospects ({unmatchedDevy.length})
               </h3>
-              <p className="text-xs text-amber-200/50 mt-1">These players are on your rosters but not in the rankings database</p>
+              <p className="text-xs text-amber-200/50 mt-1">These players are not yet in the rankings database</p>
             </div>
             <div className="divide-y divide-amber-800/10">
               {unmatchedDevy.map((d, i) => (
@@ -475,12 +452,15 @@ export default function DevyPortfolioPage() {
                       {d.devyPosition}
                     </Badge>
                     <div className="min-w-0">
-                      <span className="font-medium text-sm">{d.devyName}</span>
-                      {d.devySchool && <span className="text-xs text-muted-foreground ml-2">{d.devySchool}</span>}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{d.devyName}</span>
+                        <Badge className="text-[10px] bg-purple-600/80 text-purple-100 border-purple-500/40">DEV</Badge>
+                      </div>
+                      {d.devySchool && <span className="text-xs text-muted-foreground">{d.devySchool}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant="secondary" className={`text-[10px] ${d.source === "manual" ? "border-amber-600/30" : ""}`}>{d.leagueName}</Badge>
+                    {d.leagueName && <Badge variant="secondary" className="text-[10px]">{d.leagueName}</Badge>}
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </div>
@@ -493,14 +473,14 @@ export default function DevyPortfolioPage() {
       <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
         <DialogContent className="max-w-lg" data-testid="dialog-manage-manual">
           <DialogHeader>
-            <DialogTitle>Manage Manual Entries</DialogTitle>
+            <DialogTitle>Manage Devy Portfolio</DialogTitle>
             <DialogDescription>
-              Edit or remove players you've manually added to your portfolio.
+              View and remove prospects from your portfolio.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto divide-y divide-border">
             {manualEntries.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No manual entries yet.</p>
+              <p className="text-sm text-muted-foreground py-4 text-center">No entries yet.</p>
             ) : (
               manualEntries.map((entry) => (
                 <div key={entry.id} className="py-3 flex items-center justify-between gap-3" data-testid={`manage-row-${entry.id}`}>
@@ -509,11 +489,16 @@ export default function DevyPortfolioPage() {
                       {entry.position}
                     </Badge>
                     <div className="min-w-0">
-                      <span className="font-medium text-sm">{entry.playerName}</span>
-                      {entry.school && <span className="text-xs text-muted-foreground ml-2">{entry.school}</span>}
-                      {entry.leagueName && (
-                        <Badge variant="secondary" className="text-[10px] ml-2">{entry.leagueName}</Badge>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{entry.playerName}</span>
+                        <Badge className="text-[10px] bg-purple-600/80 text-purple-100 border-purple-500/40">DEV</Badge>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {entry.school && <span className="text-xs text-muted-foreground">{entry.school}</span>}
+                        {entry.leagueName && (
+                          <Badge variant="secondary" className="text-[10px]">{entry.leagueName}</Badge>
+                        )}
+                      </div>
                       {entry.notes && <p className="text-xs text-muted-foreground mt-0.5">{entry.notes}</p>}
                     </div>
                   </div>
@@ -549,13 +534,19 @@ export default function DevyPortfolioPage() {
             <Briefcase className="h-12 w-12 text-amber-700/50 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2 text-amber-100">No Devy Players Yet</h3>
             <p className="text-sm text-amber-200/50 mb-4">
-              Your owned devy prospects will appear here automatically from your Sleeper leagues.
-              You can also manually add players that the system doesn't pick up.
+              {isAllLeagues
+                ? "Select a specific league from the sidebar, then add your devy prospects. They'll show up here across all leagues."
+                : `Add your devy prospects for ${activeLeagueName}. The system will automatically attach player cards and rankings.`
+              }
             </p>
-            <Button onClick={() => setAddDialogOpen(true)} className="gap-2" data-testid="button-add-first-devy">
-              <Plus className="h-4 w-4" />
-              Add Your First Prospect
-            </Button>
+            {selectedLeague ? (
+              <Button onClick={() => setAddDialogOpen(true)} className="gap-2" data-testid="button-add-first-devy">
+                <Plus className="h-4 w-4" />
+                Add Your First Prospect
+              </Button>
+            ) : (
+              <p className="text-xs text-amber-200/40 mt-2">Select a league from the sidebar to get started</p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -584,18 +575,18 @@ function PortfolioSkeleton() {
         <div className="flex items-center gap-3">
           <Skeleton className="h-12 w-12 rounded-xl" />
           <div>
-            <Skeleton className="h-7 w-48" />
-            <Skeleton className="h-4 w-64 mt-1" />
+            <Skeleton className="h-6 w-48 mb-2" />
+            <Skeleton className="h-4 w-32" />
           </div>
         </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <Card key={i}><CardContent className="p-4"><Skeleton className="h-16 w-full" /></CardContent></Card>
+          <Card key={i}><CardContent className="p-4"><Skeleton className="h-12 w-full" /></CardContent></Card>
         ))}
       </div>
       <Card>
-        <CardContent className="p-4 space-y-3">
+        <CardContent className="p-0 divide-y">
           {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-16 w-full" />
           ))}
