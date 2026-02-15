@@ -175,18 +175,18 @@ export default function DevyPortfolioPage() {
   return (
     <PremiumGate featureName="Devy Portfolio">
     <div className="space-y-6 min-w-0 overflow-x-hidden" data-testid="devy-portfolio-page">
-      <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-blue-500/10 via-background to-purple-500/10 p-6">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-500/5 via-transparent to-transparent" />
+      <div className="relative overflow-hidden rounded-xl border border-amber-800/30 bg-gradient-to-br from-amber-950/40 via-stone-950/80 to-stone-950/60 p-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-700/10 via-transparent to-transparent" />
         <div className="relative flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-              <Briefcase className="h-6 w-6 text-blue-500" />
+            <div className="h-12 w-12 rounded-xl bg-amber-700/20 border border-amber-700/30 flex items-center justify-center">
+              <Briefcase className="h-6 w-6 text-amber-500" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight" data-testid="text-portfolio-title">
+              <h1 className="text-2xl font-bold tracking-tight text-amber-100" data-testid="text-portfolio-title">
                 My Devy Portfolio
               </h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-amber-200/60">
                 {totalCount} prospect{totalCount !== 1 ? "s" : ""} {isAllLeagues ? "across all leagues" : `in ${activeLeagueName}`}
               </p>
             </div>
@@ -246,29 +246,35 @@ export default function DevyPortfolioPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="leagueName">League</Label>
-                  <Select
-                    value={newPlayer.leagueId || "none"}
-                    onValueChange={(v) => {
-                      if (v === "none") {
-                        setNewPlayer(prev => ({ ...prev, leagueId: "", leagueName: "" }));
-                      } else {
-                        const league = myDevyData?.leagues?.find(l => l.id === v);
-                        setNewPlayer(prev => ({ ...prev, leagueId: v, leagueName: league?.name || "" }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger data-testid="select-league">
-                      <SelectValue placeholder="Select a league" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none" data-testid="option-league-none">No specific league</SelectItem>
-                      {(myDevyData?.leagues || []).map(league => (
-                        <SelectItem key={league.id} value={league.id} data-testid={`option-league-${league.id}`}>
-                          {league.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {selectedLeague ? (
+                    <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
+                      <span className="text-sm">{selectedLeague.name}</span>
+                    </div>
+                  ) : (
+                    <Select
+                      value={newPlayer.leagueId || "none"}
+                      onValueChange={(v) => {
+                        if (v === "none") {
+                          setNewPlayer(prev => ({ ...prev, leagueId: "", leagueName: "" }));
+                        } else {
+                          const league = myDevyData?.leagues?.find(l => l.id === v);
+                          setNewPlayer(prev => ({ ...prev, leagueId: v, leagueName: league?.name || "" }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger data-testid="select-league">
+                        <SelectValue placeholder="Select a league" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none" data-testid="option-league-none">No specific league</SelectItem>
+                        {(myDevyData?.leagues || []).map(league => (
+                          <SelectItem key={league.id} value={league.id} data-testid={`option-league-${league.id}`}>
+                            {league.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes</Label>
@@ -301,21 +307,21 @@ export default function DevyPortfolioPage() {
 
       {totalCount > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card data-testid="stat-total-value">
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-total-value">
             <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground mb-1">Total Portfolio Value</p>
-              <p className="text-2xl font-bold">{totalValue.toLocaleString()}</p>
+              <p className="text-xs text-amber-200/50 mb-1">Total Portfolio Value</p>
+              <p className="text-2xl font-bold text-amber-100">{totalValue.toLocaleString()}</p>
             </CardContent>
           </Card>
-          <Card data-testid="stat-avg-dvi">
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-avg-dvi">
             <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground mb-1">Avg DVI Score</p>
-              <p className={`text-2xl font-bold ${avgDvi >= 70 ? "text-green-500" : avgDvi >= 50 ? "text-yellow-500" : "text-red-500"}`}>{avgDvi}</p>
+              <p className="text-xs text-amber-200/50 mb-1">Avg DVI Score</p>
+              <p className={`text-2xl font-bold ${avgDvi >= 70 ? "text-green-400" : avgDvi >= 50 ? "text-amber-400" : "text-red-400"}`}>{avgDvi}</p>
             </CardContent>
           </Card>
-          <Card data-testid="stat-position-balance">
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-position-balance">
             <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground mb-1">Position Balance</p>
+              <p className="text-xs text-amber-200/50 mb-1">Position Balance</p>
               <div className="flex items-center gap-1 flex-wrap mt-1">
                 {["QB", "RB", "WR", "TE"].map(pos => (
                   <Badge key={pos} variant="outline" className={`text-[10px] ${getPositionColorClass(pos)}`} data-testid={`badge-pos-count-${pos}`}>
@@ -325,14 +331,14 @@ export default function DevyPortfolioPage() {
               </div>
             </CardContent>
           </Card>
-          <Card data-testid="stat-portfolio-health">
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-portfolio-health">
             <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground mb-1">Portfolio Health</p>
+              <p className="text-xs text-amber-200/50 mb-1">Portfolio Health</p>
               <div className="flex items-center gap-2">
-                <p className={`text-2xl font-bold ${portfolioHealth >= 50 ? "text-green-500" : portfolioHealth >= 25 ? "text-yellow-500" : "text-red-500"}`}>{portfolioHealth}</p>
-                <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                <p className={`text-2xl font-bold ${portfolioHealth >= 50 ? "text-green-400" : portfolioHealth >= 25 ? "text-amber-400" : "text-red-400"}`}>{portfolioHealth}</p>
+                <div className="flex-1 h-2 rounded-full bg-amber-900/30 overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${portfolioHealth >= 50 ? "bg-green-500" : portfolioHealth >= 25 ? "bg-yellow-500" : "bg-red-500"}`}
+                    className={`h-full rounded-full ${portfolioHealth >= 50 ? "bg-green-500" : portfolioHealth >= 25 ? "bg-amber-500" : "bg-red-500"}`}
                     style={{ width: `${portfolioHealth}%` }}
                   />
                 </div>
@@ -343,15 +349,15 @@ export default function DevyPortfolioPage() {
       )}
 
       {matchedPlayers.length > 0 && (
-        <Card data-testid="card-matched-portfolio">
+        <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-matched-portfolio">
           <CardContent className="p-0">
-            <div className="p-4 border-b">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
+            <div className="p-4 border-b border-amber-800/20">
+              <h3 className="font-semibold flex items-center gap-2 text-amber-100">
+                <Sparkles className="h-4 w-4 text-amber-500" />
                 Ranked Prospects ({matchedPlayers.length})
               </h3>
             </div>
-            <div className="divide-y">
+            <div className="divide-y divide-amber-800/10">
               {matchedPlayers.sort((a, b) => a.rank - b.rank).map((player) => {
                 const leagues = getOwnedLeagues(player.playerId, player.name);
                 return (
@@ -385,7 +391,7 @@ export default function DevyPortfolioPage() {
                         <div className="flex items-center gap-1">
                           <span className={`text-xl font-bold ${
                             calculateDVI(player) >= 80 ? "text-green-500" :
-                            calculateDVI(player) >= 60 ? "text-primary" :
+                            calculateDVI(player) >= 60 ? "text-amber-400" :
                             calculateDVI(player) >= 40 ? "text-yellow-500" :
                             "text-red-500"
                           }`}>{calculateDVI(player)}</span>
@@ -415,16 +421,16 @@ export default function DevyPortfolioPage() {
       )}
 
       {unmatchedDevy.length > 0 && (
-        <Card data-testid="card-unmatched-portfolio">
+        <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-unmatched-portfolio">
           <CardContent className="p-0">
-            <div className="p-4 border-b">
-              <h3 className="font-semibold flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            <div className="p-4 border-b border-amber-800/20">
+              <h3 className="font-semibold flex items-center gap-2 text-amber-100">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
                 Unranked Prospects ({unmatchedDevy.length})
               </h3>
-              <p className="text-xs text-muted-foreground mt-1">These players are on your rosters but not in the rankings database</p>
+              <p className="text-xs text-amber-200/50 mt-1">These players are on your rosters but not in the rankings database</p>
             </div>
-            <div className="divide-y">
+            <div className="divide-y divide-amber-800/10">
               {unmatchedDevy.map((d, i) => (
                 <div key={`unmatched-${i}`} className="p-4 flex items-center justify-between gap-3" data-testid={`row-unmatched-${i}`}>
                   <div className="flex items-center gap-3 min-w-0">
@@ -445,15 +451,15 @@ export default function DevyPortfolioPage() {
       )}
 
       {manualEntries.length > 0 && (
-        <Card data-testid="card-manual-entries">
+        <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-manual-entries">
           <CardContent className="p-0">
-            <div className="p-4 border-b">
-              <h3 className="font-semibold flex items-center gap-2">
-                <UserPlus className="h-4 w-4 text-muted-foreground" />
+            <div className="p-4 border-b border-amber-800/20">
+              <h3 className="font-semibold flex items-center gap-2 text-amber-100">
+                <UserPlus className="h-4 w-4 text-amber-500" />
                 Manually Added ({manualEntries.length})
               </h3>
             </div>
-            <div className="divide-y">
+            <div className="divide-y divide-amber-800/10">
               {manualEntries.map((entry) => (
                 <div key={entry.id} className="p-4 flex items-center justify-between gap-3" data-testid={`row-manual-${entry.id}`}>
                   <div className="flex items-center gap-3 min-w-0">
@@ -491,11 +497,11 @@ export default function DevyPortfolioPage() {
       )}
 
       {totalCount === 0 && (
-        <Card>
+        <Card className="border-amber-800/20 bg-stone-950/60">
           <CardContent className="p-12 text-center">
-            <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Devy Players Yet</h3>
-            <p className="text-sm text-muted-foreground mb-4">
+            <Briefcase className="h-12 w-12 text-amber-700/50 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2 text-amber-100">No Devy Players Yet</h3>
+            <p className="text-sm text-amber-200/50 mb-4">
               Your owned devy prospects will appear here automatically from your Sleeper leagues.
               You can also manually add players that the system doesn't pick up.
             </p>

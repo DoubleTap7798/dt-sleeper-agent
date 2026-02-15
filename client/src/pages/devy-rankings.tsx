@@ -211,18 +211,18 @@ export default function DevyRankingsPage() {
   return (
     <PremiumGate featureName="Devy Rankings">
     <div className="space-y-6 min-w-0 overflow-x-hidden" data-testid="devy-rankings-page">
-      <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-green-500/10 via-background to-blue-500/10 p-6">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-green-500/5 via-transparent to-transparent" />
+      <div className="relative overflow-hidden rounded-xl border border-amber-800/30 bg-gradient-to-br from-amber-950/40 via-stone-950/80 to-stone-950/60 p-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-700/10 via-transparent to-transparent" />
         <div className="relative flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-              <GraduationCap className="h-6 w-6 text-green-500" />
+            <div className="h-12 w-12 rounded-xl bg-amber-700/20 border border-amber-700/30 flex items-center justify-center">
+              <GraduationCap className="h-6 w-6 text-amber-500" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight" data-testid="text-rankings-title">
+              <h1 className="text-2xl font-bold tracking-tight text-amber-100" data-testid="text-rankings-title">
                 Prospect Rankings
               </h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-amber-200/60">
                 {filteredPlayers.length} prospects across {positions.length} positions
               </p>
             </div>
@@ -279,11 +279,11 @@ export default function DevyRankingsPage() {
         </Button>
       </div>
 
-      <Card data-testid="card-tier-distribution">
+      <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-tier-distribution">
         <CardContent className="p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Layers className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Tier Distribution</span>
+            <Layers className="h-4 w-4 text-amber-500" />
+            <span className="text-sm font-medium text-amber-100">Tier Distribution</span>
           </div>
           <div className="flex h-3 rounded-full overflow-hidden" data-testid="bar-tier-distribution">
             {tierConfig.map(tc => (
@@ -299,7 +299,7 @@ export default function DevyRankingsPage() {
             {tierConfig.map(tc => (
               <div key={tc.tier} className="flex items-center gap-1 text-xs" data-testid={`label-tier-${tc.tier}`}>
                 <div className={`h-2.5 w-2.5 rounded-full ${tc.bgClass}`} />
-                <span className="text-muted-foreground">{tc.label}</span>
+                <span className="text-amber-200/50">{tc.label}</span>
                 <span className="font-medium">{tierCounts[tc.tier]}</span>
               </div>
             ))}
@@ -307,10 +307,10 @@ export default function DevyRankingsPage() {
         </CardContent>
       </Card>
 
-      <Card data-testid="card-devy-table">
+      <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-devy-table">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <CardTitle className="text-lg" data-testid="text-showing-count">
+            <CardTitle className="text-lg text-amber-100" data-testid="text-showing-count">
               {sortedPlayers.length} of {players.length} prospects
             </CardTitle>
             <div className="flex items-center gap-2">
@@ -339,10 +339,10 @@ export default function DevyRankingsPage() {
         </CardHeader>
 
         {showSources && sourcesData?.sources && (
-          <div className="border-b px-6 py-4 bg-muted/30" data-testid="panel-data-sources">
+          <div className="border-b border-amber-800/20 px-6 py-4 bg-amber-900/5" data-testid="panel-data-sources">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Database className="h-4 w-4" />
+              <h3 className="font-semibold flex items-center gap-2 text-amber-100">
+                <Database className="h-4 w-4 text-amber-500" />
                 Data Sources
               </h3>
               <Button
@@ -391,8 +391,8 @@ export default function DevyRankingsPage() {
         <CardContent className="p-0">
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full" data-testid="table-devy">
-              <thead className="border-b">
-                <tr className="text-left text-sm text-muted-foreground">
+              <thead className="border-b border-amber-800/20">
+                <tr className="text-left text-sm text-amber-200/50">
                   <th className="p-3 w-12"><SortButton field="rank" label="#" /></th>
                   <th className="p-3 w-14 text-center">
                     <Tooltip><TooltipTrigger asChild><span className="font-medium text-sm cursor-help">DT</span></TooltipTrigger><TooltipContent>DT Dynasty Rank</TooltipContent></Tooltip>
@@ -465,7 +465,7 @@ export default function DevyRankingsPage() {
                       rows.push(
                         <tr
                           key={player.playerId}
-                          className={`cursor-pointer hover-elevate ${index % 2 === 0 ? "bg-muted/30" : ""}`}
+                          className={`cursor-pointer hover-elevate ${index % 2 === 0 ? "bg-amber-900/5" : ""}`}
                           onClick={() => handlePlayerClick(player)}
                           data-testid={`row-player-${player.playerId}`}
                         >
@@ -529,11 +529,11 @@ export default function DevyRankingsPage() {
                                 <div className="text-xs">
                                   <span className={`text-lg font-bold ${
                                     calculateDVI(player) >= 80 ? "text-green-500" :
-                                    calculateDVI(player) >= 60 ? "text-primary" :
+                                    calculateDVI(player) >= 60 ? "text-amber-400" :
                                     calculateDVI(player) >= 40 ? "text-yellow-500" :
                                     "text-red-500"
                                   }`}>{calculateDVI(player)}</span>
-                                  <div className="text-muted-foreground text-[10px]">
+                                  <div className="text-amber-200/50 text-[10px]">
                                     {player.trend30Day > 0 ? "+" : ""}{player.trend30Day} last 30d
                                   </div>
                                 </div>
@@ -637,7 +637,7 @@ export default function DevyRankingsPage() {
               sortedPlayers.map((player) => (
                 <div
                   key={player.playerId}
-                  className="p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer"
+                  className="p-3 rounded-lg bg-amber-900/10 border border-amber-800/15 hover-elevate cursor-pointer"
                   onClick={() => handlePlayerClick(player)}
                   data-testid={`card-player-${player.playerId}`}
                 >
@@ -663,11 +663,11 @@ export default function DevyRankingsPage() {
                       <div className="text-right">
                         <span className={`text-lg font-bold ${
                           calculateDVI(player) >= 80 ? "text-green-500" :
-                          calculateDVI(player) >= 60 ? "text-primary" :
+                          calculateDVI(player) >= 60 ? "text-amber-400" :
                           calculateDVI(player) >= 40 ? "text-yellow-500" :
                           "text-red-500"
                         }`}>{calculateDVI(player)}</span>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-amber-200/50">
                           <span className="text-green-500">{player.elitePct}%</span>
                           <span className="mx-0.5">/</span>
                           <span className="text-red-500">{player.bustPct}%</span>

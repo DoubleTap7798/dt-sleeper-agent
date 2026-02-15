@@ -69,7 +69,7 @@ export default function DevyMarketPage() {
         <div className="text-right">
           <span className={`text-sm font-bold ${
             calculateDVI(player) >= 80 ? "text-green-500" :
-            calculateDVI(player) >= 60 ? "text-primary" :
+            calculateDVI(player) >= 60 ? "text-amber-400" :
             calculateDVI(player) >= 40 ? "text-yellow-500" :
             "text-red-500"
           }`}>{calculateDVI(player)} DVI</span>
@@ -82,17 +82,17 @@ export default function DevyMarketPage() {
   return (
     <PremiumGate featureName="Market Intelligence">
     <div className="space-y-6 min-w-0 overflow-x-hidden" data-testid="devy-market-page">
-      <div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-orange-500/10 via-background to-red-500/10 p-6">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-orange-500/5 via-transparent to-transparent" />
+      <div className="relative overflow-hidden rounded-xl border border-amber-800/30 bg-gradient-to-br from-amber-950/40 via-stone-950/80 to-stone-950/60 p-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-700/10 via-transparent to-transparent" />
         <div className="relative flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
-            <Flame className="h-6 w-6 text-orange-500" />
+          <div className="h-12 w-12 rounded-xl bg-amber-700/20 border border-amber-700/30 flex items-center justify-center">
+            <Flame className="h-6 w-6 text-amber-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-market-title">
+            <h1 className="text-2xl font-bold tracking-tight text-amber-100" data-testid="text-market-title">
               Market Intelligence
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-amber-200/60">
               30-day momentum trends, breakout alerts, and trade signals
             </p>
           </div>
@@ -101,21 +101,21 @@ export default function DevyMarketPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {risers.length > 0 && (
-          <Card className="border-green-500/20" data-testid="card-rising-momentum">
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-rising-momentum">
             <CardContent className="p-0">
-              <div className="p-4 border-b bg-green-500/5">
+              <div className="p-4 border-b border-amber-800/20 bg-green-900/10">
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-green-500" />
-                  <h3 className="font-semibold text-green-500">Rising Momentum</h3>
+                  <TrendingUp className="h-5 w-5 text-green-400" />
+                  <h3 className="font-semibold text-amber-100">Rising Momentum</h3>
                   <Badge variant="secondary" className="text-[10px] ml-auto">{risers.length}</Badge>
                 </div>
               </div>
-              <div className="divide-y">
+              <div className="divide-y divide-amber-800/10">
                 {risers.map(p => (
                   <PlayerRow
                     key={p.playerId}
                     player={p}
-                    badge={<Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30 text-xs">+{p.trend30Day}</Badge>}
+                    badge={<Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-xs">+{p.trend30Day}</Badge>}
                   />
                 ))}
               </div>
@@ -124,21 +124,21 @@ export default function DevyMarketPage() {
         )}
 
         {fallers.length > 0 && (
-          <Card className="border-red-500/20" data-testid="card-falling-value">
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-falling-value">
             <CardContent className="p-0">
-              <div className="p-4 border-b bg-red-500/5">
+              <div className="p-4 border-b border-amber-800/20 bg-red-900/10">
                 <div className="flex items-center gap-2">
-                  <TrendingDown className="h-5 w-5 text-red-500" />
-                  <h3 className="font-semibold text-red-500">Falling Value</h3>
+                  <TrendingDown className="h-5 w-5 text-red-400" />
+                  <h3 className="font-semibold text-amber-100">Falling Value</h3>
                   <Badge variant="secondary" className="text-[10px] ml-auto">{fallers.length}</Badge>
                 </div>
               </div>
-              <div className="divide-y">
+              <div className="divide-y divide-amber-800/10">
                 {fallers.map(p => (
                   <PlayerRow
                     key={p.playerId}
                     player={p}
-                    badge={<Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/30 text-xs">{p.trend30Day}</Badge>}
+                    badge={<Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30 text-xs">{p.trend30Day}</Badge>}
                   />
                 ))}
               </div>
@@ -148,17 +148,17 @@ export default function DevyMarketPage() {
       </div>
 
       {breakouts.length > 0 && (
-        <Card className="border-yellow-500/20" data-testid="card-breakout-alerts">
+        <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-breakout-alerts">
           <CardContent className="p-0">
-            <div className="p-4 border-b bg-yellow-500/5">
+            <div className="p-4 border-b border-amber-800/20 bg-amber-900/10">
               <div className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-yellow-500" />
-                <h3 className="font-semibold text-yellow-500">Breakout Alerts</h3>
+                <Zap className="h-5 w-5 text-amber-400" />
+                <h3 className="font-semibold text-amber-100">Breakout Alerts</h3>
                 <Badge variant="secondary" className="text-[10px]">{breakouts.length}</Badge>
-                <span className="text-xs text-muted-foreground ml-auto">Young prospects with rising stock</span>
+                <span className="text-xs text-amber-200/50 ml-auto">Young prospects with rising stock</span>
               </div>
             </div>
-            <div className="divide-y">
+            <div className="divide-y divide-amber-800/10">
               {breakouts.map(p => (
                 <PlayerRow
                   key={p.playerId}
@@ -174,20 +174,20 @@ export default function DevyMarketPage() {
       {(buyLow.length > 0 || sellHigh.length > 0 || valuePlays.length > 0) && (
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <Target className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-bold">Trade Signals</h2>
+            <Target className="h-5 w-5 text-amber-500" />
+            <h2 className="text-lg font-bold text-amber-100">Trade Signals</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {buyLow.length > 0 && (
-              <Card data-testid="card-buy-low">
+              <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-buy-low">
                 <CardContent className="p-0">
-                  <div className="p-3 border-b">
+                  <div className="p-3 border-b border-amber-800/20">
                     <div className="flex items-center gap-2">
                       <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
-                      <span className="text-sm font-semibold">Buy Low Targets</span>
+                      <span className="text-sm font-semibold text-amber-100">Buy Low Targets</span>
                     </div>
                   </div>
-                  <div className="divide-y">
+                  <div className="divide-y divide-amber-800/10">
                     {buyLow.map(p => (
                       <div
                         key={p.playerId}
@@ -207,15 +207,15 @@ export default function DevyMarketPage() {
               </Card>
             )}
             {sellHigh.length > 0 && (
-              <Card data-testid="card-sell-high">
+              <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-sell-high">
                 <CardContent className="p-0">
-                  <div className="p-3 border-b">
+                  <div className="p-3 border-b border-amber-800/20">
                     <div className="flex items-center gap-2">
                       <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                      <span className="text-sm font-semibold">Sell High Candidates</span>
+                      <span className="text-sm font-semibold text-amber-100">Sell High Candidates</span>
                     </div>
                   </div>
-                  <div className="divide-y">
+                  <div className="divide-y divide-amber-800/10">
                     {sellHigh.map(p => (
                       <div
                         key={p.playerId}
@@ -235,15 +235,15 @@ export default function DevyMarketPage() {
               </Card>
             )}
             {valuePlays.length > 0 && (
-              <Card data-testid="card-value-plays">
+              <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-value-plays">
                 <CardContent className="p-0">
-                  <div className="p-3 border-b">
+                  <div className="p-3 border-b border-amber-800/20">
                     <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                      <span className="text-sm font-semibold">Value Plays</span>
+                      <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                      <span className="text-sm font-semibold text-amber-100">Value Plays</span>
                     </div>
                   </div>
-                  <div className="divide-y">
+                  <div className="divide-y divide-amber-800/10">
                     {valuePlays.map(p => (
                       <div
                         key={p.playerId}
@@ -267,11 +267,11 @@ export default function DevyMarketPage() {
       )}
 
       {risers.length === 0 && fallers.length === 0 && breakouts.length === 0 && buyLow.length === 0 && sellHigh.length === 0 && valuePlays.length === 0 && (
-        <Card>
+        <Card className="border-amber-800/20 bg-stone-950/60">
           <CardContent className="p-12 text-center">
-            <Flame className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Market Signals</h3>
-            <p className="text-sm text-muted-foreground">
+            <Flame className="h-12 w-12 text-amber-700/50 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2 text-amber-100">No Market Signals</h3>
+            <p className="text-sm text-amber-200/50">
               No significant momentum changes detected in the last 30 days. Check back soon.
             </p>
           </CardContent>
