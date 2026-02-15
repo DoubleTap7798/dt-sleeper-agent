@@ -156,6 +156,7 @@ export const devyPortfolio = pgTable("devy_portfolio", {
   playerName: text("player_name").notNull(),
   position: text("position").notNull(),
   school: text("school"),
+  leagueId: text("league_id"),
   leagueName: text("league_name"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
