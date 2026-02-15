@@ -1,5 +1,5 @@
 import { useLocation, useSearch } from "wouter";
-import { Home, Swords, Users, CalendarDays, Bot, UserSearch, ArrowRightLeft, BarChart3 } from "lucide-react";
+import { Home, Swords, Users, CalendarDays, Bot, UserSearch, Newspaper, BarChart3 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 
@@ -14,7 +14,7 @@ const leagueNavItems = [
 const globalNavItems = [
   { icon: Home, label: "Home", path: "/league", matchPath: "/league" },
   { icon: UserSearch, label: "Players", path: "/league/players", matchPath: "/league/players" },
-  { icon: ArrowRightLeft, label: "Trades", path: "/league/trade-calculator", matchPath: "/league/trade-calculator" },
+  { icon: Newspaper, label: "News", path: "/league/news", matchPath: "/league/news" },
   { icon: BarChart3, label: "Leaders", path: "/league/stat-leaders", matchPath: "/league/stat-leaders" },
   { icon: Bot, label: "AI Chat", path: "/league/ai-chat", matchPath: "/league/ai-chat" },
 ];

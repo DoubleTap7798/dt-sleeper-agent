@@ -894,7 +894,16 @@ ${urls}
         return res.json([]);
       }
 
+      const state = await sleeperApi.getState();
+      const currentSeason = state?.league_season || state?.season || "2026";
       let leagues = await getAllUserLeagues(profile.sleeperUserId);
+
+      leagues = leagues.filter(league => {
+        const isDynasty = league.settings?.type === 2;
+        const isKeeper = league.settings?.type === 1;
+        if (isDynasty || isKeeper) return true;
+        return league.season === currentSeason || league.status !== "complete";
+      });
 
       const commishMap = new Map<string, string>();
       await Promise.all(

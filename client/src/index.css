@@ -374,7 +374,7 @@
     box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
   }
 
-  /* Position-specific electric colors */
+  /* Position-specific colors - solid fill (light mode default) */
   .position-qb {
     background-color: rgb(220, 38, 38) !important;
     border-color: rgb(185, 28, 28) !important;
@@ -439,6 +439,73 @@
     background-color: rgb(107, 114, 128) !important;
     border-color: rgb(75, 85, 99) !important;
     color: rgb(255, 255, 255) !important;
+  }
+
+  /* Dark mode: outline-style position badges (transparent bg, colored text + border) */
+  .dark .position-qb {
+    background-color: transparent !important;
+    border-color: rgb(220, 38, 38) !important;
+    color: rgb(248, 113, 113) !important;
+  }
+  .dark .position-rb {
+    background-color: transparent !important;
+    border-color: rgb(22, 163, 74) !important;
+    color: rgb(74, 222, 128) !important;
+  }
+  .dark .position-wr {
+    background-color: transparent !important;
+    border-color: rgb(37, 99, 235) !important;
+    color: rgb(96, 165, 250) !important;
+  }
+  .dark .position-te {
+    background-color: transparent !important;
+    border-color: rgb(234, 88, 12) !important;
+    color: rgb(251, 146, 60) !important;
+  }
+  .dark .position-k {
+    background-color: transparent !important;
+    border-color: rgb(202, 138, 4) !important;
+    color: rgb(250, 204, 21) !important;
+  }
+  .dark .position-edge {
+    background-color: transparent !important;
+    border-color: rgb(190, 18, 60) !important;
+    color: rgb(251, 113, 133) !important;
+  }
+  .dark .position-dl, .dark .position-def, .dark .position-idp {
+    background-color: transparent !important;
+    border-color: rgb(146, 64, 14) !important;
+    color: rgb(217, 119, 6) !important;
+  }
+  .dark .position-lb {
+    background-color: transparent !important;
+    border-color: rgb(8, 145, 178) !important;
+    color: rgb(34, 211, 238) !important;
+  }
+  .dark .position-cb, .dark .position-db {
+    background-color: transparent !important;
+    border-color: rgb(147, 51, 234) !important;
+    color: rgb(192, 132, 252) !important;
+  }
+  .dark .position-s {
+    background-color: transparent !important;
+    border-color: rgb(79, 70, 229) !important;
+    color: rgb(129, 140, 248) !important;
+  }
+  .dark .position-flex {
+    background-color: transparent !important;
+    border-color: rgb(219, 39, 119) !important;
+    color: rgb(244, 114, 182) !important;
+  }
+  .dark .position-sf, .dark .position-superflex {
+    background-color: transparent !important;
+    border-color: rgb(15, 118, 110) !important;
+    color: rgb(45, 212, 191) !important;
+  }
+  .dark .position-pick {
+    background-color: transparent !important;
+    border-color: rgb(107, 114, 128) !important;
+    color: rgb(156, 163, 175) !important;
   }
 
   /* Placeholder styling for contentEditable div */
