@@ -269,7 +269,7 @@ export default function DraftBoardPage() {
         <Card data-testid="stat-total">
           <CardContent className="p-4 text-center">
             <div className="flex items-center justify-center gap-1.5">
-              <Target className="h-4 w-4 text-cyan-400" />
+              <Target className="h-4 w-4 text-amber-400" />
               <span className="text-2xl font-bold" data-testid="text-total-count">{stats.total}</span>
             </div>
             <div className="text-sm text-muted-foreground">Total Prospects</div>
@@ -278,7 +278,7 @@ export default function DraftBoardPage() {
         <Card data-testid="stat-offense">
           <CardContent className="p-4 text-center">
             <div className="flex items-center justify-center gap-1.5">
-              <Sword className="h-4 w-4 text-cyan-400" />
+              <Sword className="h-4 w-4 text-amber-400" />
               <span className="text-2xl font-bold" data-testid="text-offense-count">{stats.offense}</span>
             </div>
             <div className="text-sm text-muted-foreground">Offense</div>
@@ -287,7 +287,7 @@ export default function DraftBoardPage() {
         <Card data-testid="stat-defense">
           <CardContent className="p-4 text-center">
             <div className="flex items-center justify-center gap-1.5">
-              <Shield className="h-4 w-4 text-cyan-400" />
+              <Shield className="h-4 w-4 text-amber-400" />
               <span className="text-2xl font-bold" data-testid="text-defense-count">{stats.defense}</span>
             </div>
             <div className="text-sm text-muted-foreground">Defense</div>

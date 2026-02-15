@@ -60,7 +60,7 @@
 
   --muted-foreground: 0 0% 45%;
 
-  --accent: 187 100% 45%;
+  --accent: 38 80% 45%;
 
   --accent-foreground: 0 0% 100%;
 
@@ -123,82 +123,82 @@
 }
 
 .dark {
-  --button-outline: rgba(0, 240, 255, .20);
-  --badge-outline: rgba(0, 240, 255, .15);
+  --button-outline: rgba(217, 169, 78, .20);
+  --badge-outline: rgba(217, 169, 78, .15);
 
   --opaque-button-border-intensity: 9;  /* In terms of percentages */
 
   /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(0, 240, 255, .08);
-  --elevate-2: rgba(0, 240, 255, .15);
+  --elevate-1: rgba(217, 169, 78, .06);
+  --elevate-2: rgba(217, 169, 78, .12);
 
-  /* Electric Neon Cyan accent color - HSL: 185 100% 55% - More vivid/electric */
-  --accent-cyan: 185 100% 55%;
-  --accent-cyan-glow: 0 0 25px rgba(0, 240, 255, 0.5);
-  --accent-cyan-glow-strong: 0 0 40px rgba(0, 240, 255, 0.7);
+  /* Premium Gold accent color - HSL: 38 75% 55% */
+  --accent-cyan: 38 75% 55%;
+  --accent-cyan-glow: 0 0 25px rgba(217, 169, 78, 0.4);
+  --accent-cyan-glow-strong: 0 0 40px rgba(217, 169, 78, 0.6);
 
-  --background: 0 0% 4%;
+  --background: 30 5% 4%;
 
-  --foreground: 0 0% 95%;
+  --foreground: 38 15% 92%;
 
-  --border: 185 35% 20%;
+  --border: 38 20% 18%;
 
-  --card: 0 0% 7%;
+  --card: 30 5% 7%;
 
-  --card-foreground: 0 0% 95%;
+  --card-foreground: 38 15% 92%;
 
-  --card-border: 185 30% 18%;
+  --card-border: 38 18% 16%;
 
-  --sidebar: 0 0% 2%;
+  --sidebar: 30 5% 3%;
 
-  --sidebar-foreground: 0 0% 95%;
+  --sidebar-foreground: 38 15% 90%;
 
-  --sidebar-border: 185 25% 15%;
+  --sidebar-border: 38 15% 14%;
 
-  --sidebar-primary: 185 100% 55%;
+  --sidebar-primary: 38 75% 55%;
 
-  --sidebar-primary-foreground: 0 0% 2%;
+  --sidebar-primary-foreground: 30 10% 5%;
 
-  --sidebar-accent: 185 50% 18%;
+  --sidebar-accent: 38 30% 16%;
 
-  --sidebar-accent-foreground: 0 0% 95%;
+  --sidebar-accent-foreground: 38 15% 92%;
 
-  --sidebar-ring: 185 80% 45%;
+  --sidebar-ring: 38 60% 45%;
 
-  --popover: 0 0% 6%;
+  --popover: 30 5% 6%;
 
-  --popover-foreground: 0 0% 95%;
+  --popover-foreground: 38 15% 92%;
 
-  --popover-border: 185 25% 18%;
+  --popover-border: 38 18% 16%;
 
-  --primary: 185 100% 55%;
+  --primary: 38 75% 55%;
 
-  --primary-foreground: 0 0% 2%;
+  --primary-foreground: 30 10% 5%;
 
-  --secondary: 185 20% 14%;
+  --secondary: 38 15% 13%;
 
-  --secondary-foreground: 0 0% 95%;
+  --secondary-foreground: 38 15% 92%;
 
-  --muted: 0 0% 12%;
+  --muted: 30 5% 12%;
 
-  --muted-foreground: 0 0% 60%;
+  --muted-foreground: 38 10% 55%;
 
-  --accent: 187 100% 50%;
+  --accent: 38 80% 50%;
 
-  --accent-foreground: 0 0% 5%;
+  --accent-foreground: 30 10% 5%;
 
   --destructive: 0 65% 55%;
 
   --destructive-foreground: 0 0% 98%;
 
   /* Used as the border around inputs. Dark mode: Should be a border that is light enough to have high contrast when rendered on a --card background. More contrast than standard --border */
-  --input: 187 20% 22%;
-  --ring: 187 100% 50%;
-  --chart-1: 187 100% 50%;
-  --chart-2: 187 80% 65%;
-  --chart-3: 187 60% 45%;
-  --chart-4: 187 40% 35%;
-  --chart-5: 187 20% 25%;
+  --input: 38 15% 20%;
+  --ring: 38 75% 50%;
+  --chart-1: 38 80% 50%;
+  --chart-2: 38 65% 60%;
+  --chart-3: 38 50% 42%;
+  --chart-4: 38 35% 32%;
+  --chart-5: 38 20% 22%;
 
   --shadow-2xs: 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
   --shadow-xs: 0px 1px 3px 0px rgba(0, 0, 0, 0.4);
@@ -297,48 +297,48 @@
     border-color: rgba(0, 0, 0, 0.15);
   }
 
-  /* Dark mode glass effect with cyan tint */
+  /* Dark mode glass effect with gold tint */
   .dark .glass {
-    background: rgba(0, 212, 255, 0.04);
-    border: 1px solid rgba(0, 212, 255, 0.12);
+    background: rgba(217, 169, 78, 0.04);
+    border: 1px solid rgba(217, 169, 78, 0.12);
   }
 
   .dark .glass:hover {
-    background: rgba(0, 212, 255, 0.08);
-    border-color: rgba(0, 212, 255, 0.2);
-    box-shadow: 0 0 15px rgba(0, 212, 255, 0.15);
+    background: rgba(217, 169, 78, 0.08);
+    border-color: rgba(217, 169, 78, 0.2);
+    box-shadow: 0 0 15px rgba(217, 169, 78, 0.15);
   }
 
   .dark .glass-active {
-    background: rgba(0, 212, 255, 0.12);
-    border-color: rgba(0, 212, 255, 0.3);
-    box-shadow: 0 0 20px rgba(0, 212, 255, 0.25);
+    background: rgba(217, 169, 78, 0.12);
+    border-color: rgba(217, 169, 78, 0.3);
+    box-shadow: 0 0 20px rgba(217, 169, 78, 0.25);
   }
 
-  /* Electric blue glow effects */
+  /* Gold glow effects */
   .glow {
-    box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 15px rgba(217, 169, 78, 0.3);
   }
 
   .glow-strong {
-    box-shadow: 0 0 25px rgba(0, 212, 255, 0.5);
+    box-shadow: 0 0 25px rgba(217, 169, 78, 0.5);
   }
 
   .glow-text {
-    text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+    text-shadow: 0 0 10px rgba(217, 169, 78, 0.5);
   }
 
   /* Accent color utilities */
   .text-accent-cyan {
-    color: hsl(187 100% 50%);
+    color: hsl(38 80% 50%);
   }
 
   .bg-accent-cyan {
-    background-color: hsl(187 100% 50%);
+    background-color: hsl(38 80% 50%);
   }
 
   .border-accent-cyan {
-    border-color: hsl(187 100% 50%);
+    border-color: hsl(38 80% 50%);
   }
 
   /* Hover glow for cards and interactive elements */
@@ -347,31 +347,31 @@
   }
 
   .hover-glow:hover {
-    box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
-    border-color: rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 20px rgba(217, 169, 78, 0.2);
+    border-color: rgba(217, 169, 78, 0.3);
   }
 
   /* Dynasty value highlight style */
   .dynasty-value {
-    color: hsl(187 100% 55%);
+    color: hsl(38 80% 55%);
     font-weight: 600;
-    text-shadow: 0 0 8px rgba(0, 212, 255, 0.4);
+    text-shadow: 0 0 8px rgba(217, 169, 78, 0.4);
   }
 
   /* Accent gradient for special elements */
   .gradient-accent {
-    background: linear-gradient(135deg, hsl(187 100% 45%) 0%, hsl(200 100% 50%) 100%);
+    background: linear-gradient(135deg, hsl(38 80% 45%) 0%, hsl(45 90% 50%) 100%);
   }
 
   /* Button glow on hover */
   .dark [data-slot="button"]:hover {
-    box-shadow: 0 0 15px rgba(0, 212, 255, 0.25);
+    box-shadow: 0 0 15px rgba(217, 169, 78, 0.25);
   }
 
   /* Primary button enhanced glow */
   .dark [data-slot="button"][data-variant="default"]:hover,
   .dark button[class*="bg-primary"]:hover {
-    box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+    box-shadow: 0 0 20px rgba(217, 169, 78, 0.4);
   }
 
   /* Position-specific colors - solid fill (light mode default) */

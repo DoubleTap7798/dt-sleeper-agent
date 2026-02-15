@@ -268,12 +268,11 @@ export function useSelectedLeague() {
     queryKey: ["/api/user/profile"],
   });
 
-  // Priority: URL param > profile's selected league > first league in list
   const leagueId = urlLeagueId || (profile?.selectedLeagueId !== "all" ? profile?.selectedLeagueId : null);
   
   const selectedLeague = leagueId 
-    ? leagues.find((l) => l.league_id === leagueId) || leagues[0] || null
-    : leagues[0] || null;
+    ? leagues.find((l) => l.league_id === leagueId) || null
+    : null;
     
   return { league: selectedLeague, isLoading: leaguesLoading || profileLoading };
 }

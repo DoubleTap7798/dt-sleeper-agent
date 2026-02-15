@@ -29,7 +29,7 @@ interface PowerRankedTeam {
 
 const TIER_CONFIG: Record<string, { color: string; bg: string; border: string }> = {
   Elite: { color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/30" },
-  Contender: { color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/30" },
+  Contender: { color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/30" },
   Playoff: { color: "text-green-400", bg: "bg-green-400/10", border: "border-green-400/30" },
   Average: { color: "text-muted-foreground", bg: "bg-muted/30", border: "border-muted" },
   Rebuild: { color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/30" },
@@ -100,7 +100,7 @@ export default function PowerRankingsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <Zap className="h-5 w-5 text-cyan-400" />
+        <Zap className="h-5 w-5 text-amber-400" />
         <h2 className="text-xl font-semibold" data-testid="text-power-rankings-title">
           Power Rankings
         </h2>
@@ -183,7 +183,7 @@ export default function PowerRankingsPage() {
 
                   <div className="flex-1 min-w-0 space-y-1 sm:max-w-xs">
                     <ScoreBar label="Roster" value={team.rosterStrengthScore} icon={Trophy} color="text-yellow-400" />
-                    <ScoreBar label="Points" value={team.performanceScore} icon={TrendingUp} color="text-cyan-400" />
+                    <ScoreBar label="Points" value={team.performanceScore} icon={TrendingUp} color="text-amber-400" />
                     <ScoreBar label="Record" value={team.recordScore} icon={BarChart3} color="text-green-400" />
                     <ScoreBar label="Efficiency" value={team.efficiencyScore} icon={Target} color="text-purple-400" />
                   </div>

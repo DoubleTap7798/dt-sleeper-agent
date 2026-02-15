@@ -711,7 +711,7 @@ function NFLKeyDatesSection() {
     offseason: { color: "bg-blue-500/20 text-blue-400 border-blue-500/30", label: "Offseason" },
     draft: { color: "bg-green-500/20 text-green-400 border-green-500/30", label: "Draft" },
     preseason: { color: "bg-orange-500/20 text-orange-400 border-orange-500/30", label: "Preseason" },
-    regular: { color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30", label: "Regular Season" },
+    regular: { color: "bg-amber-500/20 text-amber-400 border-amber-500/30", label: "Regular Season" },
     fantasy: { color: "bg-pink-500/20 text-pink-400 border-pink-500/30", label: "Fantasy" },
   };
 

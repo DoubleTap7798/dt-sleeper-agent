@@ -129,7 +129,7 @@ function SeasonProjectionsContent({ data, error }: { data: ProjectionsData | und
   return (
     <div className="space-y-4" data-testid="season-projections-page">
       <div className="flex items-center gap-3 flex-wrap">
-        <BarChart3 className="h-5 w-5 text-cyan-400" />
+        <BarChart3 className="h-5 w-5 text-amber-400" />
         <h2 className="text-xl font-semibold" data-testid="text-projections-title">
           Season Projections
         </h2>

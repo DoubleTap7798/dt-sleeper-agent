@@ -53,7 +53,7 @@ interface TeamReportData {
 }
 
 const PROFILE_CONFIG: Record<string, { color: string; bg: string; border: string }> = {
-  Contender: { color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/30" },
+  Contender: { color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/30" },
   Rebuild: { color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/30" },
   Balanced: { color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/30" },
 };
@@ -241,7 +241,7 @@ function TeamReportContent({ leagueId }: { leagueId: string }) {
               <p className="text-xs text-muted-foreground">Record</p>
             </div>
             <div className="p-3 rounded-md bg-muted/30 text-center" data-testid="stat-rank">
-              <Star className="h-4 w-4 mx-auto mb-1 text-cyan-400" />
+              <Star className="h-4 w-4 mx-auto mb-1 text-amber-400" />
               <p className="text-lg sm:text-xl font-bold">#{data.rank}</p>
               <p className="text-xs text-muted-foreground">of {data.totalTeams} teams</p>
             </div>

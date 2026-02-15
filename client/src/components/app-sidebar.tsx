@@ -428,7 +428,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
         {!subLoading && !isPremium && (
           <Button
             onClick={() => setLocation("/upgrade")}
-            className="w-full bg-gradient-to-r from-primary to-cyan-400 hover:from-primary/90 hover:to-cyan-400/90"
+            className="w-full bg-gradient-to-r from-primary to-amber-400 hover:from-primary/90 hover:to-amber-400/90"
             data-testid="button-upgrade"
           >
             <Sparkles className="h-4 w-4 mr-2" />

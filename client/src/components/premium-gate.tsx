@@ -70,7 +70,7 @@ export function PremiumGate({ children, featureName = "This feature" }: PremiumG
           </div>
           
           <Button 
-            className="w-full bg-gradient-to-r from-primary to-cyan-400"
+            className="w-full bg-gradient-to-r from-primary to-amber-400"
             onClick={() => setLocation("/upgrade")}
             data-testid="button-upgrade-gate"
           >

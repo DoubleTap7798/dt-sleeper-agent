@@ -49,7 +49,7 @@ function getEventColor(type: string) {
     case "championship":
       return "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30";
     case "top_scorer":
-      return "bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30";
+      return "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30";
     case "best_record":
       return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
     case "trade":
@@ -64,7 +64,7 @@ function getNodeColor(type: string) {
     case "championship":
       return "bg-yellow-500";
     case "top_scorer":
-      return "bg-cyan-500";
+      return "bg-amber-500";
     case "best_record":
       return "bg-green-500";
     case "trade":
