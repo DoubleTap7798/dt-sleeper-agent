@@ -14,7 +14,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { db } from "./db";
 import * as schema from "@shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, isNull } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, getLiveStripeClient } from "./stripeClient";
 
 // Validation schemas
@@ -3748,6 +3748,36 @@ ${urls}
       const { playerName, position, school, leagueId, leagueName, notes } = req.body;
       if (!playerName || !position) {
         return res.status(400).json({ message: "Player name and position are required" });
+      }
+
+      const existingSameLeague = await db.select().from(schema.devyPortfolio).where(
+        and(
+          eq(schema.devyPortfolio.userId, userId),
+          eq(schema.devyPortfolio.playerName, playerName),
+          leagueId ? eq(schema.devyPortfolio.leagueId, leagueId) : isNull(schema.devyPortfolio.leagueId)
+        )
+      );
+      if (existingSameLeague.length > 0) {
+        return res.status(409).json({ message: `${playerName} is already in your portfolio${leagueName ? ` for ${leagueName}` : ''}` });
+      }
+
+      if (leagueId) {
+        const orphaned = await db.select().from(schema.devyPortfolio).where(
+          and(
+            eq(schema.devyPortfolio.userId, userId),
+            eq(schema.devyPortfolio.playerName, playerName),
+            isNull(schema.devyPortfolio.leagueId)
+          )
+        );
+        if (orphaned.length > 0) {
+          await db.delete(schema.devyPortfolio).where(
+            and(
+              eq(schema.devyPortfolio.userId, userId),
+              eq(schema.devyPortfolio.playerName, playerName),
+              isNull(schema.devyPortfolio.leagueId)
+            )
+          );
+        }
       }
 
       const [entry] = await db.insert(schema.devyPortfolio).values({

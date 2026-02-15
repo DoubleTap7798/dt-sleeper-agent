@@ -83,8 +83,17 @@ export default function DevyPortfolioPage() {
       setNewPlayer({ playerName: "", position: "QB", school: "", notes: "" });
       toast({ title: "Player added to your devy portfolio" });
     },
-    onError: () => {
-      toast({ title: "Failed to add player", variant: "destructive" });
+    onError: (error: any) => {
+      let message = "Failed to add player";
+      try {
+        const errorText = error?.message || "";
+        const jsonStart = errorText.indexOf("{");
+        if (jsonStart >= 0) {
+          const parsed = JSON.parse(errorText.substring(jsonStart));
+          message = parsed.message || message;
+        }
+      } catch {}
+      toast({ title: message, variant: "destructive" });
     },
   });
 
