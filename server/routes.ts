@@ -4425,6 +4425,47 @@ Return ONLY valid JSON, no other text.`;
     }
   });
 
+  // College stat leaders
+  app.get("/api/college/stat-leaders", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+      const conference = req.query.conference as string | undefined;
+      const cfbd = await import('./cfbd-service');
+      const leaders = await cfbd.getCollegeStatLeaders(year, conference);
+      res.json(leaders);
+    } catch (error: any) {
+      console.error("Error fetching college stat leaders:", error);
+      res.status(500).json({ message: "Failed to fetch college stat leaders", error: error.message });
+    }
+  });
+
+  // Transfer portal
+  app.get("/api/college/transfer-portal", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+      const cfbd = await import('./cfbd-service');
+      const transfers = await cfbd.getTransferPortal(year);
+      res.json({ transfers, year: year || new Date().getFullYear() });
+    } catch (error: any) {
+      console.error("Error fetching transfer portal:", error);
+      res.status(500).json({ message: "Failed to fetch transfer portal data", error: error.message });
+    }
+  });
+
+  // Team roster
+  app.get("/api/college/roster/:team", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { team } = req.params;
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+      const cfbd = await import('./cfbd-service');
+      const roster = await cfbd.getTeamRoster(team, year);
+      res.json({ roster, team, year: year || new Date().getFullYear() });
+    } catch (error: any) {
+      console.error("Error fetching team roster:", error);
+      res.status(500).json({ message: "Failed to fetch team roster", error: error.message });
+    }
+  });
+
   app.get("/api/draft/2026", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { getDraft2026Players, getDraft2026Stats, getDraft2026PositionGroups, getDraft2026StockMovers } = await import('./draft-2026-data');

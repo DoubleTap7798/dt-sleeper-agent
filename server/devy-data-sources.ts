@@ -577,7 +577,7 @@ export async function getDataSourceStatus(): Promise<DataSourceStatus[]> {
       sourceName: 'College Football Data API',
       lastUpdated: cfbdStatus.apiKeyConfigured ? new Date().toISOString().split('T')[0] : 'N/A',
       playerCount: cfbdStatus.entryCount,
-      status: cfbdStatus.apiKeyConfigured ? 'active' : 'inactive'
+      status: cfbdStatus.apiKeyConfigured ? 'active' : 'stale'
     });
   } catch {
     sources.push({
@@ -585,7 +585,7 @@ export async function getDataSourceStatus(): Promise<DataSourceStatus[]> {
       sourceName: 'College Football Data API',
       lastUpdated: 'N/A',
       playerCount: 0,
-      status: 'inactive'
+      status: 'error'
     });
   }
 

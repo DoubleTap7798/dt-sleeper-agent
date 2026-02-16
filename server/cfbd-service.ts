@@ -466,6 +466,99 @@ export async function getDefensivePlayerStats(
   return result;
 }
 
+export interface CFBDTransferPortalEntry {
+  season: number;
+  firstName: string;
+  lastName: string;
+  position: string;
+  origin: string;
+  destination: string | null;
+  transferDate: string;
+  rating: number | null;
+  stars: number | null;
+  eligibility: string | null;
+}
+
+export async function getTransferPortal(year?: number): Promise<CFBDTransferPortalEntry[]> {
+  const season = year || getMostRecentCFBSeason();
+  return cfbdFetch<CFBDTransferPortalEntry[]>('/recruiting/transfer-portal', { year: season });
+}
+
+export interface CollegeStatLeader {
+  player: string;
+  team: string;
+  conference: string;
+  position: string;
+  stats: Record<string, number>;
+}
+
+export async function getCollegeStatLeaders(
+  year?: number,
+  conference?: string
+): Promise<{
+  passing: CollegeStatLeader[];
+  rushing: CollegeStatLeader[];
+  receiving: CollegeStatLeader[];
+}> {
+  const season = year || getMostRecentCFBSeason();
+  const opts: { conference?: string } = {};
+  if (conference) opts.conference = conference;
+
+  const [passingRaw, rushingRaw, receivingRaw] = await Promise.all([
+    getPlayerSeasonStats(season, { ...opts, category: 'passing' }),
+    getPlayerSeasonStats(season, { ...opts, category: 'rushing' }),
+    getPlayerSeasonStats(season, { ...opts, category: 'receiving' }),
+  ]);
+
+  function aggregate(stats: CFBDPlayerSeasonStat[]): CollegeStatLeader[] {
+    const byPlayer = new Map<string, CollegeStatLeader>();
+    for (const s of stats) {
+      const key = `${s.player}:${s.team}`;
+      if (!byPlayer.has(key)) {
+        byPlayer.set(key, {
+          player: s.player,
+          team: s.team,
+          conference: s.conference,
+          position: '',
+          stats: {},
+        });
+      }
+      const entry = byPlayer.get(key)!;
+      const val = typeof s.stat === 'string' ? parseFloat(s.stat) || 0 : s.stat;
+      entry.stats[s.statType] = val;
+    }
+    return Array.from(byPlayer.values());
+  }
+
+  const passing = aggregate(passingRaw).sort((a, b) => (b.stats['YDS'] || 0) - (a.stats['YDS'] || 0)).slice(0, 50);
+  const rushing = aggregate(rushingRaw).sort((a, b) => (b.stats['YDS'] || 0) - (a.stats['YDS'] || 0)).slice(0, 50);
+  const receiving = aggregate(receivingRaw).sort((a, b) => (b.stats['YDS'] || 0) - (a.stats['YDS'] || 0)).slice(0, 50);
+
+  return { passing, rushing, receiving };
+}
+
+export interface CFBDRosterEntry {
+  id: number;
+  firstName: string;
+  lastName: string;
+  team: string;
+  weight: number;
+  height: number;
+  jersey: number;
+  year: number;
+  position: string;
+  homeCity: string;
+  homeState: string;
+  homeCountry: string;
+  recruitType: string;
+}
+
+export async function getTeamRoster(team: string, year?: number): Promise<CFBDRosterEntry[]> {
+  const season = year || getMostRecentCFBSeason();
+  const normalizedTeam = normalizeTeamName(team);
+  return cfbdFetch<CFBDRosterEntry[]>('/roster', { team: normalizedTeam, year: season });
+}
+
 export function getCFBDCacheStatus(): { 
   cached: boolean; 
   entryCount: number; 

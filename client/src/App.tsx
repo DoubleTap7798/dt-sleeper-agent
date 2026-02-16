@@ -51,6 +51,8 @@ import UsageTrendsPage from "@/pages/usage-trends";
 import InjuryTrackerPage from "@/pages/injury-tracker";
 import TeamReportPage from "@/pages/team-report";
 import NFLPage from "@/pages/nfl";
+import CollegeStatsPage from "@/pages/college-stats";
+import TransferPortalPage from "@/pages/transfer-portal";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -196,6 +198,20 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <DevyMarketPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/devy/college-stats">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <CollegeStatsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/devy/transfer-portal">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <TransferPortalPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

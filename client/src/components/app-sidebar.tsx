@@ -40,6 +40,7 @@ import {
   Briefcase,
   Flame,
   Heart,
+  ArrowLeftRight,
 } from "lucide-react";
 import {
   Sidebar,
@@ -154,6 +155,8 @@ const navigationGroups: NavGroup[] = [
       { title: "Rankings", url: "/league/devy/rankings", icon: Layers, premium: true },
       { title: "My Portfolio", url: "/league/devy/portfolio", icon: Briefcase, premium: true },
       { title: "Market Intel", url: "/league/devy/market", icon: Flame, premium: true },
+      { title: "College Stats", url: "/league/devy/college-stats", icon: BarChart3, premium: true },
+      { title: "Transfer Portal", url: "/league/devy/transfer-portal", icon: ArrowLeftRight, premium: true },
     ],
   },
   {

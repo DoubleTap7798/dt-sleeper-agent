@@ -111,6 +111,7 @@ export default function DevyRankingsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [groupByTier, setGroupByTier] = useState<boolean>(false);
+  const [tierFilter, setTierFilter] = useState<number | null>(null);
 
   const { data, isLoading, error } = useQuery<DevyData>({
     queryKey: ["/api/sleeper/devy"],
@@ -149,6 +150,7 @@ export default function DevyRankingsPage() {
   const filteredPlayers = players.filter((player) => {
     if (positionFilter !== "all" && player.position !== positionFilter) return false;
     if (yearFilter !== "all" && player.draftEligibleYear !== parseInt(yearFilter)) return false;
+    if (tierFilter !== null && player.tier !== tierFilter) return false;
     return true;
   });
 
@@ -202,11 +204,16 @@ export default function DevyRankingsPage() {
     { tier: 5, label: "Lottery", color: "rgb(239, 68, 68)", bgClass: "bg-red-500" },
   ];
 
-  const tierCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  filteredPlayers.forEach(p => {
-    if (p.tier >= 1 && p.tier <= 5) tierCounts[p.tier]++;
+  const allTierCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  const posYearFiltered = players.filter(p => {
+    if (positionFilter !== "all" && p.position !== positionFilter) return false;
+    if (yearFilter !== "all" && p.draftEligibleYear !== parseInt(yearFilter)) return false;
+    return true;
   });
-  const total = filteredPlayers.length || 1;
+  posYearFiltered.forEach(p => {
+    if (p.tier >= 1 && p.tier <= 5) allTierCounts[p.tier]++;
+  });
+  const total = posYearFiltered.length || 1;
 
   return (
     <PremiumGate featureName="Devy Rankings">
@@ -281,27 +288,68 @@ export default function DevyRankingsPage() {
 
       <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-tier-distribution">
         <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Layers className="h-4 w-4 text-amber-500" />
-            <span className="text-sm font-medium text-amber-100">Tier Distribution</span>
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-amber-500" />
+              <span className="text-sm font-medium text-amber-100">Tier Distribution</span>
+            </div>
+            {tierFilter !== null && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTierFilter(null)}
+                className="text-xs text-amber-200/70 gap-1"
+                data-testid="button-clear-tier-filter"
+              >
+                Clear Filter
+              </Button>
+            )}
           </div>
-          <div className="flex h-3 rounded-full overflow-hidden" data-testid="bar-tier-distribution">
-            {tierConfig.map(tc => (
-              <div
-                key={tc.tier}
-                className={tc.bgClass}
-                style={{ width: `${(tierCounts[tc.tier] / total) * 100}%` }}
-                data-testid={`bar-segment-tier-${tc.tier}`}
-              />
-            ))}
+          <div className="flex h-4 rounded-full overflow-hidden cursor-pointer" data-testid="bar-tier-distribution">
+            {(() => {
+              const MIN_PCT = 3;
+              const activeTiers = tierConfig.filter(tc => allTierCounts[tc.tier] > 0);
+              const rawPcts = activeTiers.map(tc => (allTierCounts[tc.tier] / total) * 100);
+              const belowMin = rawPcts.filter(p => p < MIN_PCT).length;
+              const aboveMinSum = rawPcts.filter(p => p >= MIN_PCT).reduce((s, p) => s + p, 0);
+              const scale = aboveMinSum > 0 ? (100 - belowMin * MIN_PCT) / aboveMinSum : 1;
+              return activeTiers.map((tc, i) => {
+                const pct = rawPcts[i] < MIN_PCT ? MIN_PCT : rawPcts[i] * scale;
+                const isActive = tierFilter === null || tierFilter === tc.tier;
+                return (
+                  <div
+                    key={tc.tier}
+                    role="button"
+                    tabIndex={0}
+                    className={`${tc.bgClass} transition-opacity ${isActive ? "opacity-100" : "opacity-30"}`}
+                    style={{ width: `${pct}%` }}
+                    onClick={() => setTierFilter(tierFilter === tc.tier ? null : tc.tier)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setTierFilter(tierFilter === tc.tier ? null : tc.tier); }}
+                    title={`${tc.label}: ${allTierCounts[tc.tier]} players`}
+                    data-testid={`bar-segment-tier-${tc.tier}`}
+                  />
+                );
+              });
+            })()}
           </div>
           <div className="flex items-center justify-between mt-2 flex-wrap gap-1">
             {tierConfig.map(tc => (
-              <div key={tc.tier} className="flex items-center gap-1 text-xs" data-testid={`label-tier-${tc.tier}`}>
+              <button
+                key={tc.tier}
+                className={`flex items-center gap-1 text-xs cursor-pointer rounded-md px-1.5 py-0.5 transition-colors ${
+                  tierFilter === tc.tier
+                    ? "bg-amber-700/30 ring-1 ring-amber-500/50"
+                    : tierFilter !== null
+                    ? "opacity-40"
+                    : ""
+                }`}
+                onClick={() => setTierFilter(tierFilter === tc.tier ? null : tc.tier)}
+                data-testid={`label-tier-${tc.tier}`}
+              >
                 <div className={`h-2.5 w-2.5 rounded-full ${tc.bgClass}`} />
                 <span className="text-amber-200/50">{tc.label}</span>
-                <span className="font-medium">{tierCounts[tc.tier]}</span>
-              </div>
+                <span className="font-medium">{allTierCounts[tc.tier]}</span>
+              </button>
             ))}
           </div>
         </CardContent>
@@ -641,16 +689,16 @@ export default function DevyRankingsPage() {
                   onClick={() => handlePlayerClick(player)}
                   data-testid={`card-player-${player.playerId}`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-lg font-bold shrink-0 w-8">#{player.rank}</span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-base font-bold shrink-0 w-10 text-right text-muted-foreground">#{player.rank}</span>
                       <div className="min-w-0">
                         <div className="font-semibold truncate flex items-center gap-1">
                           <span className="sm:hidden">{abbreviateName(player.name)}</span>
                           <span className="hidden sm:inline">{player.name}</span>
                           {player.ageClass === "young-breakout" && <Zap className="h-3 w-3 text-green-500" />}
                         </div>
-                        <div className="flex items-center gap-1 flex-wrap mt-1">
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                           <Badge variant="outline" className={`text-xs ${getPositionColorClass(player.position)}`}>
                             {player.position}{player.positionRank}
                           </Badge>
@@ -668,7 +716,7 @@ export default function DevyRankingsPage() {
                           "text-red-500"
                         }`}>{calculateDVI(player)}</span>
                         <div className="text-xs text-amber-200/50">
-                          <span className="text-green-500">{player.elitePct}%</span>
+                          <span className="text-green-500">{player.starterPct}%</span>
                           <span className="mx-0.5">/</span>
                           <span className="text-red-500">{player.bustPct}%</span>
                         </div>
@@ -676,6 +724,22 @@ export default function DevyRankingsPage() {
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
+                  {(player.dominatorRating > 0 || player.yardShare > 0 || player.tdShare > 0) && (
+                    <div className="flex gap-3 mt-2 pt-2 border-t border-amber-800/10 text-xs text-muted-foreground" data-testid={`production-${player.playerId}`}>
+                      {player.dominatorRating > 0 && (
+                        <span>DOM: <span className={`font-medium ${player.dominatorRating >= 30 ? "text-green-500" : player.dominatorRating >= 20 ? "text-amber-400" : "text-foreground"}`}>{player.dominatorRating.toFixed(1)}%</span></span>
+                      )}
+                      {player.yardShare > 0 && (
+                        <span>YD%: <span className="font-medium text-foreground">{player.yardShare.toFixed(1)}%</span></span>
+                      )}
+                      {player.tdShare > 0 && (
+                        <span>TD%: <span className="font-medium text-foreground">{player.tdShare.toFixed(1)}%</span></span>
+                      )}
+                      {player.depthRole && (
+                        <span className="ml-auto text-amber-200/40">{player.depthRole}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             )}
