@@ -176,6 +176,11 @@ async function cfbdFetch<T>(endpoint: string, params: Record<string, string | nu
     throw new Error(`CFBD API error ${response.status}: ${errorText}`);
   }
 
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(`CFBD API returned unexpected content-type: ${contentType}. The endpoint may have moved or require a different API tier.`);
+  }
+
   const data = await response.json() as T;
   setCache(cacheKey, data);
   return data;
@@ -481,7 +486,7 @@ export interface CFBDTransferPortalEntry {
 
 export async function getTransferPortal(year?: number): Promise<CFBDTransferPortalEntry[]> {
   const season = year || getMostRecentCFBSeason();
-  return cfbdFetch<CFBDTransferPortalEntry[]>('/recruiting/transfer-portal', { year: season });
+  return cfbdFetch<CFBDTransferPortalEntry[]>('/player/portal', { year: season });
 }
 
 export interface CollegeStatLeader {
