@@ -169,3 +169,21 @@ export const insertDevyPortfolioSchema = createInsertSchema(devyPortfolio).omit(
 
 export type DevyPortfolioEntry = typeof devyPortfolio.$inferSelect;
 export type InsertDevyPortfolioEntry = z.infer<typeof insertDevyPortfolioSchema>;
+
+export const leagueSettings = pgTable("league_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  leagueId: text("league_id").notNull(),
+  devyEnabled: boolean("devy_enabled").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertLeagueSettingsSchema = createInsertSchema(leagueSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type LeagueSettings = typeof leagueSettings.$inferSelect;
+export type InsertLeagueSettings = z.infer<typeof insertLeagueSettingsSchema>;

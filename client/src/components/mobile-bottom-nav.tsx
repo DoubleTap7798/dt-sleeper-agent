@@ -14,7 +14,7 @@ const leagueNavItems = [
 const globalNavItems = [
   { icon: Home, label: "Home", path: "/league", matchPath: "/league" },
   { icon: UserSearch, label: "Players", path: "/league/players", matchPath: "/league/players" },
-  { icon: Newspaper, label: "News", path: "/league/news", matchPath: "/league/news" },
+  { icon: Newspaper, label: "NFL", path: "/league/nfl", matchPath: "/league/nfl" },
   { icon: BarChart3, label: "Leaders", path: "/league/stat-leaders", matchPath: "/league/stat-leaders" },
   { icon: Bot, label: "AI Chat", path: "/league/ai-chat", matchPath: "/league/ai-chat" },
 ];

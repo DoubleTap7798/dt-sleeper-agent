@@ -57,10 +57,15 @@ interface OddsResponse {
   lastUpdated: string;
 }
 
-export default function NewsFeedPage() {
+function ConditionalPremiumGate({ embedded, children }: { embedded?: boolean; children: React.ReactNode }) {
+  if (embedded) return <>{children}</>;
+  return <PremiumGate featureName="Fantasy News">{children}</PremiumGate>;
+}
+
+export default function NewsFeedPage({ embedded }: { embedded?: boolean }) {
   const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
-  usePageTitle("Fantasy News");
+  usePageTitle(embedded ? "" : "Fantasy News");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<string>("all");
 
@@ -175,31 +180,33 @@ export default function NewsFeedPage() {
   }
 
   return (
-    <PremiumGate featureName="Fantasy News">
+    <ConditionalPremiumGate embedded={embedded}>
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Newspaper className="h-6 w-6" />
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Fantasy News</h1>
+      {!embedded && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Newspaper className="h-6 w-6" />
+            <h1 className="text-2xl font-bold" data-testid="text-page-title">Fantasy News</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isFetching}
+              data-testid="button-refresh-news"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            {lastUpdated && (
+              <span className="text-xs text-muted-foreground" data-testid="text-last-updated">
+                Updated {formatTimeAgo(lastUpdated)}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isFetching}
-            data-testid="button-refresh-news"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-          {lastUpdated && (
-            <span className="text-xs text-muted-foreground" data-testid="text-last-updated">
-              Updated {formatTimeAgo(lastUpdated)}
-            </span>
-          )}
-        </div>
-      </div>
+      )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         {activeTab !== "odds" && (
@@ -407,6 +414,6 @@ export default function NewsFeedPage() {
         )
       )}
     </div>
-    </PremiumGate>
+    </ConditionalPremiumGate>
   );
 }

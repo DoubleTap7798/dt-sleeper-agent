@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeftRight, UserPlus, Clock, Activity, Filter } from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useSelectedLeague } from "./league-layout";
 
 interface ActivityPlayer {
   name: string;
@@ -50,9 +51,11 @@ function formatRelativeTime(timestamp: number): string {
 export default function ActivityFeedPage() {
   usePageTitle("Activity Feed");
   const [filter, setFilter] = useState<FilterType>("all");
+  const { league, isAllLeagues } = useSelectedLeague();
 
+  const leagueParam = !isAllLeagues && league?.league_id ? `?leagueId=${league.league_id}` : "";
   const { data, isLoading, error } = useQuery<ActivityFeedData>({
-    queryKey: ["/api/fantasy/activity-feed"],
+    queryKey: [`/api/fantasy/activity-feed${leagueParam}`],
   });
 
   if (isLoading) {
@@ -85,7 +88,7 @@ export default function ActivityFeedPage() {
           Activity Feed
         </h2>
         <p className="text-muted-foreground">
-          Recent moves across all your leagues
+          {isAllLeagues ? "Recent moves across all your leagues" : `Recent moves in ${league?.name || "this league"}`}
         </p>
       </div>
 

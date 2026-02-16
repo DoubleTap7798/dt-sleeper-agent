@@ -4,13 +4,15 @@ import {
   userNotificationStatus,
   leagueSyncStatus,
   userLeagueTakeover,
+  leagueSettings,
   type UserProfile, 
   type InsertUserProfile,
   type LeagueNotification,
   type InsertLeagueNotification,
   type LeagueSyncStatus,
   type UserLeagueTakeover,
-  type InsertUserLeagueTakeover
+  type InsertUserLeagueTakeover,
+  type LeagueSettings
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, notInArray, inArray } from "drizzle-orm";
@@ -36,6 +38,10 @@ export interface IStorage {
   getAllLeagueTakeovers(userId: string): Promise<UserLeagueTakeover[]>;
   upsertLeagueTakeover(userId: string, leagueId: string, takeoverSeason: number): Promise<UserLeagueTakeover>;
   deleteLeagueTakeover(userId: string, leagueId: string): Promise<void>;
+
+  // League Settings
+  getLeagueSettings(userId: string, leagueId: string): Promise<LeagueSettings | undefined>;
+  upsertLeagueSettings(userId: string, leagueId: string, settings: { devyEnabled: boolean }): Promise<LeagueSettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -218,6 +224,31 @@ export class DatabaseStorage implements IStorage {
           eq(userLeagueTakeover.leagueId, leagueId)
         )
       );
+  }
+
+  async getLeagueSettings(userId: string, leagueId: string): Promise<LeagueSettings | undefined> {
+    const [settings] = await db
+      .select()
+      .from(leagueSettings)
+      .where(and(eq(leagueSettings.userId, userId), eq(leagueSettings.leagueId, leagueId)));
+    return settings || undefined;
+  }
+
+  async upsertLeagueSettings(userId: string, leagueId: string, settings: { devyEnabled: boolean }): Promise<LeagueSettings> {
+    const existing = await this.getLeagueSettings(userId, leagueId);
+    if (existing) {
+      const [updated] = await db
+        .update(leagueSettings)
+        .set({ ...settings, updatedAt: new Date() })
+        .where(and(eq(leagueSettings.userId, userId), eq(leagueSettings.leagueId, leagueId)))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(leagueSettings)
+      .values({ userId, leagueId, ...settings })
+      .returning();
+    return created;
   }
 }
 

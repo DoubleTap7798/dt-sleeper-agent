@@ -667,6 +667,33 @@ ${urls}
     }
   });
 
+  // Get league settings
+  app.get("/api/league-settings/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      const settings = await storage.getLeagueSettings(userId, leagueId);
+      res.json(settings || { devyEnabled: true });
+    } catch (error) {
+      console.error("Error fetching league settings:", error);
+      res.status(500).json({ message: "Failed to fetch league settings" });
+    }
+  });
+
+  // Update league settings
+  app.put("/api/league-settings/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      const { devyEnabled } = req.body;
+      const settings = await storage.upsertLeagueSettings(userId, leagueId, { devyEnabled: devyEnabled !== false });
+      res.json(settings);
+    } catch (error) {
+      console.error("Error updating league settings:", error);
+      res.status(500).json({ message: "Failed to update league settings" });
+    }
+  });
+
   // Admin middleware - check if user is admin (by Sleeper username)
   const ADMIN_SLEEPER_USERNAMES = ['doubletap7798'];
   
@@ -1946,19 +1973,27 @@ ${urls}
     }
   });
 
-  // Cross-league activity feed
+  // Cross-league activity feed (supports ?leagueId= filter)
   app.get("/api/fantasy/activity-feed", isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const profile = await storage.getUserProfile(userId);
+      const filterLeagueId = req.query.leagueId as string | undefined;
 
       if (!profile?.sleeperUserId) {
         return res.json({ activities: [], lastUpdated: Date.now() });
       }
 
-      const leagues = await getAllUserLeagues(profile.sleeperUserId);
+      let leagues = await getAllUserLeagues(profile.sleeperUserId);
       if (!leagues || leagues.length === 0) {
         return res.json({ activities: [], lastUpdated: Date.now() });
+      }
+
+      if (filterLeagueId) {
+        leagues = leagues.filter((l: any) => l.league_id === filterLeagueId);
+        if (leagues.length === 0) {
+          return res.json({ activities: [], lastUpdated: Date.now() });
+        }
       }
 
       const state = await sleeperApi.getState();

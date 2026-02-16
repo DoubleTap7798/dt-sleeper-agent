@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation, Link, useSearch } from "wouter";
+import { LeagueSettingsDialog } from "./league-settings-dialog";
 import {
   Home,
   RefreshCw,
@@ -16,6 +18,7 @@ import {
   GitBranch,
   UserCircle,
   Newspaper,
+  Shield,
   Activity,
   GitCompare,
   Target,
@@ -177,7 +180,7 @@ const navigationGroups: NavGroup[] = [
 const standaloneItems: NavItem[] = [
   { title: "Home", url: "/league", icon: LayoutDashboard, description: "Dashboard & actions" },
   { title: "AI Assistant", url: "/league/ai-chat", icon: Bot, description: "AI fantasy football advisor", premium: true },
-  { title: "News", url: "/league/news", icon: Newspaper, description: "Fantasy news & analysis", premium: true },
+  { title: "NFL", url: "/league/nfl", icon: Shield, description: "News, schedule & standings" },
 ];
 
 export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChange }: AppSidebarProps) {
@@ -188,6 +191,14 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
   
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["League", "My Team"]));
   const [userClosedGroups, setUserClosedGroups] = useState<Set<string>>(new Set());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const { data: leagueSettingsData } = useQuery<{ devyEnabled: boolean }>({
+    queryKey: ["/api/league-settings", selectedLeague?.league_id],
+    enabled: !!selectedLeague?.league_id,
+  });
+
+  const devyEnabled = leagueSettingsData?.devyEnabled !== false;
   
   const urlParams = new URLSearchParams(searchString);
   const leagueId = isAllLeagues ? null : (urlParams.get("id") || selectedLeague?.league_id);
@@ -224,8 +235,13 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
     return user?.email?.[0]?.toUpperCase() || "U";
   };
 
-  // Filter groups based on whether a league is selected
-  const visibleGroups = navigationGroups.filter(group => 
+  // Filter groups based on whether a league is selected and devy settings
+  const filteredNavGroups = navigationGroups.filter(group => {
+    if (group.title === "Devy Command Center" && !devyEnabled) return false;
+    return true;
+  });
+
+  const visibleGroups = filteredNavGroups.filter(group => 
     !group.requiresLeague || !isAllLeagues
   );
 
@@ -242,11 +258,12 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
             Select League
           </SidebarGroupLabel>
           <SidebarGroupContent className="px-2">
+            <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full justify-between bg-sidebar-accent border-sidebar-border text-sidebar-foreground"
+                  className="flex-1 justify-between bg-sidebar-accent border-sidebar-border text-sidebar-foreground"
                   data-testid="button-league-selector"
                 >
                   <div className="flex items-center gap-2 min-w-0">
@@ -334,6 +351,19 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                 })()}
               </DropdownMenuContent>
             </DropdownMenu>
+            {!isAllLeagues && selectedLeague && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSettingsOpen(true)}
+                className="shrink-0"
+                data-testid="button-league-settings"
+                title="League Settings"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            )}
+            </div>
           </SidebarGroupContent>
         </SidebarGroup>
 
@@ -500,6 +530,15 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
           </Button>
         </div>
       </SidebarFooter>
+
+      {selectedLeague && (
+        <LeagueSettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          leagueId={selectedLeague.league_id}
+          leagueName={selectedLeague.name}
+        />
+      )}
     </Sidebar>
   );
 }

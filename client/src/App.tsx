@@ -50,6 +50,7 @@ import SeasonProjectionsPage from "@/pages/season-projections";
 import UsageTrendsPage from "@/pages/usage-trends";
 import InjuryTrackerPage from "@/pages/injury-tracker";
 import TeamReportPage from "@/pages/team-report";
+import NFLPage from "@/pages/nfl";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -261,10 +262,17 @@ function Router() {
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
+      <Route path="/league/nfl">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <NFLPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
       <Route path="/league/news">
         <AuthenticatedRoute>
           <LeagueLayout>
-            <NewsFeedPage />
+            <NFLPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
