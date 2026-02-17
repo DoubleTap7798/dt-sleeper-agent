@@ -6314,6 +6314,290 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
         aiAnalysis = "AI analysis unavailable at this time.";
       }
 
+      let tradeContext: any = null;
+      try {
+        const [allRosters, allPlayersData] = await Promise.all([
+          sleeperApi.getLeagueRosters(leagueId),
+          sleeperApi.getAllPlayers(),
+        ]);
+        const league = await sleeperApi.getLeague(leagueId);
+        const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+
+        try {
+          await dynastyConsensusService.fetchAndCacheValues();
+        } catch (e) {
+          console.log(`[Trade Context] Failed to fetch consensus values: ${e}`);
+        }
+
+        const playerData = allPlayersData || {};
+
+        const PEAK_ENDS: Record<string, number> = { QB: 32, RB: 27, WR: 29, TE: 30, DL: 30, LB: 29, DB: 28 };
+
+        const getPlayerAge = (playerId: string): number | null => {
+          const p = playerData[playerId];
+          return p?.age || null;
+        };
+
+        const getPlayerPosition = (playerId: string): string => {
+          const p = playerData[playerId];
+          return p?.fantasy_positions?.[0] || p?.position || "WR";
+        };
+
+        const getPlayerName = (playerId: string): string => {
+          const p = playerData[playerId];
+          return p?.full_name || playerId;
+        };
+
+        const getPlayerValue = (playerId: string): number => {
+          const p = playerData[playerId];
+          if (!p) return 0;
+          const position = p.fantasy_positions?.[0] || p.position || "WR";
+          const age = p.age || 25;
+          const yearsExp = p.years_exp || 0;
+          const playerName = p.full_name || playerId;
+          const consensusValue = dynastyConsensusService.getNormalizedValue(playerName, position, isSuperflex);
+          const rosterSettings = dynastyEngine.parseLeagueRosterSettings(league);
+          const valueResult = dynastyEngine.getBlendedPlayerValue(
+            playerId, playerName, position, age, yearsExp,
+            p.injury_status, {}, null, null, consensusValue, 0.5, rosterSettings
+          );
+          return valueResult.value;
+        };
+
+        const buildTeamProfile = (ownerId: string) => {
+          const roster = allRosters?.find((r: any) => r.owner_id === ownerId);
+          if (!roster || !roster.players) return null;
+
+          const rosterPlayers = roster.players
+            .map((pid: string) => ({
+              id: pid,
+              name: getPlayerName(pid),
+              age: getPlayerAge(pid),
+              position: getPlayerPosition(pid),
+              value: getPlayerValue(pid),
+            }))
+            .sort((a: any, b: any) => b.value - a.value);
+
+          const top10 = rosterPlayers.slice(0, 10);
+          const studs = rosterPlayers.filter((p: any) => p.value >= 7000).length;
+          const agesOfTop10 = top10.filter((p: any) => p.age !== null).map((p: any) => p.age as number);
+          const avgAge = agesOfTop10.length > 0 ? agesOfTop10.reduce((s: number, a: number) => s + a, 0) / agesOfTop10.length : 26;
+
+          let profile: "contender" | "rebuilder" | "balanced" = "balanced";
+          if (avgAge >= 27 && studs >= 4) profile = "contender";
+          else if (avgAge <= 25 || studs <= 2) profile = "rebuilder";
+
+          let totalWeightedYears = 0;
+          let totalWeight = 0;
+          for (const p of top10) {
+            if (p.age === null || p.value <= 0) continue;
+            const peakEnd = PEAK_ENDS[p.position] || 29;
+            const yearsLeft = Math.max(0, peakEnd - p.age);
+            totalWeightedYears += yearsLeft * p.value;
+            totalWeight += p.value;
+          }
+          const windowYears = totalWeight > 0 ? Math.round(totalWeightedYears / totalWeight) : 2;
+          let windowStrength: "Strong" | "Moderate" | "Closing" = "Moderate";
+          if (windowYears >= 3) windowStrength = "Strong";
+          else if (windowYears <= 1) windowStrength = "Closing";
+
+          return { profile, windowYears, windowStrength, avgStarterAge: Math.round(avgAge * 10) / 10, studs, top10 };
+        };
+
+        const teamAProfile = buildTeamProfile(teamAId);
+        const teamBProfile = buildTeamProfile(teamBId);
+
+        const computeGrades = (
+          receivedAssets: any[],
+          teamProfile: any
+        ) => {
+          const players = receivedAssets.filter((a: any) => a.type === "player");
+          const picks = receivedAssets.filter((a: any) => a.type === "pick");
+          const totalValueReceived = receivedAssets.reduce((s: number, a: any) => s + a.value, 0);
+
+          const winNowPlayers = players.filter((p: any) => {
+            const age = getPlayerAge(p.id);
+            return age !== null && age >= 24 && age <= 29 && p.value >= 5000;
+          });
+
+          const youngPlayers = players.filter((p: any) => {
+            const age = getPlayerAge(p.id);
+            return age !== null && age < 25;
+          });
+
+          let contenderScore = 0;
+          contenderScore += totalValueReceived / 1000;
+          contenderScore += winNowPlayers.length * 3;
+          contenderScore += players.filter((p: any) => p.value >= 7000).length * 2;
+
+          let rebuilderScore = 0;
+          rebuilderScore += youngPlayers.length * 4;
+          rebuilderScore += picks.length * 3;
+          rebuilderScore += players.filter((p: any) => {
+            const age = getPlayerAge(p.id);
+            return age !== null && age < 23;
+          }).length * 2;
+          rebuilderScore += totalValueReceived / 2000;
+
+          const gradeFromScore = (score: number): string => {
+            if (score >= 18) return "A+";
+            if (score >= 15) return "A";
+            if (score >= 12) return "A-";
+            if (score >= 10) return "B+";
+            if (score >= 8) return "B";
+            if (score >= 6) return "B-";
+            if (score >= 4) return "C+";
+            if (score >= 3) return "C";
+            if (score >= 2) return "D";
+            return "F";
+          };
+
+          const contenderReasons: string[] = [];
+          const rebuilderReasons: string[] = [];
+
+          if (winNowPlayers.length >= 2) contenderReasons.push("Adds multiple win-now pieces");
+          else if (winNowPlayers.length === 1) contenderReasons.push("Adds a win-now contributor");
+          if (totalValueReceived >= 15000) contenderReasons.push("Massive value injection for competing");
+          else if (totalValueReceived >= 8000) contenderReasons.push("Adds significant roster value");
+          if (players.some((p: any) => p.value >= 8000)) contenderReasons.push("Acquires a cornerstone player");
+          if (picks.length > 0) contenderReasons.push("Gives up future capital for present upside");
+          if (players.filter((p: any) => { const a = getPlayerAge(p.id); return a && a > 29; }).length > 0) contenderReasons.push("Aging assets have limited shelf life");
+
+          if (youngPlayers.length >= 2) rebuilderReasons.push("Acquires multiple young building blocks");
+          else if (youngPlayers.length === 1) rebuilderReasons.push("Adds a young upside player");
+          if (picks.length >= 2) rebuilderReasons.push("Stockpiles future draft capital");
+          else if (picks.length === 1) rebuilderReasons.push("Adds a future draft pick");
+          if (players.some((p: any) => { const a = getPlayerAge(p.id); return a && a < 23 && p.value >= 5000; })) rebuilderReasons.push("Acquires youth at a premium value");
+          if (winNowPlayers.length === 0 && players.length > 0) rebuilderReasons.push("No immediate win-now pieces acquired");
+          if (totalValueReceived >= 10000 && youngPlayers.length > 0) rebuilderReasons.push("Strong long-term value accumulation");
+
+          return {
+            contenderGrade: gradeFromScore(contenderScore),
+            rebuilderGrade: gradeFromScore(rebuilderScore),
+            contenderReasons: contenderReasons.slice(0, 4),
+            rebuilderReasons: rebuilderReasons.slice(0, 4),
+          };
+        };
+
+        const teamAReceives = teamBAssets;
+        const teamBReceives = teamAAssets;
+
+        const teamAGrades = computeGrades(teamAReceives, teamAProfile);
+        const teamBGrades = computeGrades(teamBReceives, teamBProfile);
+
+        const psychologyInsights: string[] = [];
+
+        const getAvgAge = (assets: any[]): number | null => {
+          const players = assets.filter((a: any) => a.type === "player");
+          const ages = players.map((p: any) => getPlayerAge(p.id)).filter((a: any): a is number => a !== null);
+          return ages.length > 0 ? ages.reduce((s, a) => s + a, 0) / ages.length : null;
+        };
+
+        const avgAgeA = getAvgAge(teamAAssets);
+        const avgAgeB = getAvgAge(teamBAssets);
+        if (avgAgeA !== null && avgAgeB !== null && Math.abs(avgAgeA - avgAgeB) >= 2) {
+          const olderSide = avgAgeA > avgAgeB ? teamADisplayName : teamBDisplayName;
+          const youngerSide = avgAgeA > avgAgeB ? teamBDisplayName : teamADisplayName;
+          psychologyInsights.push(`${olderSide} is trading production for youth from ${youngerSide}`);
+        }
+
+        if (teamAAssets.length >= 3 && teamBAssets.length <= 1) {
+          psychologyInsights.push(`${teamBDisplayName} is consolidating assets into fewer elite pieces`);
+        } else if (teamBAssets.length >= 3 && teamAAssets.length <= 1) {
+          psychologyInsights.push(`${teamADisplayName} is consolidating assets into fewer elite pieces`);
+        } else if (teamAAssets.length >= teamBAssets.length + 2) {
+          psychologyInsights.push(`${teamADisplayName} is diversifying risk across more pieces`);
+        } else if (teamBAssets.length >= teamAAssets.length + 2) {
+          psychologyInsights.push(`${teamBDisplayName} is diversifying risk across more pieces`);
+        }
+
+        const maxValueA = teamAAssets.length > 0 ? Math.max(...teamAAssets.map(a => a.value)) : 0;
+        const maxValueB = teamBAssets.length > 0 ? Math.max(...teamBAssets.map(a => a.value)) : 0;
+        if (maxValueA >= 7000 && teamAAssets.length <= 2) {
+          psychologyInsights.push(`This trade increases roster fragility for ${teamADisplayName} by moving a cornerstone player`);
+        }
+        if (maxValueB >= 7000 && teamBAssets.length <= 2) {
+          psychologyInsights.push(`This trade increases roster fragility for ${teamBDisplayName} by moving a cornerstone player`);
+        }
+
+        const getReceivedPositions = (assets: any[]): Record<string, number> => {
+          const counts: Record<string, number> = {};
+          for (const a of assets) {
+            if (a.type === "player" && a.position) {
+              counts[a.position] = (counts[a.position] || 0) + 1;
+            }
+          }
+          return counts;
+        };
+
+        const teamAReceivedPos = getReceivedPositions(teamBAssets);
+        const teamBReceivedPos = getReceivedPositions(teamAAssets);
+        for (const [pos, count] of Object.entries(teamAReceivedPos)) {
+          if (count >= 2) psychologyInsights.push(`${teamADisplayName} increases their ${pos} concentration`);
+        }
+        for (const [pos, count] of Object.entries(teamBReceivedPos)) {
+          if (count >= 2) psychologyInsights.push(`${teamBDisplayName} increases their ${pos} concentration`);
+        }
+
+        const marketGaps: any[] = [];
+        const allTradeAssets = [
+          ...teamAAssets.map((a: any) => ({ ...a, side: "A" as const })),
+          ...teamBAssets.map((a: any) => ({ ...a, side: "B" as const })),
+        ];
+
+        for (const asset of allTradeAssets) {
+          if (asset.type !== "player") continue;
+          const position = asset.position || getPlayerPosition(asset.id);
+          const consensusValue = dynastyConsensusService.getNormalizedValue(asset.name, position, isSuperflex);
+          if (consensusValue === null) continue;
+
+          const dynastyValue = asset.value;
+          const gapPercent = dynastyValue > 0 ? ((dynastyValue - consensusValue) / consensusValue) * 100 : 0;
+
+          let label = "Fair value";
+          if (gapPercent > 15) label = "Undervalued by league";
+          else if (gapPercent < -15) label = "Overvalued by league";
+
+          let momentumLabel: string | undefined;
+          const valueDiffRatio = dynastyValue > 0 && consensusValue > 0 ? dynastyValue / consensusValue : 1;
+          if (valueDiffRatio > 1.3) momentumLabel = "Hype exceeds production";
+          else if (valueDiffRatio < 0.7) momentumLabel = "Production exceeds hype";
+
+          marketGaps.push({
+            playerName: asset.name,
+            position,
+            side: asset.side,
+            dynastyValue,
+            ecrValue: consensusValue,
+            gapPercent: Math.round(gapPercent * 10) / 10,
+            label,
+            momentumLabel,
+          });
+        }
+
+        tradeContext = {
+          teamA: {
+            profile: teamAProfile?.profile || "balanced",
+            windowYears: teamAProfile?.windowYears || 2,
+            windowStrength: teamAProfile?.windowStrength || "Moderate",
+            avgStarterAge: teamAProfile?.avgStarterAge || 26,
+            ...teamAGrades,
+          },
+          teamB: {
+            profile: teamBProfile?.profile || "balanced",
+            windowYears: teamBProfile?.windowYears || 2,
+            windowStrength: teamBProfile?.windowStrength || "Moderate",
+            avgStarterAge: teamBProfile?.avgStarterAge || 26,
+            ...teamBGrades,
+          },
+          psychologyInsights,
+          marketGaps,
+        };
+      } catch (contextError) {
+        console.error("Trade context computation error:", contextError);
+        tradeContext = null;
+      }
+
       res.json({
         teamA: {
           teamId: teamAId,
@@ -6332,10 +6616,11 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
         difference: gradeResult.difference,
         percentageDiff: gradeResult.percentageDiff,
         grade: gradeResult.grade,
-        winner: adjustmentResult.winner, // Use adjustment-based winner
+        winner: adjustmentResult.winner,
         fairnessPercent: adjustmentResult.fairnessPercent,
         isFair: adjustmentResult.isFair,
         aiAnalysis,
+        tradeContext,
       });
     } catch (error) {
       console.error("Error analyzing trade:", error);

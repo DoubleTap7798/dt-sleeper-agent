@@ -157,6 +157,35 @@ export interface TradeSide {
   adjustedTotal?: number;
 }
 
+export interface TradeContextTeam {
+  profile: "contender" | "rebuilder" | "balanced";
+  windowYears: number;
+  windowStrength: "Strong" | "Moderate" | "Closing";
+  avgStarterAge: number;
+  contenderGrade: string;
+  rebuilderGrade: string;
+  contenderReasons: string[];
+  rebuilderReasons: string[];
+}
+
+export interface MarketGap {
+  playerName: string;
+  position: string;
+  side: "A" | "B";
+  dynastyValue: number;
+  ecrValue: number | null;
+  gapPercent: number;
+  label: string;
+  momentumLabel?: string;
+}
+
+export interface TradeContext {
+  teamA: TradeContextTeam;
+  teamB: TradeContextTeam;
+  psychologyInsights: string[];
+  marketGaps: MarketGap[];
+}
+
 export interface TradeAnalysisResult {
   teamA: TradeSide;
   teamB: TradeSide;
@@ -167,6 +196,7 @@ export interface TradeAnalysisResult {
   fairnessPercent?: number;
   isFair?: boolean;
   aiAnalysis?: string;
+  tradeContext?: TradeContext | null;
 }
 
 // Standings Types

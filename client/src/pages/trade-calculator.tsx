@@ -18,13 +18,13 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ArrowLeftRight, Plus, X, Loader2, Sparkles, Scale, Info, ChevronDown, ChevronUp, BarChart3, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { ArrowLeftRight, Plus, X, Loader2, Sparkles, Scale, Info, ChevronDown, ChevronUp, BarChart3, TrendingUp, TrendingDown, Minus, Shield, Sprout, Brain, Clock, Check, AlertTriangle, Target } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import type { TradeAsset, TradeAnalysisResult } from "@/lib/sleeper-types";
+import type { TradeAsset, TradeAnalysisResult, TradeContext, TradeContextTeam, MarketGap } from "@/lib/sleeper-types";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { InfoTooltip } from "@/components/metric-tooltip";
 import { ExportButton } from "@/components/export-button";
@@ -507,6 +507,51 @@ export default function TradeCalculatorPage() {
               </div>
             )}
 
+            {analysis.tradeContext?.psychologyInsights && analysis.tradeContext.psychologyInsights.length > 0 && (
+              <div className="space-y-2" data-testid="container-psychology-insights">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Brain className="h-4 w-4" />
+                  Trade Psychology
+                </p>
+                <div className="grid gap-2">
+                  {analysis.tradeContext.psychologyInsights.map((insight, i) => {
+                    const isNegative = insight.toLowerCase().includes("fragility") || insight.toLowerCase().includes("concentration");
+                    const IconComp = isNegative ? AlertTriangle : insight.toLowerCase().includes("consolidat") ? Target : insight.toLowerCase().includes("diversif") ? Target : insight.toLowerCase().includes("youth") || insight.toLowerCase().includes("production") ? Clock : Check;
+                    return (
+                      <div
+                        key={i}
+                        className={`flex items-start gap-3 p-3 rounded-lg border ${
+                          isNegative
+                            ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30"
+                            : "bg-muted/30 border-border"
+                        }`}
+                        data-testid={`insight-${i}`}
+                      >
+                        <IconComp className={`h-4 w-4 mt-0.5 shrink-0 ${isNegative ? "text-amber-500" : "text-muted-foreground"}`} />
+                        <span className="text-sm">{insight}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {analysis.tradeContext && (
+              <TradeContextSection
+                tradeContext={analysis.tradeContext}
+                teamAName={teamA?.ownerName || "Team A"}
+                teamBName={teamB?.ownerName || "Team B"}
+              />
+            )}
+
+            {analysis.tradeContext?.marketGaps && analysis.tradeContext.marketGaps.length > 0 && (
+              <MarketGapsSection
+                marketGaps={analysis.tradeContext.marketGaps}
+                teamAName={teamA?.ownerName || "Team A"}
+                teamBName={teamB?.ownerName || "Team B"}
+              />
+            )}
+
             {ecrData?.rankings && ecrData.rankings.length > 0 && (
               <MarketComparison
                 teamAAssets={teamAAssets}
@@ -646,6 +691,205 @@ function MarketComparison({
           <p className="text-xs text-muted-foreground italic">
             Source: dynastyprocess.com (open-source dynasty data). DP values use a different scale than DT Dynasty values.
           </p>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function TradeContextSection({
+  tradeContext,
+  teamAName,
+  teamBName,
+}: {
+  tradeContext: TradeContext;
+  teamAName: string;
+  teamBName: string;
+}) {
+  const renderTeamCard = (team: TradeContextTeam, name: string, side: "A" | "B") => {
+    const ProfileIcon = team.profile === "contender" ? Shield : team.profile === "rebuilder" ? Sprout : Scale;
+    const profileLabel = team.profile.charAt(0).toUpperCase() + team.profile.slice(1);
+    const profileColor = team.profile === "contender"
+      ? "text-amber-600 dark:text-amber-400"
+      : team.profile === "rebuilder"
+        ? "text-green-600 dark:text-green-400"
+        : "text-muted-foreground";
+
+    const windowColor = team.windowStrength === "Strong"
+      ? "text-green-600 dark:text-green-400"
+      : team.windowStrength === "Closing"
+        ? "text-red-500 dark:text-red-400"
+        : "text-amber-600 dark:text-amber-400";
+
+    return (
+      <div className="flex-1 min-w-0 p-4 rounded-lg bg-muted/30 border space-y-3" data-testid={`trade-context-team-${side.toLowerCase()}`}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <ProfileIcon className={`h-4 w-4 shrink-0 ${profileColor}`} />
+          <span className="text-sm font-medium truncate">{name}</span>
+          <Badge variant="outline" className={`text-xs ${profileColor}`} data-testid={`badge-profile-${side.toLowerCase()}`}>
+            {profileLabel}
+          </Badge>
+        </div>
+
+        <div className="flex items-center gap-2" data-testid={`text-window-${side.toLowerCase()}`}>
+          <Clock className={`h-3.5 w-3.5 shrink-0 ${windowColor}`} />
+          <span className="text-xs">
+            Window: <span className={`font-medium ${windowColor}`}>{team.windowYears}yr ({team.windowStrength})</span>
+          </span>
+          <InfoTooltip
+            title="Championship Window"
+            description="Estimated years before core players decline past their peak, weighted by player value. Based on position-specific age curves."
+          />
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          Avg starter age: {team.avgStarterAge}
+        </div>
+
+        <Separator />
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Shield className="h-3.5 w-3.5 text-amber-500" />
+              <span className="text-xs font-medium">Contender</span>
+              <Badge variant="secondary" className="text-xs" data-testid={`badge-contender-grade-${side.toLowerCase()}`}>
+                {team.contenderGrade}
+              </Badge>
+            </div>
+            <div className="space-y-1">
+              {team.contenderReasons.map((r, i) => (
+                <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Check className="h-3 w-3 mt-0.5 shrink-0 text-green-500" />
+                  <span>{r}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Sprout className="h-3.5 w-3.5 text-green-500" />
+              <span className="text-xs font-medium">Rebuilder</span>
+              <Badge variant="secondary" className="text-xs" data-testid={`badge-rebuilder-grade-${side.toLowerCase()}`}>
+                {team.rebuilderGrade}
+              </Badge>
+            </div>
+            <div className="space-y-1">
+              {team.rebuilderReasons.map((r, i) => (
+                <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Check className="h-3 w-3 mt-0.5 shrink-0 text-green-500" />
+                  <span>{r}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Collapsible>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground" data-testid="button-toggle-trade-context">
+          <Shield className="h-4 w-4" />
+          <span>Trade Context Analysis</span>
+          <InfoTooltip
+            title="Trade Context"
+            description="Analyzes each team's competitive profile, championship window, and how this trade grades for contenders vs rebuilders."
+          />
+          <ChevronDown className="h-4 w-4" />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="flex flex-col sm:flex-row gap-4 mt-2" data-testid="container-trade-context">
+          {renderTeamCard(tradeContext.teamA, teamAName, "A")}
+          {renderTeamCard(tradeContext.teamB, teamBName, "B")}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function MarketGapsSection({
+  marketGaps,
+  teamAName,
+  teamBName,
+}: {
+  marketGaps: MarketGap[];
+  teamAName: string;
+  teamBName: string;
+}) {
+  const teamAGaps = marketGaps.filter(g => g.side === "A");
+  const teamBGaps = marketGaps.filter(g => g.side === "B");
+
+  const renderGapRow = (gap: MarketGap, i: number) => {
+    const isUndervalued = gap.label === "Undervalued by league";
+    const isOvervalued = gap.label === "Overvalued by league";
+
+    return (
+      <div key={`${gap.playerName}-${i}`} className="flex items-center justify-between gap-2 py-1.5" data-testid={`market-gap-${gap.playerName.replace(/\s+/g, '-').toLowerCase()}`}>
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <Badge variant="outline" className={`text-xs shrink-0 ${getPositionColorClass(gap.position)}`}>
+            {gap.position}
+          </Badge>
+          <span className="text-sm truncate">{gap.playerName}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {gap.momentumLabel && (
+            <Badge variant="outline" className="text-[10px]">
+              {gap.momentumLabel}
+            </Badge>
+          )}
+          <span className={`text-xs font-mono ${
+            isUndervalued ? "text-green-500" : isOvervalued ? "text-amber-500" : "text-muted-foreground"
+          }`}>
+            {gap.gapPercent > 0 ? "+" : ""}{gap.gapPercent}%
+          </span>
+          {isUndervalued && <TrendingUp className="h-3.5 w-3.5 text-green-500" />}
+          {isOvervalued && <TrendingDown className="h-3.5 w-3.5 text-amber-500" />}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Collapsible>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground" data-testid="button-toggle-market-gaps">
+          <TrendingUp className="h-4 w-4" />
+          <span>Market Inefficiency Detector</span>
+          <InfoTooltip
+            title="Market Gaps"
+            description="Compares your league's dynasty values against Dynasty Process consensus to find over/undervalued players in this trade."
+          />
+          <ChevronDown className="h-4 w-4" />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="p-4 rounded-lg bg-muted/30 border mt-2 space-y-3" data-testid="container-market-gaps">
+          <p className="text-xs text-muted-foreground">
+            Gap between your league values and Dynasty Process consensus. Positive = your league values higher.
+          </p>
+
+          {teamAGaps.length > 0 && (
+            <div>
+              <p className="text-sm font-medium mb-1">{teamAName} trades away:</p>
+              <div className="divide-y divide-border/50">
+                {teamAGaps.map((g, i) => renderGapRow(g, i))}
+              </div>
+            </div>
+          )}
+
+          {teamBGaps.length > 0 && (
+            <div>
+              <p className="text-sm font-medium mb-1">{teamBName} trades away:</p>
+              <div className="divide-y divide-border/50">
+                {teamBGaps.map((g, i) => renderGapRow(g, i))}
+              </div>
+            </div>
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>
