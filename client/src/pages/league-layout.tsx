@@ -142,7 +142,7 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
   };
 
   const sidebarStyle = {
-    "--sidebar-width": "18rem",
+    "--sidebar-width": "22rem",
     "--sidebar-width-icon": "4rem",
   };
 
