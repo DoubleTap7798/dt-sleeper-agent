@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PlayerProfileModal } from "@/components/player-profile-modal";
 import { 
   Target, 
   TrendingUp, 
@@ -234,19 +235,22 @@ function PlayerRecommendationCard({
   rank, 
   isRookieMode,
   showLeverage,
+  onPlayerClick,
 }: { 
   player: PlayerRecommendation; 
   rank: number;
   isRookieMode?: boolean;
   showLeverage?: boolean;
+  onPlayerClick?: (player: PlayerRecommendation) => void;
 }) {
   const tierInfo = player.tier ? TIER_LABELS[player.tier] : null;
   const displayScore = player.recScore || Math.round(player.value);
 
   return (
     <div 
-      className="p-3 rounded-lg bg-card/50 border border-border/50 hover-elevate space-y-2"
+      className="p-3 rounded-lg bg-card/50 border border-border/50 hover-elevate space-y-2 cursor-pointer"
       data-testid={`recommendation-player-${player.playerId}`}
+      onClick={() => onPlayerClick?.(player)}
     >
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 text-primary font-bold text-sm flex-shrink-0">
@@ -451,9 +455,10 @@ function RosterBuildVisual({ analysis }: { analysis: DraftRecommendationsRespons
   );
 }
 
-function DraftBoard({ picks, currentPick }: { 
+function DraftBoard({ picks, currentPick, onPlayerClick }: { 
   picks: DraftBoardPick[]; 
   currentPick?: number;
+  onPlayerClick?: (playerId: string, name: string, position: string, team: string) => void;
 }) {
   const currentPickRef = useRef<HTMLTableRowElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -530,7 +535,11 @@ function DraftBoard({ picks, currentPick }: {
                     {pick.round}.{String(pick.slot).padStart(2, "0")}
                   </TableCell>
                   <TableCell className="font-medium">
-                    <span className="flex items-center gap-1.5 flex-wrap">
+                    <span 
+                      className="flex items-center gap-1.5 flex-wrap cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => onPlayerClick?.(pick.player.id, pick.player.name, pick.player.position, pick.player.team)}
+                      data-testid={`button-view-player-${pick.player.id}`}
+                    >
                       {pick.player.name}
                       {pick.isDevy && (
                         <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[9px] px-1 py-0">
@@ -561,6 +570,15 @@ export default function DraftWarRoomPage() {
   const { league } = useSelectedLeague();
   const [modeOverride, setModeOverride] = useState<"rookie" | "startup" | null>(null);
   const [showLeverage, setShowLeverage] = useState(true);
+  const [selectedPlayer, setSelectedPlayer] = useState<{ id: string; name: string; position: string; team: string } | null>(null);
+
+  const handlePlayerClick = (player: PlayerRecommendation) => {
+    setSelectedPlayer({ id: player.playerId, name: player.name, position: player.position, team: player.team });
+  };
+
+  const handleBoardPlayerClick = (playerId: string, name: string, position: string, team: string) => {
+    setSelectedPlayer({ id: playerId, name, position, team });
+  };
 
   const queryMode = modeOverride ? `&mode=${modeOverride}` : "";
   const { data, isLoading, error, refetch } = useQuery<DraftRecommendationsResponse>({
@@ -762,6 +780,7 @@ export default function DraftWarRoomPage() {
                         rank={i + 1} 
                         isRookieMode={activeMode === "rookie"} 
                         showLeverage={showLeverage}
+                        onPlayerClick={handlePlayerClick}
                       />
                     ))
                   ) : (
@@ -780,6 +799,7 @@ export default function DraftWarRoomPage() {
                         rank={i + 1} 
                         isRookieMode={activeMode === "rookie"} 
                         showLeverage={showLeverage}
+                        onPlayerClick={handlePlayerClick}
                       />
                     ))
                   ) : (
@@ -798,6 +818,7 @@ export default function DraftWarRoomPage() {
                         rank={i + 1} 
                         isRookieMode={activeMode === "rookie"} 
                         showLeverage={showLeverage}
+                        onPlayerClick={handlePlayerClick}
                       />
                     ))
                   ) : (
@@ -821,6 +842,7 @@ export default function DraftWarRoomPage() {
               <DraftBoard 
                 picks={draftBoard} 
                 currentPick={draft?.status === "drafting" ? draftBoard.length + 1 : undefined}
+                onPlayerClick={handleBoardPlayerClick}
               />
             </CardContent>
           </Card>
@@ -866,8 +888,9 @@ export default function DraftWarRoomPage() {
                   {myPicks.map(pick => (
                     <div 
                       key={pick.playerId} 
-                      className="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-card/50 border border-border/30"
+                      className="flex flex-wrap items-center justify-between gap-2 p-2 rounded bg-card/50 border border-border/30 cursor-pointer hover-elevate"
                       data-testid={`my-pick-${pick.playerId}`}
+                      onClick={() => handleBoardPlayerClick(pick.playerId, pick.name, pick.position, pick.team)}
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono text-muted-foreground">
@@ -964,6 +987,16 @@ export default function DraftWarRoomPage() {
           </Card>
         </div>
       </div>
+      {selectedPlayer && (
+        <PlayerProfileModal
+          open={!!selectedPlayer}
+          onOpenChange={(open) => !open && setSelectedPlayer(null)}
+          playerId={selectedPlayer.id}
+          playerName={selectedPlayer.name}
+          position={selectedPlayer.position}
+          team={selectedPlayer.team}
+        />
+      )}
     </div>
     </PremiumGate>
   );
