@@ -88,9 +88,16 @@ export default function TradeCalculatorPage() {
     staleTime: 1000 * 60 * 60,
   });
 
+  const { data: leagueSettingsData } = useQuery<{ devyEnabled: boolean }>({
+    queryKey: ["/api/league-settings", leagueId],
+    enabled: !!leagueId,
+  });
+  const devyEnabled = leagueSettingsData?.devyEnabled !== false;
+
   const { data: devyData } = useQuery<{ players: Array<{ playerId: string; name: string; position: string; school: string; rank: number; value: number; pickEquivalent: string; pickMultiplier: number }> }>({
     queryKey: ["/api/sleeper/devy"],
     staleTime: 1000 * 60 * 60,
+    enabled: devyEnabled,
   });
 
   const analyzeMutation = useMutation({
@@ -229,7 +236,7 @@ export default function TradeCalculatorPage() {
           isStartup={data?.isStartup}
           draftType={data?.draftType}
           reversalRound={data?.reversalRound}
-          devyPlayers={devyData?.players}
+          devyPlayers={devyEnabled ? devyData?.players : undefined}
         />
 
         <TradeSide
@@ -244,7 +251,7 @@ export default function TradeCalculatorPage() {
           isStartup={data?.isStartup}
           draftType={data?.draftType}
           reversalRound={data?.reversalRound}
-          devyPlayers={devyData?.players}
+          devyPlayers={devyEnabled ? devyData?.players : undefined}
         />
       </div>
 
