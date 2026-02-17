@@ -716,9 +716,47 @@ function AnalyticsTab({
   position: string;
 }) {
   if (!nflverseProfile?.seasonStats) {
+    const dp = nflverseProfile?.dynastyProcess;
     return (
-      <div className="text-center text-muted-foreground py-8">
-        No advanced analytics available for this player
+      <div className="py-6 space-y-4">
+        <div className="text-center text-muted-foreground">
+          <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <p className="text-sm font-medium mb-1">Season stats not yet available</p>
+          <p className="text-xs">Advanced analytics will appear once NFL game data is published for the current season. This is common for rookies or during the offseason.</p>
+        </div>
+        {dp && (
+          <Card className="p-4" data-testid="card-dynasty-process-fallback">
+            <h4 className="font-semibold mb-3 text-sm flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" /> Dynasty Process Values
+            </h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {dp.value_1qb != null && (
+                <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-dp-1qb">
+                  <div className="text-lg font-bold">{dp.value_1qb.toLocaleString()}</div>
+                  <div className="text-[10px] text-muted-foreground">1QB Value</div>
+                </div>
+              )}
+              {dp.value_2qb != null && (
+                <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-dp-2qb">
+                  <div className="text-lg font-bold">{dp.value_2qb.toLocaleString()}</div>
+                  <div className="text-[10px] text-muted-foreground">SF Value</div>
+                </div>
+              )}
+              {dp.ecr_1qb != null && (
+                <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-dp-ecr1qb">
+                  <div className="text-lg font-bold">{dp.ecr_1qb}</div>
+                  <div className="text-[10px] text-muted-foreground">1QB ECR</div>
+                </div>
+              )}
+              {dp.ecr_2qb != null && (
+                <div className="text-center p-2 bg-muted/50 rounded" data-testid="stat-dp-ecr2qb">
+                  <div className="text-lg font-bold">{dp.ecr_2qb}</div>
+                  <div className="text-[10px] text-muted-foreground">SF ECR</div>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
       </div>
     );
   }

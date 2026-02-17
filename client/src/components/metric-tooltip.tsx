@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { Info } from "lucide-react";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 export const metricDefinitions = {
   dynastyValue: {
@@ -58,24 +59,26 @@ interface MetricTooltipProps {
 
 export function MetricTooltip({ metric, className, children }: MetricTooltipProps) {
   const definition = metricDefinitions[metric];
+  const [open, setOpen] = useState(false);
   
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <button
           type="button"
           className={`inline-flex items-center gap-1 cursor-help bg-transparent border-none p-0 text-inherit font-inherit ${className || ""}`}
           aria-label={`${definition.title}: ${definition.description}`}
+          onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         >
           {children || definition.title}
           <Info className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
         </button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">
+      </PopoverTrigger>
+      <PopoverContent className="max-w-xs p-3" side="top" align="center">
         <p className="font-medium">{definition.title}</p>
         <p className="text-xs text-muted-foreground">{definition.description}</p>
-      </TooltipContent>
-    </Tooltip>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -87,23 +90,26 @@ interface SimpleTooltipProps {
 }
 
 export function SimpleTooltip({ title, description, className, children }: SimpleTooltipProps) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <button
           type="button"
           className={`inline-flex items-center gap-1 cursor-help bg-transparent border-none p-0 text-inherit font-inherit ${className || ""}`}
           aria-label={`${title}: ${description}`}
+          onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         >
           {children}
           <Info className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
         </button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">
+      </PopoverTrigger>
+      <PopoverContent className="max-w-xs p-3" side="top" align="center">
         <p className="font-medium">{title}</p>
         <p className="text-xs text-muted-foreground">{description}</p>
-      </TooltipContent>
-    </Tooltip>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -117,23 +123,25 @@ interface InfoTooltipProps {
 export function InfoTooltip({ title, description, className, size = "sm" }: InfoTooltipProps) {
   const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
   const circleSize = size === "sm" ? "h-4 w-4" : "h-5 w-5";
+  const [open, setOpen] = useState(false);
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <button
           type="button"
           className={`inline-flex items-center justify-center shrink-0 rounded-full border border-muted-foreground/30 cursor-help bg-transparent p-0 ${circleSize} ${className || ""}`}
           aria-label={`Info: ${title}`}
           data-testid={`info-tooltip-${title.replace(/\s+/g, '-').toLowerCase()}`}
+          onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         >
           <Info className={`${iconSize} text-muted-foreground`} aria-hidden="true" />
         </button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-[280px]">
+      </PopoverTrigger>
+      <PopoverContent className="max-w-[280px] p-3" side="top" align="center">
         <p className="font-medium text-sm">{title}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-      </TooltipContent>
-    </Tooltip>
+      </PopoverContent>
+    </Popover>
   );
 }

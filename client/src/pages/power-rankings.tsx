@@ -97,6 +97,8 @@ export default function PowerRankingsPage() {
     );
   }
 
+  const isOffseason = data.every(t => t.record.wins === 0 && t.record.losses === 0 && t.record.ties === 0);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
@@ -124,6 +126,20 @@ export default function PowerRankingsPage() {
           />
         </div>
       </div>
+
+      {isOffseason && (
+        <Card className="border-amber-400/20 dark:border-amber-800/20 bg-amber-50 dark:bg-amber-950/20" data-testid="card-offseason-note">
+          <CardContent className="p-4 flex items-start gap-3">
+            <Zap className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-200">Offseason Rankings</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                No games have been played yet this season. Power scores are based solely on roster strength right now. Points, record, and efficiency scores will update once the season begins.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">
