@@ -277,10 +277,81 @@ export default function TradeCalculatorPage() {
         </Button>
       </div>
 
-      {analysis && (
+      {analysis && (() => {
+        const teamAName = teamA?.ownerName || "Team A";
+        const teamBName = teamB?.ownerName || "Team B";
+        const teamAAdj = Math.round(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue);
+        const teamBAdj = Math.round(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue);
+        const fairnessPercent = analysis.fairnessPercent ?? analysis.percentageDiff;
+        const isFair = analysis.isFair || analysis.winner === "even";
+
+        const getTradeSnapshotBullets = () => {
+          const bullets: { team: string; gains: string[]; risks: string[] }[] = [];
+
+          for (const [side, name, receives, gives] of [
+            ["A", teamAName, teamBAssets, teamAAssets] as const,
+            ["B", teamBName, teamAAssets, teamBAssets] as const,
+          ]) {
+            const gains: string[] = [];
+            const risks: string[] = [];
+            const receivedPlayers = receives.filter(a => a.type === "player");
+            const givenPlayers = gives.filter(a => a.type === "player");
+            const receivedPicks = receives.filter(a => a.type === "pick");
+
+            if (receivedPicks.length > 0) gains.push("Adds future draft capital");
+            if (receivedPlayers.some(p => (p.value || 0) >= 7000)) gains.push("Acquires a cornerstone piece");
+            if (receivedPlayers.length > givenPlayers.length + 1) gains.push("Adds roster depth");
+            if (receivedPlayers.length < givenPlayers.length - 1) gains.push("Consolidates into elite talent");
+            const adjGet = side === "A" ? teamBAdj : teamAAdj;
+            const adjGive = side === "A" ? teamAAdj : teamBAdj;
+            if (adjGet > adjGive) gains.push("Net value gain");
+
+            if (givenPlayers.some(p => (p.value || 0) >= 7000) && givenPlayers.length <= 2) risks.push("Loses a cornerstone player");
+            if (side === "A" && !isFair && analysis.winner === "B") risks.push("Slight long-term upside loss");
+            if (side === "B" && !isFair && analysis.winner === "A") risks.push("Slight long-term upside loss");
+
+            if (gains.length === 0) gains.push("No major strategic shifts");
+            bullets.push({ team: name, gains: gains.slice(0, 2), risks: risks.slice(0, 1) });
+          }
+          return bullets;
+        };
+
+        const snapshotBullets = getTradeSnapshotBullets();
+
+        const getMarketSentence = () => {
+          const gaps = analysis.tradeContext?.marketGaps;
+          if (!gaps || gaps.length === 0) return null;
+          const undervalued = [...gaps.filter(g => g.label === "Undervalued by league")];
+          const overvalued = [...gaps.filter(g => g.label === "Overvalued by league")];
+          if (undervalued.length > 0) {
+            undervalued.sort((a, b) => Math.abs(b.gapPercent) - Math.abs(a.gapPercent));
+            return `${undervalued[0].playerName} is undervalued vs consensus`;
+          }
+          if (overvalued.length > 0) {
+            overvalued.sort((a, b) => Math.abs(b.gapPercent) - Math.abs(a.gapPercent));
+            return `${overvalued[0].playerName} may be overvalued vs consensus`;
+          }
+          return null;
+        };
+
+        const filteredPsychology = (() => {
+          const insights = analysis.tradeContext?.psychologyInsights || [];
+          const fragilityInsights = insights.filter(i => i.toLowerCase().includes("fragility"));
+          const concentrationInsights = insights.filter(i => i.toLowerCase().includes("concentration"));
+          const otherInsights = insights.filter(i => !i.toLowerCase().includes("fragility") && !i.toLowerCase().includes("concentration"));
+
+          const result: string[] = [...otherInsights];
+          if (fragilityInsights.length === 1) result.push(fragilityInsights[0]);
+          else if (fragilityInsights.length > 1) result.push("Both sides increase roster fragility in this trade");
+          if (concentrationInsights.length === 1) result.push(concentrationInsights[0]);
+          else if (concentrationInsights.length > 1) result.push("Both sides increase position concentration");
+          return result;
+        })();
+
+        return (
         <Card className="border-2" data-testid="card-trade-analysis">
           <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5" />
                 Trade Analysis
@@ -289,67 +360,27 @@ export default function TradeCalculatorPage() {
                 <ExportButton
                   data={[
                     ...teamAAssets.map(a => ({
-                      side: teamA?.ownerName || "Team A",
+                      side: teamAName,
                       direction: "Trading Away",
                       name: a.name,
                       type: a.type,
                       position: a.position || "",
-                      value: a.value,
+                      value: Math.round(a.value),
                     })),
                     ...teamBAssets.map(a => ({
-                      side: teamB?.ownerName || "Team B",
+                      side: teamBName,
                       direction: "Trading Away",
                       name: a.name,
                       type: a.type,
                       position: a.position || "",
-                      value: a.value,
+                      value: Math.round(a.value),
                     })),
-                    {
-                      side: "Summary",
-                      direction: "",
-                      name: "Grade",
-                      type: "",
-                      position: "",
-                      value: analysis.grade,
-                    },
-                    {
-                      side: teamA?.ownerName || "Team A",
-                      direction: "Summary",
-                      name: "Raw Total",
-                      type: "",
-                      position: "",
-                      value: analysis.teamA.totalValue,
-                    },
-                    {
-                      side: teamA?.ownerName || "Team A",
-                      direction: "Summary",
-                      name: "Adjusted Total",
-                      type: "",
-                      position: "",
-                      value: analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue,
-                    },
-                    {
-                      side: teamB?.ownerName || "Team B",
-                      direction: "Summary",
-                      name: "Raw Total",
-                      type: "",
-                      position: "",
-                      value: analysis.teamB.totalValue,
-                    },
-                    {
-                      side: teamB?.ownerName || "Team B",
-                      direction: "Summary",
-                      name: "Adjusted Total",
-                      type: "",
-                      position: "",
-                      value: analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue,
-                    },
                   ]}
                   filename="trade-analysis"
                   shareText={formatTradeAnalysisForShare(
                     analysis,
-                    teamA?.ownerName || "Team A",
-                    teamB?.ownerName || "Team B",
+                    teamAName,
+                    teamBName,
                     teamAAssets,
                     teamBAssets
                   )}
@@ -365,143 +396,128 @@ export default function TradeCalculatorPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-4 rounded-lg bg-card border space-y-3">
-                <p className="text-lg font-semibold text-center border-b pb-2">
-                  {teamA?.ownerName || "Team A"}
-                </p>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground flex items-center gap-1">
-                      Trading Away (Raw)
-                      <InfoTooltip
-                        title="Raw Value"
-                        description="The combined dynasty value of all assets being traded away, before any adjustments for consolidation or piece count."
-                      />
-                    </span>
-                    <span className="font-mono text-muted-foreground">-{analysis.teamA.totalValue.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground flex items-center gap-1">
-                      Trading Away (Adj)
-                      <InfoTooltip
-                        title="Adjusted Value"
-                        description="Value after applying the consolidation premium. When trading fewer elite pieces for multiple assets, the elite side gets a value boost because star players are harder to acquire."
-                      />
-                    </span>
-                    <span className="font-mono text-muted-foreground">-{(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Receiving (Adj):</span>
-                    <span className="font-mono font-semibold">+{(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue).toLocaleString()}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Net Adjusted:</span>
-                    <span className="font-mono font-bold">
-                      {(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) - (analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) >= 0 ? '+' : ''}{((analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) - (analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue)).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
+            {/* Trade Snapshot */}
+            <div className="p-4 rounded-lg bg-muted/30 border space-y-4" data-testid="container-trade-snapshot">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Scale className="h-4 w-4" />
+                Trade Snapshot
               </div>
-              
-              <div className="p-4 rounded-lg bg-card border space-y-3">
-                <p className="text-lg font-semibold text-center border-b pb-2">
-                  {teamB?.ownerName || "Team B"}
+              <div className="text-center">
+                <p className="text-lg" data-testid="text-fairness-verdict">
+                  {isFair ? (
+                    <span className="text-muted-foreground">This trade is fairly even</span>
+                  ) : (
+                    <>
+                      <span className="text-muted-foreground">Slightly Favors </span>
+                      <span className="font-semibold">
+                        {analysis.winner === "A" ? teamAName : teamBName}
+                      </span>
+                      <span className="text-muted-foreground"> (+{Math.round(Math.abs(fairnessPercent))}%)</span>
+                    </>
+                  )}
                 </p>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Trading Away (Raw):</span>
-                    <span className="font-mono text-muted-foreground">-{analysis.teamB.totalValue.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Trading Away (Adj):</span>
-                    <span className="font-mono text-muted-foreground">-{(analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Receiving (Adj):</span>
-                    <span className="font-mono font-semibold">+{(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue).toLocaleString()}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Net Adjusted:</span>
-                    <span className="font-mono font-bold">
-                      {(analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) - (analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue) >= 0 ? '+' : ''}{((analysis.teamA.adjustedTotal ?? analysis.teamA.totalValue) - (analysis.teamB.adjustedTotal ?? analysis.teamB.totalValue)).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {snapshotBullets.map((b, idx) => (
+                  <div key={idx} className="space-y-1.5" data-testid={`snapshot-team-${idx}`}>
+                    <p className="text-sm font-medium">{b.team}</p>
+                    {b.gains.map((g, i) => (
+                      <div key={`g-${i}`} className="flex items-start gap-1.5 text-xs text-muted-foreground" data-testid={`snapshot-gain-${idx}-${i}`}>
+                        <Check className="h-3 w-3 mt-0.5 shrink-0 text-green-500" />
+                        <span>{g}</span>
+                      </div>
+                    ))}
+                    {b.risks.map((r, i) => (
+                      <div key={`r-${i}`} className="flex items-start gap-1.5 text-xs text-muted-foreground" data-testid={`snapshot-risk-${idx}-${i}`}>
+                        <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0 text-amber-500" />
+                        <span>{r}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+
+              {getMarketSentence() && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1 border-t border-border/50" data-testid="text-market-sentence">
+                  <BarChart3 className="h-3 w-3 shrink-0" />
+                  <span>Market View: {getMarketSentence()}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Simplified Value Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { name: teamAName, give: teamAAdj, get: teamBAdj, side: "a" },
+                { name: teamBName, give: teamBAdj, get: teamAAdj, side: "b" },
+              ].map(({ name, give, get, side }) => {
+                const diff = get - give;
+                return (
+                  <div key={side} className="p-4 rounded-lg bg-card border space-y-2" data-testid={`value-summary-${side}`}>
+                    <p className="text-sm font-semibold text-center border-b pb-2">{name}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">You Give</span>
+                      <span className="font-mono">{give.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">You Get</span>
+                      <span className="font-mono font-semibold">{get.toLocaleString()}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium flex items-center gap-1">
+                        Difference
+                        <InfoTooltip
+                          title="Value Difference"
+                          description="Net dynasty value after applying the consolidation premium. When trading fewer elite pieces for multiple assets, the elite side gets a value boost because star players are harder to acquire."
+                        />
+                      </span>
+                      <span className={`font-mono font-bold ${diff > 0 ? "text-green-500" : diff < 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                        {diff >= 0 ? "+" : ""}{diff.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Fairness Bar */}
             <div className="space-y-3" data-testid="container-fairness-bar">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium" data-testid="text-fairness-team-a">{teamA?.ownerName || "Team A"}</span>
+                <span className="font-medium" data-testid="text-fairness-team-a">{teamAName}</span>
                 <span className="text-muted-foreground flex items-center gap-1.5">
                   Fairness
                   <InfoTooltip
                     title="Fairness Score"
-                    description="Compares the adjusted dynasty value of both sides. Trades within ±5% are considered fair. The bar shows which side gets more value based on the adjusted totals."
+                    description="Compares the adjusted dynasty value of both sides. Trades within ±5% are considered fair. The bar shows which side gets more value."
                   />
                 </span>
-                <span className="font-medium" data-testid="text-fairness-team-b">{teamB?.ownerName || "Team B"}</span>
+                <span className="font-medium" data-testid="text-fairness-team-b">{teamBName}</span>
               </div>
-              
-              {/* Visual Fairness Bar */}
               <div className="relative h-8 bg-muted rounded-md overflow-hidden" data-testid="bar-fairness-track">
-                {/* Fair zone indicator (5% each side = 10% total in center) */}
                 <div className="absolute inset-y-0 left-[45%] right-[45%] bg-muted-foreground/20" />
-                
-                {/* Center line */}
                 <div className="absolute inset-y-0 left-1/2 w-0.5 bg-muted-foreground/40 -translate-x-0.5" />
-                
-                {/* Fairness indicator */}
                 {(() => {
-                  const fairnessPercent = analysis.fairnessPercent ?? 0;
-                  // Clamp to -50 to +50 for display, map to 0-100% position
-                  const clampedPercent = Math.max(-50, Math.min(50, fairnessPercent));
-                  // Positive = Team B wins (slider goes right), Negative = Team A wins (slider goes left)
-                  // Center is 50%, each 1% of fairness = 1% position change
-                  const position = 50 + clampedPercent;
-                  const isFair = analysis.isFair ?? Math.abs(fairnessPercent) <= 5;
-                  
+                  const fp = analysis.fairnessPercent ?? 0;
+                  const clamped = Math.max(-50, Math.min(50, fp));
+                  const position = 50 + clamped;
                   return (
                     <div 
-                      className={`absolute top-1 bottom-1 w-3 rounded-sm transition-all duration-300 ${
-                        isFair ? "bg-muted-foreground" : "bg-muted-foreground/80"
-                      }`}
+                      className="absolute top-1 bottom-1 w-3 rounded-sm transition-all duration-300 bg-muted-foreground"
                       style={{ left: `calc(${position}% - 6px)` }}
                     />
                   );
                 })()}
               </div>
-              
-              {/* Fairness labels */}
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span data-testid="text-favors-team-a">← Favors {teamA?.ownerName?.split(' ')[0] || "A"}</span>
+                <span data-testid="text-favors-team-a">Favors {teamAName.split(' ')[0]}</span>
                 <span className="px-2 py-0.5 rounded bg-muted-foreground/10" data-testid="badge-fair-zone">±5% Fair Zone</span>
-                <span data-testid="text-favors-team-b">Favors {teamB?.ownerName?.split(' ')[0] || "B"} →</span>
+                <span data-testid="text-favors-team-b">Favors {teamBName.split(' ')[0]}</span>
               </div>
             </div>
 
-            <div className="text-center p-4 rounded-lg bg-muted/30 border">
-              <p className="text-lg">
-                {analysis.isFair || analysis.winner === "even" ? (
-                  <span className="text-muted-foreground">This trade is fairly even!</span>
-                ) : (
-                  <>
-                    <span className="font-semibold">
-                      {analysis.winner === "A" ? teamA?.ownerName : teamB?.ownerName}
-                    </span>
-                    <span className="text-muted-foreground"> gets the better deal by </span>
-                    <span className="font-bold">
-                      {Math.abs(analysis.fairnessPercent ?? analysis.percentageDiff).toFixed(1)}%
-                    </span>
-                  </>
-                )}
-              </p>
-            </div>
-
+            {/* AI Analysis */}
             {analysis.aiAnalysis && (
               <div className="p-4 rounded-lg bg-muted/50 border">
                 <p className="text-sm font-medium mb-2 flex items-center gap-2">
@@ -514,28 +530,27 @@ export default function TradeCalculatorPage() {
               </div>
             )}
 
-            {analysis.tradeContext?.psychologyInsights && analysis.tradeContext.psychologyInsights.length > 0 && (
+            {/* Psychology Insights - filtered for meaningful asymmetry */}
+            {filteredPsychology.length > 0 && (
               <div className="space-y-2" data-testid="container-psychology-insights">
                 <p className="text-sm font-medium flex items-center gap-2">
                   <Brain className="h-4 w-4" />
                   Trade Psychology
                 </p>
-                <div className="grid gap-2">
-                  {analysis.tradeContext.psychologyInsights.map((insight, i) => {
-                    const isNegative = insight.toLowerCase().includes("fragility") || insight.toLowerCase().includes("concentration");
-                    const IconComp = isNegative ? AlertTriangle : insight.toLowerCase().includes("consolidat") ? Target : insight.toLowerCase().includes("diversif") ? Target : insight.toLowerCase().includes("youth") || insight.toLowerCase().includes("production") ? Clock : Check;
+                <div className="grid gap-1.5">
+                  {filteredPsychology.map((insight, i) => {
+                    const isWarning = insight.toLowerCase().includes("fragility") || insight.toLowerCase().includes("concentration");
                     return (
                       <div
                         key={i}
-                        className={`flex items-start gap-3 p-3 rounded-lg border ${
-                          isNegative
-                            ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/30"
-                            : "bg-muted/30 border-border"
-                        }`}
+                        className="flex items-start gap-2 text-sm text-muted-foreground"
                         data-testid={`insight-${i}`}
                       >
-                        <IconComp className={`h-4 w-4 mt-0.5 shrink-0 ${isNegative ? "text-amber-500" : "text-muted-foreground"}`} />
-                        <span className="text-sm">{insight}</span>
+                        {isWarning
+                          ? <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
+                          : <Check className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                        }
+                        <span>{insight}</span>
                       </div>
                     );
                   })}
@@ -543,34 +558,38 @@ export default function TradeCalculatorPage() {
               </div>
             )}
 
+            {/* Trade Context */}
             {analysis.tradeContext && (
               <TradeContextSection
                 tradeContext={analysis.tradeContext}
-                teamAName={teamA?.ownerName || "Team A"}
-                teamBName={teamB?.ownerName || "Team B"}
+                teamAName={teamAName}
+                teamBName={teamBName}
               />
             )}
 
+            {/* Market Inefficiency */}
             {analysis.tradeContext?.marketGaps && analysis.tradeContext.marketGaps.length > 0 && (
               <MarketGapsSection
                 marketGaps={analysis.tradeContext.marketGaps}
-                teamAName={teamA?.ownerName || "Team A"}
-                teamBName={teamB?.ownerName || "Team B"}
+                teamAName={teamAName}
+                teamBName={teamBName}
               />
             )}
 
+            {/* ECR Comparison */}
             {ecrData?.rankings && ecrData.rankings.length > 0 && (
               <MarketComparison
                 teamAAssets={teamAAssets}
                 teamBAssets={teamBAssets}
-                teamAName={teamA?.ownerName || "Team A"}
-                teamBName={teamB?.ownerName || "Team B"}
+                teamAName={teamAName}
+                teamBName={teamBName}
                 ecrRankings={ecrData.rankings}
               />
             )}
           </CardContent>
         </Card>
-      )}
+        );
+      })()}
     </div>
     </PremiumGate>
   );
@@ -612,8 +631,6 @@ function MarketComparison({
 
   const renderPlayerRow = (item: { asset: TradeAsset; ecr: ECRPlayer | undefined }) => {
     if (!item.ecr) return null;
-    const dpNormalized = Math.round((item.ecr.value / 100) * 10) / 10;
-    const diff = dpNormalized - item.asset.value;
 
     return (
       <div key={item.asset.id} className="flex items-center justify-between gap-2 py-1.5">
@@ -623,17 +640,12 @@ function MarketComparison({
           </Badge>
           <span className="text-sm truncate">{item.asset.name}</span>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-muted-foreground font-mono">
             ECR #{Math.round(item.ecr.ecr)}
           </span>
-          <span className="text-xs font-mono w-16 text-right">
-            DP: {item.ecr.value.toLocaleString()}
-          </span>
-          <span className={`text-xs font-mono w-12 text-right ${
-            diff > 3 ? 'text-green-500' : diff < -3 ? 'text-red-500' : 'text-muted-foreground'
-          }`}>
-            {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+          <span className="text-xs text-muted-foreground">
+            DT: {Math.round(item.asset.value).toLocaleString()}
           </span>
         </div>
       </div>
@@ -652,10 +664,10 @@ function MarketComparison({
       <CollapsibleContent>
         <div className="p-4 rounded-lg bg-muted/30 border mt-2 space-y-4" data-testid="container-market-comparison">
           <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
-            Comparing your league values with Dynasty Process consensus rankings and trade values from FantasyPros ECR data.
+            How your league values compare to industry consensus.
             <InfoTooltip
               title="Market Comparison"
-              description="Dynasty Process uses industry-wide consensus data from FantasyPros. Their scale differs from DT Dynasty values. A positive difference means DT values the player higher than the market."
+              description="Dynasty Process uses industry-wide consensus data from FantasyPros. Sentiment labels show whether your league values a player higher or lower than the broader market."
             />
           </p>
 
@@ -696,7 +708,7 @@ function MarketComparison({
           )}
 
           <p className="text-xs text-muted-foreground italic">
-            Source: dynastyprocess.com (open-source dynasty data). DP values use a different scale than DT Dynasty values.
+            Source: dynastyprocess.com
           </p>
         </div>
       </CollapsibleContent>
@@ -745,12 +757,8 @@ function TradeContextSection({
           </span>
           <InfoTooltip
             title="Championship Window"
-            description="Estimated years before core players decline past their peak, weighted by player value. Based on position-specific age curves."
+            description={`Estimated years before core players decline past their peak, weighted by player value. Based on position-specific age curves. Avg starter age: ${team.avgStarterAge}.`}
           />
-        </div>
-
-        <div className="text-xs text-muted-foreground">
-          Avg starter age: {team.avgStarterAge}
         </div>
 
         <Separator />
@@ -835,6 +843,9 @@ function MarketGapsSection({
     const isUndervalued = gap.label === "Undervalued by league";
     const isOvervalued = gap.label === "Overvalued by league";
 
+    const sentimentLabel = isUndervalued ? "Undervalued" : isOvervalued ? "Overvalued" : "Fair Value";
+    const sentimentColor = isUndervalued ? "text-green-500" : isOvervalued ? "text-amber-500" : "text-muted-foreground";
+
     return (
       <div key={`${gap.playerName}-${i}`} className="flex items-center justify-between gap-2 py-1.5" data-testid={`market-gap-${gap.playerName.replace(/\s+/g, '-').toLowerCase()}`}>
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -844,18 +855,12 @@ function MarketGapsSection({
           <span className="text-sm truncate">{gap.playerName}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {gap.momentumLabel && (
-            <Badge variant="outline" className="text-[10px]">
-              {gap.momentumLabel}
-            </Badge>
-          )}
-          <span className={`text-xs font-mono ${
-            isUndervalued ? "text-green-500" : isOvervalued ? "text-amber-500" : "text-muted-foreground"
-          }`}>
-            {gap.gapPercent > 0 ? "+" : ""}{gap.gapPercent}%
+          <span className={`text-xs ${sentimentColor}`}>
+            {sentimentLabel}
           </span>
-          {isUndervalued && <TrendingUp className="h-3.5 w-3.5 text-green-500" />}
-          {isOvervalued && <TrendingDown className="h-3.5 w-3.5 text-amber-500" />}
+          <span className={`text-xs font-mono ${sentimentColor}`}>
+            {gap.gapPercent > 0 ? "+" : ""}{Math.round(gap.gapPercent)}%
+          </span>
         </div>
       </div>
     );
@@ -877,7 +882,7 @@ function MarketGapsSection({
       <CollapsibleContent>
         <div className="p-4 rounded-lg bg-muted/30 border mt-2 space-y-3" data-testid="container-market-gaps">
           <p className="text-xs text-muted-foreground">
-            Gap between your league values and Dynasty Process consensus. Positive = your league values higher.
+            How your league values each player vs Dynasty Process consensus.
           </p>
 
           {teamAGaps.length > 0 && (
