@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
+import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { 
   Target, 
   TrendingUp, 
@@ -570,10 +571,11 @@ export default function DraftWarRoomPage() {
   const { league } = useSelectedLeague();
   const [modeOverride, setModeOverride] = useState<"rookie" | "startup" | null>(null);
   const [showLeverage, setShowLeverage] = useState(true);
-  const [selectedPlayer, setSelectedPlayer] = useState<{ id: string; name: string; position: string; team: string } | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<{ id: string; name: string; position: string; team: string; isRookie?: boolean; college?: string } | null>(null);
 
   const handlePlayerClick = (player: PlayerRecommendation) => {
-    setSelectedPlayer({ id: player.playerId, name: player.name, position: player.position, team: player.team });
+    const isRookie = player.playerId.startsWith('draft2026-');
+    setSelectedPlayer({ id: player.playerId, name: player.name, position: player.position, team: player.team, isRookie, college: isRookie ? player.college || player.team : undefined });
   };
 
   const handleBoardPlayerClick = (playerId: string, name: string, position: string, team: string) => {
@@ -987,7 +989,18 @@ export default function DraftWarRoomPage() {
           </Card>
         </div>
       </div>
-      {selectedPlayer && (
+      {selectedPlayer && selectedPlayer.isRookie ? (
+        <DevyProfileModal
+          open={!!selectedPlayer}
+          onOpenChange={(open) => !open && setSelectedPlayer(null)}
+          player={null}
+          unmatchedPlayer={{ 
+            name: selectedPlayer.name, 
+            position: selectedPlayer.position, 
+            school: selectedPlayer.college || selectedPlayer.team 
+          }}
+        />
+      ) : selectedPlayer ? (
         <PlayerProfileModal
           open={!!selectedPlayer}
           onOpenChange={(open) => !open && setSelectedPlayer(null)}
@@ -996,7 +1009,7 @@ export default function DraftWarRoomPage() {
           position={selectedPlayer.position}
           team={selectedPlayer.team}
         />
-      )}
+      ) : null}
     </div>
     </PremiumGate>
   );

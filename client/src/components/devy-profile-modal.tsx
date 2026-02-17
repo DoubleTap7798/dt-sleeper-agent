@@ -203,14 +203,22 @@ export function DevyProfileModal({ open, onOpenChange, player, unmatchedPlayer }
   } : null);
   const isUnmatched = effectivePlayer?.isUnmatched === true;
   const { data, isLoading, error } = useQuery<DevyProfileData>({
-    queryKey: [`/api/sleeper/devy/${player?.playerId}/profile`],
-    enabled: !!player?.playerId && open && !isUnmatched,
+    queryKey: [`/api/sleeper/devy/${player?.playerId || 'lookup'}/profile`, effectivePlayer?.name],
+    queryFn: async () => {
+      const url = player?.playerId 
+        ? `/api/sleeper/devy/${player.playerId}/profile`
+        : `/api/sleeper/devy/lookup/profile?playerName=${encodeURIComponent(effectivePlayer?.name || '')}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch devy profile");
+      return res.json();
+    },
+    enabled: !!(player?.playerId || (isUnmatched && effectivePlayer?.name)) && open,
     staleTime: 1000 * 60 * 10,
   });
 
   if (!effectivePlayer) return null;
 
-  if (isUnmatched) {
+  if (isUnmatched && !data && !isLoading) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md w-[95vw] flex flex-col p-0 overflow-hidden [&>button]:hidden" data-testid="modal-devy-profile-unmatched">
@@ -277,7 +285,37 @@ export function DevyProfileModal({ open, onOpenChange, player, unmatchedPlayer }
     );
   }
 
-  const p = player!;
+  const apiPlayer = data?.player;
+  const p = player || {
+    playerId: effectivePlayer!.playerId,
+    name: effectivePlayer!.name,
+    position: effectivePlayer!.position,
+    positionRank: apiPlayer?.positionRank ?? 0,
+    college: effectivePlayer!.college || "Unknown",
+    draftEligibleYear: apiPlayer?.draftEligibleYear ?? 2026,
+    tier: apiPlayer?.tier ?? 0,
+    value: apiPlayer?.value ?? 0,
+    trend30Day: apiPlayer?.trend30Day ?? 0,
+    rank: apiPlayer?.rank ?? 0,
+    headshot: apiPlayer?.headshot ?? null,
+    teamLogo: apiPlayer?.teamLogo ?? null,
+    starterPct: apiPlayer?.starterPct,
+    elitePct: apiPlayer?.elitePct,
+    bustPct: apiPlayer?.bustPct,
+    top10Pct: apiPlayer?.top10Pct,
+    round1Pct: apiPlayer?.round1Pct,
+    round2PlusPct: apiPlayer?.round2PlusPct,
+    pickEquivalent: apiPlayer?.pickEquivalent,
+    pickMultiplier: apiPlayer?.pickMultiplier,
+    dominatorRating: apiPlayer?.dominatorRating,
+    yardShare: apiPlayer?.yardShare,
+    tdShare: apiPlayer?.tdShare,
+    breakoutAge: apiPlayer?.breakoutAge,
+    comps: apiPlayer?.comps,
+    depthRole: apiPlayer?.depthRole,
+    pathContext: apiPlayer?.pathContext,
+    ageClass: apiPlayer?.ageClass,
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -4153,7 +4153,13 @@ Format your response with clear section headers using markdown. Be concise but i
     try {
       const { playerId } = req.params;
       
-      const player = ktcValues.getDevyPlayerById(playerId);
+      let player = ktcValues.getDevyPlayerById(playerId);
+      if (!player) {
+        const playerName = req.query.playerName as string;
+        if (playerName) {
+          player = ktcValues.getDevyPlayerByName(playerName);
+        }
+      }
       if (!player) {
         return res.status(404).json({ message: "Player not found" });
       }
@@ -10834,23 +10840,35 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         const { getDraft2026Players } = await import('./draft-2026-data');
         const draftBoardPlayers = getDraft2026Players();
         
+        // Normalize names by stripping suffixes like Jr., Sr., II, III, IV, V
+        const NAME_SUFFIXES = /\s+(jr\.?|sr\.?|ii|iii|iv|v|2nd|3rd)$/i;
+        const normalizeName = (name: string) => name.toLowerCase().trim().replace(NAME_SUFFIXES, '').trim();
+        const getLastName = (fullName: string) => {
+          const cleaned = fullName.replace(NAME_SUFFIXES, '').trim();
+          return cleaned.split(' ').slice(-1)[0]?.toLowerCase() || '';
+        };
+        
         // Build a map of drafted player names for matching (since draft board uses custom IDs)
         const draftedPlayerNames = new Set<string>();
+        const draftedNormalizedNames = new Set<string>();
         const draftedLastNamePos = new Set<string>();
         for (const pick of draftPicks) {
           const p = allPlayers[pick.player_id];
           if (p?.full_name) {
             draftedPlayerNames.add(p.full_name.toLowerCase());
-            const lastName = p.last_name || p.full_name.split(' ').slice(-1)[0];
+            draftedNormalizedNames.add(normalizeName(p.full_name));
+            const lastName = getLastName(p.full_name);
             if (lastName && p.position) {
-              draftedLastNamePos.add(`${lastName.toLowerCase()}|${p.position}`);
+              draftedLastNamePos.add(`${lastName}|${p.position}`);
             }
           }
           if (pick.metadata?.first_name && pick.metadata?.last_name) {
-            draftedPlayerNames.add(`${pick.metadata.first_name} ${pick.metadata.last_name}`.toLowerCase());
+            const metaName = `${pick.metadata.first_name} ${pick.metadata.last_name}`;
+            draftedPlayerNames.add(metaName.toLowerCase());
+            draftedNormalizedNames.add(normalizeName(metaName));
             const pos = pick.metadata?.position || p?.position;
             if (pos) {
-              draftedLastNamePos.add(`${pick.metadata.last_name.toLowerCase()}|${pos}`);
+              draftedLastNamePos.add(`${getLastName(metaName)}|${pos}`);
             }
           }
           
@@ -10866,9 +10884,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
                   const parsed = parseDevyNote(val);
                   if (parsed) {
                     draftedPlayerNames.add(parsed.devyName.toLowerCase());
-                    const devyLast = parsed.devyName.split(' ').slice(-1)[0];
+                    draftedNormalizedNames.add(normalizeName(parsed.devyName));
+                    const devyLast = getLastName(parsed.devyName);
                     if (devyLast && parsed.devyPosition) {
-                      draftedLastNamePos.add(`${devyLast.toLowerCase()}|${parsed.devyPosition}`);
+                      draftedLastNamePos.add(`${devyLast}|${parsed.devyPosition}`);
                     }
                     break;
                   }
@@ -10880,6 +10899,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         
         // Also check all roster players across all teams to exclude already-owned prospects
         const ownedPlayerNames = new Set<string>();
+        const ownedNormalizedNames = new Set<string>();
         const ownedLastNamePos = new Set<string>();
         for (const roster of rosters) {
           if (!roster?.players) continue;
@@ -10887,9 +10907,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             const p = allPlayers[pid];
             if (p?.full_name) {
               ownedPlayerNames.add(p.full_name.toLowerCase());
-              const lastName = p.last_name || p.full_name.split(' ').slice(-1)[0];
+              ownedNormalizedNames.add(normalizeName(p.full_name));
+              const lastName = getLastName(p.full_name);
               if (lastName && p.position) {
-                ownedLastNamePos.add(`${lastName.toLowerCase()}|${p.position}`);
+                ownedLastNamePos.add(`${lastName}|${p.position}`);
               }
             }
           }
@@ -10900,9 +10921,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
                 const parsed = parseDevyNote(val.trim());
                 if (parsed) {
                   ownedPlayerNames.add(parsed.devyName.toLowerCase());
-                  const devyLast = parsed.devyName.split(' ').slice(-1)[0];
+                  ownedNormalizedNames.add(normalizeName(parsed.devyName));
+                  const devyLast = getLastName(parsed.devyName);
                   if (devyLast && parsed.devyPosition) {
-                    ownedLastNamePos.add(`${devyLast.toLowerCase()}|${parsed.devyPosition}`);
+                    ownedLastNamePos.add(`${devyLast}|${parsed.devyPosition}`);
                   }
                 }
               }
@@ -10912,9 +10934,12 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         
         const isProspectTaken = (prospectName: string, prospectPos: string) => {
           const nameLower = prospectName.toLowerCase();
+          const nameNormalized = normalizeName(prospectName);
           if (draftedPlayerNames.has(nameLower)) return true;
+          if (draftedNormalizedNames.has(nameNormalized)) return true;
           if (ownedPlayerNames.has(nameLower)) return true;
-          const lastName = prospectName.split(' ').slice(-1)[0]?.toLowerCase();
+          if (ownedNormalizedNames.has(nameNormalized)) return true;
+          const lastName = getLastName(prospectName);
           if (lastName) {
             const posGroup = prospectPos.replace(/[0-9T]/g, '') || prospectPos;
             const posVariants = [prospectPos, posGroup];
