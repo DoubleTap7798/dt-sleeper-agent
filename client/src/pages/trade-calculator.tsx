@@ -944,7 +944,7 @@ function TradeSide({
   return (
     <Card data-testid={`card-trade-side-${side.toLowerCase()}`}>
       <CardHeader className="pb-4">
-        <CardTitle className="text-lg">Team {side}</CardTitle>
+        <CardTitle className="text-base">Team {side}</CardTitle>
         <Select
           value={roster?.ownerId || ""}
           onValueChange={onTeamChange}
@@ -964,7 +964,7 @@ function TradeSide({
       <CardContent className="space-y-4">
         {selectedAssets.length > 0 && (
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Trading away:</p>
+            <p className="text-xs text-muted-foreground">Trading away:</p>
             <div className="flex flex-wrap gap-2">
               {selectedAssets.map((asset) => (
                 <Badge
@@ -989,14 +989,14 @@ function TradeSide({
               ))}
             </div>
             <div className="flex justify-between items-center pt-2 border-t">
-              <span className="text-sm font-medium flex items-center gap-1">
+              <span className="text-xs font-medium flex items-center gap-1">
                 Total Value
                 <InfoTooltip
                   title="Total Dynasty Value"
                   description="Sum of all dynasty values for players and picks being traded. Values are on a 0-10,000 scale based on production, age, role security, and market consensus."
                 />
               </span>
-              <span className="font-bold font-mono text-primary">{totalValue.toLocaleString()}</span>
+              <span className="text-sm font-bold font-mono text-primary">{totalValue.toLocaleString()}</span>
             </div>
           </div>
         )}
@@ -1004,71 +1004,85 @@ function TradeSide({
         {roster && (
           <>
             <Separator />
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">Players:</p>
-              <ScrollArea className="h-[200px]">
-                <div className="space-y-1">
-                  {roster.players
-                    .filter((p) => !selectedAssets.find((a) => a.id === p.id))
-                    .map((player) => (
-                      <button
-                        key={player.id}
-                        onClick={() => onAddAsset(player)}
-                        className="w-full flex items-center justify-between p-2 rounded-md hover-elevate text-left"
-                        data-testid={`button-add-player-${player.id}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={`text-xs ${getPositionColorClass(player.position)}`}>
-                            {player.position}
-                          </Badge>
-                          <span className="text-sm">
-                            <span className="sm:hidden">{abbreviateName(player.name)}</span>
-                            <span className="hidden sm:inline">{player.name}</span>
+            <Collapsible defaultOpen>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-between gap-2 text-muted-foreground group" data-testid={`button-toggle-players-${side.toLowerCase()}`}>
+                  <span className="text-xs">Players ({roster.players.filter((p) => !selectedAssets.find((a) => a.id === p.id)).length})</span>
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <ScrollArea className="h-[200px]">
+                  <div className="space-y-0.5">
+                    {roster.players
+                      .filter((p) => !selectedAssets.find((a) => a.id === p.id))
+                      .map((player) => (
+                        <button
+                          key={player.id}
+                          onClick={() => onAddAsset(player)}
+                          className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover-elevate text-left"
+                          data-testid={`button-add-player-${player.id}`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className={`text-xs ${getPositionColorClass(player.position)}`}>
+                              {player.position}
+                            </Badge>
+                            <span className="text-xs">
+                              <span className="sm:hidden">{abbreviateName(player.name)}</span>
+                              <span className="hidden sm:inline">{player.name}</span>
+                            </span>
+                          </div>
+                          <span className="text-xs font-mono text-primary">
+                            {player.value.toLocaleString()}
                           </span>
-                        </div>
-                        <span className="text-xs font-mono text-primary">
-                          {player.value.toLocaleString()}
-                        </span>
-                      </button>
-                    ))}
-                </div>
-              </ScrollArea>
-            </div>
+                        </button>
+                      ))}
+                  </div>
+                </ScrollArea>
+              </CollapsibleContent>
+            </Collapsible>
 
             {roster.picks.length > 0 && (
               <>
                 <Separator />
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <p className="text-sm text-muted-foreground">
-                      {isStartup ? "Startup & Future Picks:" : "Draft Picks:"}
-                    </p>
-                    {isStartup && (
-                      <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
-                        {draftType === "snake" ? (reversalRound && reversalRound > 1 ? `Snake (R${reversalRound} reversal)` : "Snake") : draftType === "linear" ? "Linear" : "Startup"}
-                      </Badge>
-                    )}
-                  </div>
-                  <ScrollArea className={isStartup ? "h-[240px]" : "h-[120px]"}>
-                    <div className="space-y-1">
-                      {roster.picks
-                        .filter((p) => !selectedAssets.find((a) => a.id === p.id))
-                        .map((pick) => (
-                          <button
-                            key={pick.id}
-                            onClick={() => onAddAsset(pick)}
-                            className="w-full flex items-center justify-between p-2 rounded-md hover-elevate text-left"
-                            data-testid={`button-add-pick-${pick.id}`}
-                          >
-                            <span className="text-sm">{pick.name}</span>
-                            <span className="text-xs font-mono text-primary">
-                              {pick.value.toLocaleString()}
-                            </span>
-                          </button>
-                        ))}
-                    </div>
-                  </ScrollArea>
-                </div>
+                <Collapsible defaultOpen>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full justify-between gap-2 text-muted-foreground group" data-testid={`button-toggle-picks-${side.toLowerCase()}`}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs">
+                          {isStartup ? "Startup & Future Picks" : "Draft Picks"} ({roster.picks.filter((p) => !selectedAssets.find((a) => a.id === p.id)).length})
+                        </span>
+                        {isStartup && (
+                          <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
+                            {draftType === "snake" ? (reversalRound && reversalRound > 1 ? `Snake (R${reversalRound} reversal)` : "Snake") : draftType === "linear" ? "Linear" : "Startup"}
+                          </Badge>
+                        )}
+                      </div>
+                      <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <ScrollArea className={isStartup ? "h-[240px]" : "h-[120px]"}>
+                      <div className="space-y-0.5">
+                        {roster.picks
+                          .filter((p) => !selectedAssets.find((a) => a.id === p.id))
+                          .map((pick) => (
+                            <button
+                              key={pick.id}
+                              onClick={() => onAddAsset(pick)}
+                              className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover-elevate text-left"
+                              data-testid={`button-add-pick-${pick.id}`}
+                            >
+                              <span className="text-xs">{pick.name}</span>
+                              <span className="text-xs font-mono text-primary">
+                                {pick.value.toLocaleString()}
+                              </span>
+                            </button>
+                          ))}
+                      </div>
+                    </ScrollArea>
+                  </CollapsibleContent>
+                </Collapsible>
               </>
             )}
 
