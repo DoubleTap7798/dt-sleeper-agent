@@ -1,5 +1,5 @@
 // DT Sleeper Agent Service Worker
-const CACHE_NAME = 'dt-sleeper-v1';
+const CACHE_NAME = 'dt-sleeper-v3';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
