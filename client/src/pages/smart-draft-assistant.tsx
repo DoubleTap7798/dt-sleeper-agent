@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Brain, Target, AlertCircle, Zap, TrendingUp } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 interface MyPick {
   round: number;
@@ -102,23 +103,21 @@ export default function SmartDraftAssistantPage() {
   return (
     <PremiumGate featureName="Smart Draft Assistant">
       <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Brain className="h-6 w-6 text-primary" />
-            <div>
-              <h1 className="text-2xl font-bold" data-testid="text-page-title">Smart Draft Assistant</h1>
-              <p className="text-sm text-muted-foreground">AI-powered recommendations for your draft picks</p>
-            </div>
-          </div>
-          <Badge
-            variant="outline"
-            className={data.draftStatus === "drafting" ? "text-emerald-400 border-emerald-400/30" : ""}
-            data-testid="badge-draft-status"
-          >
-            {data.draftStatus === "drafting" && <Zap className="h-3 w-3 mr-1" />}
-            {statusLabel}
-          </Badge>
-        </div>
+        <PageHeader
+          title="Smart Draft Assistant"
+          subtitle="AI-powered recommendations for your draft picks"
+          icon={<Brain className="h-6 w-6 text-primary" />}
+          actions={
+            <Badge
+              variant="outline"
+              className={data.draftStatus === "drafting" ? "text-emerald-400 border-emerald-400/30" : ""}
+              data-testid="badge-draft-status"
+            >
+              {data.draftStatus === "drafting" && <Zap className="h-3 w-3 mr-1" />}
+              {statusLabel}
+            </Badge>
+          }
+        />
 
         <Card data-testid="card-roster-needs">
           <CardHeader>

@@ -20,6 +20,7 @@ import {
   Save,
   Loader2,
 } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 interface NotificationPrefs {
   trades: boolean;
@@ -112,13 +113,11 @@ export default function NotificationPreferencesPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-2xl mx-auto">
-      <div className="flex items-center gap-3">
-        <Bell className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Notification Preferences</h1>
-          <p className="text-sm text-muted-foreground">Choose which alerts you want to receive</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Notification Preferences"
+        subtitle="Choose which alerts you want to receive"
+        icon={<Bell className="h-6 w-6 text-primary" />}
+      />
 
       <Card data-testid="card-notification-prefs">
         <CardHeader>

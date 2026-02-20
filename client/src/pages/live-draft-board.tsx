@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LayoutGrid, AlertCircle, Radio } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 interface DraftPick {
   round: number;
@@ -103,30 +104,27 @@ export default function LiveDraftBoardPage() {
   return (
     <PremiumGate featureName="Live Draft Board">
       <div className="p-4 md:p-6 space-y-6 max-w-full mx-auto">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <LayoutGrid className="h-6 w-6 text-primary" />
-            <div>
-              <h1 className="text-2xl font-bold" data-testid="text-page-title">Live Draft Board</h1>
-              <p className="text-sm text-muted-foreground">
-                {data.totalRounds} rounds | {data.totalTeams} teams | Auto-refreshing
-              </p>
+        <PageHeader
+          title="Live Draft Board"
+          subtitle={`${data.totalRounds} rounds | ${data.totalTeams} teams | Auto-refreshing`}
+          icon={<LayoutGrid className="h-6 w-6 text-primary" />}
+          actions={
+            <div className="flex items-center gap-2">
+              {data.status === "in_progress" && (
+                <Radio className="h-4 w-4 text-emerald-400 animate-pulse" />
+              )}
+              <Badge variant="outline" className={statusConfig.className} data-testid="badge-draft-status">
+                {statusConfig.label}
+              </Badge>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {data.status === "in_progress" && (
-              <Radio className="h-4 w-4 text-emerald-400 animate-pulse" />
-            )}
-            <Badge variant="outline" className={statusConfig.className} data-testid="badge-draft-status">
-              {statusConfig.label}
-            </Badge>
-          </div>
-        </div>
+          }
+        />
 
+        <p className="text-xs text-muted-foreground md:hidden">Scroll horizontally to see all teams</p>
         <Card>
-          <CardContent className="pt-4 overflow-x-auto">
+          <CardContent className="pt-4 overflow-x-auto -mx-2 px-2">
             <div className="min-w-max">
-              <div className="grid" style={{ gridTemplateColumns: `80px repeat(${teamNames.length}, minmax(120px, 1fr))` }}>
+              <div className="grid" style={{ gridTemplateColumns: `60px repeat(${teamNames.length}, minmax(100px, 1fr))` }}>
                 <div className="p-2 text-xs font-medium text-muted-foreground sticky left-0 bg-card z-10" />
                 {teamNames.map((name, idx) => (
                   <div key={idx} className="p-2 text-center border-b border-border" data-testid={`header-team-${idx}`}>

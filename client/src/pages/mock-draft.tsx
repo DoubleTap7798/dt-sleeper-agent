@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Dices, Play, Loader2, Search, User, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/page-header";
 
 interface DraftPlayer {
   id: string;
@@ -211,17 +212,12 @@ export default function MockDraftPage() {
     <PremiumGate featureName="Mock Draft Simulator">
       <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Dices className="h-6 w-6 text-primary" />
-            <div>
-              <h1 className="text-2xl font-bold" data-testid="text-page-title">Mock Draft</h1>
-              <p className="text-sm text-muted-foreground">
-                {draftState.isComplete
-                  ? "Draft complete!"
-                  : `Pick ${draftState.currentPick + 1} of ${draftState.totalPicks}`}
-              </p>
-            </div>
-          </div>
+          <PageHeader
+            title="Mock Draft"
+            subtitle={draftState.isComplete ? "Draft complete!" : `Pick ${draftState.currentPick + 1} of ${draftState.totalPicks}`}
+            icon={<Dices className="h-6 w-6 text-primary" />}
+            backTo="/league"
+          />
           <div className="flex items-center gap-2">
             {isUserTurn() && (
               <Badge variant="default" className="animate-pulse" data-testid="badge-your-turn">

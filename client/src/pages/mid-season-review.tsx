@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart3, TrendingUp, TrendingDown, Target, Shield, AlertTriangle, CheckCircle, Lightbulb } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 interface MidSeasonReview {
   overallGrade: string;
@@ -82,13 +83,12 @@ export default function MidSeasonReviewPage() {
   return (
     <PremiumGate featureName="Mid-Season Review">
       <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
-        <div className="flex items-center gap-3">
-          <BarChart3 className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">Mid-Season Review</h1>
-            <p className="text-sm text-muted-foreground">Week {data?.week} — {team.name}</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Mid-Season Review"
+          subtitle={`Week ${data?.week} — ${team.name}`}
+          icon={<BarChart3 className="h-6 w-6 text-primary" />}
+          backTo="/league"
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>

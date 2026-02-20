@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollText, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 interface TeamGrade {
   teamName: string;
@@ -84,13 +85,12 @@ export default function DraftRecapPage() {
   return (
     <PremiumGate featureName="Draft Recap & Grades">
       <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
-        <div className="flex items-center gap-3">
-          <ScrollText className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">Draft Recap & Grades</h1>
-            <p className="text-sm text-muted-foreground">AI-powered post-draft analysis</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Draft Recap & Grades"
+          subtitle="AI-powered post-draft analysis"
+          icon={<ScrollText className="h-6 w-6 text-primary" />}
+          backTo="/league"
+        />
 
         {data.overallSummary && (
           <Card data-testid="card-overall-summary">

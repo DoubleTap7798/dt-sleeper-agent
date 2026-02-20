@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { DollarSign, Plus, Trash2, TrendingUp, TrendingDown, Wallet, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/page-header";
 
 interface FinanceEntry {
   id: string;
@@ -131,19 +132,17 @@ export default function LeagueAccountingPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Wallet className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">League Accounting</h1>
-            <p className="text-sm text-muted-foreground">Track dues, winnings, and expenses</p>
-          </div>
-        </div>
-        <Button onClick={() => setShowForm(!showForm)} data-testid="button-toggle-form">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Entry
-        </Button>
-      </div>
+      <PageHeader
+        title="League Accounting"
+        subtitle="Track dues, winnings, and expenses"
+        icon={<Wallet className="h-6 w-6 text-primary" />}
+        actions={
+          <Button onClick={() => setShowForm(!showForm)} data-testid="button-toggle-form">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Entry
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card data-testid="card-total-dues">

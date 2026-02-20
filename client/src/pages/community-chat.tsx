@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/page-header";
 
 interface ChatMessageData {
   id: string;
@@ -63,13 +64,12 @@ export default function CommunityChatPage() {
 
   return (
     <div className="flex flex-col h-full max-w-3xl mx-auto p-4 md:p-6">
-      <div className="flex items-center gap-3 mb-4">
-        <MessageCircle className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Community Chat</h1>
-          <p className="text-sm text-muted-foreground">Chat with the DT Sleeper Agent community</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Community Chat"
+        subtitle="Chat with the DT Sleeper Agent community"
+        icon={<MessageCircle className="h-6 w-6 text-primary" />}
+        backTo="/"
+      />
 
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4" data-testid="div-messages">

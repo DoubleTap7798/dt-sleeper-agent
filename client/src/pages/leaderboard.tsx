@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient, CACHE_TIMES } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import { Trophy, TrendingUp, Crown, Medal, Star, RefreshCw } from "lucide-react"
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { PageHeader } from "@/components/page-header";
 
 interface LeaderboardEntry {
   id: string;
@@ -71,15 +72,15 @@ export default function LeaderboardPage() {
   usePageTitle("Leaderboard");
 
   const { data: leaderboard, isLoading } = useQuery<LeaderboardEntry[]>({
-    queryKey: ["/api/leaderboard", sortBy],
-    ...CACHE_TIMES.STABLE,
+    queryKey: [`/api/leaderboard?sort=${sortBy}`],
+    staleTime: 1000 * 60 * 2,
   });
 
   const refreshStats = useMutation({
     mutationFn: () => apiRequest("POST", "/api/leaderboard/refresh"),
     onSuccess: () => {
       toast({ title: "Your stats have been refreshed!" });
-      queryClient.invalidateQueries({ queryKey: ["/api/leaderboard"] });
+      queryClient.invalidateQueries({ predicate: (query) => (query.queryKey[0] as string)?.startsWith("/api/leaderboard") });
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
     },
     onError: async (err: any) => {
@@ -101,37 +102,37 @@ export default function LeaderboardPage() {
   const myRank = leaderboard ? leaderboard.findIndex(e => e.userId === user?.id) + 1 : 0;
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2" data-testid="text-leaderboard-title">
-            <Trophy className="h-6 w-6 text-primary" /> Community Leaderboard
-          </h1>
-          <p className="text-muted-foreground text-sm">Global rankings across all DT Sleeper Agent users</p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[180px]" data-testid="select-sort">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_OPTIONS.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => refreshStats.mutate()}
-            disabled={refreshStats.isPending}
-            data-testid="button-refresh-my-stats"
-          >
-            <RefreshCw className={`h-4 w-4 mr-1 ${refreshStats.isPending ? "animate-spin" : ""}`} />
-            {refreshStats.isPending ? "Refreshing..." : "Update My Stats"}
-          </Button>
-        </div>
-      </div>
+    <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
+      <PageHeader
+        title="Community Leaderboard"
+        subtitle="Global rankings across all DT Sleeper Agent users"
+        icon={<Trophy className="h-6 w-6 text-primary" />}
+        backTo="/"
+        actions={
+          <div className="flex items-center gap-3 flex-wrap">
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-[180px]" data-testid="select-sort">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => refreshStats.mutate()}
+              disabled={refreshStats.isPending}
+              data-testid="button-refresh-my-stats"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${refreshStats.isPending ? "animate-spin" : ""}`} />
+              {refreshStats.isPending ? "Refreshing..." : "Update My Stats"}
+            </Button>
+          </div>
+        }
+      />
 
       {myEntry && myRank > 0 && (
         <Card className="border-primary/30" data-testid="card-my-rank">

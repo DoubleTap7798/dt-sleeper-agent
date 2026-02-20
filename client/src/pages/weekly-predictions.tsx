@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Target, Check, Crown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/page-header";
 
 interface MatchupTeam {
   rosterId: number;
@@ -67,12 +68,12 @@ export default function WeeklyPredictionsPage() {
   const [week, setWeek] = useState<number>(1);
 
   const { data, isLoading } = useQuery<PredictionsData>({
-    queryKey: ["/api/fantasy/predictions", leagueId, week],
+    queryKey: [`/api/fantasy/predictions/${leagueId}?week=${week}`],
     enabled: !!leagueId,
   });
 
   const { data: leaderboard, isLoading: lbLoading } = useQuery<LeaderboardEntry[]>({
-    queryKey: ["/api/fantasy/predictions-leaderboard", leagueId],
+    queryKey: [`/api/fantasy/predictions-leaderboard/${leagueId}`],
     enabled: !!leagueId,
   });
 
@@ -87,8 +88,8 @@ export default function WeeklyPredictionsPage() {
     },
     onSuccess: () => {
       toast({ title: "Prediction submitted!" });
-      queryClient.invalidateQueries({ queryKey: ["/api/fantasy/predictions", leagueId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/fantasy/predictions-leaderboard", leagueId] });
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0]?.toString().startsWith(`/api/fantasy/predictions/${leagueId}`) });
+      queryClient.invalidateQueries({ queryKey: [`/api/fantasy/predictions-leaderboard/${leagueId}`] });
     },
     onError: (err: any) => toast({ title: "Failed to submit", description: err.message, variant: "destructive" }),
   });
@@ -131,45 +132,32 @@ export default function WeeklyPredictionsPage() {
   return (
     <PremiumGate featureName="Weekly Predictions">
       <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Target className="h-6 w-6 text-primary" />
-            <div>
-              <h1 className="text-2xl font-bold" data-testid="text-page-title">Weekly Predictions</h1>
-              <p className="text-sm text-muted-foreground">Pick the winners for each matchup</p>
+        <PageHeader
+          title="Weekly Predictions"
+          subtitle="Pick the winners for each matchup"
+          icon={<Target className="h-6 w-6 text-primary" />}
+          backTo="/league"
+          actions={
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={() => setWeek(Math.max(1, week - 1))} disabled={week <= 1} data-testid="button-prev-week">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Select value={String(week)} onValueChange={(v) => setWeek(Number(v))}>
+                <SelectTrigger className="w-[120px]" data-testid="select-week">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: MAX_WEEK }, (_, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>Week {i + 1}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="icon" onClick={() => setWeek(Math.min(MAX_WEEK, week + 1))} disabled={week >= MAX_WEEK} data-testid="button-next-week">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setWeek(Math.max(1, week - 1))}
-              disabled={week <= 1}
-              data-testid="button-prev-week"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Select value={String(week)} onValueChange={(v) => setWeek(Number(v))}>
-              <SelectTrigger className="w-[120px]" data-testid="select-week">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: MAX_WEEK }, (_, i) => (
-                  <SelectItem key={i + 1} value={String(i + 1)}>Week {i + 1}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setWeek(Math.min(MAX_WEEK, week + 1))}
-              disabled={week >= MAX_WEEK}
-              data-testid="button-next-week"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+          }
+        />
 
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Week {currentWeek} Matchups</h2>

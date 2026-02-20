@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DollarSign, TrendingUp, TrendingDown, PiggyBank } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 interface LeagueData {
   leagueName: string;
@@ -66,13 +67,12 @@ export default function AllLeaguesAccountingPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-center gap-3">
-        <PiggyBank className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">All-Leagues Accounting</h1>
-          <p className="text-sm text-muted-foreground">Financial summary across all your leagues</p>
-        </div>
-      </div>
+      <PageHeader
+        title="All-Leagues Accounting"
+        subtitle="Financial summary across all your leagues"
+        icon={<PiggyBank className="h-6 w-6 text-primary" />}
+        backTo="/"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card data-testid="card-total-invested">

@@ -18,15 +18,14 @@ import {
   UserX,
   Clock,
   Search,
-  Award,
   Target,
   Zap,
-  Star,
   X,
 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { PageHeader } from "@/components/page-header";
 
 interface ProfileData {
   id: string;
@@ -180,7 +179,8 @@ export default function UserProfilePage() {
     : "0.0";
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
+      <PageHeader title="Profile" backTo="/" />
       <Card data-testid="card-profile-header">
         <CardContent className="pt-6">
           <div className="flex flex-wrap items-start gap-6">
@@ -253,63 +253,47 @@ export default function UserProfilePage() {
       </Card>
 
       {profile.stats ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4" data-testid="grid-stats">
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <Trophy className="h-6 w-6 mx-auto mb-1 text-primary" />
-              <div className="text-2xl font-bold" data-testid="text-championships">{profile.stats.championships}</div>
-              <p className="text-xs text-muted-foreground">Championships</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <TrendingUp className="h-6 w-6 mx-auto mb-1 text-primary" />
-              <div className="text-2xl font-bold" data-testid="text-record">{profile.stats.totalWins}-{profile.stats.totalLosses}{profile.stats.totalTies > 0 ? `-${profile.stats.totalTies}` : ""}</div>
-              <p className="text-xs text-muted-foreground">Career Record ({winPct}%)</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <Target className="h-6 w-6 mx-auto mb-1 text-primary" />
-              <div className="text-2xl font-bold" data-testid="text-playoffs">{profile.stats.playoffAppearances}</div>
-              <p className="text-xs text-muted-foreground">Playoff Appearances</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <Zap className="h-6 w-6 mx-auto mb-1 text-primary" />
-              <div className="text-2xl font-bold" data-testid="text-points">{profile.stats.totalPointsFor.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Career Points</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <Star className="h-6 w-6 mx-auto mb-1 text-primary" />
-              <div className="text-2xl font-bold" data-testid="text-best-finish">{profile.stats.bestFinish ? `#${profile.stats.bestFinish}` : "--"}</div>
-              <p className="text-xs text-muted-foreground">Best Finish</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <Award className="h-6 w-6 mx-auto mb-1 text-primary" />
-              <div className="text-2xl font-bold" data-testid="text-total-leagues">{profile.stats.totalLeagues}</div>
-              <p className="text-xs text-muted-foreground">Total Leagues</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <Users className="h-6 w-6 mx-auto mb-1 text-primary" />
-              <div className="text-2xl font-bold" data-testid="text-active-leagues">{profile.stats.activeLeagues}</div>
-              <p className="text-xs text-muted-foreground">Active Leagues</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <div className="text-2xl font-bold" data-testid="text-win-pct">{winPct}%</div>
-              <p className="text-xs text-muted-foreground">Win Rate</p>
-            </CardContent>
-          </Card>
-        </div>
+        <Card data-testid="grid-stats">
+          <CardContent className="pt-4 pb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+              <div>
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Trophy className="h-4 w-4 text-primary" />
+                </div>
+                <div className="text-xl font-bold" data-testid="text-championships">{profile.stats.championships}</div>
+                <p className="text-xs text-muted-foreground">Titles</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                </div>
+                <div className="text-xl font-bold" data-testid="text-record">{profile.stats.totalWins}-{profile.stats.totalLosses}</div>
+                <p className="text-xs text-muted-foreground">{winPct}% Win Rate</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Target className="h-4 w-4 text-primary" />
+                </div>
+                <div className="text-xl font-bold" data-testid="text-playoffs">{profile.stats.playoffAppearances}</div>
+                <p className="text-xs text-muted-foreground">Playoffs</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Zap className="h-4 w-4 text-primary" />
+                </div>
+                <div className="text-xl font-bold" data-testid="text-points">{profile.stats.totalPointsFor.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">Career Pts</p>
+              </div>
+            </div>
+            {isOwnProfile && (
+              <div className="mt-3 pt-3 border-t border-border/50 text-center">
+                <Link href="/" className="text-xs text-primary hover:underline" data-testid="link-career-dashboard">
+                  View full career stats on Dashboard
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       ) : (
         <Card>
           <CardContent className="pt-6 text-center">

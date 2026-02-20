@@ -485,7 +485,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
         })}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-4 space-y-3">
+      <SidebarFooter className="border-t border-sidebar-border p-3 space-y-2">
         {!subLoading && !isPremium && (
           <Button
             onClick={() => setLocation("/upgrade")}
@@ -512,18 +512,18 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
           </Button>
         </a>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Link href={user?.id ? `/profile/${user.id}` : "#"} data-testid="link-my-profile">
-            <Avatar className="h-9 w-9 cursor-pointer">
+            <Avatar className="h-8 w-8 cursor-pointer shrink-0">
               <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
-              <AvatarFallback className="bg-primary text-primary-foreground">
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                 {getInitials()}
               </AvatarFallback>
             </Avatar>
           </Link>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <Link href={user?.id ? `/profile/${user.id}` : "#"} className="hover:underline">
+            <div className="flex items-center gap-1.5">
+              <Link href={user?.id ? `/profile/${user.id}` : "#"} className="hover:underline min-w-0">
                 <p className="text-sm font-medium truncate" data-testid="text-user-name">
                   {user?.firstName && user?.lastName
                     ? `${user.firstName} ${user.lastName}`
@@ -531,7 +531,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                 </p>
               </Link>
               {isPremium && (
-                <Badge variant="outline" className="text-primary border-primary text-[10px] px-1.5 py-0" data-testid="badge-premium">
+                <Badge variant="outline" className="text-primary border-primary text-[10px] px-1.5 py-0 shrink-0" data-testid="badge-premium">
                   <Crown className="h-3 w-3 mr-0.5" />
                   {isGrandfathered ? "OG" : "PRO"}
                 </Badge>

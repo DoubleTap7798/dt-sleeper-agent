@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { ArrowLeftRight, Loader2, Search, X, Check, AlertTriangle, RotateCcw, ThumbsUp, ThumbsDown } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
 
 interface PlayerOption {
   playerId: string;
@@ -103,13 +104,11 @@ export default function TradeAnalyzerPage() {
   return (
     <PremiumGate featureName="Trade Analyzer AI">
       <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
-        <div className="flex items-center gap-3">
-          <ArrowLeftRight className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">Trade Analyzer AI</h1>
-            <p className="text-sm text-muted-foreground">Get AI-powered trade recommendations</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Trade Analyzer AI"
+          subtitle="Get AI-powered trade recommendations"
+          icon={<ArrowLeftRight className="h-6 w-6 text-primary" />}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
