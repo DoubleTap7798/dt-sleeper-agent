@@ -38,6 +38,15 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 - **Friends System**: Users can search for other app users, send/accept/reject friend requests, and manage their friends list. Friend status shown on profile pages.
 - **User Profile**: Public profile page (`/profile/:userId`) showing career stats, friend count, and membership info. Own profile includes friend management and user search.
 - **Community Leaderboard**: Global rankings page (`/leaderboard`) aggregating stats across all registered users. Sortable by championships, wins, win%, points, or leagues. Stats computed from Sleeper API with 1-hour refresh cooldown.
+- **League Accounting**: Per-league financial ledger (`/league/accounting`) for tracking dues, prizes, penalties. All-leagues summary page (`/accounting`) aggregates totals across all leagues.
+- **Weekly Predictions Leaderboard**: Users predict matchup winners each week (`/league/predictions`), track accuracy, and compete on a predictions leaderboard. Premium-gated.
+- **Community Chat Room**: Global chat room (`/chat`) for all app users, using Sleeper usernames. Polling-based real-time updates (5s refresh). Messages stored in database.
+- **Draft Recap & Grades**: AI-powered post-draft analysis (`/league/draft-recap`) using GPT-4o-mini. Letter grades per team, best/worst pick analysis. Premium-gated.
+- **Mock Draft Simulator**: Practice drafts against AI opponents (`/league/mock-draft`). Uses league settings, AI picks based on search rank/value. Premium-gated.
+- **Live Draft Board**: Real-time draft board (`/league/live-draft`) pulling picks from Sleeper draft API. Auto-refreshes every 10 seconds. Premium-gated.
+- **Smart Draft Assistant**: AI recommendations during active drafts (`/league/draft-assistant`). Shows upcoming picks, roster needs, suggested players. Premium-gated.
+- **Notification Preferences**: User-level settings page (`/settings/notifications`) to toggle alerts for trades, waivers, injuries, scoring, free agents, draft picks, league announcements.
+- **Mobile PWA Enhancements**: Web manifest, service worker for offline support, install-to-homescreen prompt banner for mobile users.
 
 ### System Design Choices
 - **Shared Types**: Database schemas and models shared between frontend and backend.

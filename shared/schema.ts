@@ -235,3 +235,81 @@ export const insertUserStatsSchema = createInsertSchema(userStats).omit({
 
 export type UserStatsEntry = typeof userStats.$inferSelect;
 export type InsertUserStats = z.infer<typeof insertUserStatsSchema>;
+
+export const leagueFinances = pgTable("league_finances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  leagueId: text("league_id").notNull(),
+  leagueName: text("league_name").notNull(),
+  season: text("season").notNull(),
+  type: text("type").notNull(),
+  description: text("description").notNull(),
+  amount: integer("amount").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLeagueFinanceSchema = createInsertSchema(leagueFinances).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type LeagueFinance = typeof leagueFinances.$inferSelect;
+export type InsertLeagueFinance = z.infer<typeof insertLeagueFinanceSchema>;
+
+export const weeklyPredictions = pgTable("weekly_predictions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  leagueId: text("league_id").notNull(),
+  week: integer("week").notNull(),
+  matchupId: integer("matchup_id").notNull(),
+  predictedWinnerId: text("predicted_winner_id").notNull(),
+  actualWinnerId: text("actual_winner_id"),
+  correct: boolean("correct"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWeeklyPredictionSchema = createInsertSchema(weeklyPredictions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type WeeklyPrediction = typeof weeklyPredictions.$inferSelect;
+export type InsertWeeklyPrediction = z.infer<typeof insertWeeklyPredictionSchema>;
+
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  username: text("username").notNull(),
+  avatarUrl: text("avatar_url"),
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(),
+  trades: boolean("trades").default(true),
+  waivers: boolean("waivers").default(true),
+  injuries: boolean("injuries").default(true),
+  scoringUpdates: boolean("scoring_updates").default(true),
+  freeAgents: boolean("free_agents").default(true),
+  draftPicks: boolean("draft_picks").default(true),
+  leagueAnnouncements: boolean("league_announcements").default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertNotificationPreferencesSchema = createInsertSchema(notificationPreferences).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferencesSchema>;

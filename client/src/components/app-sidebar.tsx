@@ -46,6 +46,11 @@ import {
   Map,
   ListChecks,
   Brain,
+  DollarSign,
+  Bell,
+  Radio,
+  Award,
+  Dices,
 } from "lucide-react";
 import {
   Sidebar,
@@ -120,6 +125,8 @@ const navigationGroups: NavGroup[] = [
       { title: "Playoff Bracket", url: "/league/bracket", icon: GitBranch, requiresLeague: true },
       { title: "Rivalries", url: "/league/rivalries", icon: Swords, requiresLeague: true },
       { title: "Trophy Room", url: "/league/trophies", icon: Trophy, requiresLeague: true },
+      { title: "Accounting", url: "/league/accounting", icon: DollarSign, requiresLeague: true },
+      { title: "Predictions", url: "/league/predictions", icon: Target, requiresLeague: true, premium: true },
       { title: "League Info", url: "/league/info", icon: Settings, requiresLeague: true },
       { title: "History", url: "/league/timeline", icon: Clock, requiresLeague: true },
     ],
@@ -175,6 +182,10 @@ const navigationGroups: NavGroup[] = [
       { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
       { title: "Draft War Room", url: "/league/war-room", icon: Swords, requiresLeague: true, premium: true },
       { title: "Draft Predictions", url: "/league/draft-predictions", icon: Brain, requiresLeague: true, premium: true },
+      { title: "Mock Draft", url: "/league/mock-draft", icon: Dices, requiresLeague: true, premium: true },
+      { title: "Live Draft Board", url: "/league/live-draft", icon: Radio, requiresLeague: true, premium: true },
+      { title: "Draft Assistant", url: "/league/draft-assistant", icon: Sparkles, requiresLeague: true, premium: true },
+      { title: "Draft Recap", url: "/league/draft-recap", icon: Award, requiresLeague: true, premium: true },
       { title: "Pick Values", url: "/league/draft-pick-values", icon: TrendingUp },
     ],
   },
@@ -196,7 +207,10 @@ const standaloneItems: NavItem[] = [
   { title: "AI Assistant", url: "/league/ai-chat", icon: Bot, description: "AI fantasy football advisor", premium: true },
   { title: "Trash Talk", url: "/league/trash-talk", icon: MessageSquare, description: "AI-powered league roasts", premium: true, requiresLeague: true },
   { title: "Leaderboard", url: "/leaderboard", icon: Crown, description: "Global user rankings" },
+  { title: "Community Chat", url: "/chat", icon: MessageSquare, description: "Chat with other users" },
+  { title: "All Leagues $", url: "/accounting", icon: DollarSign, description: "Financial summary across all leagues" },
   { title: "NFL", url: "/league/nfl", icon: Shield, description: "News, schedule & standings" },
+  { title: "Notifications", url: "/settings/notifications", icon: Bell, description: "Alert preferences" },
 ];
 
 export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChange }: AppSidebarProps) {

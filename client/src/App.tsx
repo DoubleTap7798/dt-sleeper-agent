@@ -60,9 +60,19 @@ import MidSeasonReviewPage from "@/pages/mid-season-review";
 import TaxiOptimizerPage from "@/pages/taxi-optimizer";
 import MatchupHeatmapPage from "@/pages/matchup-heatmap";
 import DraftPredictionsPage from "@/pages/draft-predictions";
+import LiveDraftBoardPage from "@/pages/live-draft-board";
+import SmartDraftAssistantPage from "@/pages/smart-draft-assistant";
+import NotificationPreferencesPage from "@/pages/notification-preferences";
+import LeagueAccountingPage from "@/pages/league-accounting";
+import AllLeaguesAccountingPage from "@/pages/all-leagues-accounting";
+import WeeklyPredictionsPage from "@/pages/weekly-predictions";
+import CommunityChatPage from "@/pages/community-chat";
+import DraftRecapPage from "@/pages/draft-recap";
+import MockDraftPage from "@/pages/mock-draft";
 import UserProfilePage from "@/pages/user-profile";
 import LeaderboardPage from "@/pages/leaderboard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -455,6 +465,63 @@ function Router() {
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
+      <Route path="/league/accounting">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <LeagueAccountingPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/predictions">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <WeeklyPredictionsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/draft-recap">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DraftRecapPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/mock-draft">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <MockDraftPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/live-draft">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <LiveDraftBoardPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/draft-assistant">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <SmartDraftAssistantPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/accounting">
+        <AuthenticatedRoute>
+          <AllLeaguesAccountingPage />
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/chat">
+        <AuthenticatedRoute>
+          <CommunityChatPage />
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/settings/notifications">
+        <AuthenticatedRoute>
+          <NotificationPreferencesPage />
+        </AuthenticatedRoute>
+      </Route>
       <Route path="/profile/:userId">
         <AuthenticatedRoute>
           <UserProfilePage />
@@ -502,6 +569,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          <PwaInstallPrompt />
         </TooltipProvider>
       </ThemeProvider>
     </PersistQueryClientProvider>

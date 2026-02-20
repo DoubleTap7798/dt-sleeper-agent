@@ -13100,5 +13100,728 @@ Return ONLY valid JSON, no markdown.`;
     }
   });
 
+  // ========================
+  // LEAGUE ACCOUNTING ENDPOINTS
+  // ========================
+
+  app.get("/api/fantasy/accounting/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { leagueId } = req.params;
+      const entries = await db
+        .select()
+        .from(schema.leagueFinances)
+        .where(and(eq(schema.leagueFinances.userId, userId), eq(schema.leagueFinances.leagueId, leagueId)))
+        .orderBy(desc(schema.leagueFinances.createdAt));
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching accounting:", error);
+      res.status(500).json({ message: "Failed to fetch accounting data" });
+    }
+  });
+
+  const accountingSchema = z.object({
+    leagueName: z.string().min(1),
+    season: z.string().min(1),
+    type: z.enum(["dues", "prize", "penalty", "other"]),
+    description: z.string().min(1),
+    amount: z.number().int(),
+  });
+
+  app.post("/api/fantasy/accounting/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { leagueId } = req.params;
+      const parsed = accountingSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
+
+      const entry = await db.insert(schema.leagueFinances).values({
+        userId,
+        leagueId,
+        leagueName: parsed.data.leagueName,
+        season: parsed.data.season,
+        type: parsed.data.type,
+        description: parsed.data.description,
+        amount: parsed.data.amount,
+      }).returning();
+
+      res.json(entry[0]);
+    } catch (error) {
+      console.error("Error adding accounting entry:", error);
+      res.status(500).json({ message: "Failed to add entry" });
+    }
+  });
+
+  app.delete("/api/fantasy/accounting/:id", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { id } = req.params;
+      const entry = await db.select().from(schema.leagueFinances).where(eq(schema.leagueFinances.id, id)).limit(1);
+      if (!entry.length || entry[0].userId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      await db.delete(schema.leagueFinances).where(eq(schema.leagueFinances.id, id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting accounting entry:", error);
+      res.status(500).json({ message: "Failed to delete entry" });
+    }
+  });
+
+  app.get("/api/fantasy/accounting-summary", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const entries = await db
+        .select()
+        .from(schema.leagueFinances)
+        .where(eq(schema.leagueFinances.userId, userId))
+        .orderBy(desc(schema.leagueFinances.createdAt));
+
+      const byLeague: Record<string, { leagueName: string; totalDues: number; totalWinnings: number; entries: typeof entries }> = {};
+      entries.forEach(e => {
+        if (!byLeague[e.leagueId]) {
+          byLeague[e.leagueId] = { leagueName: e.leagueName, totalDues: 0, totalWinnings: 0, entries: [] };
+        }
+        byLeague[e.leagueId].entries.push(e);
+        if (e.type === "dues" || e.type === "penalty") {
+          byLeague[e.leagueId].totalDues += Math.abs(e.amount);
+        } else {
+          byLeague[e.leagueId].totalWinnings += e.amount;
+        }
+      });
+
+      const totalDues = Object.values(byLeague).reduce((s, l) => s + l.totalDues, 0);
+      const totalWinnings = Object.values(byLeague).reduce((s, l) => s + l.totalWinnings, 0);
+
+      res.json({ leagues: byLeague, totalDues, totalWinnings, net: totalWinnings - totalDues });
+    } catch (error) {
+      console.error("Error fetching accounting summary:", error);
+      res.status(500).json({ message: "Failed to fetch accounting summary" });
+    }
+  });
+
+  // ========================
+  // WEEKLY PREDICTIONS ENDPOINTS
+  // ========================
+
+  app.get("/api/fantasy/predictions/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { leagueId } = req.params;
+      const week = parseInt(req.query.week as string) || 1;
+
+      const matchupsRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/matchups/${week}`);
+      const matchups = await matchupsRes.json();
+
+      const rostersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
+      const rosters = await rostersRes.json();
+
+      const usersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`);
+      const leagueUsers = await usersRes.json();
+
+      const userMap: Record<string, { name: string; avatar: string | null }> = {};
+      leagueUsers.forEach((u: any) => {
+        userMap[u.user_id] = { name: u.display_name || u.username, avatar: u.avatar };
+      });
+
+      const rosterMap: Record<number, { ownerId: string; name: string; avatar: string | null }> = {};
+      rosters.forEach((r: any) => {
+        const owner = userMap[r.owner_id] || { name: "Unknown", avatar: null };
+        rosterMap[r.roster_id] = { ownerId: r.owner_id, name: owner.name, avatar: owner.avatar };
+      });
+
+      const matchupGroups: Record<number, any[]> = {};
+      matchups.forEach((m: any) => {
+        if (!matchupGroups[m.matchup_id]) matchupGroups[m.matchup_id] = [];
+        matchupGroups[m.matchup_id].push(m);
+      });
+
+      const formattedMatchups = Object.entries(matchupGroups).map(([mid, teams]) => {
+        if (teams.length < 2) return null;
+        const [a, b] = teams;
+        const rA = rosterMap[a.roster_id] || { ownerId: "", name: "Team A", avatar: null };
+        const rB = rosterMap[b.roster_id] || { ownerId: "", name: "Team B", avatar: null };
+        return {
+          matchupId: parseInt(mid),
+          teamA: { rosterId: a.roster_id, ownerId: rA.ownerId, name: rA.name, avatar: rA.avatar, points: a.points || 0 },
+          teamB: { rosterId: b.roster_id, ownerId: rB.ownerId, name: rB.name, avatar: rB.avatar, points: b.points || 0 },
+        };
+      }).filter(Boolean);
+
+      const existingPredictions = await db
+        .select()
+        .from(schema.weeklyPredictions)
+        .where(and(
+          eq(schema.weeklyPredictions.userId, userId),
+          eq(schema.weeklyPredictions.leagueId, leagueId),
+          eq(schema.weeklyPredictions.week, week)
+        ));
+
+      res.json({ matchups: formattedMatchups, predictions: existingPredictions, week });
+    } catch (error) {
+      console.error("Error fetching predictions:", error);
+      res.status(500).json({ message: "Failed to fetch predictions" });
+    }
+  });
+
+  const predictionSchema = z.object({
+    week: z.number().int().min(1).max(18),
+    matchupId: z.number().int(),
+    predictedWinnerId: z.string().min(1),
+  });
+
+  app.post("/api/fantasy/predictions/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { leagueId } = req.params;
+      const parsed = predictionSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid prediction" });
+
+      const existing = await db
+        .select()
+        .from(schema.weeklyPredictions)
+        .where(and(
+          eq(schema.weeklyPredictions.userId, userId),
+          eq(schema.weeklyPredictions.leagueId, leagueId),
+          eq(schema.weeklyPredictions.week, parsed.data.week),
+          eq(schema.weeklyPredictions.matchupId, parsed.data.matchupId)
+        ))
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db
+          .update(schema.weeklyPredictions)
+          .set({ predictedWinnerId: parsed.data.predictedWinnerId })
+          .where(eq(schema.weeklyPredictions.id, existing[0].id));
+      } else {
+        await db.insert(schema.weeklyPredictions).values({
+          userId,
+          leagueId,
+          week: parsed.data.week,
+          matchupId: parsed.data.matchupId,
+          predictedWinnerId: parsed.data.predictedWinnerId,
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving prediction:", error);
+      res.status(500).json({ message: "Failed to save prediction" });
+    }
+  });
+
+  app.get("/api/fantasy/predictions-leaderboard/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+
+      const allPredictions = await db
+        .select()
+        .from(schema.weeklyPredictions)
+        .where(eq(schema.weeklyPredictions.leagueId, leagueId));
+
+      const leaderboard: Record<string, { correct: number; total: number; userId: string }> = {};
+      allPredictions.forEach(p => {
+        if (!leaderboard[p.userId]) leaderboard[p.userId] = { correct: 0, total: 0, userId: p.userId };
+        leaderboard[p.userId].total++;
+        if (p.correct) leaderboard[p.userId].correct++;
+      });
+
+      const sorted = Object.values(leaderboard).sort((a, b) => {
+        if (b.correct !== a.correct) return b.correct - a.correct;
+        return (b.correct / (b.total || 1)) - (a.correct / (a.total || 1));
+      });
+
+      res.json(sorted);
+    } catch (error) {
+      console.error("Error fetching predictions leaderboard:", error);
+      res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
+
+  // ========================
+  // COMMUNITY CHAT ENDPOINTS
+  // ========================
+
+  app.get("/api/chat/messages", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const messages = await db
+        .select()
+        .from(schema.chatMessages)
+        .orderBy(desc(schema.chatMessages.createdAt))
+        .limit(100);
+      res.json(messages.reverse());
+    } catch (error) {
+      console.error("Error fetching chat messages:", error);
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  const chatMessageSchema = z.object({
+    message: z.string().min(1).max(500),
+  });
+
+  app.post("/api/chat/messages", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const parsed = chatMessageSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid message" });
+
+      const userProfile = await storage.getUserProfile(userId);
+      const username = userProfile?.sleeperUsername || req.user?.email?.split("@")[0] || "Anonymous";
+
+      let avatarUrl = null;
+      if (userProfile?.sleeperUserId) {
+        try {
+          const sleeperRes = await fetch(`https://api.sleeper.app/v1/user/${userProfile.sleeperUserId}`);
+          const sleeperUser = await sleeperRes.json();
+          if (sleeperUser?.avatar) avatarUrl = `https://sleepercdn.com/avatars/thumbs/${sleeperUser.avatar}`;
+        } catch {}
+      }
+
+      const msg = await db.insert(schema.chatMessages).values({
+        userId,
+        username,
+        avatarUrl,
+        message: parsed.data.message,
+      }).returning();
+
+      res.json(msg[0]);
+    } catch (error) {
+      console.error("Error sending chat message:", error);
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // ========================
+  // DRAFT RECAP & GRADES ENDPOINT
+  // ========================
+
+  app.get("/api/ai/draft-recap/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const cacheKey = `draft-recap-${leagueId}`;
+      const cached = externalApiCache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const draftsRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/drafts`);
+      const drafts = await draftsRes.json();
+      if (!drafts || drafts.length === 0) {
+        return res.json({ teams: [], overallSummary: "No drafts found for this league." });
+      }
+
+      const draft = drafts[0];
+      const picksRes = await fetch(`https://api.sleeper.app/v1/draft/${draft.draft_id}/picks`);
+      const picks = await picksRes.json();
+
+      const usersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`);
+      const leagueUsers = await usersRes.json();
+      const userMap: Record<string, string> = {};
+      const avatarMap: Record<string, string | null> = {};
+      leagueUsers.forEach((u: any) => {
+        userMap[u.user_id] = u.display_name || u.username;
+        avatarMap[u.user_id] = u.avatar;
+      });
+
+      const teamPicks: Record<string, Array<{ name: string; position: string; round: number; pick: number }>> = {};
+      picks.forEach((p: any) => {
+        const ownerId = p.picked_by;
+        if (!teamPicks[ownerId]) teamPicks[ownerId] = [];
+        teamPicks[ownerId].push({
+          name: `${p.metadata?.first_name || ""} ${p.metadata?.last_name || ""}`.trim() || `Pick ${p.pick_no}`,
+          position: p.metadata?.position || "?",
+          round: p.round,
+          pick: p.pick_no,
+        });
+      });
+
+      const teamSummaries = Object.entries(teamPicks).map(([ownerId, tPicks]) => ({
+        teamName: userMap[ownerId] || "Unknown",
+        avatar: avatarMap[ownerId] ? `https://sleepercdn.com/avatars/thumbs/${avatarMap[ownerId]}` : null,
+        picks: tPicks,
+      }));
+
+      try {
+        const openai = new OpenAI();
+        const prompt = `You are a dynasty fantasy football expert. Grade each team's draft performance. For each team, provide:
+- A letter grade (A+, A, A-, B+, B, B-, C+, C, C-, D, F)
+- Their best pick (player name and why)
+- Their worst pick (player name and why)
+- A 1-2 sentence summary
+
+Teams and their picks:
+${teamSummaries.map(t => `${t.teamName}: ${t.picks.map(p => `R${p.round}P${p.pick} ${p.name} (${p.position})`).join(", ")}`).join("\n")}
+
+Respond in JSON format:
+{
+  "overallSummary": "Brief 2-3 sentence overview of the draft",
+  "teams": [{"teamName": "...", "grade": "...", "bestPick": "...", "worstPick": "...", "summary": "..."}]
+}`;
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          max_tokens: 2000,
+        });
+
+        const parsed = JSON.parse(completion.choices[0]?.message?.content || "{}");
+        const result = {
+          teams: (parsed.teams || []).map((t: any) => ({
+            ...t,
+            avatar: teamSummaries.find(ts => ts.teamName === t.teamName)?.avatar || null,
+          })),
+          overallSummary: parsed.overallSummary || "Draft analysis complete.",
+        };
+
+        externalApiCache.set(cacheKey, result);
+        res.json(result);
+      } catch (aiError) {
+        const fallbackTeams = teamSummaries.map(t => ({
+          teamName: t.teamName,
+          avatar: t.avatar,
+          grade: "B",
+          bestPick: t.picks[0]?.name || "N/A",
+          worstPick: t.picks[t.picks.length - 1]?.name || "N/A",
+          summary: `Drafted ${t.picks.length} players across ${t.picks.length} rounds.`,
+        }));
+        res.json({ teams: fallbackTeams, overallSummary: "Draft data retrieved. AI grading unavailable." });
+      }
+    } catch (error) {
+      console.error("Error fetching draft recap:", error);
+      res.status(500).json({ message: "Failed to generate draft recap" });
+    }
+  });
+
+  // ========================
+  // MOCK DRAFT ENDPOINTS
+  // ========================
+
+  const mockDraftCache = new RouteCache(30 * 60 * 1000);
+
+  app.post("/api/fantasy/mock-draft/start/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { leagueId } = req.params;
+
+      const rostersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
+      const rosters = await rostersRes.json();
+
+      const usersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`);
+      const leagueUsers = await usersRes.json();
+      const userMap: Record<string, string> = {};
+      leagueUsers.forEach((u: any) => { userMap[u.user_id] = u.display_name || u.username; });
+
+      const userProfile = await storage.getUserProfile(userId);
+      const sleeperUserId = userProfile?.sleeperUserId;
+
+      const teams = rosters.map((r: any, i: number) => ({
+        rosterId: r.roster_id,
+        ownerId: r.owner_id,
+        name: userMap[r.owner_id] || `Team ${i + 1}`,
+        isUser: r.owner_id === sleeperUserId,
+      }));
+
+      const leagueInfoRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
+      const leagueInfo = await leagueInfoRes.json();
+      const totalRounds = leagueInfo?.settings?.draft_rounds || 4;
+
+      const playersRes = await fetch("https://api.sleeper.app/v1/players/nfl");
+      const allPlayers = await playersRes.json();
+
+      const draftPool = Object.entries(allPlayers)
+        .filter(([_, p]: [string, any]) => p.active && ["QB", "RB", "WR", "TE"].includes(p.position))
+        .map(([id, p]: [string, any]) => ({
+          id,
+          name: `${p.first_name} ${p.last_name}`,
+          position: p.position,
+          team: p.team || "FA",
+          age: p.age || 0,
+          yearsExp: p.years_exp || 0,
+          searchRank: p.search_rank || 9999,
+        }))
+        .sort((a, b) => a.searchRank - b.searchRank)
+        .slice(0, totalRounds * teams.length + 50);
+
+      const state = {
+        teams,
+        totalRounds,
+        totalTeams: teams.length,
+        picks: [] as any[],
+        currentPick: 1,
+        availablePlayers: draftPool,
+        status: "active",
+      };
+
+      mockDraftCache.set(`mock-${userId}-${leagueId}`, state);
+      res.json(state);
+    } catch (error) {
+      console.error("Error starting mock draft:", error);
+      res.status(500).json({ message: "Failed to start mock draft" });
+    }
+  });
+
+  app.get("/api/fantasy/mock-draft/state/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { leagueId } = req.params;
+      const state = mockDraftCache.get(`mock-${userId}-${leagueId}`);
+      if (!state) return res.json({ status: "none" });
+      res.json(state);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get mock draft state" });
+    }
+  });
+
+  app.post("/api/fantasy/mock-draft/pick/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { leagueId } = req.params;
+      const { playerId } = req.body;
+      if (!playerId) return res.status(400).json({ message: "Player ID required" });
+
+      const state = mockDraftCache.get(`mock-${userId}-${leagueId}`);
+      if (!state || state.status !== "active") {
+        return res.status(400).json({ message: "No active mock draft" });
+      }
+
+      const totalPicks = state.totalRounds * state.totalTeams;
+      const pickPlayer = (pId: string) => {
+        const playerIdx = state.availablePlayers.findIndex((p: any) => p.id === pId);
+        if (playerIdx === -1) return null;
+        const player = state.availablePlayers.splice(playerIdx, 1)[0];
+        const round = Math.ceil(state.currentPick / state.totalTeams);
+        const pickInRound = ((state.currentPick - 1) % state.totalTeams) + 1;
+        const teamIdx = (state.currentPick - 1) % state.totalTeams;
+        const team = state.teams[teamIdx];
+        const pick = {
+          overall: state.currentPick,
+          round,
+          pick: pickInRound,
+          playerId: player.id,
+          playerName: player.name,
+          position: player.position,
+          team: player.team,
+          teamName: team.name,
+          isUserPick: team.isUser,
+        };
+        state.picks.push(pick);
+        state.currentPick++;
+        return pick;
+      };
+
+      const userPick = pickPlayer(playerId);
+      if (!userPick) return res.status(400).json({ message: "Player not available" });
+
+      while (state.currentPick <= totalPicks) {
+        const teamIdx = (state.currentPick - 1) % state.totalTeams;
+        const team = state.teams[teamIdx];
+        if (team.isUser) break;
+
+        const randomOffset = Math.floor(Math.random() * 3);
+        const aiPlayer = state.availablePlayers[randomOffset] || state.availablePlayers[0];
+        if (!aiPlayer) break;
+        pickPlayer(aiPlayer.id);
+      }
+
+      if (state.currentPick > totalPicks) state.status = "complete";
+      mockDraftCache.set(`mock-${userId}-${leagueId}`, state);
+      res.json(state);
+    } catch (error) {
+      console.error("Error making mock draft pick:", error);
+      res.status(500).json({ message: "Failed to make pick" });
+    }
+  });
+
+  // ========================
+  // LIVE DRAFT BOARD ENDPOINT
+  // ========================
+
+  app.get("/api/fantasy/live-draft/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+
+      const draftsRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/drafts`);
+      const drafts = await draftsRes.json();
+      if (!drafts || drafts.length === 0) {
+        return res.json({ status: "none", picks: [], totalRounds: 0, totalTeams: 0, currentPick: 0 });
+      }
+
+      const draft = drafts[0];
+      const picksRes = await fetch(`https://api.sleeper.app/v1/draft/${draft.draft_id}/picks`);
+      const picks = await picksRes.json();
+
+      const usersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`);
+      const leagueUsers = await usersRes.json();
+      const userMap: Record<string, { name: string; avatar: string | null }> = {};
+      leagueUsers.forEach((u: any) => {
+        userMap[u.user_id] = { name: u.display_name || u.username, avatar: u.avatar };
+      });
+
+      const formattedPicks = picks.map((p: any) => {
+        const owner = userMap[p.picked_by] || { name: "Unknown", avatar: null };
+        return {
+          round: p.round,
+          pick: p.pick_no,
+          playerId: p.player_id,
+          playerName: `${p.metadata?.first_name || ""} ${p.metadata?.last_name || ""}`.trim(),
+          position: p.metadata?.position || "?",
+          teamName: owner.name,
+          teamAvatar: owner.avatar ? `https://sleepercdn.com/avatars/thumbs/${owner.avatar}` : null,
+        };
+      });
+
+      const totalTeams = draft.settings?.teams || 12;
+      const totalRounds = draft.settings?.rounds || 4;
+      const currentPick = formattedPicks.length + 1;
+      const status = draft.status === "complete" ? "complete" : (formattedPicks.length > 0 ? "in_progress" : "pre_draft");
+
+      res.json({ status, picks: formattedPicks, totalRounds, totalTeams, currentPick });
+    } catch (error) {
+      console.error("Error fetching live draft:", error);
+      res.status(500).json({ message: "Failed to fetch draft data" });
+    }
+  });
+
+  // ========================
+  // SMART DRAFT ASSISTANT ENDPOINT
+  // ========================
+
+  app.get("/api/fantasy/draft-assistant/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const { leagueId } = req.params;
+
+      const userProfile = await storage.getUserProfile(userId);
+      const sleeperUserId = userProfile?.sleeperUserId;
+
+      const draftsRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/drafts`);
+      const drafts = await draftsRes.json();
+      if (!drafts || drafts.length === 0) {
+        return res.json({ draftStatus: "none", myPicks: [], rosterNeeds: {}, recommendations: [] });
+      }
+
+      const draft = drafts[0];
+      const picksRes = await fetch(`https://api.sleeper.app/v1/draft/${draft.draft_id}/picks`);
+      const picks = await picksRes.json();
+
+      const rostersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
+      const rosters = await rostersRes.json();
+
+      const myRoster = rosters.find((r: any) => r.owner_id === sleeperUserId);
+      const myDraftSlot = myRoster?.roster_id || 1;
+      const totalTeams = draft.settings?.teams || 12;
+      const totalRounds = draft.settings?.rounds || 4;
+
+      const myPicks: Array<{ round: number; pick: number; overall: number }> = [];
+      for (let round = 1; round <= totalRounds; round++) {
+        const overall = (round - 1) * totalTeams + myDraftSlot;
+        myPicks.push({ round, pick: myDraftSlot, overall });
+      }
+
+      const pickedPlayerIds = new Set(picks.map((p: any) => p.player_id));
+      const myPickedPlayers = picks.filter((p: any) => p.picked_by === sleeperUserId);
+      const posCount: Record<string, number> = {};
+      myPickedPlayers.forEach((p: any) => {
+        const pos = p.metadata?.position || "?";
+        posCount[pos] = (posCount[pos] || 0) + 1;
+      });
+
+      const idealCounts: Record<string, number> = { QB: 2, RB: 4, WR: 4, TE: 2 };
+      const rosterNeeds: Record<string, number> = {};
+      Object.entries(idealCounts).forEach(([pos, ideal]) => {
+        rosterNeeds[pos] = Math.max(0, ideal - (posCount[pos] || 0));
+      });
+
+      const recommendations = [
+        { playerId: "rec1", name: "Best Available", position: "BPA", value: 100, reason: "Take the highest-value player available regardless of position" },
+      ];
+
+      const draftStatus = draft.status === "complete" ? "complete" : (picks.length > 0 ? "in_progress" : "pre_draft");
+
+      res.json({ draftStatus, myPicks, rosterNeeds, recommendations });
+    } catch (error) {
+      console.error("Error fetching draft assistant:", error);
+      res.status(500).json({ message: "Failed to fetch draft assistant data" });
+    }
+  });
+
+  // ========================
+  // NOTIFICATION PREFERENCES ENDPOINTS
+  // ========================
+
+  app.get("/api/notifications/preferences", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const prefs = await db
+        .select()
+        .from(schema.notificationPreferences)
+        .where(eq(schema.notificationPreferences.userId, userId))
+        .limit(1);
+
+      if (prefs.length === 0) {
+        const defaults = {
+          userId,
+          trades: true,
+          waivers: true,
+          injuries: true,
+          scoringUpdates: true,
+          freeAgents: true,
+          draftPicks: true,
+          leagueAnnouncements: true,
+        };
+        const created = await db.insert(schema.notificationPreferences).values(defaults).returning();
+        return res.json(created[0]);
+      }
+
+      res.json(prefs[0]);
+    } catch (error) {
+      console.error("Error fetching notification preferences:", error);
+      res.status(500).json({ message: "Failed to fetch preferences" });
+    }
+  });
+
+  const notifPrefsSchema = z.object({
+    trades: z.boolean().optional(),
+    waivers: z.boolean().optional(),
+    injuries: z.boolean().optional(),
+    scoringUpdates: z.boolean().optional(),
+    freeAgents: z.boolean().optional(),
+    draftPicks: z.boolean().optional(),
+    leagueAnnouncements: z.boolean().optional(),
+  });
+
+  app.put("/api/notifications/preferences", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const parsed = notifPrefsSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid preferences" });
+
+      const existing = await db
+        .select()
+        .from(schema.notificationPreferences)
+        .where(eq(schema.notificationPreferences.userId, userId))
+        .limit(1);
+
+      if (existing.length === 0) {
+        const created = await db.insert(schema.notificationPreferences).values({
+          userId,
+          ...parsed.data,
+        }).returning();
+        return res.json(created[0]);
+      }
+
+      const updated = await db
+        .update(schema.notificationPreferences)
+        .set({ ...parsed.data, updatedAt: new Date() })
+        .where(eq(schema.notificationPreferences.userId, userId))
+        .returning();
+
+      res.json(updated[0]);
+    } catch (error) {
+      console.error("Error updating notification preferences:", error);
+      res.status(500).json({ message: "Failed to update preferences" });
+    }
+  });
+
   return httpServer;
 }
