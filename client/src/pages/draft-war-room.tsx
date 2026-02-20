@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useSelectedLeague } from "./league-layout";
 import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -571,7 +572,34 @@ export default function DraftWarRoomPage() {
   const { league } = useSelectedLeague();
   const [modeOverride, setModeOverride] = useState<"rookie" | "startup" | null>(null);
   const [showLeverage, setShowLeverage] = useState(true);
+  const [devyEnabled, setDevyEnabled] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<{ id: string; name: string; position: string; team: string; isRookie?: boolean; college?: string } | null>(null);
+
+  const { data: leagueSettings } = useQuery<{ devyEnabled: boolean }>({
+    queryKey: [`/api/league-settings/${league?.league_id}`],
+    enabled: !!league?.league_id,
+  });
+
+  useEffect(() => {
+    if (leagueSettings) {
+      setDevyEnabled(leagueSettings.devyEnabled);
+    }
+  }, [leagueSettings]);
+
+  const devyToggleMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      await apiRequest("PUT", `/api/league-settings/${league?.league_id}`, { devyEnabled: enabled });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/league-settings/${league?.league_id}`] });
+    },
+  });
+
+  const handleDevyToggle = () => {
+    const newValue = !devyEnabled;
+    setDevyEnabled(newValue);
+    devyToggleMutation.mutate(newValue);
+  };
 
   const handlePlayerClick = (player: PlayerRecommendation) => {
     const isRookie = player.playerId.startsWith('draft2026-');
@@ -675,6 +703,16 @@ export default function DraftWarRoomPage() {
             data-testid="button-mode-startup"
           >
             Startup Draft
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDevyToggle}
+            data-testid="button-toggle-devy"
+            className={devyEnabled ? "border-purple-500/50 text-purple-400" : ""}
+          >
+            <Flame className="w-4 h-4 mr-1" />
+            {devyEnabled ? "Devy On" : "Devy Off"}
           </Button>
           <Button
             variant="outline"
@@ -842,7 +880,7 @@ export default function DraftWarRoomPage() {
             </CardHeader>
             <CardContent>
               <DraftBoard 
-                picks={draftBoard} 
+                picks={devyEnabled ? draftBoard : draftBoard.filter(p => !p.isDevy)} 
                 currentPick={draft?.status === "drafting" ? draftBoard.length + 1 : undefined}
                 onPlayerClick={handleBoardPlayerClick}
               />
