@@ -156,7 +156,7 @@ function parseDevyNote(note: string): { devyName: string; devyPosition: string; 
     }
   }
   
-  if (parts.length >= 1) {
+  if (parts.length >= 2) {
     return {
       devyName: parts.join(' '),
       devyPosition: "?",
@@ -2490,9 +2490,12 @@ ${urls}
       }
 
       const isDevyPlaceholder = (playerId: string): boolean => {
-        if (devyNoteMap.has(playerId)) return true;
         const player = allPlayers[playerId];
         if (!player) return false;
+        // Real NFL players with active NFL teams are never devy placeholders
+        const isActiveNFLPlayer = !!player.team && player.team !== "" && player.team !== "FA";
+        if (isActiveNFLPlayer) return false;
+        if (devyNoteMap.has(playerId)) return true;
         const playerPos = player.position || "?";
         const isKicker = playerPos === "K";
         const isDef = playerPos === "DEF";
@@ -9675,6 +9678,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           const isRetired = !player?.team && (player?.status === "Inactive" || player?.active === false);
           const isIDPPlayer = ["CB", "S", "DB", "LB", "ILB", "OLB", "MLB", "DL", "DE", "DT", "NT", "EDGE", "ED", "FS", "SS"].includes(playerPos);
           
+          // Real NFL players with active NFL teams are never devy placeholders
+          const isActiveNFLPlayer = !!player?.team && player.team !== "" && player.team !== "FA";
+          
           // Detect placeholder: K in league without K slots, DEF without DEF slots, IDP without IDP slots
           const isPlaceholderByPosition = (isKicker && !hasKickerSlot) || (isDef && !hasDefSlot) || (isIDPPlayer && !isIDPLeague);
           
@@ -9682,10 +9688,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           // FA kickers (no NFL team) are almost certainly devy placeholders even if the league has K slots
           const isLikelyDevyPlaceholder = devyNoteMap.size > 0 && isKicker && !player?.team;
           
-          if (devyNoteMap.has(playerId)) {
+          if (!isActiveNFLPlayer && devyNoteMap.has(playerId)) {
             devyInfo = devyNoteMap.get(playerId)!;
             isDevyPlaceholder = true;
-          } else if (isPlaceholderByPosition || isRetired || isLikelyDevyPlaceholder) {
+          } else if (!isActiveNFLPlayer && (isPlaceholderByPosition || isRetired || isLikelyDevyPlaceholder)) {
             isDevyPlaceholder = true;
           }
 
