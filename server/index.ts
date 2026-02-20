@@ -157,7 +157,13 @@ async function initStripe() {
     await runMigrations({ databaseUrl });
     console.log('Stripe schema ready');
 
-    const stripeSync = await getStripeSync();
+    let stripeSync;
+    try {
+      stripeSync = await getStripeSync();
+    } catch (credErr: any) {
+      console.warn('Stripe credentials unavailable, skipping sync:', credErr.message);
+      return;
+    }
 
     console.log('Setting up managed webhook...');
     const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
@@ -176,10 +182,10 @@ async function initStripe() {
         console.log('Stripe data synced');
       })
       .catch((err: any) => {
-        console.error('Error syncing Stripe data:', err);
+        console.warn('Stripe data sync warning:', err.message || err);
       });
-  } catch (error) {
-    console.error('Failed to initialize Stripe:', error);
+  } catch (error: any) {
+    console.warn('Stripe initialization skipped:', error.message || error);
   }
 }
 

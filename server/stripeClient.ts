@@ -41,8 +41,8 @@ async function getCredentialsFromConnector(targetEnvironment: string) {
   }
 
   return {
-    publishableKey: connectionSettings.settings.publishable,
-    secretKey: connectionSettings.settings.secret,
+    publishableKey: sanitizeKey(connectionSettings.settings.publishable),
+    secretKey: sanitizeKey(connectionSettings.settings.secret),
   };
 }
 
