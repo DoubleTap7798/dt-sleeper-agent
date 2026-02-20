@@ -73,6 +73,7 @@ export default function LeagueAccountingPage() {
         description,
         amount: amountCents,
         season,
+        leagueName: league?.name || "Unknown League",
       });
       return res.json();
     },

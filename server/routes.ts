@@ -7451,6 +7451,81 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
   }
 
   // Get notifications for a league
+  // Notification preferences - MUST be before :leagueId routes to avoid collision
+  const notifPrefsSchema = z.object({
+    trades: z.boolean().optional(),
+    waivers: z.boolean().optional(),
+    injuries: z.boolean().optional(),
+    scoringUpdates: z.boolean().optional(),
+    freeAgents: z.boolean().optional(),
+    draftPicks: z.boolean().optional(),
+    leagueAnnouncements: z.boolean().optional(),
+  });
+
+  app.get("/api/notifications/preferences", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const prefs = await db
+        .select()
+        .from(schema.notificationPreferences)
+        .where(eq(schema.notificationPreferences.userId, userId))
+        .limit(1);
+
+      if (prefs.length === 0) {
+        const defaults = {
+          userId,
+          trades: true,
+          waivers: true,
+          injuries: true,
+          scoringUpdates: true,
+          freeAgents: true,
+          draftPicks: true,
+          leagueAnnouncements: true,
+        };
+        const created = await db.insert(schema.notificationPreferences).values(defaults).returning();
+        return res.json(created[0]);
+      }
+
+      res.json(prefs[0]);
+    } catch (error) {
+      console.error("Error fetching notification preferences:", error);
+      res.status(500).json({ message: "Failed to fetch preferences" });
+    }
+  });
+
+  app.put("/api/notifications/preferences", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parsed = notifPrefsSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid preferences" });
+
+      const existing = await db
+        .select()
+        .from(schema.notificationPreferences)
+        .where(eq(schema.notificationPreferences.userId, userId))
+        .limit(1);
+
+      if (existing.length === 0) {
+        const created = await db.insert(schema.notificationPreferences).values({
+          userId,
+          ...parsed.data,
+        }).returning();
+        return res.json(created[0]);
+      }
+
+      const updated = await db
+        .update(schema.notificationPreferences)
+        .set({ ...parsed.data, updatedAt: new Date() })
+        .where(eq(schema.notificationPreferences.userId, userId))
+        .returning();
+
+      res.json(updated[0]);
+    } catch (error) {
+      console.error("Error updating notification preferences:", error);
+      res.status(500).json({ message: "Failed to update preferences" });
+    }
+  });
+
   app.get("/api/notifications/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
@@ -12669,7 +12744,7 @@ Return ONLY valid JSON, no markdown.`;
       const query = (req.query.query as string || "").trim();
       if (query.length < 2) return res.json([]);
 
-      const currentUserId = req.user?.id;
+      const currentUserId = req.user.claims.sub;
       const results = await db
         .select({
           id: schema.users.id,
@@ -12709,7 +12784,7 @@ Return ONLY valid JSON, no markdown.`;
       const parsed = friendRequestSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid request" });
       const { addresseeId } = parsed.data;
-      const requesterId = req.user?.id;
+      const requesterId = req.user.claims.sub;
       if (requesterId === addresseeId) {
         return res.status(400).json({ message: "Cannot add yourself" });
       }
@@ -12748,7 +12823,7 @@ Return ONLY valid JSON, no markdown.`;
       const parsed = friendRespondSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid response" });
       const { friendId, action } = parsed.data;
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
 
       const request = await db.select().from(schema.friends).where(eq(schema.friends.id, friendId)).limit(1);
       if (!request.length || request[0].addresseeId !== userId) {
@@ -12766,7 +12841,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.get("/api/friends", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const friendships = await db
         .select()
         .from(schema.friends)
@@ -12808,7 +12883,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.get("/api/friends/requests", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const incoming = await db
         .select({
           id: schema.friends.id,
@@ -12846,7 +12921,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.delete("/api/friends/:id", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const friendshipId = req.params.id;
 
       const friendship = await db.select().from(schema.friends).where(eq(schema.friends.id, friendshipId)).limit(1);
@@ -12865,7 +12940,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.get("/api/friends/status/:userId", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const currentUserId = req.user?.id;
+      const currentUserId = req.user.claims.sub;
       const targetUserId = req.params.userId;
 
       const friendship = await db
@@ -12949,7 +13024,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.post("/api/leaderboard/refresh", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const userProfile = await storage.getUserProfile(userId);
       if (!userProfile?.sleeperUserId) {
         return res.status(400).json({ message: "No Sleeper account linked" });
@@ -13106,7 +13181,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.get("/api/fantasy/accounting/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const { leagueId } = req.params;
       const entries = await db
         .select()
@@ -13130,7 +13205,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.post("/api/fantasy/accounting/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const { leagueId } = req.params;
       const parsed = accountingSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid data" });
@@ -13154,7 +13229,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.delete("/api/fantasy/accounting/:id", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const { id } = req.params;
       const entry = await db.select().from(schema.leagueFinances).where(eq(schema.leagueFinances.id, id)).limit(1);
       if (!entry.length || entry[0].userId !== userId) {
@@ -13170,7 +13245,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.get("/api/fantasy/accounting-summary", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const entries = await db
         .select()
         .from(schema.leagueFinances)
@@ -13206,7 +13281,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.get("/api/fantasy/predictions/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const { leagueId } = req.params;
       const week = parseInt(req.query.week as string) || 1;
 
@@ -13272,7 +13347,7 @@ Return ONLY valid JSON, no markdown.`;
 
   app.post("/api/fantasy/predictions/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const { leagueId } = req.params;
       const parsed = predictionSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid prediction" });
@@ -13362,12 +13437,13 @@ Return ONLY valid JSON, no markdown.`;
 
   app.post("/api/chat/messages", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const parsed = chatMessageSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid message" });
 
       const userProfile = await storage.getUserProfile(userId);
-      const username = userProfile?.sleeperUsername || req.user?.email?.split("@")[0] || "Anonymous";
+      const dbUser = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+      const username = userProfile?.sleeperUsername || dbUser[0]?.firstName || dbUser[0]?.email?.split("@")[0] || "Anonymous";
 
       let avatarUrl = null;
       if (userProfile?.sleeperUserId) {
@@ -13500,7 +13576,7 @@ Respond in JSON format:
 
   app.post("/api/fantasy/mock-draft/start/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const { leagueId } = req.params;
 
       const rostersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
@@ -13562,7 +13638,7 @@ Respond in JSON format:
 
   app.get("/api/fantasy/mock-draft/state/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const { leagueId } = req.params;
       const state = mockDraftCache.get(`mock-${userId}-${leagueId}`);
       if (!state) return res.json({ status: "none" });
@@ -13574,7 +13650,7 @@ Respond in JSON format:
 
   app.post("/api/fantasy/mock-draft/pick/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const { leagueId } = req.params;
       const { playerId } = req.body;
       if (!playerId) return res.status(400).json({ message: "Player ID required" });
@@ -13688,7 +13764,7 @@ Respond in JSON format:
 
   app.get("/api/fantasy/draft-assistant/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.claims.sub;
       const { leagueId } = req.params;
 
       const userProfile = await storage.getUserProfile(userId);
@@ -13748,80 +13824,6 @@ Respond in JSON format:
   // ========================
   // NOTIFICATION PREFERENCES ENDPOINTS
   // ========================
-
-  app.get("/api/notifications/preferences", isAuthenticated, async (req: any, res: Response) => {
-    try {
-      const userId = req.user?.id;
-      const prefs = await db
-        .select()
-        .from(schema.notificationPreferences)
-        .where(eq(schema.notificationPreferences.userId, userId))
-        .limit(1);
-
-      if (prefs.length === 0) {
-        const defaults = {
-          userId,
-          trades: true,
-          waivers: true,
-          injuries: true,
-          scoringUpdates: true,
-          freeAgents: true,
-          draftPicks: true,
-          leagueAnnouncements: true,
-        };
-        const created = await db.insert(schema.notificationPreferences).values(defaults).returning();
-        return res.json(created[0]);
-      }
-
-      res.json(prefs[0]);
-    } catch (error) {
-      console.error("Error fetching notification preferences:", error);
-      res.status(500).json({ message: "Failed to fetch preferences" });
-    }
-  });
-
-  const notifPrefsSchema = z.object({
-    trades: z.boolean().optional(),
-    waivers: z.boolean().optional(),
-    injuries: z.boolean().optional(),
-    scoringUpdates: z.boolean().optional(),
-    freeAgents: z.boolean().optional(),
-    draftPicks: z.boolean().optional(),
-    leagueAnnouncements: z.boolean().optional(),
-  });
-
-  app.put("/api/notifications/preferences", isAuthenticated, async (req: any, res: Response) => {
-    try {
-      const userId = req.user?.id;
-      const parsed = notifPrefsSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ message: "Invalid preferences" });
-
-      const existing = await db
-        .select()
-        .from(schema.notificationPreferences)
-        .where(eq(schema.notificationPreferences.userId, userId))
-        .limit(1);
-
-      if (existing.length === 0) {
-        const created = await db.insert(schema.notificationPreferences).values({
-          userId,
-          ...parsed.data,
-        }).returning();
-        return res.json(created[0]);
-      }
-
-      const updated = await db
-        .update(schema.notificationPreferences)
-        .set({ ...parsed.data, updatedAt: new Date() })
-        .where(eq(schema.notificationPreferences.userId, userId))
-        .returning();
-
-      res.json(updated[0]);
-    } catch (error) {
-      console.error("Error updating notification preferences:", error);
-      res.status(500).json({ message: "Failed to update preferences" });
-    }
-  });
 
   return httpServer;
 }

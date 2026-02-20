@@ -82,7 +82,10 @@ export default function LeaderboardPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/leaderboard"] });
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
     },
-    onError: () => toast({ title: "Failed to refresh stats", variant: "destructive" }),
+    onError: async (err: any) => {
+      const msg = err?.message || "Failed to refresh stats";
+      toast({ title: msg.includes("Sleeper") ? "Link your Sleeper account first in your profile settings" : msg, variant: "destructive" });
+    },
   });
 
   if (isLoading) {

@@ -151,7 +151,10 @@ export default function UserProfilePage() {
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       queryClient.invalidateQueries({ queryKey: ["/api/leaderboard"] });
     },
-    onError: () => toast({ title: "Failed to refresh stats", variant: "destructive" }),
+    onError: async (err: any) => {
+      const msg = err?.message || "Failed to refresh stats";
+      toast({ title: msg.includes("Sleeper") ? "Link your Sleeper account first in your profile settings" : msg, variant: "destructive" });
+    },
   });
 
   if (isLoading) {
