@@ -107,6 +107,22 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+// Simplified standalone player value helper for endpoints that don't need full blended calculation
+function getSimplePlayerValue(playerId: string, player: any): number {
+  if (!player) return 0;
+  const pos = player.position || "?";
+  const name = player.full_name || `${player.first_name || ""} ${player.last_name || ""}`.trim();
+  const consensusVal = dynastyConsensusService.getNormalizedValue(name, pos, false) || 0;
+  if (consensusVal > 0) return consensusVal;
+  const age = player.age || 25;
+  const yearsExp = player.years_exp || 0;
+  const baseByPos: Record<string, number> = { QB: 3000, RB: 2500, WR: 2800, TE: 1500 };
+  let base = baseByPos[pos] || 1000;
+  const agePenalty = pos === "RB" ? Math.max(0, (age - 25) * 300) : Math.max(0, (age - 27) * 200);
+  const expBonus = yearsExp <= 2 ? 500 : yearsExp <= 4 ? 200 : 0;
+  return Math.max(100, base - agePenalty + expBonus);
+}
+
 // Parse commissioner notes on placeholder players to detect devy picks
 // Common formats: "Husan Longstreet QB LSU", "J. Smith WR Alabama", "Player Name - QB - Georgia"
 const VALID_POSITIONS = new Set(["QB", "RB", "WR", "TE", "K", "EDGE", "DL", "DL1T", "DL3T", "DL5T", "ILB", "LB", "CB", "S", "DE", "DT", "OLB", "DB", "FB", "WRS", "IDP"]);
@@ -11893,6 +11909,754 @@ Guidelines:
     } catch (error) {
       console.error("Error fetching league timeline:", error);
       res.status(500).json({ message: "Failed to fetch league timeline" });
+    }
+  });
+
+  // ===== TRASH TALK GENERATOR =====
+  app.post("/api/ai/trash-talk/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const { opponentOwnerId, tone } = req.body;
+      const userId = req.user.claims.sub;
+
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, users, state, league] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getLeague(leagueId),
+      ]);
+
+      const userMap = new Map((users || []).map(u => [u.user_id, u]));
+      const currentWeek = state?.display_week || state?.week || 1;
+
+      const myRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+      const oppRoster = rosters.find(r => r.owner_id === opponentOwnerId);
+      if (!myRoster || !oppRoster) {
+        return res.status(404).json({ message: "Rosters not found" });
+      }
+
+      const myUser = userMap.get(userProfile.sleeperUserId);
+      const oppUser = userMap.get(opponentOwnerId);
+      const myName = myUser?.display_name || myUser?.username || "You";
+      const oppName = oppUser?.display_name || oppUser?.username || "Opponent";
+
+      const myRecord = `${myRoster.settings.wins || 0}-${myRoster.settings.losses || 0}`;
+      const oppRecord = `${oppRoster.settings.wins || 0}-${oppRoster.settings.losses || 0}`;
+      const myPts = ((myRoster.settings.fpts || 0) + (myRoster.settings.fpts_decimal || 0) / 100).toFixed(1);
+      const oppPts = ((oppRoster.settings.fpts || 0) + (oppRoster.settings.fpts_decimal || 0) / 100).toFixed(1);
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const getTopPlayers = (rosterPlayers: string[]) => {
+        return (rosterPlayers || []).slice(0, 5).map(id => {
+          const p = allPlayers?.[id];
+          return p ? `${p.full_name} (${p.position} - ${p.team || 'FA'})` : id;
+        }).join(", ");
+      };
+
+      const toneGuide = tone === "savage" ? "Be ruthless, savage, and brutally funny. No mercy."
+        : tone === "friendly" ? "Keep it lighthearted and fun, like ribbing a buddy."
+        : "Be witty with sharp humor, like a sports commentator roasting someone.";
+
+      const prompt = `Generate 3 unique fantasy football trash talk messages I can send to my opponent.
+
+My Team: ${myName} (Record: ${myRecord}, Points: ${myPts})
+Top Players: ${getTopPlayers(myRoster.players || [])}
+
+Opponent: ${oppName} (Record: ${oppRecord}, Points: ${oppPts})
+Top Players: ${getTopPlayers(oppRoster.players || [])}
+
+League: ${league?.name || 'Dynasty League'}, Week ${currentWeek}
+Tone: ${toneGuide}
+
+Rules:
+- Reference specific players, records, or stats for maximum impact
+- Each message should be 1-3 sentences
+- Make them copy-paste ready for a group chat
+- Number them 1-3
+- Be creative and original`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are a hilarious fantasy football trash talk expert. Generate clever, targeted trash talk that references real matchup data. Keep it fun and sports-focused." },
+          { role: "user", content: prompt }
+        ],
+        max_tokens: 500,
+        temperature: 0.9,
+      });
+
+      const content = response.choices[0]?.message?.content || "";
+      const messages = content.split(/\n\d+[\.\)]\s*/).filter(m => m.trim().length > 0).map(m => m.trim());
+
+      res.json({
+        messages: messages.length > 0 ? messages : [content],
+        myTeam: { name: myName, record: myRecord, points: myPts },
+        opponent: { name: oppName, record: oppRecord, points: oppPts },
+      });
+    } catch (error) {
+      console.error("Error generating trash talk:", error);
+      res.status(500).json({ message: "Failed to generate trash talk" });
+    }
+  });
+
+  // ===== POWER RANKINGS COMMENTARY =====
+  app.get("/api/ai/power-rankings-commentary/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+
+      const [rosters, users, state, league, allPlayers] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      const userMap = new Map((users || []).map(u => [u.user_id, u]));
+      const currentWeek = state?.display_week || state?.week || 1;
+      const playerData = allPlayers || {};
+
+      const teams = rosters.map(roster => {
+        const user = userMap.get(roster.owner_id);
+        const fpts = (roster.settings.fpts || 0) + (roster.settings.fpts_decimal || 0) / 100;
+        const topPlayers = (roster.players || []).slice(0, 3).map(id => {
+          const p = playerData[id];
+          return p ? `${p.full_name} (${p.position})` : "Unknown";
+        }).join(", ");
+
+        return {
+          name: user?.display_name || user?.username || `Team ${roster.roster_id}`,
+          record: `${roster.settings.wins || 0}-${roster.settings.losses || 0}`,
+          points: fpts.toFixed(1),
+          topPlayers,
+          rosterId: roster.roster_id,
+        };
+      }).sort((a, b) => {
+        const [aW] = a.record.split("-").map(Number);
+        const [bW] = b.record.split("-").map(Number);
+        if (aW !== bW) return bW - aW;
+        return parseFloat(b.points) - parseFloat(a.points);
+      });
+
+      const teamsContext = teams.map((t, i) => `${i + 1}. ${t.name} (${t.record}, ${t.points} pts) - Key players: ${t.topPlayers}`).join("\n");
+
+      const prompt = `Write brief ESPN-style power rankings commentary for each team in this fantasy football league.
+
+League: ${league?.name || 'Dynasty League'}, Week ${currentWeek}
+
+Teams (ranked by record):
+${teamsContext}
+
+For each team write a 2-3 sentence blurb that:
+- References their record and trajectory
+- Mentions a key player or roster strength/weakness
+- Has personality and flair like an ESPN columnist
+- Uses the team owner name (not "Team 1")
+
+Format: Return a JSON array of objects with "name" and "commentary" fields. Return ONLY the JSON array, no markdown.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are an ESPN fantasy football columnist known for witty, insightful power rankings write-ups. Always return valid JSON." },
+          { role: "user", content: prompt }
+        ],
+        max_tokens: 1500,
+        temperature: 0.8,
+      });
+
+      const raw = response.choices[0]?.message?.content || "[]";
+      let commentary: Array<{ name: string; commentary: string }> = [];
+      try {
+        const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
+        commentary = JSON.parse(cleaned);
+      } catch {
+        commentary = teams.map(t => ({ name: t.name, commentary: "Commentary unavailable." }));
+      }
+
+      res.json({ commentary, leagueName: league?.name, week: currentWeek });
+    } catch (error) {
+      console.error("Error generating commentary:", error);
+      res.status(500).json({ message: "Failed to generate commentary" });
+    }
+  });
+
+  // ===== BUST/BOOM PROBABILITY DATA =====
+  app.get("/api/fantasy/boom-bust/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, allPlayers] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      const myRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+      if (!myRoster) {
+        return res.status(404).json({ message: "Roster not found" });
+      }
+
+      const playerData = allPlayers || {};
+      const playerIds = myRoster.players || [];
+
+      const cards = playerIds.map(playerId => {
+        const player = playerData[playerId];
+        if (!player) return null;
+
+        const pos = player.position || "?";
+        if (!["QB", "RB", "WR", "TE"].includes(pos)) return null;
+
+        const age = player.age || 0;
+        const yearsExp = player.years_exp || 0;
+        const team = player.team || "FA";
+        const dynastyVal = getSimplePlayerValue(playerId, player);
+
+        const ageFactor = pos === "QB" ? Math.max(0, 1 - (age - 24) * 0.03) :
+          pos === "RB" ? Math.max(0, 1 - (age - 23) * 0.08) :
+          pos === "WR" ? Math.max(0, 1 - (age - 24) * 0.04) :
+          Math.max(0, 1 - (age - 24) * 0.05);
+
+        const expBonus = yearsExp <= 2 ? 0.15 : yearsExp <= 4 ? 0.05 : -0.05;
+        const baseValue = dynastyVal / 10000;
+
+        const boomPct = Math.min(95, Math.max(5, Math.round((baseValue * 60 + ageFactor * 20 + expBonus * 100) * (pos === "QB" ? 1.1 : 1))));
+        const bustPct = Math.min(95, Math.max(5, Math.round(100 - boomPct + (pos === "RB" ? 10 : 0) - (yearsExp >= 3 ? 5 : 10))));
+
+        const ceiling = Math.round(dynastyVal * (1 + ageFactor * 0.3 + expBonus));
+        const floor = Math.round(dynastyVal * Math.max(0.1, 0.5 - (pos === "RB" ? 0.15 : 0) + (yearsExp >= 3 ? 0.1 : 0)));
+
+        let riskLevel: string;
+        if (bustPct >= 60) riskLevel = "High Risk";
+        else if (bustPct >= 40) riskLevel = "Moderate";
+        else riskLevel = "Safe";
+
+        let outlook: string;
+        if (boomPct >= 70) outlook = "Elite Upside";
+        else if (boomPct >= 50) outlook = "Strong Upside";
+        else if (boomPct >= 30) outlook = "Steady";
+        else outlook = "Declining";
+
+        return {
+          playerId,
+          name: player.full_name || "Unknown",
+          position: pos,
+          team,
+          age,
+          yearsExp,
+          dynastyValue: dynastyVal,
+          boomPct,
+          bustPct,
+          ceiling,
+          floor,
+          riskLevel,
+          outlook,
+          headshot: player.espn_id ? `https://a.espncdn.com/i/headshots/nfl/players/full/${player.espn_id}.png` : null,
+        };
+      }).filter(Boolean);
+
+      cards.sort((a: any, b: any) => b.dynastyValue - a.dynastyValue);
+
+      res.json({ cards });
+    } catch (error) {
+      console.error("Error generating boom/bust data:", error);
+      res.status(500).json({ message: "Failed to generate boom/bust data" });
+    }
+  });
+
+  // ===== TRADE ANALYZER AI =====
+  app.post("/api/ai/trade-analyzer/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const { givePlayers, getPlayers } = req.body;
+      const userId = req.user.claims.sub;
+
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, allPlayers, league] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeague(leagueId),
+      ]);
+
+      const myRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+      if (!myRoster) return res.status(404).json({ message: "Roster not found" });
+
+      const playerData = allPlayers || {};
+      const formatPlayer = (id: string) => {
+        const p = playerData[id];
+        if (!p) return { name: id, details: id };
+        const val = getSimplePlayerValue(id, p);
+        return {
+          name: p.full_name || id,
+          details: `${p.full_name} (${p.position} - ${p.team || 'FA'}, Age: ${p.age || '?'}, Value: ${val})`,
+        };
+      };
+
+      const giveDetails = (givePlayers || []).map((id: string) => formatPlayer(id));
+      const getDetails = (getPlayers || []).map((id: string) => formatPlayer(id));
+      const giveTotal = (givePlayers || []).reduce((sum: number, id: string) => sum + getSimplePlayerValue(id, playerData[id]), 0);
+      const getTotal = (getPlayers || []).reduce((sum: number, id: string) => sum + getSimplePlayerValue(id, playerData[id]), 0);
+
+      const myPositions = (myRoster.players || []).reduce((acc: Record<string, number>, id: string) => {
+        const pos = playerData[id]?.position;
+        if (pos && ["QB", "RB", "WR", "TE"].includes(pos)) acc[pos] = (acc[pos] || 0) + 1;
+        return acc;
+      }, {});
+
+      const prompt = `Analyze this dynasty fantasy football trade and give a recommendation.
+
+GIVING AWAY:
+${giveDetails.map((d: any) => d.details).join("\n")}
+Total Value Giving: ${giveTotal}
+
+RECEIVING:
+${getDetails.map((d: any) => d.details).join("\n")}
+Total Value Receiving: ${getTotal}
+
+Value Difference: ${getTotal - giveTotal} (${getTotal > giveTotal ? 'receiving more value' : 'giving more value'})
+
+My Current Roster Composition: ${Object.entries(myPositions).map(([k, v]) => `${k}: ${v}`).join(", ")}
+League Type: ${league?.settings?.type === 2 ? 'Dynasty' : 'Redraft'}
+Scoring: ${league?.scoring_settings?.rec === 1 ? 'PPR' : league?.scoring_settings?.rec === 0.5 ? 'Half PPR' : 'Standard'}
+
+Provide your analysis as JSON with these fields:
+- "verdict": one of "ACCEPT", "REJECT", or "COUNTER"
+- "grade": a letter grade A+ through F
+- "summary": 2-3 sentence summary of your recommendation
+- "giveSideAnalysis": 2 sentences about what you're giving up
+- "getSideAnalysis": 2 sentences about what you're receiving
+- "rosterImpact": 1-2 sentences on how this affects roster construction
+- "counterSuggestion": if verdict is COUNTER, suggest what would make it fair (otherwise null)
+
+Return ONLY valid JSON, no markdown.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are an expert dynasty fantasy football trade analyst. Always return valid JSON. Be decisive in your recommendations." },
+          { role: "user", content: prompt }
+        ],
+        max_tokens: 800,
+        temperature: 0.7,
+      });
+
+      const raw = response.choices[0]?.message?.content || "{}";
+      let analysis;
+      try {
+        const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
+        analysis = JSON.parse(cleaned);
+      } catch {
+        analysis = { verdict: "REJECT", grade: "C", summary: "Unable to analyze trade at this time.", giveSideAnalysis: "", getSideAnalysis: "", rosterImpact: "", counterSuggestion: null };
+      }
+
+      res.json({
+        analysis,
+        giveTotal,
+        getTotal,
+        givePlayers: giveDetails,
+        getPlayers: getDetails,
+      });
+    } catch (error) {
+      console.error("Error analyzing trade:", error);
+      res.status(500).json({ message: "Failed to analyze trade" });
+    }
+  });
+
+  // ===== MID-SEASON REVIEW =====
+  app.get("/api/ai/mid-season-review/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, users, state, league, allPlayers] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      const userMap = new Map((users || []).map(u => [u.user_id, u]));
+      const myRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+      if (!myRoster) return res.status(404).json({ message: "Roster not found" });
+
+      const currentWeek = state?.display_week || state?.week || 1;
+      const myUser = userMap.get(userProfile.sleeperUserId);
+      const myName = myUser?.display_name || myUser?.username || "My Team";
+      const playerData = allPlayers || {};
+      const playoffTeams = league?.settings?.playoff_teams || 6;
+
+      const sorted = [...rosters].sort((a, b) => {
+        if ((b.settings.wins || 0) !== (a.settings.wins || 0)) return (b.settings.wins || 0) - (a.settings.wins || 0);
+        const bPts = (b.settings.fpts || 0) + (b.settings.fpts_decimal || 0) / 100;
+        const aPts = (a.settings.fpts || 0) + (a.settings.fpts_decimal || 0) / 100;
+        return bPts - aPts;
+      });
+      const myRank = sorted.findIndex(r => r.roster_id === myRoster.roster_id) + 1;
+
+      const myFpts = ((myRoster.settings.fpts || 0) + (myRoster.settings.fpts_decimal || 0) / 100).toFixed(1);
+      const myRecord = `${myRoster.settings.wins || 0}-${myRoster.settings.losses || 0}`;
+
+      const posCounts: Record<string, string[]> = {};
+      (myRoster.players || []).forEach(id => {
+        const p = playerData[id];
+        if (p && ["QB", "RB", "WR", "TE"].includes(p.position)) {
+          if (!posCounts[p.position]) posCounts[p.position] = [];
+          posCounts[p.position].push(`${p.full_name} (${p.team || 'FA'}, Age: ${p.age || '?'})`);
+        }
+      });
+
+      const rosterBreakdown = Object.entries(posCounts).map(([pos, names]) => `${pos} (${names.length}): ${names.join(", ")}`).join("\n");
+
+      const standings = sorted.map((r, i) => {
+        const u = userMap.get(r.owner_id);
+        const pts = ((r.settings.fpts || 0) + (r.settings.fpts_decimal || 0) / 100).toFixed(1);
+        return `${i + 1}. ${u?.display_name || 'Unknown'}: ${r.settings.wins || 0}-${r.settings.losses || 0} (${pts} pts)`;
+      }).join("\n");
+
+      const prompt = `Provide a comprehensive mid-season fantasy football review for my team.
+
+MY TEAM: ${myName}
+Record: ${myRecord} (Rank: ${myRank}/${rosters.length})
+Total Points: ${myFpts}
+Week: ${currentWeek}
+Playoff Spots: ${playoffTeams}
+League: ${league?.name || 'League'} (${league?.settings?.type === 2 ? 'Dynasty' : 'Redraft'})
+
+MY ROSTER:
+${rosterBreakdown}
+
+LEAGUE STANDINGS:
+${standings}
+
+Provide your analysis as JSON with these fields:
+- "overallGrade": letter grade A+ through F
+- "playoffOutlook": "Contender", "Bubble", "Longshot", or "Eliminated"
+- "playoffProbability": number 0-100
+- "summary": 3-4 sentence overview
+- "strengths": array of 2-3 roster strengths
+- "weaknesses": array of 2-3 roster weaknesses
+- "recommendations": array of 3-4 specific actionable moves (trade targets, waiver adds, position needs)
+- "strategy": either "WIN_NOW" or "REBUILD" with a brief explanation
+
+Return ONLY valid JSON, no markdown.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are an expert fantasy football analyst providing mid-season team reviews. Be specific and actionable. Always return valid JSON." },
+          { role: "user", content: prompt }
+        ],
+        max_tokens: 1200,
+        temperature: 0.7,
+      });
+
+      const raw = response.choices[0]?.message?.content || "{}";
+      let review;
+      try {
+        const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
+        review = JSON.parse(cleaned);
+      } catch {
+        review = {
+          overallGrade: "C",
+          playoffOutlook: "Bubble",
+          playoffProbability: 50,
+          summary: "Unable to generate review at this time.",
+          strengths: [],
+          weaknesses: [],
+          recommendations: [],
+          strategy: "WIN_NOW",
+        };
+      }
+
+      res.json({
+        review,
+        teamInfo: { name: myName, record: myRecord, rank: myRank, totalTeams: rosters.length, points: myFpts },
+        week: currentWeek,
+      });
+    } catch (error) {
+      console.error("Error generating mid-season review:", error);
+      res.status(500).json({ message: "Failed to generate mid-season review" });
+    }
+  });
+
+  // ===== TAXI SQUAD OPTIMIZER =====
+  app.get("/api/fantasy/taxi-optimizer/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, league, allPlayers] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      const myRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+      if (!myRoster) return res.status(404).json({ message: "Roster not found" });
+
+      const taxiSlots = (league?.settings as any)?.taxi_slots || 0;
+      if (taxiSlots === 0) {
+        return res.json({ taxiSlots: 0, currentTaxi: [], recommendations: [], message: "This league does not have taxi squad slots." });
+      }
+
+      const playerData = allPlayers || {};
+      const currentTaxi = (myRoster.taxi || []).map(id => {
+        const p = playerData[id];
+        return {
+          playerId: id,
+          name: p?.full_name || "Unknown",
+          position: p?.position || "?",
+          team: p?.team || "FA",
+          age: p?.age || 0,
+          yearsExp: p?.years_exp || 0,
+          dynastyValue: getSimplePlayerValue(id, p),
+        };
+      });
+
+      const starters = new Set(myRoster.starters || []);
+      const taxiSet = new Set(myRoster.taxi || []);
+      const benchPlayers = (myRoster.players || [])
+        .filter(id => !starters.has(id) && !taxiSet.has(id))
+        .map(id => {
+          const p = playerData[id];
+          if (!p) return null;
+          const pos = p.position || "?";
+          if (!["QB", "RB", "WR", "TE"].includes(pos)) return null;
+          const yearsExp = p.years_exp || 0;
+          const age = p.age || 0;
+          const val = getSimplePlayerValue(id, p);
+
+          const upside = yearsExp <= 2 ? "High" : yearsExp <= 3 ? "Medium" : "Low";
+          const taxiScore = (yearsExp <= 2 ? 30 : yearsExp <= 3 ? 15 : 0) + (age <= 23 ? 20 : age <= 25 ? 10 : 0) + Math.min(30, val / 300) + (pos === "WR" ? 10 : pos === "RB" ? 5 : 0);
+
+          return {
+            playerId: id,
+            name: p.full_name || "Unknown",
+            position: pos,
+            team: p.team || "FA",
+            age,
+            yearsExp,
+            dynastyValue: val,
+            upside,
+            taxiScore: Math.round(taxiScore),
+            reason: yearsExp <= 1 ? "Rookie with high development potential" :
+              yearsExp <= 2 ? "Second-year player still developing" :
+              age <= 23 ? "Young player with room to grow" :
+              "Veteran depth piece",
+          };
+        })
+        .filter(Boolean)
+        .sort((a: any, b: any) => b.taxiScore - a.taxiScore);
+
+      res.json({
+        taxiSlots,
+        currentTaxi,
+        recommendations: benchPlayers.slice(0, taxiSlots + 3),
+      });
+    } catch (error) {
+      console.error("Error generating taxi optimizer:", error);
+      res.status(500).json({ message: "Failed to generate taxi recommendations" });
+    }
+  });
+
+  // ===== MATCHUP HEAT MAP =====
+  app.get("/api/fantasy/matchup-heatmap/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+      const requestedWeek = req.query.week ? parseInt(req.query.week as string) : null;
+
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, users, state, league, allPlayers] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeagueUsers(leagueId),
+        sleeperApi.getState(),
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      const currentWeek = state?.display_week || state?.week || 1;
+      const selectedWeek = requestedWeek || currentWeek;
+      const userMap = new Map((users || []).map(u => [u.user_id, u]));
+      const playerData = allPlayers || {};
+
+      const matchupsRaw = await sleeperApi.getMatchups(leagueId, selectedWeek);
+      const myRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+      if (!myRoster) return res.status(404).json({ message: "Roster not found" });
+
+      const myMatchup = matchupsRaw.find(m => m.roster_id === myRoster.roster_id);
+      if (!myMatchup || !myMatchup.matchup_id) return res.json({ heatmap: null, message: "No matchup this week" });
+
+      const oppMatchup = matchupsRaw.find(m => m.matchup_id === myMatchup.matchup_id && m.roster_id !== myRoster.roster_id);
+      if (!oppMatchup) return res.json({ heatmap: null, message: "Opponent not found" });
+
+      const oppRoster = rosters.find(r => r.roster_id === oppMatchup.roster_id);
+      const oppUser = oppRoster ? userMap.get(oppRoster.owner_id) : null;
+
+      const getPositionValue = (starters: string[], pos: string) => {
+        return (starters || []).reduce((sum, id) => {
+          const p = playerData[id];
+          if (p?.position === pos || (pos === "FLEX" && ["RB", "WR", "TE"].includes(p?.position || ""))) {
+            return sum + getSimplePlayerValue(id, p);
+          }
+          return sum;
+        }, 0);
+      };
+
+      const positions = ["QB", "RB", "WR", "TE"];
+      const heatmap = positions.map(pos => {
+        const myVal = getPositionValue(myMatchup.starters || [], pos);
+        const oppVal = getPositionValue(oppMatchup.starters || [], pos);
+        const diff = myVal - oppVal;
+        const advantage = diff > 500 ? "Strong" : diff > 0 ? "Slight" : diff > -500 ? "Slight Disadvantage" : "Disadvantage";
+
+        return {
+          position: pos,
+          myValue: myVal,
+          oppValue: oppVal,
+          difference: diff,
+          advantage,
+          myPlayers: (myMatchup.starters || []).filter(id => playerData[id]?.position === pos).map(id => ({
+            name: playerData[id]?.full_name || id,
+            value: getSimplePlayerValue(id, playerData[id]),
+          })),
+          oppPlayers: (oppMatchup.starters || []).filter(id => playerData[id]?.position === pos).map(id => ({
+            name: playerData[id]?.full_name || id,
+            value: getSimplePlayerValue(id, playerData[id]),
+          })),
+        };
+      });
+
+      const myUser = userMap.get(userProfile.sleeperUserId);
+      res.json({
+        heatmap,
+        week: selectedWeek,
+        myTeam: myUser?.display_name || myUser?.username || "My Team",
+        opponent: oppUser?.display_name || oppUser?.username || "Opponent",
+        myPoints: myMatchup.points || 0,
+        oppPoints: oppMatchup.points || 0,
+      });
+    } catch (error) {
+      console.error("Error generating matchup heatmap:", error);
+      res.status(500).json({ message: "Failed to generate matchup heatmap" });
+    }
+  });
+
+  // ===== DRAFT PICK PREDICTIONS =====
+  app.get("/api/fantasy/draft-predictions/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user.claims.sub;
+
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const [rosters, league, allPlayers, users] = await Promise.all([
+        sleeperApi.getLeagueRosters(leagueId),
+        sleeperApi.getLeague(leagueId),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeagueUsers(leagueId),
+      ]);
+
+      const myRoster = rosters.find(r => r.owner_id === userProfile.sleeperUserId);
+      if (!myRoster) return res.status(404).json({ message: "Roster not found" });
+
+      const playerData = allPlayers || {};
+      const userMap = new Map((users || []).map(u => [u.user_id, u]));
+      const leagueSize = rosters.length || 12;
+
+      const drafts = await sleeperApi.getLeagueDrafts(leagueId);
+      const upcomingDraft = drafts?.find((d: any) => d.status === "pre_draft" || d.status === "drafting");
+
+      if (!upcomingDraft) {
+        return res.json({ predictions: [], message: "No upcoming draft found for this league." });
+      }
+
+      const draftOrder = upcomingDraft.draft_order || {};
+      const myDraftSlot = draftOrder[userProfile.sleeperUserId] || 0;
+      const totalRounds = upcomingDraft.settings?.rounds || 4;
+      const draftType = upcomingDraft.type || "snake";
+
+      const myPicks: Array<{ round: number; pick: number; overall: number }> = [];
+      for (let round = 1; round <= totalRounds; round++) {
+        let pickInRound: number;
+        if (draftType === "snake" && round % 2 === 0) {
+          pickInRound = leagueSize - myDraftSlot + 1;
+        } else {
+          pickInRound = myDraftSlot;
+        }
+        const overall = (round - 1) * leagueSize + pickInRound;
+        myPicks.push({ round, pick: pickInRound, overall });
+      }
+
+      const devyPlayers = ktcValues.getDevyPlayers();
+      const rookieProspects = devyPlayers
+        .filter((p: any) => p.draftEligibleYear === "2026" || p.draftEligibleYear === "2025")
+        .sort((a: any, b: any) => (b.value || 0) - (a.value || 0));
+
+      const predictions = myPicks.map(pick => {
+        const startIdx = Math.max(0, pick.overall - 3);
+        const endIdx = Math.min(rookieProspects.length, pick.overall + 3);
+        const likelyAvailable = rookieProspects.slice(startIdx, endIdx).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          position: p.position,
+          college: p.college,
+          value: p.value,
+          tier: p.tier,
+          rank: p.rank || 0,
+        }));
+
+        return {
+          round: pick.round,
+          pick: pick.pick,
+          overall: pick.overall,
+          likelyAvailable,
+        };
+      });
+
+      res.json({
+        predictions,
+        myDraftSlot,
+        totalRounds,
+        draftType,
+        leagueSize,
+        draftStatus: upcomingDraft.status,
+      });
+    } catch (error) {
+      console.error("Error generating draft predictions:", error);
+      res.status(500).json({ message: "Failed to generate draft predictions" });
     }
   });
 

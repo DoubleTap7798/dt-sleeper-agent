@@ -41,6 +41,11 @@ import {
   Flame,
   Heart,
   ArrowLeftRight,
+  MessageSquare,
+  Gauge,
+  Map,
+  ListChecks,
+  Brain,
 } from "lucide-react";
 import {
   Sidebar,
@@ -128,8 +133,11 @@ const navigationGroups: NavGroup[] = [
       { title: "Lineup Advice", url: "/league/lineup", icon: Target, requiresLeague: true, premium: true },
       { title: "Lineup Optimizer", url: "/league/lineup-optimizer", icon: Zap, requiresLeague: true, premium: true },
       { title: "Matchups", url: "/league/matchups", icon: Gamepad2, requiresLeague: true },
+      { title: "Matchup Heat Map", url: "/league/matchup-heatmap", icon: Map, requiresLeague: true, premium: true },
       { title: "Schedule", url: "/league/schedule", icon: CalendarDays, requiresLeague: true },
       { title: "Injury Report", url: "/league/injuries", icon: ShieldAlert, requiresLeague: true },
+      { title: "Taxi Optimizer", url: "/league/taxi-optimizer", icon: ListChecks, requiresLeague: true, premium: true },
+      { title: "Mid-Season Review", url: "/league/mid-season-review", icon: Gauge, requiresLeague: true, premium: true },
       { title: "Watchlist", url: "/league/watchlist", icon: Eye, premium: true },
       { title: "Team Report", url: "/league/team-report", icon: Share2, requiresLeague: true, premium: true },
     ],
@@ -144,6 +152,7 @@ const navigationGroups: NavGroup[] = [
       { title: "Player Trends", url: "/league/trends", icon: Activity, premium: true },
       { title: "Usage Trends", url: "/league/usage-trends", icon: Activity, requiresLeague: true, premium: true },
       { title: "Compare", url: "/league/compare", icon: GitCompare, premium: true },
+      { title: "Boom/Bust Cards", url: "/league/boom-bust", icon: Gauge, requiresLeague: true, premium: true },
       { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true, premium: true },
       { title: "Depth Charts", url: "/league/depth-chart", icon: Layers },
     ],
@@ -165,6 +174,7 @@ const navigationGroups: NavGroup[] = [
     items: [
       { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
       { title: "Draft War Room", url: "/league/war-room", icon: Swords, requiresLeague: true, premium: true },
+      { title: "Draft Predictions", url: "/league/draft-predictions", icon: Brain, requiresLeague: true, premium: true },
       { title: "Pick Values", url: "/league/draft-pick-values", icon: TrendingUp },
     ],
   },
@@ -174,6 +184,7 @@ const navigationGroups: NavGroup[] = [
     requiresLeague: true,
     items: [
       { title: "Trade Calculator", url: "/league/trade", icon: RefreshCw, requiresLeague: true, premium: true },
+      { title: "Trade Analyzer AI", url: "/league/trade-analyzer", icon: Brain, requiresLeague: true, premium: true },
       { title: "Trade History", url: "/league/history", icon: History, requiresLeague: true, premium: true },
     ],
   },
@@ -183,6 +194,7 @@ const navigationGroups: NavGroup[] = [
 const standaloneItems: NavItem[] = [
   { title: "Home", url: "/league", icon: LayoutDashboard, description: "Dashboard & actions" },
   { title: "AI Assistant", url: "/league/ai-chat", icon: Bot, description: "AI fantasy football advisor", premium: true },
+  { title: "Trash Talk", url: "/league/trash-talk", icon: MessageSquare, description: "AI-powered league roasts", premium: true, requiresLeague: true },
   { title: "NFL", url: "/league/nfl", icon: Shield, description: "News, schedule & standings" },
 ];
 

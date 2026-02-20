@@ -53,6 +53,13 @@ import TeamReportPage from "@/pages/team-report";
 import NFLPage from "@/pages/nfl";
 import CollegeStatsPage from "@/pages/college-stats";
 import TransferPortalPage from "@/pages/transfer-portal";
+import TrashTalkPage from "@/pages/trash-talk";
+import BoomBustPage from "@/pages/boom-bust";
+import TradeAnalyzerPage from "@/pages/trade-analyzer";
+import MidSeasonReviewPage from "@/pages/mid-season-review";
+import TaxiOptimizerPage from "@/pages/taxi-optimizer";
+import MatchupHeatmapPage from "@/pages/matchup-heatmap";
+import DraftPredictionsPage from "@/pages/draft-predictions";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -394,6 +401,55 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <StatLeadersPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/trash-talk">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <TrashTalkPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/boom-bust">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <BoomBustPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/trade-analyzer">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <TradeAnalyzerPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/mid-season-review">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <MidSeasonReviewPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/taxi-optimizer">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <TaxiOptimizerPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/matchup-heatmap">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <MatchupHeatmapPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/draft-predictions">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DraftPredictionsPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
