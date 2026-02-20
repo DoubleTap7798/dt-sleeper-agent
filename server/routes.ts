@@ -14,7 +14,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { db } from "./db";
 import * as schema from "@shared/schema";
-import { eq, and, desc, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, or, ilike, ne, asc } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, getLiveStripeClient } from "./stripeClient";
 
 // Server-side response cache for expensive API routes
@@ -12657,6 +12657,446 @@ Return ONLY valid JSON, no markdown.`;
     } catch (error) {
       console.error("Error generating draft predictions:", error);
       res.status(500).json({ message: "Failed to generate draft predictions" });
+    }
+  });
+
+  // ========================
+  // FRIENDS SYSTEM ENDPOINTS
+  // ========================
+
+  app.get("/api/users/search", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const query = (req.query.query as string || "").trim();
+      if (query.length < 2) return res.json([]);
+
+      const currentUserId = req.user?.id;
+      const results = await db
+        .select({
+          id: schema.users.id,
+          firstName: schema.users.firstName,
+          lastName: schema.users.lastName,
+          profileImageUrl: schema.users.profileImageUrl,
+          sleeperUsername: schema.userProfiles.sleeperUsername,
+          sleeperUserId: schema.userProfiles.sleeperUserId,
+        })
+        .from(schema.users)
+        .leftJoin(schema.userProfiles, eq(schema.users.id, schema.userProfiles.userId))
+        .where(
+          and(
+            ne(schema.users.id, currentUserId),
+            or(
+              ilike(schema.users.firstName, `%${query}%`),
+              ilike(schema.users.lastName, `%${query}%`),
+              ilike(schema.users.email, `%${query}%`),
+              ilike(schema.userProfiles.sleeperUsername, `%${query}%`)
+            )
+          )
+        )
+        .limit(20);
+
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching users:", error);
+      res.status(500).json({ message: "Failed to search users" });
+    }
+  });
+
+  const friendRequestSchema = z.object({ addresseeId: z.string().min(1) });
+  const friendRespondSchema = z.object({ friendId: z.string().min(1), action: z.enum(["accept", "reject"]) });
+
+  app.post("/api/friends/request", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const parsed = friendRequestSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid request" });
+      const { addresseeId } = parsed.data;
+      const requesterId = req.user?.id;
+      if (requesterId === addresseeId) {
+        return res.status(400).json({ message: "Cannot add yourself" });
+      }
+
+      const existing = await db
+        .select()
+        .from(schema.friends)
+        .where(
+          or(
+            and(eq(schema.friends.requesterId, requesterId), eq(schema.friends.addresseeId, addresseeId)),
+            and(eq(schema.friends.requesterId, addresseeId), eq(schema.friends.addresseeId, requesterId))
+          )
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        const f = existing[0];
+        if (f.status === "accepted") return res.status(400).json({ message: "Already friends" });
+        if (f.status === "pending") return res.status(400).json({ message: "Friend request already pending" });
+        if (f.status === "rejected") {
+          await db.update(schema.friends).set({ status: "pending", requesterId, addresseeId, updatedAt: new Date() }).where(eq(schema.friends.id, f.id));
+          return res.json({ message: "Friend request sent" });
+        }
+      }
+
+      await db.insert(schema.friends).values({ requesterId, addresseeId, status: "pending" });
+      res.json({ message: "Friend request sent" });
+    } catch (error) {
+      console.error("Error sending friend request:", error);
+      res.status(500).json({ message: "Failed to send friend request" });
+    }
+  });
+
+  app.post("/api/friends/respond", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const parsed = friendRespondSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid response" });
+      const { friendId, action } = parsed.data;
+      const userId = req.user?.id;
+
+      const request = await db.select().from(schema.friends).where(eq(schema.friends.id, friendId)).limit(1);
+      if (!request.length || request[0].addresseeId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const newStatus = action === "accept" ? "accepted" : "rejected";
+      await db.update(schema.friends).set({ status: newStatus, updatedAt: new Date() }).where(eq(schema.friends.id, friendId));
+      res.json({ message: `Friend request ${newStatus}` });
+    } catch (error) {
+      console.error("Error responding to friend request:", error);
+      res.status(500).json({ message: "Failed to respond to friend request" });
+    }
+  });
+
+  app.get("/api/friends", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const friendships = await db
+        .select()
+        .from(schema.friends)
+        .where(
+          and(
+            eq(schema.friends.status, "accepted"),
+            or(
+              eq(schema.friends.requesterId, userId),
+              eq(schema.friends.addresseeId, userId)
+            )
+          )
+        );
+
+      const friendUserIds = friendships.map(f =>
+        f.requesterId === userId ? f.addresseeId : f.requesterId
+      );
+
+      if (friendUserIds.length === 0) return res.json([]);
+
+      const friendUsers = await db
+        .select({
+          id: schema.users.id,
+          firstName: schema.users.firstName,
+          lastName: schema.users.lastName,
+          profileImageUrl: schema.users.profileImageUrl,
+          sleeperUsername: schema.userProfiles.sleeperUsername,
+          sleeperUserId: schema.userProfiles.sleeperUserId,
+        })
+        .from(schema.users)
+        .leftJoin(schema.userProfiles, eq(schema.users.id, schema.userProfiles.userId))
+        .where(sql`${schema.users.id} IN (${sql.join(friendUserIds.map(id => sql`${id}`), sql`, `)})`);
+
+      res.json(friendUsers);
+    } catch (error) {
+      console.error("Error fetching friends:", error);
+      res.status(500).json({ message: "Failed to fetch friends" });
+    }
+  });
+
+  app.get("/api/friends/requests", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const incoming = await db
+        .select({
+          id: schema.friends.id,
+          requesterId: schema.friends.requesterId,
+          status: schema.friends.status,
+          createdAt: schema.friends.createdAt,
+          firstName: schema.users.firstName,
+          lastName: schema.users.lastName,
+          profileImageUrl: schema.users.profileImageUrl,
+        })
+        .from(schema.friends)
+        .innerJoin(schema.users, eq(schema.friends.requesterId, schema.users.id))
+        .where(and(eq(schema.friends.addresseeId, userId), eq(schema.friends.status, "pending")));
+
+      const outgoing = await db
+        .select({
+          id: schema.friends.id,
+          addresseeId: schema.friends.addresseeId,
+          status: schema.friends.status,
+          createdAt: schema.friends.createdAt,
+          firstName: schema.users.firstName,
+          lastName: schema.users.lastName,
+          profileImageUrl: schema.users.profileImageUrl,
+        })
+        .from(schema.friends)
+        .innerJoin(schema.users, eq(schema.friends.addresseeId, schema.users.id))
+        .where(and(eq(schema.friends.requesterId, userId), eq(schema.friends.status, "pending")));
+
+      res.json({ incoming, outgoing });
+    } catch (error) {
+      console.error("Error fetching friend requests:", error);
+      res.status(500).json({ message: "Failed to fetch friend requests" });
+    }
+  });
+
+  app.delete("/api/friends/:id", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const friendshipId = req.params.id;
+
+      const friendship = await db.select().from(schema.friends).where(eq(schema.friends.id, friendshipId)).limit(1);
+      if (!friendship.length) return res.status(404).json({ message: "Friendship not found" });
+      if (friendship[0].requesterId !== userId && friendship[0].addresseeId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      await db.delete(schema.friends).where(eq(schema.friends.id, friendshipId));
+      res.json({ message: "Friend removed" });
+    } catch (error) {
+      console.error("Error removing friend:", error);
+      res.status(500).json({ message: "Failed to remove friend" });
+    }
+  });
+
+  app.get("/api/friends/status/:userId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const currentUserId = req.user?.id;
+      const targetUserId = req.params.userId;
+
+      const friendship = await db
+        .select()
+        .from(schema.friends)
+        .where(
+          or(
+            and(eq(schema.friends.requesterId, currentUserId), eq(schema.friends.addresseeId, targetUserId)),
+            and(eq(schema.friends.requesterId, targetUserId), eq(schema.friends.addresseeId, currentUserId))
+          )
+        )
+        .limit(1);
+
+      if (!friendship.length) return res.json({ status: "none" });
+      const f = friendship[0];
+      res.json({
+        status: f.status,
+        friendshipId: f.id,
+        isRequester: f.requesterId === currentUserId,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to check friendship status" });
+    }
+  });
+
+  // ========================
+  // USER PROFILE ENDPOINT
+  // ========================
+
+  app.get("/api/profile/:userId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const targetUserId = req.params.userId;
+
+      const userResult = await db
+        .select({
+          id: schema.users.id,
+          firstName: schema.users.firstName,
+          lastName: schema.users.lastName,
+          profileImageUrl: schema.users.profileImageUrl,
+          createdAt: schema.users.createdAt,
+          sleeperUsername: schema.userProfiles.sleeperUsername,
+          sleeperUserId: schema.userProfiles.sleeperUserId,
+        })
+        .from(schema.users)
+        .leftJoin(schema.userProfiles, eq(schema.users.id, schema.userProfiles.userId))
+        .where(eq(schema.users.id, targetUserId))
+        .limit(1);
+
+      if (!userResult.length) return res.status(404).json({ message: "User not found" });
+      const user = userResult[0];
+
+      const stats = await db.select().from(schema.userStats).where(eq(schema.userStats.userId, targetUserId)).limit(1);
+
+      const friendCount = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(schema.friends)
+        .where(
+          and(
+            eq(schema.friends.status, "accepted"),
+            or(
+              eq(schema.friends.requesterId, targetUserId),
+              eq(schema.friends.addresseeId, targetUserId)
+            )
+          )
+        );
+
+      res.json({
+        ...user,
+        stats: stats[0] || null,
+        friendCount: friendCount[0]?.count || 0,
+      });
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      res.status(500).json({ message: "Failed to fetch profile" });
+    }
+  });
+
+  // ========================
+  // LEADERBOARD ENDPOINTS
+  // ========================
+
+  app.post("/api/leaderboard/refresh", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "No Sleeper account linked" });
+      }
+
+      const existingStats = await db.select().from(schema.userStats).where(eq(schema.userStats.userId, userId)).limit(1);
+      if (existingStats.length > 0 && existingStats[0].computedAt) {
+        const hoursSince = (Date.now() - new Date(existingStats[0].computedAt).getTime()) / (1000 * 60 * 60);
+        if (hoursSince < 1) {
+          return res.json({ message: "Stats were recently refreshed. Try again later.", cooldown: true });
+        }
+      }
+
+      const sleeperUserId = userProfile.sleeperUserId;
+      const sleeperUsername = userProfile.sleeperUsername || "";
+
+      let sleeperAvatar = "";
+      try {
+        const sleeperUserRes = await fetch(`https://api.sleeper.app/v1/user/${sleeperUserId}`);
+        if (sleeperUserRes.ok) {
+          const sleeperUser = await sleeperUserRes.json();
+          sleeperAvatar = sleeperUser.avatar ? `https://sleepercdn.com/avatars/thumbs/${sleeperUser.avatar}` : "";
+        }
+      } catch {}
+
+      let totalWins = 0, totalLosses = 0, totalTies = 0;
+      let championships = 0, playoffAppearances = 0;
+      let bestFinish: number | null = null;
+      let totalLeagues = 0, activeLeagues = 0;
+      let totalPointsFor = 0;
+
+      const seasons = ["2020", "2021", "2022", "2023", "2024", "2025"];
+      for (const season of seasons) {
+        try {
+          const leaguesRes = await fetch(`https://api.sleeper.app/v1/user/${sleeperUserId}/leagues/nfl/${season}`);
+          if (!leaguesRes.ok) continue;
+          const leagues = await leaguesRes.json();
+          if (!Array.isArray(leagues)) continue;
+
+          for (const league of leagues) {
+            totalLeagues++;
+            if (league.status === "in_season" || league.status === "pre_draft") activeLeagues++;
+
+            try {
+              const rostersRes = await fetch(`https://api.sleeper.app/v1/league/${league.league_id}/rosters`);
+              if (!rostersRes.ok) continue;
+              const rosters = await rostersRes.json();
+              const myRoster = rosters.find((r: any) => r.owner_id === sleeperUserId);
+              if (!myRoster) continue;
+
+              const wins = myRoster.settings?.wins || 0;
+              const losses = myRoster.settings?.losses || 0;
+              const ties = myRoster.settings?.ties || 0;
+              const fpts = (myRoster.settings?.fpts || 0) + (myRoster.settings?.fpts_decimal || 0) / 100;
+
+              totalWins += wins;
+              totalLosses += losses;
+              totalTies += ties;
+              totalPointsFor += Math.round(fpts);
+
+              const sortedRosters = [...rosters].sort((a: any, b: any) => {
+                const aWins = a.settings?.wins || 0;
+                const bWins = b.settings?.wins || 0;
+                const aPts = (a.settings?.fpts || 0) + (a.settings?.fpts_decimal || 0) / 100;
+                const bPts = (b.settings?.fpts || 0) + (b.settings?.fpts_decimal || 0) / 100;
+                return bWins - aWins || bPts - aPts;
+              });
+
+              const rank = sortedRosters.findIndex((r: any) => r.roster_id === myRoster.roster_id) + 1;
+              if (rank === 1) championships++;
+              if (rank <= (league.settings?.playoff_teams || 6)) playoffAppearances++;
+              if (bestFinish === null || rank < bestFinish) bestFinish = rank;
+            } catch {}
+          }
+        } catch {}
+      }
+
+      const displayName = [userProfile.sleeperUsername || req.user?.firstName, req.user?.lastName].filter(Boolean).join(" ") || sleeperUsername;
+
+      await db.insert(schema.userStats).values({
+        userId,
+        sleeperUserId,
+        sleeperUsername,
+        displayName,
+        avatarUrl: sleeperAvatar || req.user?.profileImageUrl || "",
+        totalWins,
+        totalLosses,
+        totalTies,
+        championships,
+        runnerUps: 0,
+        playoffAppearances,
+        bestFinish,
+        totalLeagues,
+        activeLeagues,
+        totalPointsFor,
+        computedAt: new Date(),
+      }).onConflictDoUpdate({
+        target: schema.userStats.userId,
+        set: {
+          sleeperUserId,
+          sleeperUsername,
+          displayName,
+          avatarUrl: sleeperAvatar || req.user?.profileImageUrl || "",
+          totalWins,
+          totalLosses,
+          totalTies,
+          championships,
+          runnerUps: 0,
+          playoffAppearances,
+          bestFinish,
+          totalLeagues,
+          activeLeagues,
+          totalPointsFor,
+          computedAt: new Date(),
+        },
+      });
+
+      res.json({ message: "Stats refreshed successfully" });
+    } catch (error) {
+      console.error("Error refreshing leaderboard:", error);
+      res.status(500).json({ message: "Failed to refresh stats" });
+    }
+  });
+
+  app.get("/api/leaderboard", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const sortBy = (req.query.sort as string) || "championships";
+      const validSorts: Record<string, any> = {
+        championships: desc(schema.userStats.championships),
+        wins: desc(schema.userStats.totalWins),
+        points: desc(schema.userStats.totalPointsFor),
+        winpct: sql`CASE WHEN (${schema.userStats.totalWins} + ${schema.userStats.totalLosses}) > 0 THEN ${schema.userStats.totalWins}::float / (${schema.userStats.totalWins} + ${schema.userStats.totalLosses})::float ELSE 0 END DESC`,
+        leagues: desc(schema.userStats.totalLeagues),
+      };
+
+      const orderClause = validSorts[sortBy] || validSorts.championships;
+
+      const leaderboard = await db
+        .select()
+        .from(schema.userStats)
+        .orderBy(orderClause, desc(schema.userStats.totalWins))
+        .limit(100);
+
+      res.json(leaderboard);
+    } catch (error) {
+      console.error("Error fetching leaderboard:", error);
+      res.status(500).json({ message: "Failed to fetch leaderboard" });
     }
   });
 

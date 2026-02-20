@@ -187,3 +187,51 @@ export const insertLeagueSettingsSchema = createInsertSchema(leagueSettings).omi
 
 export type LeagueSettings = typeof leagueSettings.$inferSelect;
 export type InsertLeagueSettings = z.infer<typeof insertLeagueSettingsSchema>;
+
+export const friends = pgTable("friends", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  requesterId: varchar("requester_id").notNull(),
+  addresseeId: varchar("addressee_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertFriendSchema = createInsertSchema(friends).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Friend = typeof friends.$inferSelect;
+export type InsertFriend = z.infer<typeof insertFriendSchema>;
+
+export const userStats = pgTable("user_stats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(),
+  sleeperUserId: text("sleeper_user_id"),
+  sleeperUsername: text("sleeper_username"),
+  displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
+  totalWins: integer("total_wins").default(0),
+  totalLosses: integer("total_losses").default(0),
+  totalTies: integer("total_ties").default(0),
+  championships: integer("championships").default(0),
+  runnerUps: integer("runner_ups").default(0),
+  playoffAppearances: integer("playoff_appearances").default(0),
+  bestFinish: integer("best_finish"),
+  totalLeagues: integer("total_leagues").default(0),
+  activeLeagues: integer("active_leagues").default(0),
+  totalPointsFor: integer("total_points_for").default(0),
+  dynastyValueRank: integer("dynasty_value_rank"),
+  computedAt: timestamp("computed_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertUserStatsSchema = createInsertSchema(userStats).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type UserStatsEntry = typeof userStats.$inferSelect;
+export type InsertUserStats = z.infer<typeof insertUserStatsSchema>;

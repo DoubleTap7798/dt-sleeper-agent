@@ -60,6 +60,8 @@ import MidSeasonReviewPage from "@/pages/mid-season-review";
 import TaxiOptimizerPage from "@/pages/taxi-optimizer";
 import MatchupHeatmapPage from "@/pages/matchup-heatmap";
 import DraftPredictionsPage from "@/pages/draft-predictions";
+import UserProfilePage from "@/pages/user-profile";
+import LeaderboardPage from "@/pages/leaderboard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
@@ -451,6 +453,16 @@ function Router() {
           <LeagueLayout>
             <DraftPredictionsPage />
           </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/profile/:userId">
+        <AuthenticatedRoute>
+          <UserProfilePage />
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/leaderboard">
+        <AuthenticatedRoute>
+          <LeaderboardPage />
         </AuthenticatedRoute>
       </Route>
       <Route path="/admin">

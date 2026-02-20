@@ -195,6 +195,7 @@ const standaloneItems: NavItem[] = [
   { title: "Home", url: "/league", icon: LayoutDashboard, description: "Dashboard & actions" },
   { title: "AI Assistant", url: "/league/ai-chat", icon: Bot, description: "AI fantasy football advisor", premium: true },
   { title: "Trash Talk", url: "/league/trash-talk", icon: MessageSquare, description: "AI-powered league roasts", premium: true, requiresLeague: true },
+  { title: "Leaderboard", url: "/leaderboard", icon: Crown, description: "Global user rankings" },
   { title: "NFL", url: "/league/nfl", icon: Shield, description: "News, schedule & standings" },
 ];
 
@@ -498,19 +499,23 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
         </a>
         
         <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
-            <AvatarFallback className="bg-primary text-primary-foreground">
-              {getInitials()}
-            </AvatarFallback>
-          </Avatar>
+          <Link href={user?.id ? `/profile/${user.id}` : "#"} data-testid="link-my-profile">
+            <Avatar className="h-9 w-9 cursor-pointer">
+              <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || "User"} />
+              <AvatarFallback className="bg-primary text-primary-foreground">
+                {getInitials()}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium truncate" data-testid="text-user-name">
-                {user?.firstName && user?.lastName
-                  ? `${user.firstName} ${user.lastName}`
-                  : user?.email || "User"}
-              </p>
+              <Link href={user?.id ? `/profile/${user.id}` : "#"} className="hover:underline">
+                <p className="text-sm font-medium truncate" data-testid="text-user-name">
+                  {user?.firstName && user?.lastName
+                    ? `${user.firstName} ${user.lastName}`
+                    : user?.email || "User"}
+                </p>
+              </Link>
               {isPremium && (
                 <Badge variant="outline" className="text-primary border-primary text-[10px] px-1.5 py-0" data-testid="badge-premium">
                   <Crown className="h-3 w-3 mr-0.5" />
