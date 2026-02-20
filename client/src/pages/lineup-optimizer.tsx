@@ -64,9 +64,22 @@ export default function LineupOptimizerPage() {
     enabled: !!leagueId,
   });
 
+  const { data: leagueSettings } = useQuery<{ devyEnabled: boolean }>({
+    queryKey: [`/api/league-settings/${leagueId}`],
+    enabled: !!leagueId,
+  });
+
+  const devyEnabled = leagueSettings?.devyEnabled ?? true;
+
+  const filteredData = data && !devyEnabled ? {
+    ...data,
+    currentLineup: data.currentLineup.filter(p => !p.isDevyPlaceholder),
+    optimalLineup: data.optimalLineup.filter(p => !p.isDevyPlaceholder),
+  } : data;
+
   return (
     <PremiumGate featureName="Lineup Optimizer">
-      <LineupOptimizerContent data={data} isLoading={isLoading} error={error} />
+      <LineupOptimizerContent data={filteredData} isLoading={isLoading} error={error} />
     </PremiumGate>
   );
 }

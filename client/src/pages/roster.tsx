@@ -141,6 +141,12 @@ function RosterContent({ leagueId }: { leagueId: string }) {
     enabled: !!leagueId,
   });
 
+  const { data: leagueSettings } = useQuery<{ devyEnabled: boolean }>({
+    queryKey: [`/api/league-settings/${leagueId}`],
+    enabled: !!leagueId,
+  });
+
+  const devyEnabled = leagueSettings?.devyEnabled ?? true;
 
   const getInjuryBadge = (status: string | null) => {
     if (!status) return null;
@@ -153,6 +159,7 @@ function RosterContent({ leagueId }: { leagueId: string }) {
 
   const filteredPlayers = (data?.players || [])
     .filter(p => {
+      if (!devyEnabled && (p.isDevyPlaceholder || p.devyInfo)) return false;
       if (positionFilter === "all") return true;
       if (p.position === positionFilter) return true;
       if (IDP_POSITION_GROUP[p.position] === positionFilter) return true;
