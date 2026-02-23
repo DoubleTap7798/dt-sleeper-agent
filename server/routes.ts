@@ -13215,6 +13215,8 @@ Return ONLY valid JSON, no markdown.`;
           createdAt: schema.users.createdAt,
           sleeperUsername: schema.userProfiles.sleeperUsername,
           sleeperUserId: schema.userProfiles.sleeperUserId,
+          bio: schema.userProfiles.bio,
+          favoriteTeams: schema.userProfiles.favoriteTeams,
         })
         .from(schema.users)
         .leftJoin(schema.userProfiles, eq(schema.users.id, schema.userProfiles.userId))
@@ -13247,6 +13249,46 @@ Return ONLY valid JSON, no markdown.`;
     } catch (error) {
       console.error("Error fetching profile:", error);
       res.status(500).json({ message: "Failed to fetch profile" });
+    }
+  });
+
+  app.patch("/api/profile/bio", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { bio } = req.body;
+      if (typeof bio !== "string" || bio.length > 500) {
+        return res.status(400).json({ message: "Bio must be a string under 500 characters" });
+      }
+      const existing = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      if (existing.length > 0) {
+        await db.update(schema.userProfiles).set({ bio: bio.trim(), updatedAt: new Date() }).where(eq(schema.userProfiles.userId, userId));
+      } else {
+        await db.insert(schema.userProfiles).values({ userId, bio: bio.trim() });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating bio:", error);
+      res.status(500).json({ message: "Failed to update bio" });
+    }
+  });
+
+  app.patch("/api/profile/favorite-teams", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { favoriteTeams } = req.body;
+      if (typeof favoriteTeams !== "object") {
+        return res.status(400).json({ message: "Invalid favorite teams format" });
+      }
+      const existing = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      if (existing.length > 0) {
+        await db.update(schema.userProfiles).set({ favoriteTeams, updatedAt: new Date() }).where(eq(schema.userProfiles.userId, userId));
+      } else {
+        await db.insert(schema.userProfiles).values({ userId, favoriteTeams });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating favorite teams:", error);
+      res.status(500).json({ message: "Failed to update favorite teams" });
     }
   });
 
@@ -13293,9 +13335,10 @@ Return ONLY valid JSON, no markdown.`;
 
       const currentLeagues = await getAllUserLeagues(sleeperUserId);
       activeLeagues = currentLeagues.length;
+      totalLeagues = currentLeagues.length;
 
       const processedLeagueIds = new Set<string>();
-      const allLeagueSeasonIds: string[] = [];
+      const allLeagueSeasonIds: { leagueId: string; playoffTeams: number; totalRosters: number }[] = [];
 
       for (const league of currentLeagues) {
         const takeoverSeason = takeoverMap.get(league.league_id) || null;
@@ -13311,22 +13354,22 @@ Return ONLY valid JSON, no markdown.`;
               currentId = leagueData.previous_league_id;
               continue;
             }
-            allLeagueSeasonIds.push(currentId);
+            const playoffTeams = leagueData.settings?.playoff_teams || 6;
+            const totalRosters = leagueData.total_rosters || 12;
+            allLeagueSeasonIds.push({ leagueId: currentId, playoffTeams, totalRosters });
             currentId = leagueData.previous_league_id;
           } catch { break; }
         }
       }
 
-      totalLeagues = allLeagueSeasonIds.length;
-
       const LB_BATCH = 10;
       for (let i = 0; i < allLeagueSeasonIds.length; i += LB_BATCH) {
         const batch = allLeagueSeasonIds.slice(i, i + LB_BATCH);
-        const results = await Promise.all(batch.map(async (leagueId) => {
+        const results = await Promise.all(batch.map(async (entry) => {
           try {
             const [rosters, bracket] = await Promise.all([
-              sleeperApi.getLeagueRosters(leagueId),
-              sleeperApi.getPlayoffBracket(leagueId).catch(() => []),
+              sleeperApi.getLeagueRosters(entry.leagueId),
+              sleeperApi.getPlayoffBracket(entry.leagueId).catch(() => []),
             ]);
             if (!rosters) return null;
             const myRoster = rosters.find((r: any) => r.owner_id === sleeperUserId);
@@ -13350,14 +13393,15 @@ Return ONLY valid JSON, no markdown.`;
 
             let isChampion = false;
             if (bracket && bracket.length > 0) {
-              const champMatch = bracket.reduce((max: any, match: any) =>
-                (match.r > (max?.r || 0)) ? match : max, bracket[0]);
-              if (champMatch && champMatch.w === myRoster.roster_id) isChampion = true;
+              const champRosterId = sleeperApi.findChampionFromBracket(bracket);
+              if (champRosterId === myRoster.roster_id) isChampion = true;
             } else if (rank === 1) {
               isChampion = true;
             }
 
-            return { wins, losses, ties, fpts: Math.round(fpts), rank, isChampion, isPlayoffs: rank <= 6 };
+            const madePlayoffs = rank <= entry.playoffTeams;
+
+            return { wins, losses, ties, fpts: Math.round(fpts), rank, isChampion, isPlayoffs: madePlayoffs };
           } catch { return null; }
         }));
 

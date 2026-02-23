@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Trophy,
   Users,
@@ -21,11 +23,65 @@ import {
   Target,
   Zap,
   X,
+  Pencil,
+  Check,
+  Heart,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { PageHeader } from "@/components/page-header";
+
+const NFL_TEAMS = [
+  "Arizona Cardinals", "Atlanta Falcons", "Baltimore Ravens", "Buffalo Bills",
+  "Carolina Panthers", "Chicago Bears", "Cincinnati Bengals", "Cleveland Browns",
+  "Dallas Cowboys", "Denver Broncos", "Detroit Lions", "Green Bay Packers",
+  "Houston Texans", "Indianapolis Colts", "Jacksonville Jaguars", "Kansas City Chiefs",
+  "Las Vegas Raiders", "Los Angeles Chargers", "Los Angeles Rams", "Miami Dolphins",
+  "Minnesota Vikings", "New England Patriots", "New Orleans Saints", "New York Giants",
+  "New York Jets", "Philadelphia Eagles", "Pittsburgh Steelers", "San Francisco 49ers",
+  "Seattle Seahawks", "Tampa Bay Buccaneers", "Tennessee Titans", "Washington Commanders",
+];
+
+const NBA_TEAMS = [
+  "Atlanta Hawks", "Boston Celtics", "Brooklyn Nets", "Charlotte Hornets",
+  "Chicago Bulls", "Cleveland Cavaliers", "Dallas Mavericks", "Denver Nuggets",
+  "Detroit Pistons", "Golden State Warriors", "Houston Rockets", "Indiana Pacers",
+  "LA Clippers", "Los Angeles Lakers", "Memphis Grizzlies", "Miami Heat",
+  "Milwaukee Bucks", "Minnesota Timberwolves", "New Orleans Pelicans", "New York Knicks",
+  "Oklahoma City Thunder", "Orlando Magic", "Philadelphia 76ers", "Phoenix Suns",
+  "Portland Trail Blazers", "Sacramento Kings", "San Antonio Spurs", "Toronto Raptors",
+  "Utah Jazz", "Washington Wizards",
+];
+
+const MLB_TEAMS = [
+  "Arizona Diamondbacks", "Atlanta Braves", "Baltimore Orioles", "Boston Red Sox",
+  "Chicago Cubs", "Chicago White Sox", "Cincinnati Reds", "Cleveland Guardians",
+  "Colorado Rockies", "Detroit Tigers", "Houston Astros", "Kansas City Royals",
+  "Los Angeles Angels", "Los Angeles Dodgers", "Miami Marlins", "Milwaukee Brewers",
+  "Minnesota Twins", "New York Mets", "New York Yankees", "Oakland Athletics",
+  "Philadelphia Phillies", "Pittsburgh Pirates", "San Diego Padres", "San Francisco Giants",
+  "Seattle Mariners", "St. Louis Cardinals", "Tampa Bay Rays", "Texas Rangers",
+  "Toronto Blue Jays", "Washington Nationals",
+];
+
+const NHL_TEAMS = [
+  "Anaheim Ducks", "Arizona Coyotes", "Boston Bruins", "Buffalo Sabres",
+  "Calgary Flames", "Carolina Hurricanes", "Chicago Blackhawks", "Colorado Avalanche",
+  "Columbus Blue Jackets", "Dallas Stars", "Detroit Red Wings", "Edmonton Oilers",
+  "Florida Panthers", "Los Angeles Kings", "Minnesota Wild", "Montreal Canadiens",
+  "Nashville Predators", "New Jersey Devils", "New York Islanders", "New York Rangers",
+  "Ottawa Senators", "Philadelphia Flyers", "Pittsburgh Penguins", "San Jose Sharks",
+  "Seattle Kraken", "St. Louis Blues", "Tampa Bay Lightning", "Toronto Maple Leafs",
+  "Vancouver Canucks", "Vegas Golden Knights", "Washington Capitals", "Winnipeg Jets",
+];
+
+interface FavoriteTeams {
+  nfl?: string;
+  nba?: string;
+  mlb?: string;
+  nhl?: string;
+}
 
 interface ProfileData {
   id: string;
@@ -35,6 +91,8 @@ interface ProfileData {
   createdAt: string | null;
   sleeperUsername: string | null;
   sleeperUserId: string | null;
+  bio: string | null;
+  favoriteTeams: FavoriteTeams | null;
   friendCount: number;
   stats: {
     totalWins: number;
@@ -84,6 +142,10 @@ export default function UserProfilePage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [editingBio, setEditingBio] = useState(false);
+  const [bioText, setBioText] = useState("");
+  const [editingTeams, setEditingTeams] = useState(false);
+  const [selectedTeams, setSelectedTeams] = useState<FavoriteTeams>({});
 
   usePageTitle("Profile");
 
@@ -91,6 +153,13 @@ export default function UserProfilePage() {
     queryKey: ["/api/profile", userId],
     enabled: !!userId,
   });
+
+  useEffect(() => {
+    if (profile) {
+      setBioText(profile.bio || "");
+      setSelectedTeams((profile.favoriteTeams as FavoriteTeams) || {});
+    }
+  }, [profile]);
 
   const { data: friendStatus } = useQuery<FriendshipStatus>({
     queryKey: ["/api/friends/status", userId],
@@ -156,6 +225,33 @@ export default function UserProfilePage() {
     },
   });
 
+  const saveBio = useMutation({
+    mutationFn: () => apiRequest("PATCH", "/api/profile/bio", { bio: bioText }),
+    onSuccess: () => {
+      toast({ title: "Bio updated!" });
+      setEditingBio(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/profile", userId] });
+    },
+    onError: () => toast({ title: "Failed to save bio", variant: "destructive" }),
+  });
+
+  const saveTeams = useMutation({
+    mutationFn: () => {
+      const cleaned: FavoriteTeams = {};
+      if (selectedTeams.nfl && selectedTeams.nfl !== "none") cleaned.nfl = selectedTeams.nfl;
+      if (selectedTeams.nba && selectedTeams.nba !== "none") cleaned.nba = selectedTeams.nba;
+      if (selectedTeams.mlb && selectedTeams.mlb !== "none") cleaned.mlb = selectedTeams.mlb;
+      if (selectedTeams.nhl && selectedTeams.nhl !== "none") cleaned.nhl = selectedTeams.nhl;
+      return apiRequest("PATCH", "/api/profile/favorite-teams", { favoriteTeams: cleaned });
+    },
+    onSuccess: () => {
+      toast({ title: "Favorite teams updated!" });
+      setEditingTeams(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/profile", userId] });
+    },
+    onError: () => toast({ title: "Failed to save teams", variant: "destructive" }),
+  });
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6 max-w-4xl mx-auto">
@@ -177,6 +273,9 @@ export default function UserProfilePage() {
   const winPct = profile.stats && (profile.stats.totalWins + profile.stats.totalLosses) > 0
     ? ((profile.stats.totalWins / (profile.stats.totalWins + profile.stats.totalLosses)) * 100).toFixed(1)
     : "0.0";
+
+  const favTeams = (profile.favoriteTeams as FavoriteTeams) || {};
+  const hasTeams = favTeams.nfl || favTeams.nba || favTeams.mlb || favTeams.nhl;
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
@@ -249,6 +348,148 @@ export default function UserProfilePage() {
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-bio">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Pencil className="h-4 w-4" /> Bio
+            </CardTitle>
+            {isOwnProfile && !editingBio && (
+              <Button size="sm" variant="ghost" onClick={() => setEditingBio(true)} data-testid="button-edit-bio">
+                <Pencil className="h-3 w-3 mr-1" /> Edit
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingBio ? (
+            <div className="space-y-3">
+              <Textarea
+                value={bioText}
+                onChange={(e) => setBioText(e.target.value)}
+                placeholder="Tell others about yourself as a fantasy manager..."
+                maxLength={500}
+                rows={3}
+                data-testid="textarea-bio"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">{bioText.length}/500</span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => { setEditingBio(false); setBioText(profile.bio || ""); }} data-testid="button-cancel-bio">
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={() => saveBio.mutate()} disabled={saveBio.isPending} data-testid="button-save-bio">
+                    <Check className="h-3 w-3 mr-1" /> Save
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm" data-testid="text-bio">
+              {profile.bio || (isOwnProfile ? "No bio yet. Click Edit to add one!" : "No bio set.")}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-favorite-teams">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Heart className="h-4 w-4" /> Favorite Teams
+            </CardTitle>
+            {isOwnProfile && !editingTeams && (
+              <Button size="sm" variant="ghost" onClick={() => setEditingTeams(true)} data-testid="button-edit-teams">
+                <Pencil className="h-3 w-3 mr-1" /> Edit
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingTeams ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">NFL</label>
+                  <Select value={selectedTeams.nfl || ""} onValueChange={(v) => setSelectedTeams(prev => ({ ...prev, nfl: v || undefined }))}>
+                    <SelectTrigger data-testid="select-nfl-team"><SelectValue placeholder="Select NFL team" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {NFL_TEAMS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">NBA</label>
+                  <Select value={selectedTeams.nba || ""} onValueChange={(v) => setSelectedTeams(prev => ({ ...prev, nba: v || undefined }))}>
+                    <SelectTrigger data-testid="select-nba-team"><SelectValue placeholder="Select NBA team" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {NBA_TEAMS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">MLB</label>
+                  <Select value={selectedTeams.mlb || ""} onValueChange={(v) => setSelectedTeams(prev => ({ ...prev, mlb: v || undefined }))}>
+                    <SelectTrigger data-testid="select-mlb-team"><SelectValue placeholder="Select MLB team" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {MLB_TEAMS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">NHL</label>
+                  <Select value={selectedTeams.nhl || ""} onValueChange={(v) => setSelectedTeams(prev => ({ ...prev, nhl: v || undefined }))}>
+                    <SelectTrigger data-testid="select-nhl-team"><SelectValue placeholder="Select NHL team" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {NHL_TEAMS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="ghost" onClick={() => { setEditingTeams(false); setSelectedTeams((profile.favoriteTeams as FavoriteTeams) || {}); }} data-testid="button-cancel-teams">
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={() => saveTeams.mutate()} disabled={saveTeams.isPending} data-testid="button-save-teams">
+                  <Check className="h-3 w-3 mr-1" /> Save
+                </Button>
+              </div>
+            </div>
+          ) : hasTeams ? (
+            <div className="flex flex-wrap gap-2" data-testid="div-favorite-teams">
+              {favTeams.nfl && favTeams.nfl !== "none" && (
+                <Badge variant="secondary" className="gap-1" data-testid="badge-nfl-team">
+                  <span className="text-xs text-muted-foreground">NFL:</span> {favTeams.nfl}
+                </Badge>
+              )}
+              {favTeams.nba && favTeams.nba !== "none" && (
+                <Badge variant="secondary" className="gap-1" data-testid="badge-nba-team">
+                  <span className="text-xs text-muted-foreground">NBA:</span> {favTeams.nba}
+                </Badge>
+              )}
+              {favTeams.mlb && favTeams.mlb !== "none" && (
+                <Badge variant="secondary" className="gap-1" data-testid="badge-mlb-team">
+                  <span className="text-xs text-muted-foreground">MLB:</span> {favTeams.mlb}
+                </Badge>
+              )}
+              {favTeams.nhl && favTeams.nhl !== "none" && (
+                <Badge variant="secondary" className="gap-1" data-testid="badge-nhl-team">
+                  <span className="text-xs text-muted-foreground">NHL:</span> {favTeams.nhl}
+                </Badge>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground" data-testid="text-no-teams">
+              {isOwnProfile ? "No favorite teams set. Click Edit to add yours!" : "No favorite teams set."}
+            </p>
+          )}
         </CardContent>
       </Card>
 

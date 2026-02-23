@@ -14,13 +14,15 @@ export const userProfiles = pgTable("user_profiles", {
   sleeperUsername: text("sleeper_username"),
   sleeperUserId: text("sleeper_user_id"),
   selectedLeagueId: text("selected_league_id"),
+  bio: text("bio"),
+  favoriteTeams: jsonb("favorite_teams"),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
-  paypalSubscriptionId: text("paypal_subscription_id"), // Legacy field (deprecated)
-  subscriptionSource: text("subscription_source"), // 'stripe' or null
-  subscriptionStatus: text("subscription_status"), // 'active', 'canceled', 'past_due', 'trialing', null
+  paypalSubscriptionId: text("paypal_subscription_id"),
+  subscriptionSource: text("subscription_source"),
+  subscriptionStatus: text("subscription_status"),
   subscriptionPeriodEnd: timestamp("subscription_period_end"),
-  isGrandfathered: boolean("is_grandfathered").default(false), // Lifetime premium for early users
+  isGrandfathered: boolean("is_grandfathered").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
