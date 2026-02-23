@@ -13965,11 +13965,17 @@ Respond in JSON format:
       });
 
       // Get available prospects (not yet picked)
-      const pickedPlayerIds = new Set(formattedPicks.map((p: any) => p.playerId));
+      // Sleeper uses numeric player IDs, devy players use name-based IDs — match by normalized name
+      const pickedPlayerNames = new Set(
+        formattedPicks.map((p: any) => p.playerName?.toLowerCase().replace(/[^a-z]/g, ""))
+      );
       const devyPlayers = ktcValues.getDevyPlayers();
       
       const rookieProspects = devyPlayers
-        .filter((p) => !pickedPlayerIds.has(p.id))
+        .filter((p) => {
+          const normalizedName = p.name?.toLowerCase().replace(/[^a-z]/g, "") || "";
+          return normalizedName && !pickedPlayerNames.has(normalizedName);
+        })
         .sort((a, b) => (b.value || 0) - (a.value || 0));
 
       // Generate smart recommendations for the next pick
