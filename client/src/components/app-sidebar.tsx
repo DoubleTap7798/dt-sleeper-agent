@@ -181,10 +181,8 @@ const navigationGroups: NavGroup[] = [
     items: [
       { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
       { title: "Draft War Room", url: "/league/war-room", icon: Swords, requiresLeague: true, premium: true },
-      { title: "Draft Predictions", url: "/league/draft-predictions", icon: Brain, requiresLeague: true, premium: true },
+      { title: "Draft Command Center", url: "/league/live-draft", icon: Radio, requiresLeague: true, premium: true },
       { title: "Mock Draft", url: "/league/mock-draft", icon: Dices, requiresLeague: true, premium: true },
-      { title: "Live Draft Board", url: "/league/live-draft", icon: Radio, requiresLeague: true, premium: true },
-      { title: "Draft Assistant", url: "/league/draft-assistant", icon: Sparkles, requiresLeague: true, premium: true },
       { title: "Draft Recap", url: "/league/draft-recap", icon: Award, requiresLeague: true, premium: true },
       { title: "Pick Values", url: "/league/draft-pick-values", icon: TrendingUp },
     ],

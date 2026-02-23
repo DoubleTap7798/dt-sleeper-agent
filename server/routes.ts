@@ -13789,90 +13789,11 @@ Respond in JSON format:
   });
 
   // ========================
-  // LIVE DRAFT BOARD ENDPOINT
+  // UNIFIED DRAFT COMMAND CENTER ENDPOINT
+  // Combines Live Draft Board + Draft Assistant + Draft Predictions
   // ========================
 
-  app.get("/api/fantasy/live-draft/:leagueId", isAuthenticated, async (req: any, res: Response) => {
-    try {
-      const { leagueId } = req.params;
-
-      const draftsRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/drafts`);
-      const drafts = await draftsRes.json();
-      if (!drafts || drafts.length === 0) {
-        return res.json({ status: "none", picks: [], totalRounds: 0, totalTeams: 0, currentPick: 0 });
-      }
-
-      const draft = drafts[0];
-      const picksRes = await fetch(`https://api.sleeper.app/v1/draft/${draft.draft_id}/picks`);
-      const picks = await picksRes.json();
-
-      const usersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`);
-      const leagueUsers = await usersRes.json();
-      const userMap: Record<string, { name: string; avatar: string | null }> = {};
-      leagueUsers.forEach((u: any) => {
-        userMap[u.user_id] = { name: u.display_name || u.username, avatar: u.avatar };
-      });
-
-      const totalTeams = draft.settings?.teams || 12;
-      const totalRounds = draft.settings?.rounds || 4;
-      const draftType = draft.type || "snake";
-
-      const draftOrder = draft.draft_order || {};
-      const slotToRoster = draft.slot_to_roster_id || {};
-      const rosterToSlot: Record<number, number> = {};
-      for (const [slot, rosterId] of Object.entries(slotToRoster)) {
-        rosterToSlot[rosterId as number] = parseInt(slot);
-      }
-
-      const rostersRes2 = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
-      const leagueRosters = await rostersRes2.json();
-      const rosterOwnerMap: Record<number, string> = {};
-      (leagueRosters || []).forEach((r: any) => {
-        if (r.owner_id) rosterOwnerMap[r.roster_id] = r.owner_id;
-      });
-
-      const teamOrder: Array<{ slot: number; name: string; avatar: string | null }> = [];
-      for (let slot = 1; slot <= totalTeams; slot++) {
-        const rosterId = slotToRoster[slot];
-        const ownerId = rosterId ? rosterOwnerMap[rosterId] : null;
-        const owner = ownerId ? userMap[ownerId] : null;
-        teamOrder.push({
-          slot,
-          name: owner?.name || `Team ${slot}`,
-          avatar: owner?.avatar ? `https://sleepercdn.com/avatars/thumbs/${owner.avatar}` : null,
-        });
-      }
-
-      const formattedPicks = picks.map((p: any) => {
-        const owner = userMap[p.picked_by] || { name: "Unknown", avatar: null };
-        const rosterSlot = rosterToSlot[p.roster_id] || p.draft_slot || p.pick_no;
-        return {
-          round: p.round,
-          pick: p.pick_no,
-          draftSlot: rosterSlot,
-          playerId: p.player_id,
-          playerName: `${p.metadata?.first_name || ""} ${p.metadata?.last_name || ""}`.trim(),
-          position: p.metadata?.position || "?",
-          teamName: owner.name,
-          teamAvatar: owner.avatar ? `https://sleepercdn.com/avatars/thumbs/${owner.avatar}` : null,
-        };
-      });
-
-      const currentPick = formattedPicks.length + 1;
-      const status = draft.status === "complete" ? "complete" : (formattedPicks.length > 0 ? "in_progress" : "pre_draft");
-
-      res.json({ status, picks: formattedPicks, totalRounds, totalTeams, currentPick, teamOrder, draftType });
-    } catch (error) {
-      console.error("Error fetching live draft:", error);
-      res.status(500).json({ message: "Failed to fetch draft data" });
-    }
-  });
-
-  // ========================
-  // SMART DRAFT ASSISTANT ENDPOINT
-  // ========================
-
-  app.get("/api/fantasy/draft-assistant/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+  app.get("/api/fantasy/draft-command/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
       const userId = req.user.claims.sub;
       const { leagueId } = req.params;
@@ -13883,74 +13804,125 @@ Respond in JSON format:
       const draftsRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/drafts`);
       const drafts = await draftsRes.json();
       if (!drafts || drafts.length === 0) {
-        return res.json({ draftStatus: "none", myPicks: [], rosterNeeds: {}, recommendations: [] });
+        return res.json({
+          status: "none",
+          board: { picks: [], teamOrder: [], totalRounds: 0, totalTeams: 0, currentPick: 0 },
+          assistant: { myPicks: [], rosterNeeds: {}, recommendations: [], myDraftSlot: 0 },
+        });
       }
 
-      const draft = drafts[0];
-      const [picksRes, rostersRes, tradedPicksRes] = await Promise.all([
+      const draft = drafts.find((d: any) => d.status === "drafting") || drafts[0];
+      const [picksRes2, rostersRes2, usersRes, tradedPicksRes2] = await Promise.all([
         fetch(`https://api.sleeper.app/v1/draft/${draft.draft_id}/picks`),
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
+        fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`),
         fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`),
       ]);
-      const picks = await picksRes.json();
-      const rosters = await rostersRes.json();
-      const tradedPicks = await tradedPicksRes.json().catch(() => []);
+      const picks = await picksRes2.json();
+      const rosters = await rostersRes2.json();
+      const leagueUsers = await usersRes.json();
+      const tradedPicks = await tradedPicksRes2.json().catch(() => []);
 
-      const myRoster = rosters.find((r: any) => r.owner_id === sleeperUserId);
-      const myRosterId = myRoster?.roster_id;
-      const totalTeams = draft.settings?.teams || 12;
+      const userMap: Record<string, { name: string; avatar: string | null }> = {};
+      (leagueUsers || []).forEach((u: any) => {
+        userMap[u.user_id] = { name: u.display_name || u.username, avatar: u.avatar };
+      });
+
+      const rosterOwnerMap: Record<number, string> = {};
+      const rosterMap: Record<number, any> = {};
+      (rosters || []).forEach((r: any) => {
+        if (r.owner_id) rosterOwnerMap[r.roster_id] = r.owner_id;
+        rosterMap[r.roster_id] = r;
+      });
+
+      const totalTeams = draft.settings?.teams || rosters.length || 12;
       const totalRounds = draft.settings?.rounds || 4;
       const draftType = draft.type || "snake";
-
-      const draftOrder = draft.draft_order || {};
       const slotToRoster = draft.slot_to_roster_id || {};
-      const rosterToSlot: Record<number, number> = {};
-      for (const [slot, rosterId] of Object.entries(slotToRoster)) {
-        rosterToSlot[rosterId as number] = parseInt(slot);
-      }
-      const myDraftSlot = draftOrder[sleeperUserId || ""] || (myRosterId ? rosterToSlot[myRosterId] : undefined) || 1;
-
+      const draftOrder = draft.draft_order || {};
       const currentSeason = draft.season || new Date().getFullYear().toString();
+
       const rosterIdToSlot: Record<number, number> = {};
       for (const [slot, rid] of Object.entries(slotToRoster)) {
         rosterIdToSlot[rid as number] = parseInt(slot);
       }
 
-      const pickOwnerRosterId: Record<string, number> = {};
+      // Build team order with actual names
+      const teamOrder: Array<{ slot: number; name: string; avatar: string | null; rosterId: number }> = [];
+      for (let slot = 1; slot <= totalTeams; slot++) {
+        const rosterId = slotToRoster[slot] || slot;
+        const ownerId = rosterOwnerMap[rosterId];
+        const owner = ownerId ? userMap[ownerId] : null;
+        teamOrder.push({
+          slot,
+          rosterId: typeof rosterId === "number" ? rosterId : parseInt(rosterId),
+          name: owner?.name || `Team ${slot}`,
+          avatar: owner?.avatar ? `https://sleepercdn.com/avatars/thumbs/${owner.avatar}` : null,
+        });
+      }
+
+      // Format picks for the board - map each pick to its draft slot
+      const formattedPicks = (picks || []).map((p: any) => {
+        const owner = userMap[p.picked_by] || { name: "Unknown", avatar: null };
+        const pickRosterId = p.roster_id;
+        const draftSlot = rosterIdToSlot[pickRosterId] || p.draft_slot || p.pick_no;
+        return {
+          round: p.round,
+          pick: p.pick_no,
+          draftSlot,
+          playerId: p.player_id,
+          playerName: `${p.metadata?.first_name || ""} ${p.metadata?.last_name || ""}`.trim(),
+          position: p.metadata?.position || "?",
+          teamName: owner.name,
+          teamAvatar: owner.avatar ? `https://sleepercdn.com/avatars/thumbs/${owner.avatar}` : null,
+          pickedBy: p.picked_by,
+        };
+      });
+
+      const currentPick = formattedPicks.length + 1;
+      const rawStatus = draft.status;
+      const status = rawStatus === "complete" ? "complete" : (rawStatus === "drafting" || (formattedPicks.length > 0 && rawStatus !== "pre_draft") ? "in_progress" : "pre_draft");
+
+      // === ASSISTANT SECTION ===
+      const myRoster = rosters.find((r: any) => r.owner_id === sleeperUserId);
+      const myRosterId = myRoster?.roster_id;
+      const myDraftSlot = draftOrder[sleeperUserId || ""] || (myRosterId ? rosterIdToSlot[myRosterId] : undefined) || 0;
+
+      // Pick ownership: keyed by slot, value is owning roster_id
+      const pickOwnership: Record<string, number> = {};
       for (let round = 1; round <= totalRounds; round++) {
         for (let slot = 1; slot <= totalTeams; slot++) {
           const rosterId = slotToRoster[slot] || slot;
-          pickOwnerRosterId[`${round}-${slot}`] = rosterId;
+          pickOwnership[`${round}-${slot}`] = typeof rosterId === "number" ? rosterId : parseInt(rosterId);
         }
       }
       if (Array.isArray(tradedPicks)) {
         for (const tp of tradedPicks) {
           if (tp.season === currentSeason) {
             const origSlot = rosterIdToSlot[tp.roster_id] || tp.roster_id;
-            pickOwnerRosterId[`${tp.round}-${origSlot}`] = tp.owner_id;
+            pickOwnership[`${tp.round}-${origSlot}`] = tp.owner_id;
           }
         }
       }
 
-      const myPicks: Array<{ round: number; pick: number; overall: number }> = [];
+      // Find MY picks (including traded ones), filtering out already-made picks
+      const alreadyPickedOveralls = new Set(formattedPicks.map((p: any) => (p.round - 1) * totalTeams + p.draftSlot));
+      const myPicks: Array<{ round: number; pick: number; overall: number; slot: number }> = [];
       for (let round = 1; round <= totalRounds; round++) {
         for (let slot = 1; slot <= totalTeams; slot++) {
-          const currentOwner = pickOwnerRosterId[`${round}-${slot}`];
+          const currentOwner = pickOwnership[`${round}-${slot}`];
           if (currentOwner === myRosterId) {
-            let pickInRound: number;
-            if (draftType === "snake" && round % 2 === 0) {
-              pickInRound = totalTeams - slot + 1;
-            } else {
-              pickInRound = slot;
+            const overall = (round - 1) * totalTeams + slot;
+            if (!alreadyPickedOveralls.has(overall)) {
+              myPicks.push({ round, pick: slot, overall, slot });
             }
-            const overall = (round - 1) * totalTeams + pickInRound;
-            myPicks.push({ round, pick: pickInRound, overall });
           }
         }
       }
       myPicks.sort((a, b) => a.overall - b.overall);
 
-      const myPickedPlayers = picks.filter((p: any) => p.picked_by === sleeperUserId);
+      // Count my drafted players by position (from this draft's picks)
+      const myDraftedInThisDraft = formattedPicks.filter((p: any) => p.pickedBy === sleeperUserId);
       const existingRoster = myRoster?.players || [];
       const posCount: Record<string, number> = {};
 
@@ -13962,12 +13934,14 @@ Respond in JSON format:
           posCount[pos] = (posCount[pos] || 0) + 1;
         }
       }
-      myPickedPlayers.forEach((p: any) => {
-        const pos = p.metadata?.position || "?";
+      myDraftedInThisDraft.forEach((p: any) => {
+        const pos = p.position || "?";
         posCount[pos] = (posCount[pos] || 0) + 1;
       });
 
-      const rosterPositions = draft.metadata?.roster_positions || [];
+      // Roster needs based on league roster positions
+      const leagueData = await sleeperApi.getLeague(leagueId);
+      const rosterPositions = leagueData?.roster_positions || [];
       const posSlots: Record<string, number> = {};
       for (const pos of rosterPositions) {
         if (pos !== "BN" && pos !== "FLEX" && pos !== "SUPER_FLEX" && pos !== "IDP_FLEX") {
@@ -13990,51 +13964,144 @@ Respond in JSON format:
         else rosterNeeds[pos] = "Low";
       });
 
-      const pickedPlayerIds = new Set(picks.map((p: any) => p.player_id));
+      // Get available prospects (not yet picked)
+      const pickedPlayerIds = new Set(formattedPicks.map((p: any) => p.playerId));
       const devyPlayers = ktcValues.getDevyPlayers();
-      const availableProspects = devyPlayers
-        .filter((p: any) => !pickedPlayerIds.has(p.id) && (p.draftEligibleYear === "2026" || p.draftEligibleYear === "2025"))
-        .sort((a: any, b: any) => (b.value || 0) - (a.value || 0));
+      
+      const rookieProspects = devyPlayers
+        .filter((p) => !pickedPlayerIds.has(p.id))
+        .sort((a, b) => (b.value || 0) - (a.value || 0));
 
-      const criticalPositions = Object.entries(rosterNeeds).filter(([_, need]) => need === "Critical" || need === "High").map(([pos]) => pos);
-      const recommendations = [];
+      // Generate smart recommendations for the next pick
+      const criticalPositions = Object.entries(rosterNeeds)
+        .filter(([_, need]) => need === "Critical" || need === "High")
+        .map(([pos]) => pos);
+      const moderatePositions = Object.entries(rosterNeeds)
+        .filter(([_, need]) => need === "Moderate")
+        .map(([pos]) => pos);
 
-      if (availableProspects.length > 0) {
+      const recommendations: Array<{
+        playerId: string;
+        name: string;
+        position: string;
+        value: number;
+        reason: string;
+        college?: string;
+        tier?: string;
+      }> = [];
+
+      const tierLabel = (t: number): string => {
+        if (t <= 1) return "Elite";
+        if (t <= 2) return "Premium";
+        if (t <= 3) return "Solid";
+        if (t <= 4) return "Upside";
+        return "Depth";
+      };
+
+      if (rookieProspects.length > 0) {
+        const bpa = rookieProspects[0];
         recommendations.push({
-          playerId: availableProspects[0].id,
-          name: availableProspects[0].name,
-          position: availableProspects[0].position || "BPA",
-          value: availableProspects[0].value || 0,
-          reason: "Highest-value player available",
+          playerId: bpa.id,
+          name: bpa.name,
+          position: bpa.position || "BPA",
+          value: bpa.value || 0,
+          reason: "Best Player Available — highest value on the board",
+          college: bpa.college,
+          tier: tierLabel(bpa.tier),
         });
 
-        for (const pos of criticalPositions) {
-          const posPlayer = availableProspects.find((p: any) => p.position === pos);
-          if (posPlayer && posPlayer.id !== availableProspects[0].id) {
+        const addedIds = new Set([bpa.id]);
+        for (const pos of [...criticalPositions, ...moderatePositions]) {
+          const posPlayer = rookieProspects.find((p) => p.position === pos && !addedIds.has(p.id));
+          if (posPlayer) {
+            addedIds.add(posPlayer.id);
             recommendations.push({
               playerId: posPlayer.id,
               name: posPlayer.name,
               position: posPlayer.position,
               value: posPlayer.value || 0,
-              reason: `Best available ${pos} - ${rosterNeeds[pos]} need`,
+              reason: `Best ${pos} available — ${rosterNeeds[pos]} need`,
+              college: posPlayer.college,
+              tier: tierLabel(posPlayer.tier),
+            });
+          }
+        }
+
+        if (myPicks.length > 0) {
+          const nextPick = myPicks[0];
+          const valuePick = rookieProspects
+            .slice(0, Math.min(10, rookieProspects.length))
+            .find((p) => !addedIds.has(p.id));
+          if (valuePick) {
+            addedIds.add(valuePick.id);
+            recommendations.push({
+              playerId: valuePick.id,
+              name: valuePick.name,
+              position: valuePick.position || "?",
+              value: valuePick.value || 0,
+              reason: `Value pick for Round ${nextPick.round}, Pick ${nextPick.pick}`,
+              college: valuePick.college,
+              tier: tierLabel(valuePick.tier),
             });
           }
         }
       }
 
-      if (recommendations.length === 0) {
-        recommendations.push({
-          playerId: "rec1", name: "Best Available", position: "BPA", value: 100,
-          reason: "Take the highest-value player available regardless of position",
-        });
-      }
+      // Predictions: for each of my remaining picks, show likely available players
+      const predictions = myPicks.map(pick => {
+        const picksBefore = pick.overall - currentPick;
+        const startIdx = Math.max(0, picksBefore - 2);
+        const endIdx = Math.min(rookieProspects.length, picksBefore + 5);
+        const likelyAvailable = rookieProspects.slice(startIdx, endIdx).map((p, idx) => ({
+          id: p.id,
+          name: p.name,
+          position: p.position,
+          college: p.college || "",
+          value: p.value || 0,
+          tier: tierLabel(p.tier),
+          rank: startIdx + idx + 1,
+        }));
 
-      const draftStatus = draft.status === "complete" ? "complete" : (picks.length > 0 ? "in_progress" : "pre_draft");
+        return {
+          round: pick.round,
+          pick: pick.pick,
+          overall: pick.overall,
+          likelyAvailable,
+        };
+      });
 
-      res.json({ draftStatus, myPicks, rosterNeeds, recommendations });
+      // My already-drafted players in this draft
+      const mySelections = myDraftedInThisDraft.map((p: any) => ({
+        round: p.round,
+        pick: p.pick,
+        playerName: p.playerName,
+        position: p.position,
+        playerId: p.playerId,
+      }));
+
+      res.json({
+        status,
+        draftType,
+        board: {
+          picks: formattedPicks,
+          teamOrder,
+          totalRounds,
+          totalTeams,
+          currentPick,
+        },
+        assistant: {
+          myPicks,
+          myDraftSlot,
+          rosterNeeds,
+          recommendations,
+          predictions,
+          mySelections,
+          posCount,
+        },
+      });
     } catch (error) {
-      console.error("Error fetching draft assistant:", error);
-      res.status(500).json({ message: "Failed to fetch draft assistant data" });
+      console.error("Error fetching draft command:", error);
+      res.status(500).json({ message: "Failed to fetch draft data" });
     }
   });
 
