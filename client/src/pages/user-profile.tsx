@@ -528,7 +528,7 @@ export default function UserProfilePage() {
             </div>
             {isOwnProfile && (
               <div className="mt-3 pt-3 border-t border-border/50 text-center">
-                <Link href="/" className="text-xs text-primary hover:underline" data-testid="link-career-dashboard">
+                <Link href="/?id=all" className="text-xs text-primary hover:underline" data-testid="link-career-dashboard">
                   View full career stats on Dashboard
                 </Link>
               </div>
