@@ -857,23 +857,23 @@ export default function HomePage() {
         </div>
 
         <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-          <Card data-testid="card-total-leagues">
+          <Card className="hover-glow" data-testid="card-total-leagues">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Career Seasons</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Calendar className="h-4 w-4 text-primary/60" />
             </CardHeader>
             <CardContent>
-              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-total-leagues">
+              <div className="text-xl sm:text-2xl font-bold text-gradient-gold" data-testid="stat-total-leagues">
                 {careerData?.totalSeasons || careerData?.leagueStats?.length || 0}
               </div>
               <p className="text-xs text-muted-foreground">{careerData?.totalLeagues || leagues?.length || 0} active leagues</p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-record">
+          <Card className="hover-glow" data-testid="card-record">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Overall Record</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <TrendingUp className="h-4 w-4 text-primary/60" />
             </CardHeader>
             <CardContent>
               <div className="text-xl sm:text-2xl font-bold" data-testid="stat-record">
@@ -884,13 +884,13 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-championships">
+          <Card className="hover-glow" data-testid="card-championships">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Championships</CardTitle>
-              <Trophy className="h-4 w-4 text-muted-foreground" />
+              <Trophy className="h-4 w-4 text-primary/60" />
             </CardHeader>
             <CardContent>
-              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-championships">
+              <div className="text-xl sm:text-2xl font-bold text-gradient-gold" data-testid="stat-championships">
                 {careerData?.championships || 0}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -899,10 +899,10 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          <Card data-testid="card-playoffs">
+          <Card className="hover-glow" data-testid="card-playoffs">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium">Playoff Apps</CardTitle>
-              <Medal className="h-4 w-4 text-muted-foreground" />
+              <Medal className="h-4 w-4 text-primary/60" />
             </CardHeader>
             <CardContent>
               <div className="text-xl sm:text-2xl font-bold" data-testid="stat-playoffs">
@@ -1107,17 +1107,17 @@ export default function HomePage() {
       {/* Header with league info */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
+          <Avatar className="h-10 w-10 ring-1 ring-primary/15 shadow-[0_0_10px_rgba(217,169,78,0.08)]">
             <AvatarImage 
               src={selectedLeague?.avatar ? `https://sleepercdn.com/avatars/${selectedLeague.avatar}` : undefined}
               alt={selectedLeague?.name || "League"}
             />
-            <AvatarFallback className="text-sm font-bold">
+            <AvatarFallback className="text-sm font-bold bg-primary/10 text-primary">
               {(selectedLeague?.name || leagueData?.leagueName || "L").slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-xl font-bold" data-testid="text-page-title">
+            <h1 className="text-xl font-bold tracking-tight" data-testid="text-page-title">
               {selectedLeague?.name || leagueData?.leagueName || "Dashboard"}
             </h1>
             <p className="text-sm text-muted-foreground">
@@ -1130,13 +1130,17 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Weekly Insight */}
       {dashboardData?.weeklyBlurb && (
-        <Card className="border-primary/30 bg-primary/5" data-testid="card-weekly-insight">
+        <Card className="border-primary/20 bg-gradient-to-r from-primary/8 via-primary/4 to-transparent shadow-[0_0_20px_rgba(217,169,78,0.06)]" data-testid="card-weekly-insight">
           <CardContent className="py-4">
             <div className="flex items-start gap-3">
-              <Zap className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <p className="text-sm">{dashboardData.weeklyBlurb}</p>
+              <div className="p-1.5 rounded-lg bg-primary/15">
+                <Zap className="h-4 w-4 text-primary shrink-0" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-primary/80 uppercase tracking-wider mb-1">Weekly Insight</p>
+                <p className="text-sm leading-relaxed">{dashboardData.weeklyBlurb}</p>
+              </div>
             </div>
           </CardContent>
         </Card>

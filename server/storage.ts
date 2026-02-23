@@ -5,6 +5,7 @@ import {
   leagueSyncStatus,
   userLeagueTakeover,
   leagueSettings,
+  managerProfiles,
   type UserProfile, 
   type InsertUserProfile,
   type LeagueNotification,
@@ -12,7 +13,8 @@ import {
   type LeagueSyncStatus,
   type UserLeagueTakeover,
   type InsertUserLeagueTakeover,
-  type LeagueSettings
+  type LeagueSettings,
+  type ManagerProfile
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, notInArray, inArray } from "drizzle-orm";
@@ -42,6 +44,10 @@ export interface IStorage {
   // League Settings
   getLeagueSettings(userId: string, leagueId: string): Promise<LeagueSettings | undefined>;
   upsertLeagueSettings(userId: string, leagueId: string, settings: { devyEnabled?: boolean; idpEnabled?: boolean }): Promise<LeagueSettings>;
+
+  // Manager Profiles
+  getManagerProfile(userId: string, leagueId: string): Promise<ManagerProfile | undefined>;
+  upsertManagerProfile(userId: string, leagueId: string, profileData: any, tradesAnalyzed: number, transactionsAnalyzed: number): Promise<ManagerProfile>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -247,6 +253,30 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db
       .insert(leagueSettings)
       .values({ userId, leagueId, ...settings })
+      .returning();
+    return created;
+  }
+  async getManagerProfile(userId: string, leagueId: string): Promise<ManagerProfile | undefined> {
+    const [profile] = await db
+      .select()
+      .from(managerProfiles)
+      .where(and(eq(managerProfiles.userId, userId), eq(managerProfiles.leagueId, leagueId)));
+    return profile || undefined;
+  }
+
+  async upsertManagerProfile(userId: string, leagueId: string, profileData: any, tradesAnalyzed: number, transactionsAnalyzed: number): Promise<ManagerProfile> {
+    const existing = await this.getManagerProfile(userId, leagueId);
+    if (existing) {
+      const [updated] = await db
+        .update(managerProfiles)
+        .set({ profileData, tradesAnalyzed, transactionsAnalyzed, updatedAt: new Date() })
+        .where(and(eq(managerProfiles.userId, userId), eq(managerProfiles.leagueId, leagueId)))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(managerProfiles)
+      .values({ userId, leagueId, profileData, tradesAnalyzed, transactionsAnalyzed })
       .returning();
     return created;
   }

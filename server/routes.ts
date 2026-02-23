@@ -11474,6 +11474,172 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     }
   });
 
+  // ===== Manager Profile (AI Learning) Routes =====
+
+  app.get("/api/manager-profile/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      const profile = await storage.getManagerProfile(userId, leagueId);
+      if (!profile) {
+        return res.json({ profile: null, needsAnalysis: true });
+      }
+      const hoursSinceUpdate = (Date.now() - new Date(profile.updatedAt!).getTime()) / (1000 * 60 * 60);
+      res.json({ profile: profile.profileData, stale: hoursSinceUpdate > 24, lastUpdated: profile.updatedAt, tradesAnalyzed: profile.tradesAnalyzed, transactionsAnalyzed: profile.transactionsAnalyzed });
+    } catch (error) {
+      console.error("Error fetching manager profile:", error);
+      res.status(500).json({ message: "Failed to fetch manager profile" });
+    }
+  });
+
+  app.post("/api/manager-profile/:leagueId/analyze", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.params;
+      const userProfile = await storage.getUserProfile(userId);
+      if (!userProfile?.sleeperUserId) {
+        return res.status(400).json({ message: "Sleeper account not connected" });
+      }
+
+      const league = await sleeperApi.getLeague(leagueId);
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+
+      const rosters = await sleeperApi.getLeagueRosters(leagueId);
+      const userRoster = rosters?.find((r: any) => r.owner_id === userProfile.sleeperUserId);
+      if (!userRoster) {
+        return res.status(404).json({ message: "Your roster not found in this league" });
+      }
+
+      const userRosterId = userRoster.roster_id;
+      const allPlayers = await sleeperApi.getAllPlayers();
+
+      const leagueHistory = await sleeperApi.getLeagueHistory(leagueId);
+      const allTransactions: any[] = [];
+      const maxSeasons = 3;
+      const seasonsToAnalyze = leagueHistory.slice(0, maxSeasons);
+
+      for (const season of seasonsToAnalyze) {
+        try {
+          const txns = await sleeperApi.getAllLeagueTransactions(season.leagueId);
+          allTransactions.push(...txns.map((t: any) => ({ ...t, season: season.season })));
+        } catch (e) { /* skip unavailable seasons */ }
+      }
+
+      const userTrades = allTransactions.filter((t: any) => t.type === "trade" && t.status === "complete" && t.roster_ids?.includes(userRosterId));
+      const userWaivers = allTransactions.filter((t: any) => (t.type === "waiver" || t.type === "free_agent") && t.status === "complete" && (t.adds && Object.values(t.adds).includes(userRosterId)));
+
+      const tradeDetails = userTrades.map((t: any) => {
+        const acquired: string[] = [];
+        const traded: string[] = [];
+        const picksAcquired: string[] = [];
+        const picksTraded: string[] = [];
+        if (t.adds) {
+          for (const [pid, rid] of Object.entries(t.adds)) {
+            const p = allPlayers?.[pid];
+            const name = p ? (p.full_name || `${p.first_name} ${p.last_name}`) : pid;
+            const pos = p?.position || "?";
+            const age = p?.age || "?";
+            if (rid === userRosterId) acquired.push(`${name} (${pos}, age ${age})`);
+            else traded.push(`${name} (${pos}, age ${age})`);
+          }
+        }
+        if (t.drops) {
+          for (const [pid, rid] of Object.entries(t.drops)) {
+            if (rid === userRosterId && !t.adds?.[pid]) {
+              const p = allPlayers?.[pid];
+              const name = p ? (p.full_name || `${p.first_name} ${p.last_name}`) : pid;
+              traded.push(`${name} (${p?.position || "?"}, age ${p?.age || "?"})`);
+            }
+          }
+        }
+        if (t.draft_picks) {
+          for (const pick of t.draft_picks) {
+            const pickStr = `${pick.season} Round ${pick.round}`;
+            if (pick.owner_id === userRosterId) picksAcquired.push(pickStr);
+            else if (pick.previous_owner_id === userRosterId) picksTraded.push(pickStr);
+          }
+        }
+        return { season: t.season, acquired, traded, picksAcquired, picksTraded };
+      });
+
+      const waiverDetails = userWaivers.slice(0, 30).map((t: any) => {
+        const added: string[] = [];
+        const dropped: string[] = [];
+        if (t.adds) {
+          for (const [pid, rid] of Object.entries(t.adds)) {
+            if (rid === userRosterId) {
+              const p = allPlayers?.[pid];
+              added.push(`${p?.full_name || pid} (${p?.position || "?"})`);
+            }
+          }
+        }
+        if (t.drops) {
+          for (const [pid, rid] of Object.entries(t.drops)) {
+            if (rid === userRosterId) {
+              const p = allPlayers?.[pid];
+              dropped.push(`${p?.full_name || pid} (${p?.position || "?"})`);
+            }
+          }
+        }
+        return { season: t.season, added, dropped, type: t.type };
+      });
+
+      const analysisPrompt = `Analyze this fantasy football manager's transaction history and create a detailed manager profile. Be specific and data-driven.
+
+League: ${league.name} (${league.settings?.type === 2 ? "Dynasty" : league.settings?.type === 1 ? "Keeper" : "Redraft"}, ${league.scoring_settings?.rec !== undefined ? `${league.scoring_settings.rec} PPR` : "Standard"})
+
+TRADES (${tradeDetails.length} total):
+${tradeDetails.length > 0 ? tradeDetails.map((t, i) => `Trade ${i + 1} (${t.season}): Acquired [${t.acquired.join(", ")}${t.picksAcquired.length ? ", picks: " + t.picksAcquired.join(", ") : ""}] | Traded away [${t.traded.join(", ")}${t.picksTraded.length ? ", picks: " + t.picksTraded.join(", ") : ""}]`).join("\n") : "No trades found."}
+
+WAIVER/FA MOVES (${waiverDetails.length} shown of ${userWaivers.length} total):
+${waiverDetails.length > 0 ? waiverDetails.map((w) => `${w.type === "waiver" ? "Waiver" : "FA"} (${w.season}): Added [${w.added.join(", ")}]${w.dropped.length ? " | Dropped [" + w.dropped.join(", ") + "]" : ""}`).join("\n") : "No waiver moves found."}
+
+Create a JSON profile with these fields:
+{
+  "managerStyle": "one of: aggressive_trader, patient_builder, win_now, rebuilder, balanced, opportunistic",
+  "positionPreferences": { "favored": ["positions they target most"], "avoided": ["positions they rarely target"] },
+  "agePreference": "one of: youth_chaser, prime_age, veteran_friendly, balanced",
+  "riskTolerance": "one of: high_risk, moderate, conservative",
+  "tradeFrequency": "one of: very_active, active, moderate, passive",
+  "draftPickStrategy": "one of: accumulator, spender, balanced",
+  "waiverActivity": "one of: aggressive, moderate, passive",
+  "keyPatterns": ["3-5 specific observed patterns from their history"],
+  "strengths": ["2-3 things they do well"],
+  "blindSpots": ["2-3 areas they could improve"],
+  "summary": "2-3 sentence personality summary of this manager"
+}
+
+Return ONLY valid JSON, no markdown.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are a fantasy football analytics expert. Analyze transaction histories to build accurate manager profiles. Return only valid JSON." },
+          { role: "user", content: analysisPrompt },
+        ],
+        max_tokens: 1000,
+        temperature: 0.3,
+      });
+
+      let profileData;
+      try {
+        const raw = response.choices[0]?.message?.content || "{}";
+        profileData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+      } catch (e) {
+        profileData = { summary: response.choices[0]?.message?.content || "Unable to analyze", managerStyle: "balanced", riskTolerance: "moderate", agePreference: "balanced", tradeFrequency: userTrades.length > 10 ? "very_active" : userTrades.length > 5 ? "active" : "moderate", positionPreferences: { favored: [], avoided: [] }, draftPickStrategy: "balanced", waiverActivity: userWaivers.length > 20 ? "aggressive" : "moderate", keyPatterns: [], strengths: [], blindSpots: [] };
+      }
+
+      const saved = await storage.upsertManagerProfile(userId, leagueId, profileData, userTrades.length, userWaivers.length);
+
+      res.json({ profile: profileData, tradesAnalyzed: userTrades.length, transactionsAnalyzed: userWaivers.length, lastUpdated: saved.updatedAt });
+    } catch (error) {
+      console.error("Error analyzing manager profile:", error);
+      res.status(500).json({ message: "Failed to analyze manager profile" });
+    }
+  });
+
   // ===== AI Chat Assistant Routes =====
   const { chatStorage } = await import("./replit_integrations/chat/storage");
 
@@ -11555,12 +11721,26 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       // Save user message
       await chatStorage.createMessage(conversationId, "user", message.trim());
 
-      // Gather fantasy football context for the AI
       let contextParts: string[] = [];
+      let managerProfileContext = "";
 
       try {
         const profile = await storage.getUserProfile(userId);
         const targetLeagueId = leagueId || profile?.selectedLeagueId;
+
+        if (targetLeagueId && targetLeagueId !== "all") {
+          const mgrProfile = await storage.getManagerProfile(userId, targetLeagueId);
+          if (mgrProfile?.profileData) {
+            const mp: any = mgrProfile.profileData;
+            managerProfileContext = `\nMANAGER PROFILE (learned from ${mgrProfile.tradesAnalyzed || 0} trades and ${mgrProfile.transactionsAnalyzed || 0} transactions):
+- Style: ${mp.managerStyle || "unknown"} | Risk: ${mp.riskTolerance || "unknown"} | Age preference: ${mp.agePreference || "unknown"}
+- Trade frequency: ${mp.tradeFrequency || "unknown"} | Draft picks: ${mp.draftPickStrategy || "unknown"} | Waivers: ${mp.waiverActivity || "unknown"}
+- Position preferences: Favors ${(mp.positionPreferences?.favored || []).join(", ") || "none"} | Avoids ${(mp.positionPreferences?.avoided || []).join(", ") || "none"}
+- Key patterns: ${(mp.keyPatterns || []).join("; ") || "none identified"}
+- Summary: ${mp.summary || "No summary"}
+Use this profile to personalize all advice. Align trade suggestions, roster moves, and strategy with their tendencies. If a recommendation goes against their style, acknowledge it and explain why it's worth considering.`;
+          }
+        }
 
         if (targetLeagueId && targetLeagueId !== "all") {
           const [league, rosters, leagueUsers, state, allPlayers] = await Promise.all([
@@ -11674,7 +11854,8 @@ Guidelines:
 - If you don't have specific data, provide general expert advice and note any assumptions.
 - Be opinionated — give clear recommendations rather than wishy-washy answers.
 - Use fantasy football terminology naturally (PPR, FLEX, superflex, TEP, etc.).
-- Format responses with markdown for readability.`;
+- Format responses with markdown for readability.
+${managerProfileContext}`;
 
       // Set up SSE for streaming
       res.setHeader("Content-Type", "text/event-stream");
@@ -12295,6 +12476,15 @@ Format: Return a JSON array of objects with "name" and "commentary" fields. Retu
         return acc;
       }, {});
 
+      let tradeManagerContext = "";
+      try {
+        const mgrProfile = await storage.getManagerProfile(userId, leagueId);
+        if (mgrProfile?.profileData) {
+          const mp: any = mgrProfile.profileData;
+          tradeManagerContext = `\nMANAGER PROFILE: Style=${mp.managerStyle}, Risk=${mp.riskTolerance}, Age preference=${mp.agePreference}, Draft picks=${mp.draftPickStrategy}. Summary: ${mp.summary || "N/A"}. Factor this manager's tendencies into your analysis — note if the trade aligns with or contradicts their usual approach.`;
+        }
+      } catch (e) { /* best effort */ }
+
       const prompt = `Analyze this dynasty fantasy football trade and give a recommendation.
 
 GIVING AWAY:
@@ -12310,6 +12500,7 @@ Value Difference: ${getTotal - giveTotal} (${getTotal > giveTotal ? 'receiving m
 My Current Roster Composition: ${Object.entries(myPositions).map(([k, v]) => `${k}: ${v}`).join(", ")}
 League Type: ${league?.settings?.type === 2 ? 'Dynasty' : 'Redraft'}
 Scoring: ${league?.scoring_settings?.rec === 1 ? 'PPR' : league?.scoring_settings?.rec === 0.5 ? 'Half PPR' : 'Standard'}
+${tradeManagerContext}
 
 Provide your analysis as JSON with these fields:
 - "verdict": one of "ACCEPT", "REJECT", or "COUNTER"
@@ -13648,145 +13839,6 @@ Respond in JSON format:
     }
   });
 
-  // ========================
-  // MOCK DRAFT ENDPOINTS
-  // ========================
-
-  const mockDraftCache = new RouteCache(30 * 60 * 1000);
-
-  app.post("/api/fantasy/mock-draft/start/:leagueId", isAuthenticated, async (req: any, res: Response) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { leagueId } = req.params;
-
-      const rostersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
-      const rosters = await rostersRes.json();
-
-      const usersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`);
-      const leagueUsers = await usersRes.json();
-      const userMap: Record<string, string> = {};
-      leagueUsers.forEach((u: any) => { userMap[u.user_id] = u.display_name || u.username; });
-
-      const userProfile = await storage.getUserProfile(userId);
-      const sleeperUserId = userProfile?.sleeperUserId;
-
-      const teams = rosters.map((r: any, i: number) => ({
-        rosterId: r.roster_id,
-        ownerId: r.owner_id,
-        name: userMap[r.owner_id] || `Team ${i + 1}`,
-        isUser: r.owner_id === sleeperUserId,
-      }));
-
-      const leagueInfoRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
-      const leagueInfo = await leagueInfoRes.json();
-      const totalRounds = leagueInfo?.settings?.draft_rounds || 4;
-
-      const playersRes = await fetch("https://api.sleeper.app/v1/players/nfl");
-      const allPlayers = await playersRes.json();
-
-      const draftPool = Object.entries(allPlayers)
-        .filter(([_, p]: [string, any]) => p.active && ["QB", "RB", "WR", "TE"].includes(p.position))
-        .map(([id, p]: [string, any]) => ({
-          id,
-          name: `${p.first_name} ${p.last_name}`,
-          position: p.position,
-          team: p.team || "FA",
-          age: p.age || 0,
-          yearsExp: p.years_exp || 0,
-          searchRank: p.search_rank || 9999,
-        }))
-        .sort((a, b) => a.searchRank - b.searchRank)
-        .slice(0, totalRounds * teams.length + 50);
-
-      const state = {
-        teams,
-        totalRounds,
-        totalTeams: teams.length,
-        picks: [] as any[],
-        currentPick: 1,
-        availablePlayers: draftPool,
-        status: "active",
-      };
-
-      mockDraftCache.set(`mock-${userId}-${leagueId}`, state);
-      res.json(state);
-    } catch (error) {
-      console.error("Error starting mock draft:", error);
-      res.status(500).json({ message: "Failed to start mock draft" });
-    }
-  });
-
-  app.get("/api/fantasy/mock-draft/state/:leagueId", isAuthenticated, async (req: any, res: Response) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { leagueId } = req.params;
-      const state = mockDraftCache.get(`mock-${userId}-${leagueId}`);
-      if (!state) return res.json({ status: "none" });
-      res.json(state);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to get mock draft state" });
-    }
-  });
-
-  app.post("/api/fantasy/mock-draft/pick/:leagueId", isAuthenticated, async (req: any, res: Response) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { leagueId } = req.params;
-      const { playerId } = req.body;
-      if (!playerId) return res.status(400).json({ message: "Player ID required" });
-
-      const state = mockDraftCache.get(`mock-${userId}-${leagueId}`);
-      if (!state || state.status !== "active") {
-        return res.status(400).json({ message: "No active mock draft" });
-      }
-
-      const totalPicks = state.totalRounds * state.totalTeams;
-      const pickPlayer = (pId: string) => {
-        const playerIdx = state.availablePlayers.findIndex((p: any) => p.id === pId);
-        if (playerIdx === -1) return null;
-        const player = state.availablePlayers.splice(playerIdx, 1)[0];
-        const round = Math.ceil(state.currentPick / state.totalTeams);
-        const pickInRound = ((state.currentPick - 1) % state.totalTeams) + 1;
-        const teamIdx = (state.currentPick - 1) % state.totalTeams;
-        const team = state.teams[teamIdx];
-        const pick = {
-          overall: state.currentPick,
-          round,
-          pick: pickInRound,
-          playerId: player.id,
-          playerName: player.name,
-          position: player.position,
-          team: player.team,
-          teamName: team.name,
-          isUserPick: team.isUser,
-        };
-        state.picks.push(pick);
-        state.currentPick++;
-        return pick;
-      };
-
-      const userPick = pickPlayer(playerId);
-      if (!userPick) return res.status(400).json({ message: "Player not available" });
-
-      while (state.currentPick <= totalPicks) {
-        const teamIdx = (state.currentPick - 1) % state.totalTeams;
-        const team = state.teams[teamIdx];
-        if (team.isUser) break;
-
-        const randomOffset = Math.floor(Math.random() * 3);
-        const aiPlayer = state.availablePlayers[randomOffset] || state.availablePlayers[0];
-        if (!aiPlayer) break;
-        pickPlayer(aiPlayer.id);
-      }
-
-      if (state.currentPick > totalPicks) state.status = "complete";
-      mockDraftCache.set(`mock-${userId}-${leagueId}`, state);
-      res.json(state);
-    } catch (error) {
-      console.error("Error making mock draft pick:", error);
-      res.status(500).json({ message: "Failed to make pick" });
-    }
-  });
 
   // ========================
   // UNIFIED DRAFT COMMAND CENTER ENDPOINT

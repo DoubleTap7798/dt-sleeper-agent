@@ -67,7 +67,8 @@ import AllLeaguesAccountingPage from "@/pages/all-leagues-accounting";
 import WeeklyPredictionsPage from "@/pages/weekly-predictions";
 import CommunityChatPage from "@/pages/community-chat";
 import DraftRecapPage from "@/pages/draft-recap";
-import MockDraftPage from "@/pages/mock-draft";
+import ManagerProfilePage from "@/pages/manager-profile";
+
 import UserProfilePage from "@/pages/user-profile";
 import LeaderboardPage from "@/pages/leaderboard";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -359,6 +360,13 @@ function Router() {
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
+      <Route path="/league/manager-profile">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <ManagerProfilePage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
       <Route path="/league/ai-chat">
         <AuthenticatedRoute>
           <LeagueLayout>
@@ -482,13 +490,6 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <DraftRecapPage />
-          </LeagueLayout>
-        </AuthenticatedRoute>
-      </Route>
-      <Route path="/league/mock-draft">
-        <AuthenticatedRoute>
-          <LeagueLayout>
-            <MockDraftPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

@@ -50,7 +50,6 @@ import {
   Bell,
   Radio,
   Award,
-  Dices,
 } from "lucide-react";
 import {
   Sidebar,
@@ -181,7 +180,6 @@ const navigationGroups: NavGroup[] = [
     items: [
       { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
       { title: "Draft Command Center", url: "/league/live-draft", icon: Radio, requiresLeague: true, premium: true },
-      { title: "Mock Draft", url: "/league/mock-draft", icon: Dices, requiresLeague: true, premium: true },
       { title: "Draft Recap", url: "/league/draft-recap", icon: Award, requiresLeague: true, premium: true },
       { title: "Pick Values", url: "/league/draft-pick-values", icon: TrendingUp },
     ],
@@ -202,6 +200,7 @@ const navigationGroups: NavGroup[] = [
 const standaloneItems: NavItem[] = [
   { title: "Home", url: "/league", icon: LayoutDashboard, description: "Dashboard & actions" },
   { title: "AI Assistant", url: "/league/ai-chat", icon: Bot, description: "AI fantasy football advisor", premium: true },
+  { title: "Manager Profile", url: "/league/manager-profile", icon: Brain, description: "AI-learned trading personality", requiresLeague: true },
   { title: "Trash Talk", url: "/league/trash-talk", icon: MessageSquare, description: "AI-powered league roasts", premium: true, requiresLeague: true },
   { title: "Leaderboard", url: "/leaderboard", icon: Crown, description: "Global user rankings" },
   { title: "Community Chat", url: "/chat", icon: MessageSquare, description: "Chat with other users" },
@@ -274,7 +273,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4 border-b border-sidebar-border">
+      <SidebarHeader className="p-4 border-b border-sidebar-border/50">
         <Logo size="md" showText={true} />
       </SidebarHeader>
 
@@ -482,11 +481,11 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
         })}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-3 space-y-2">
+      <SidebarFooter className="border-t border-sidebar-border/50 p-3 space-y-2">
         {!subLoading && !isPremium && (
           <Button
             onClick={() => setLocation("/upgrade")}
-            className="w-full bg-gradient-to-r from-primary to-amber-400 hover:from-primary/90 hover:to-amber-400/90"
+            className="w-full bg-gradient-to-r from-primary via-amber-500 to-primary hover:from-primary/90 hover:via-amber-400/90 hover:to-primary/90 shadow-[0_0_16px_rgba(217,169,78,0.2)] hover:shadow-[0_0_24px_rgba(217,169,78,0.35)] transition-all duration-300"
             data-testid="button-upgrade"
           >
             <Sparkles className="h-4 w-4 mr-2" />

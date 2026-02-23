@@ -23,9 +23,10 @@ const textSizeClasses = {
 };
 
 export function Logo({ size = "md", showText = true, className = "" }: LogoProps) {
+  const isLarge = size === "xl" || size === "2xl" || size === "lg";
   return (
     <div className={`flex flex-col items-center gap-2 ${className}`} data-testid="logo">
-      <div className={`${sizeClasses[size]} rounded-full overflow-hidden flex-shrink-0`}>
+      <div className={`${sizeClasses[size]} rounded-full overflow-hidden flex-shrink-0 ${isLarge ? "shadow-[0_0_24px_rgba(217,169,78,0.2)] ring-1 ring-primary/20" : "ring-1 ring-primary/10"}`}>
         <img 
           src={dtLogo} 
           alt="DT Sleeper Agent Logo" 
@@ -36,10 +37,10 @@ export function Logo({ size = "md", showText = true, className = "" }: LogoProps
       {showText && (
         <div className="text-center">
           <h1 className={`font-bold tracking-tight ${textSizeClasses[size]}`} data-testid="logo-text">
-            DT Sleeper Agent
+            <span className={isLarge ? "text-gradient-gold" : ""}>DT Sleeper Agent</span>
           </h1>
-          {(size === "xl" || size === "2xl") && (
-            <p className="text-muted-foreground text-sm mt-1">
+          {isLarge && (
+            <p className="text-muted-foreground text-sm mt-1 tracking-widest uppercase">
               Fantasy Football Companion
             </p>
           )}

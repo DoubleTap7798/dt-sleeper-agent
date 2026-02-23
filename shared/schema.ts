@@ -314,3 +314,23 @@ export const insertNotificationPreferencesSchema = createInsertSchema(notificati
 
 export type NotificationPreference = typeof notificationPreferences.$inferSelect;
 export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferencesSchema>;
+
+export const managerProfiles = pgTable("manager_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  leagueId: text("league_id").notNull(),
+  profileData: jsonb("profile_data").notNull(),
+  tradesAnalyzed: integer("trades_analyzed").default(0),
+  transactionsAnalyzed: integer("transactions_analyzed").default(0),
+  computedAt: timestamp("computed_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertManagerProfileSchema = createInsertSchema(managerProfiles).omit({
+  id: true,
+  computedAt: true,
+  updatedAt: true,
+});
+
+export type ManagerProfile = typeof managerProfiles.$inferSelect;
+export type InsertManagerProfile = z.infer<typeof insertManagerProfileSchema>;
