@@ -12,11 +12,18 @@ import { PageHeader } from "@/components/page-header";
 interface DraftPick {
   round: number;
   pick: number;
+  draftSlot: number;
   playerId: string;
   playerName: string;
   position: string;
   teamName: string;
   teamAvatar: string | null;
+}
+
+interface TeamOrderEntry {
+  slot: number;
+  name: string;
+  avatar: string | null;
 }
 
 interface LiveDraftData {
@@ -25,6 +32,8 @@ interface LiveDraftData {
   totalRounds: number;
   totalTeams: number;
   currentPick: number;
+  teamOrder?: TeamOrderEntry[];
+  draftType?: string;
 }
 
 const POS_COLORS: Record<string, string> = {
@@ -84,21 +93,26 @@ export default function LiveDraftBoardPage() {
 
   const statusConfig = STATUS_LABELS[data.status] || STATUS_LABELS.pre_draft;
 
-  const teamNames: string[] = [];
-  const teamAvatars: Record<string, string | null> = {};
-  for (const pick of data.picks) {
-    if (!teamNames.includes(pick.teamName)) {
-      teamNames.push(pick.teamName);
-      teamAvatars[pick.teamName] = pick.teamAvatar;
-    }
-  }
-  while (teamNames.length < data.totalTeams) {
-    teamNames.push(`Team ${teamNames.length + 1}`);
-  }
+  const teams: Array<{ slot: number; name: string; avatar: string | null }> = data.teamOrder && data.teamOrder.length > 0
+    ? data.teamOrder
+    : (() => {
+        const names: string[] = [];
+        const avatars: Record<string, string | null> = {};
+        for (const pick of data.picks) {
+          if (!names.includes(pick.teamName)) {
+            names.push(pick.teamName);
+            avatars[pick.teamName] = pick.teamAvatar;
+          }
+        }
+        while (names.length < data.totalTeams) {
+          names.push(`Team ${names.length + 1}`);
+        }
+        return names.map((n, i) => ({ slot: i + 1, name: n, avatar: avatars[n] || null }));
+      })();
 
   const pickGrid: Record<string, DraftPick | undefined> = {};
   for (const pick of data.picks) {
-    pickGrid[`${pick.round}-${pick.pick}`] = pick;
+    pickGrid[`${pick.round}-${pick.draftSlot || pick.pick}`] = pick;
   }
 
   return (
@@ -124,15 +138,15 @@ export default function LiveDraftBoardPage() {
         <Card>
           <CardContent className="pt-4 overflow-x-auto -mx-2 px-2">
             <div className="min-w-max">
-              <div className="grid" style={{ gridTemplateColumns: `60px repeat(${teamNames.length}, minmax(100px, 1fr))` }}>
+              <div className="grid" style={{ gridTemplateColumns: `60px repeat(${teams.length}, minmax(100px, 1fr))` }}>
                 <div className="p-2 text-xs font-medium text-muted-foreground sticky left-0 bg-card z-10" />
-                {teamNames.map((name, idx) => (
+                {teams.map((team, idx) => (
                   <div key={idx} className="p-2 text-center border-b border-border" data-testid={`header-team-${idx}`}>
                     <Avatar className="h-6 w-6 mx-auto mb-1">
-                      <AvatarImage src={teamAvatars[name] || undefined} />
-                      <AvatarFallback className="text-[10px]">{name[0]}</AvatarFallback>
+                      <AvatarImage src={team.avatar || undefined} />
+                      <AvatarFallback className="text-[10px]">{team.name[0]}</AvatarFallback>
                     </Avatar>
-                    <p className="text-xs font-medium truncate">{name}</p>
+                    <p className="text-xs font-medium truncate">{team.name}</p>
                   </div>
                 ))}
 
@@ -143,19 +157,19 @@ export default function LiveDraftBoardPage() {
                       <div className="p-2 flex items-center justify-center text-xs font-mono text-muted-foreground border-r border-border sticky left-0 bg-card z-10">
                         R{round}
                       </div>
-                      {teamNames.map((_, teamIdx) => {
-                        const pickNum = teamIdx + 1;
-                        const overall = (round - 1) * data.totalTeams + pickNum;
-                        const pick = pickGrid[`${round}-${pickNum}`];
+                      {teams.map((team) => {
+                        const slot = team.slot;
+                        const pick = pickGrid[`${round}-${slot}`];
+                        const overall = (round - 1) * data.totalTeams + slot;
                         const isCurrent = data.currentPick === overall;
 
                         return (
                           <div
-                            key={`${round}-${pickNum}`}
+                            key={`${round}-${slot}`}
                             className={`p-1.5 border border-border/50 min-h-[52px] flex items-center justify-center ${
                               isCurrent ? "ring-2 ring-primary animate-pulse" : ""
                             }`}
-                            data-testid={`cell-pick-${round}-${pickNum}`}
+                            data-testid={`cell-pick-${round}-${slot}`}
                           >
                             {pick ? (
                               <div className="text-center w-full">
@@ -163,7 +177,7 @@ export default function LiveDraftBoardPage() {
                                 <Badge
                                   variant="outline"
                                   className={`text-[10px] mt-0.5 ${POS_COLORS[pick.position] || ""}`}
-                                  data-testid={`badge-position-${round}-${pickNum}`}
+                                  data-testid={`badge-position-${round}-${slot}`}
                                 >
                                   {pick.position}
                                 </Badge>

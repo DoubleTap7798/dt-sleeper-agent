@@ -175,7 +175,7 @@ export default function DevyMarketPage() {
         <div>
           <div className="flex items-center gap-2 mb-4">
             <Target className="h-5 w-5 text-amber-500" />
-            <h2 className="text-lg font-bold text-amber-100">Trade Signals</h2>
+            <h2 className="text-lg font-bold text-amber-100">Draft Value Analysis</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {buyLow.length > 0 && (
@@ -184,7 +184,7 @@ export default function DevyMarketPage() {
                   <div className="p-3 border-b border-amber-800/20">
                     <div className="flex items-center gap-2">
                       <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
-                      <span className="text-sm font-semibold text-amber-100">Buy Low Targets</span>
+                      <span className="text-sm font-semibold text-amber-100">Hidden Gems</span>
                     </div>
                   </div>
                   <div className="divide-y divide-amber-800/10">
@@ -199,7 +199,7 @@ export default function DevyMarketPage() {
                           <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
                           <span className="font-medium">{abbreviateName(p.name)}</span>
                         </div>
-                        <span className="text-green-500 text-xs font-medium">{p.elitePct}% elite</span>
+                        <span className="text-green-500 text-xs font-medium">{p.elitePct}% elite upside</span>
                       </div>
                     ))}
                   </div>
@@ -212,7 +212,7 @@ export default function DevyMarketPage() {
                   <div className="p-3 border-b border-amber-800/20">
                     <div className="flex items-center gap-2">
                       <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                      <span className="text-sm font-semibold text-amber-100">Sell High Candidates</span>
+                      <span className="text-sm font-semibold text-amber-100">Overvalued Prospects</span>
                     </div>
                   </div>
                   <div className="divide-y divide-amber-800/10">
@@ -227,7 +227,7 @@ export default function DevyMarketPage() {
                           <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
                           <span className="font-medium">{abbreviateName(p.name)}</span>
                         </div>
-                        <span className="text-red-500 text-xs font-medium">{p.bustPct}% bust</span>
+                        <span className="text-red-500 text-xs font-medium">{p.bustPct}% bust risk</span>
                       </div>
                     ))}
                   </div>
@@ -255,7 +255,7 @@ export default function DevyMarketPage() {
                           <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
                           <span className="font-medium">{abbreviateName(p.name)}</span>
                         </div>
-                        <span className="text-blue-500 text-xs font-medium">T{p.tier} underpriced</span>
+                        <span className="text-blue-500 text-xs font-medium">T{p.tier} draft steal</span>
                       </div>
                     ))}
                   </div>

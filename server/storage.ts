@@ -41,7 +41,7 @@ export interface IStorage {
 
   // League Settings
   getLeagueSettings(userId: string, leagueId: string): Promise<LeagueSettings | undefined>;
-  upsertLeagueSettings(userId: string, leagueId: string, settings: { devyEnabled: boolean }): Promise<LeagueSettings>;
+  upsertLeagueSettings(userId: string, leagueId: string, settings: { devyEnabled?: boolean; idpEnabled?: boolean }): Promise<LeagueSettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -234,7 +234,7 @@ export class DatabaseStorage implements IStorage {
     return settings || undefined;
   }
 
-  async upsertLeagueSettings(userId: string, leagueId: string, settings: { devyEnabled: boolean }): Promise<LeagueSettings> {
+  async upsertLeagueSettings(userId: string, leagueId: string, settings: { devyEnabled?: boolean; idpEnabled?: boolean }): Promise<LeagueSettings> {
     const existing = await this.getLeagueSettings(userId, leagueId);
     if (existing) {
       const [updated] = await db

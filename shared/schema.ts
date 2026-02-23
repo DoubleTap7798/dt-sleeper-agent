@@ -175,6 +175,7 @@ export const leagueSettings = pgTable("league_settings", {
   userId: varchar("user_id").notNull(),
   leagueId: text("league_id").notNull(),
   devyEnabled: boolean("devy_enabled").default(true).notNull(),
+  idpEnabled: boolean("idp_enabled").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
