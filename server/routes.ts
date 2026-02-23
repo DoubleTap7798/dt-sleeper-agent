@@ -13972,44 +13972,143 @@ Respond in JSON format:
         else rosterNeeds[pos] = "Low";
       });
 
-      // Get available prospects (not yet picked)
-      // Sleeper uses numeric player IDs, devy players use name-based IDs — match by normalized name
-      // Strip common suffixes (Jr, Sr, II, III, IV, V) for fuzzy matching
+      // Determine draft type
+      const draftPlayerType = draft.settings?.player_type;
+      const draftYear = parseInt(currentSeason) || new Date().getFullYear();
+      const isRookieDraft = draftPlayerType === 1 || (draft.settings?.rounds && draft.settings.rounds <= 5);
+
+      // Build set of already-drafted player IDs (Sleeper numeric IDs)
+      const pickedPlayerIds = new Set(formattedPicks.map((p: any) => p.playerId));
+
+      // For rookie drafts, use Sleeper's actual NFL player database (real rookies)
+      // For startup/other drafts, use devy data as fallback
+      const { getDraft2026Players } = await import('./draft-2026-data');
+      const draftBoardPlayers = getDraft2026Players();
       const NAME_SUFFIXES_DRAFT = /\s+(jr\.?|sr\.?|ii|iii|iv|v|2nd|3rd)$/i;
       const normalizeName = (name: string) => {
         return name?.toLowerCase().trim()
           .replace(NAME_SUFFIXES_DRAFT, "")
           .replace(/[^a-z]/g, "") || "";
       };
-      const pickedPlayerNames = new Set(
-        formattedPicks.map((p: any) => normalizeName(p.playerName))
-      );
-      const devyPlayers = ktcValues.getDevyPlayers();
-      
-      // For rookie drafts (player_type=1), only show players eligible in the draft year
-      const draftPlayerType = draft.settings?.player_type;
-      const draftYear = parseInt(currentSeason) || new Date().getFullYear();
-      const isRookieDraft = draftPlayerType === 1 || (draft.settings?.rounds && draft.settings.rounds <= 5);
-      
-      const rookieProspects = devyPlayers
-        .filter((p) => {
-          const normalizedName = normalizeName(p.name || "");
-          if (!normalizedName || pickedPlayerNames.has(normalizedName)) return false;
-          if (isRookieDraft) {
-            if (!p.draftEligibleYear || p.draftEligibleYear > draftYear) return false;
-          }
-          return true;
+
+      // Build available prospects from Sleeper's NFL player DB for rookies
+      let rookieProspects: Array<{
+        id: string;
+        name: string;
+        position: string;
+        value: number;
+        college: string;
+        tier: number;
+        searchRank: number;
+        nflTeam?: string;
+      }> = [];
+
+      if (isRookieDraft) {
+        // Use Sleeper's actual NFL rookies — players with years_exp === 0
+        const draftBoardByName = new Map<string, any>();
+        draftBoardPlayers.forEach((p: any) => {
+          draftBoardByName.set(normalizeName(p.name), p);
+        });
+        const devyPlayers = ktcValues.getDevyPlayers();
+        const devyByName = new Map<string, any>();
+        devyPlayers.forEach((p: any) => {
+          devyByName.set(normalizeName(p.name), p);
+        });
+
+        // Get rookies from Sleeper's player database
+        const sleeperRookies: any[] = [];
+        Object.entries(allPlayers).forEach(([pid, p]: [string, any]) => {
+          if (!p || pickedPlayerIds.has(pid)) return;
+          if (p.years_exp !== 0) return;
+          const pos = p.position;
+          if (!pos || ["DEF", "K"].includes(pos)) return;
+          if (p.status === "Inactive" && !p.team) return;
+          sleeperRookies.push({ pid, ...p });
+        });
+
+        // Score rookies using draft board rank + devy values
+        rookieProspects = sleeperRookies.map((p) => {
+          const normalName = normalizeName(p.full_name || "");
+          const boardPlayer = draftBoardByName.get(normalName);
+          const devyPlayer = devyByName.get(normalName);
+          const value = devyPlayer?.value || (boardPlayer ? Math.max(1000 - (boardPlayer.rank - 1) * 15, 100) : 0);
+          const tier = devyPlayer?.tier || (boardPlayer?.rank ? Math.ceil(boardPlayer.rank / 20) : 8);
+          return {
+            id: p.pid,
+            name: p.full_name || `${p.first_name} ${p.last_name}`,
+            position: p.position,
+            value,
+            college: boardPlayer?.college || devyPlayer?.college || p.college || "",
+            tier,
+            searchRank: p.search_rank || 9999,
+            nflTeam: p.team || undefined,
+          };
         })
+        .filter(p => p.value > 0 || p.searchRank < 500)
         .sort((a, b) => (b.value || 0) - (a.value || 0));
+      } else {
+        // Startup/other drafts: use devy data
+        const pickedNames = new Set(formattedPicks.map((p: any) => normalizeName(p.playerName)));
+        const devyPlayers = ktcValues.getDevyPlayers();
+        rookieProspects = devyPlayers
+          .filter((p) => {
+            const nn = normalizeName(p.name || "");
+            return nn && !pickedNames.has(nn) && !pickedPlayerIds.has(p.id);
+          })
+          .map(p => ({
+            id: p.id,
+            name: p.name,
+            position: p.position || "?",
+            value: p.value || 0,
+            college: p.college || "",
+            tier: p.tier || 5,
+            searchRank: 9999,
+          }))
+          .sort((a, b) => (b.value || 0) - (a.value || 0));
+      }
 
-      // Generate smart recommendations for the next pick
-      const criticalPositions = Object.entries(rosterNeeds)
-        .filter(([_, need]) => need === "Critical" || need === "High")
-        .map(([pos]) => pos);
-      const moderatePositions = Object.entries(rosterNeeds)
-        .filter(([_, need]) => need === "Moderate")
-        .map(([pos]) => pos);
+      // === SMART RECOMMENDATIONS ENGINE ===
+      const tierLabel = (t: number): string => {
+        if (t <= 1) return "Elite";
+        if (t <= 2) return "Premium";
+        if (t <= 3) return "Solid";
+        if (t <= 4) return "Upside";
+        return "Depth";
+      };
 
+      // Analyze roster composition deeply
+      const myRosterPlayers: Array<{ name: string; pos: string; age: number }> = [];
+      for (const pid of existingRoster) {
+        const player = allPlayers?.[pid];
+        if (player) {
+          myRosterPlayers.push({
+            name: player.full_name || "",
+            pos: player.position || "?",
+            age: player.age || 25,
+          });
+        }
+      }
+      const avgAge = myRosterPlayers.length > 0
+        ? myRosterPlayers.reduce((s, p) => s + p.age, 0) / myRosterPlayers.length
+        : 25;
+      const isRebuild = avgAge > 27.5;
+      const isContender = avgAge <= 25.5;
+
+      // Positional depth analysis (starter-quality vs depth)
+      const starterThreshold: Record<string, number> = { QB: 2, RB: 4, WR: 4, TE: 2 };
+      const posDepth: Record<string, { count: number; need: string; gapSize: number }> = {};
+      Object.entries(rosterNeeds).forEach(([pos, need]) => {
+        const have = posCount[pos] || 0;
+        const ideal = starterThreshold[pos] || 2;
+        posDepth[pos] = { count: have, need, gapSize: Math.max(0, ideal - have) };
+      });
+
+      // Picks remaining context
+      const picksLeft = myPicks.length;
+      const nextPick = myPicks[0];
+      const picksBetweenMyNext = nextPick ? nextPick.overall - currentPick : 0;
+
+      // Build recommendations with contextual, roster-specific reasoning
       const recommendations: Array<{
         playerId: string;
         name: string;
@@ -14019,65 +14118,84 @@ Respond in JSON format:
         college?: string;
         tier?: string;
       }> = [];
-
-      const tierLabel = (t: number): string => {
-        if (t <= 1) return "Elite";
-        if (t <= 2) return "Premium";
-        if (t <= 3) return "Solid";
-        if (t <= 4) return "Upside";
-        return "Depth";
-      };
+      const addedIds = new Set<string>();
 
       if (rookieProspects.length > 0) {
+        // 1. Best Player Available with context
         const bpa = rookieProspects[0];
+        const bpaRosterFit = posDepth[bpa.position];
+        let bpaReason = `#1 player available`;
+        if (bpaRosterFit?.need === "Critical" || bpaRosterFit?.need === "High") {
+          bpaReason += ` — also fills your ${bpa.position} need (${bpaRosterFit.need.toLowerCase()})`;
+        } else if (bpaRosterFit?.need === "Low") {
+          bpaReason += ` — luxury pick, you're set at ${bpa.position} (${bpaRosterFit.count} rostered)`;
+        }
+        if (bpa.nflTeam) bpaReason += ` | Landed: ${bpa.nflTeam}`;
+        addedIds.add(bpa.id);
         recommendations.push({
           playerId: bpa.id,
           name: bpa.name,
-          position: bpa.position || "BPA",
-          value: bpa.value || 0,
-          reason: "Best Player Available — highest value on the board",
+          position: bpa.position,
+          value: bpa.value,
+          reason: bpaReason,
           college: bpa.college,
           tier: tierLabel(bpa.tier),
         });
 
-        const addedIds = new Set([bpa.id]);
-        for (const pos of [...criticalPositions, ...moderatePositions]) {
-          const posPlayer = rookieProspects.find((p) => p.position === pos && !addedIds.has(p.id));
-          if (posPlayer) {
-            addedIds.add(posPlayer.id);
+        // 2. Best roster-fit pick (highest value at a position of need)
+        const needPositions = Object.entries(posDepth)
+          .filter(([_, d]) => d.need === "Critical" || d.need === "High" || d.need === "Moderate")
+          .sort((a, b) => b[1].gapSize - a[1].gapSize)
+          .map(([pos]) => pos);
+
+        for (const pos of needPositions) {
+          if (recommendations.length >= 5) break;
+          const fitPlayer = rookieProspects.find(p => p.position === pos && !addedIds.has(p.id));
+          if (fitPlayer) {
+            addedIds.add(fitPlayer.id);
+            const depth = posDepth[pos];
+            let reason = `Best ${pos} available — you have ${depth.count} rostered`;
+            if (depth.need === "Critical") reason += " (critical need)";
+            else if (depth.need === "High") reason += " (high need)";
+            else reason += " (depth add)";
+            if (picksBetweenMyNext > 5 && fitPlayer === rookieProspects.find(p => p.position === pos)) {
+              reason += ` | May not last ${picksBetweenMyNext} more picks`;
+            }
+            if (fitPlayer.nflTeam) reason += ` | Landed: ${fitPlayer.nflTeam}`;
             recommendations.push({
-              playerId: posPlayer.id,
-              name: posPlayer.name,
-              position: posPlayer.position,
-              value: posPlayer.value || 0,
-              reason: `Best ${pos} available — ${rosterNeeds[pos]} need`,
-              college: posPlayer.college,
-              tier: tierLabel(posPlayer.tier),
+              playerId: fitPlayer.id,
+              name: fitPlayer.name,
+              position: fitPlayer.position,
+              value: fitPlayer.value,
+              reason,
+              college: fitPlayer.college,
+              tier: tierLabel(fitPlayer.tier),
             });
           }
         }
 
-        if (myPicks.length > 0) {
-          const nextPick = myPicks[0];
-          const valuePick = rookieProspects
-            .slice(0, Math.min(10, rookieProspects.length))
-            .find((p) => !addedIds.has(p.id));
-          if (valuePick) {
-            addedIds.add(valuePick.id);
-            recommendations.push({
-              playerId: valuePick.id,
-              name: valuePick.name,
-              position: valuePick.position || "?",
-              value: valuePick.value || 0,
-              reason: `Value pick for Round ${nextPick.round}, Pick ${nextPick.pick}`,
-              college: valuePick.college,
-              tier: tierLabel(valuePick.tier),
-            });
-          }
+        // 3. Value/sleeper pick — high value falling in the draft
+        const valueTarget = rookieProspects
+          .slice(0, 15)
+          .find(p => !addedIds.has(p.id));
+        if (valueTarget && recommendations.length < 5) {
+          addedIds.add(valueTarget.id);
+          let reason = `Value pick — ranked higher than current draft position`;
+          if (isRebuild) reason += " | Good dynasty asset for rebuild";
+          if (valueTarget.nflTeam) reason += ` | Landed: ${valueTarget.nflTeam}`;
+          recommendations.push({
+            playerId: valueTarget.id,
+            name: valueTarget.name,
+            position: valueTarget.position,
+            value: valueTarget.value,
+            reason,
+            college: valueTarget.college,
+            tier: tierLabel(valueTarget.tier),
+          });
         }
       }
 
-      // Predictions: for each of my remaining picks, show likely available players
+      // Predictions: for each remaining pick, show likely available players
       const predictions = myPicks.map(pick => {
         const picksBefore = pick.overall - currentPick;
         const startIdx = Math.max(0, picksBefore - 2);
@@ -14112,11 +14230,15 @@ Respond in JSON format:
       // Build traded picks map: key = "round-slot", value = { originalOwner, newOwner }
       const tradedPicksMap: Record<string, { originalOwnerName: string; newOwnerName: string; newOwnerAvatar: string | null }> = {};
       if (Array.isArray(tradedPicks)) {
+        console.log("[DEBUG traded_picks] currentSeason:", currentSeason, "totalRounds:", totalRounds);
+        console.log("[DEBUG traded_picks] rosterIdToSlot:", JSON.stringify(rosterIdToSlot));
+        console.log("[DEBUG traded_picks] sample entries:", JSON.stringify(tradedPicks.slice(0, 5)));
         for (const tp of tradedPicks) {
           if (String(tp.season) === String(currentSeason) && tp.round <= totalRounds) {
             const origRosterId = Number(tp.roster_id);
             const newOwnerId = Number(tp.owner_id);
             const origSlot = rosterIdToSlot[origRosterId];
+            console.log("[DEBUG traded_picks] Processing:", { round: tp.round, roster_id: tp.roster_id, owner_id: tp.owner_id, origSlot, origRosterId, newOwnerId, isDifferent: origRosterId !== newOwnerId });
             if (origSlot && origRosterId !== newOwnerId) {
               const newOwnerUserId = rosterOwnerMap[newOwnerId];
               const origOwnerUserId = rosterOwnerMap[origRosterId];
@@ -14130,6 +14252,7 @@ Respond in JSON format:
             }
           }
         }
+        console.log("[DEBUG traded_picks] Final map:", JSON.stringify(tradedPicksMap));
       }
 
       res.json({

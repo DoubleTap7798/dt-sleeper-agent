@@ -180,7 +180,6 @@ const navigationGroups: NavGroup[] = [
     icon: Target,
     items: [
       { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
-      { title: "Draft War Room", url: "/league/war-room", icon: Swords, requiresLeague: true, premium: true },
       { title: "Draft Command Center", url: "/league/live-draft", icon: Radio, requiresLeague: true, premium: true },
       { title: "Mock Draft", url: "/league/mock-draft", icon: Dices, requiresLeague: true, premium: true },
       { title: "Draft Recap", url: "/league/draft-recap", icon: Award, requiresLeague: true, premium: true },
