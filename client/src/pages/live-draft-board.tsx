@@ -80,15 +80,23 @@ interface MySelection {
   playerId: string;
 }
 
+interface TradedPick {
+  originalOwnerName: string;
+  newOwnerName: string;
+  newOwnerAvatar: string | null;
+}
+
 interface DraftCommandData {
   status: "none" | "pre_draft" | "in_progress" | "complete";
   draftType: string;
+  isRookieDraft?: boolean;
   board: {
     picks: BoardPick[];
     teamOrder: TeamOrderEntry[];
     totalRounds: number;
     totalTeams: number;
     currentPick: number;
+    tradedPicks?: Record<string, TradedPick>;
   };
   assistant: {
     myPicks: MyPick[];
@@ -209,7 +217,7 @@ export default function LiveDraftBoardPage() {
       <div className="p-4 md:p-6 space-y-4 max-w-full mx-auto">
         <PageHeader
           title="Draft Command Center"
-          subtitle={`${board.totalRounds} rounds | ${board.totalTeams} teams | ${data.draftType} draft`}
+          subtitle={`${board.totalRounds} rounds | ${board.totalTeams} teams | ${data.draftType}${data.isRookieDraft ? " rookie" : ""} draft`}
           icon={<LayoutGrid className="h-6 w-6 text-primary" />}
           actions={
             <div className="flex items-center gap-2">
@@ -280,6 +288,7 @@ export default function LiveDraftBoardPage() {
                           {teams.map((team, teamIdx) => {
                             const slot = team.slot;
                             const pick = pickGrid[`${round}-${slot}`];
+                            const traded = board.tradedPicks?.[`${round}-${slot}`];
                             const isSnake = data.draftType === "snake";
                             const displaySlot = isSnake && round % 2 === 0 ? board.totalTeams - slot + 1 : slot;
                             const overall = (round - 1) * board.totalTeams + displaySlot;
@@ -288,24 +297,29 @@ export default function LiveDraftBoardPage() {
                             return (
                               <div
                                 key={`${round}-${slot}`}
-                                className={`p-1.5 border border-border/50 min-h-[60px] flex items-center justify-center ${
+                                className={`p-1 border border-border/50 min-h-[60px] flex flex-col items-center justify-center relative ${
                                   isCurrent ? "ring-2 ring-primary bg-primary/5" : ""
                                 }`}
                                 data-testid={`cell-pick-${round}-${slot}`}
                               >
+                                {traded && (
+                                  <div className="absolute top-0 left-0 right-0 bg-primary/15 text-primary text-[8px] font-medium truncate px-1 py-px text-center" data-testid={`traded-${round}-${slot}`}>
+                                    &rarr;{traded.newOwnerName}
+                                  </div>
+                                )}
                                 {pick ? (
-                                  <div className="text-center w-full">
-                                    <p className="text-[11px] font-medium truncate leading-tight">{pick.playerName}</p>
+                                  <div className={`text-center w-full ${traded ? "mt-2" : ""}`}>
+                                    <p className="text-[10px] font-medium truncate leading-tight">{pick.playerName}</p>
                                     <Badge
                                       variant="outline"
-                                      className={`text-[10px] mt-0.5 ${POS_COLORS[pick.position] || ""}`}
+                                      className={`text-[9px] mt-0.5 ${POS_COLORS[pick.position] || ""}`}
                                       data-testid={`badge-position-${round}-${slot}`}
                                     >
                                       {pick.position}
                                     </Badge>
                                   </div>
                                 ) : (
-                                  <span className="text-[10px] text-muted-foreground/40 font-mono">{overall}</span>
+                                  <span className={`text-[10px] text-muted-foreground/40 font-mono ${traded ? "mt-2" : ""}`}>{overall}</span>
                                 )}
                               </div>
                             );

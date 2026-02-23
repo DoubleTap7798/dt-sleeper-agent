@@ -13971,10 +13971,19 @@ Respond in JSON format:
       );
       const devyPlayers = ktcValues.getDevyPlayers();
       
+      // For rookie drafts (player_type=1), only show players eligible in the draft year
+      const draftPlayerType = draft.settings?.player_type;
+      const draftYear = parseInt(currentSeason) || new Date().getFullYear();
+      const isRookieDraft = draftPlayerType === 1 || (draft.settings?.rounds && draft.settings.rounds <= 5);
+      
       const rookieProspects = devyPlayers
         .filter((p) => {
           const normalizedName = p.name?.toLowerCase().replace(/[^a-z]/g, "") || "";
-          return normalizedName && !pickedPlayerNames.has(normalizedName);
+          if (!normalizedName || pickedPlayerNames.has(normalizedName)) return false;
+          if (isRookieDraft) {
+            if (!p.draftEligibleYear || p.draftEligibleYear > draftYear) return false;
+          }
+          return true;
         })
         .sort((a, b) => (b.value || 0) - (a.value || 0));
 
@@ -14085,15 +14094,38 @@ Respond in JSON format:
         playerId: p.playerId,
       }));
 
+      // Build traded picks map: key = "round-slot", value = { originalOwner, newOwner }
+      const tradedPicksMap: Record<string, { originalOwnerName: string; newOwnerName: string; newOwnerAvatar: string | null }> = {};
+      if (Array.isArray(tradedPicks)) {
+        for (const tp of tradedPicks) {
+          if (tp.season === currentSeason) {
+            const origSlot = rosterIdToSlot[tp.roster_id] || tp.roster_id;
+            const newOwnerUserId = rosterOwnerMap[tp.owner_id];
+            const origOwnerUserId = rosterOwnerMap[tp.roster_id];
+            const newOwner = newOwnerUserId ? userMap[newOwnerUserId] : null;
+            const origOwner = origOwnerUserId ? userMap[origOwnerUserId] : null;
+            if (tp.owner_id !== tp.roster_id) {
+              tradedPicksMap[`${tp.round}-${origSlot}`] = {
+                originalOwnerName: origOwner?.name || `Team ${origSlot}`,
+                newOwnerName: newOwner?.name || `Team ?`,
+                newOwnerAvatar: newOwner?.avatar ? `https://sleepercdn.com/avatars/thumbs/${newOwner.avatar}` : null,
+              };
+            }
+          }
+        }
+      }
+
       res.json({
         status,
         draftType,
+        isRookieDraft,
         board: {
           picks: formattedPicks,
           teamOrder,
           totalRounds,
           totalTeams,
           currentPick,
+          tradedPicks: tradedPicksMap,
         },
         assistant: {
           myPicks,
