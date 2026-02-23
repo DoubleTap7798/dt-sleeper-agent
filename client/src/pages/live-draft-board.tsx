@@ -402,36 +402,6 @@ export default function LiveDraftBoardPage() {
 
           {/* ASSISTANT TAB */}
           <TabsContent value="assistant" className="mt-4 space-y-5">
-            {assistant.mySelections && assistant.mySelections.length > 0 && (
-              <Card className="border-emerald-500/20 bg-emerald-500/[0.03]" data-testid="card-my-selections">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2 tracking-wide uppercase text-emerald-400">
-                    <CheckCircle className="h-4 w-4" />
-                    My Selections
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {assistant.mySelections.map((sel) => (
-                      <div
-                        key={sel.playerId}
-                        className="flex items-center gap-2 p-2 rounded-lg border border-emerald-500/15 bg-emerald-500/5 hover-elevate"
-                        data-testid={`selection-${sel.playerId}`}
-                      >
-                        <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
-                          R{sel.round}.{sel.pick}
-                        </span>
-                        <Badge variant="outline" className={`text-[10px] ${POS_COLORS[sel.position] || ""}`}>
-                          {sel.position}
-                        </Badge>
-                        <span className="text-xs font-semibold">{sel.playerName}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             <Card data-testid="card-roster-needs" className="border-border/60">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2 tracking-wide uppercase text-muted-foreground">

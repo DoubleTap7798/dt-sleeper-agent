@@ -13842,39 +13842,88 @@ Respond in JSON format:
       const draftOrder = draft.draft_order || {};
       const currentSeason = draft.season || new Date().getFullYear().toString();
 
+      // Build rosterIdToSlot mapping - critical for grid placement
+      // Priority: slot_to_roster_id > draft_order > derive from picks
       const rosterIdToSlot: Record<number, number> = {};
       if (Object.keys(slotToRoster).length > 0) {
         for (const [slot, rid] of Object.entries(slotToRoster)) {
           rosterIdToSlot[Number(rid)] = parseInt(slot);
         }
+      } else if (Object.keys(draftOrder).length > 0) {
+        for (const [userId, slot] of Object.entries(draftOrder)) {
+          const roster = (rosters || []).find((r: any) => r.owner_id === userId);
+          if (roster) {
+            rosterIdToSlot[roster.roster_id] = Number(slot);
+          }
+        }
       } else {
-        (rosters || []).forEach((r: any, idx: number) => {
-          rosterIdToSlot[r.roster_id] = r.roster_id;
-        });
+        // Last resort: derive slot mapping from actual pick data (draft_slot field)
+        for (const p of (picks || [])) {
+          if (p.draft_slot && p.roster_id && !rosterIdToSlot[p.roster_id]) {
+            rosterIdToSlot[p.roster_id] = p.draft_slot;
+          }
+        }
       }
 
-      // Build team order with actual names
+      // Build team order - columns for the draft board
       const teamOrder: Array<{ slot: number; name: string; avatar: string | null; rosterId: number }> = [];
-      for (let slot = 1; slot <= totalTeams; slot++) {
-        const rosterId = slotToRoster[slot] || slot;
-        const ownerId = rosterOwnerMap[rosterId];
-        const owner = ownerId ? userMap[ownerId] : null;
-        teamOrder.push({
-          slot,
-          rosterId: typeof rosterId === "number" ? rosterId : parseInt(rosterId),
-          name: owner?.name || `Team ${slot}`,
-          avatar: owner?.avatar ? `https://sleepercdn.com/avatars/thumbs/${owner.avatar}` : null,
-        });
+      if (Object.keys(slotToRoster).length > 0) {
+        for (let slot = 1; slot <= totalTeams; slot++) {
+          const rosterId = slotToRoster[slot] || slot;
+          const ownerId = rosterOwnerMap[rosterId];
+          const owner = ownerId ? userMap[ownerId] : null;
+          teamOrder.push({
+            slot,
+            rosterId: typeof rosterId === "number" ? rosterId : parseInt(rosterId),
+            name: owner?.name || `Team ${slot}`,
+            avatar: owner?.avatar ? `https://sleepercdn.com/avatars/thumbs/${owner.avatar}` : null,
+          });
+        }
+      } else if (Object.keys(draftOrder).length > 0) {
+        // Build from draft_order (user_id → slot)
+        const slotToUserId: Record<number, string> = {};
+        for (const [userId, slot] of Object.entries(draftOrder)) {
+          slotToUserId[Number(slot)] = userId;
+        }
+        for (let slot = 1; slot <= totalTeams; slot++) {
+          const userId = slotToUserId[slot];
+          const owner = userId ? userMap[userId] : null;
+          const roster = (rosters || []).find((r: any) => r.owner_id === userId);
+          teamOrder.push({
+            slot,
+            rosterId: roster?.roster_id || slot,
+            name: owner?.name || `Team ${slot}`,
+            avatar: owner?.avatar ? `https://sleepercdn.com/avatars/thumbs/${owner.avatar}` : null,
+          });
+        }
+      } else {
+        // Derive from picks or fall back to roster order
+        const slotToRosterId: Record<number, number> = {};
+        for (const [rid, slot] of Object.entries(rosterIdToSlot)) {
+          slotToRosterId[slot] = Number(rid);
+        }
+        for (let slot = 1; slot <= totalTeams; slot++) {
+          const rosterId = slotToRosterId[slot] || slot;
+          const ownerId = rosterOwnerMap[rosterId];
+          const owner = ownerId ? userMap[ownerId] : null;
+          teamOrder.push({
+            slot,
+            rosterId: typeof rosterId === "number" ? rosterId : Number(rosterId),
+            name: owner?.name || `Team ${slot}`,
+            avatar: owner?.avatar ? `https://sleepercdn.com/avatars/thumbs/${owner.avatar}` : null,
+          });
+        }
       }
 
-      // Format picks for the board - map each pick to its draft slot
+      // Format picks for the board
+      // Use draft_slot from Sleeper (the column position) directly - this is the most reliable source
+      // pick_no from Sleeper is the OVERALL pick number (1-50 for 5x10), NOT within-round
       const formattedPicks = (picks || []).map((p: any) => {
         const owner = userMap[p.picked_by] || { name: "Unknown", avatar: null };
-        const pickRosterId = p.roster_id;
-        const draftSlot = rosterIdToSlot[pickRosterId] || p.draft_slot || p.pick_no;
+        const draftSlot = p.draft_slot || rosterIdToSlot[p.roster_id] || ((p.pick_no - 1) % totalTeams) + 1;
         return {
           round: p.round,
-          pick: p.pick_no,
+          pick: draftSlot,
           draftSlot,
           playerId: p.player_id,
           playerName: `${p.metadata?.first_name || ""} ${p.metadata?.last_name || ""}`.trim(),
@@ -13898,7 +13947,8 @@ Respond in JSON format:
       const pickOwnership: Record<string, number> = {};
       for (let round = 1; round <= totalRounds; round++) {
         for (let slot = 1; slot <= totalTeams; slot++) {
-          const rosterId = slotToRoster[slot] || slot;
+          const teamEntry = teamOrder.find(t => t.slot === slot);
+          const rosterId = teamEntry?.rosterId || slot;
           pickOwnership[`${round}-${slot}`] = typeof rosterId === "number" ? rosterId : parseInt(String(rosterId));
         }
       }
@@ -13920,14 +13970,15 @@ Respond in JSON format:
 
       // Find MY picks (including traded ones), filtering out already-made picks
       const myRosterIdNum = Number(myRosterId);
-      const alreadyPickedOveralls = new Set(formattedPicks.map((p: any) => (p.round - 1) * totalTeams + p.draftSlot));
+      // Track which round-slot combinations already have a pick made
+      const alreadyPickedSlots = new Set(formattedPicks.map((p: any) => `${p.round}-${p.draftSlot}`));
       const myPicks: Array<{ round: number; pick: number; overall: number; slot: number }> = [];
       for (let round = 1; round <= totalRounds; round++) {
         for (let slot = 1; slot <= totalTeams; slot++) {
           const currentOwner = pickOwnership[`${round}-${slot}`];
           if (currentOwner === myRosterIdNum) {
             const overall = (round - 1) * totalTeams + slot;
-            if (!alreadyPickedOveralls.has(overall)) {
+            if (!alreadyPickedSlots.has(`${round}-${slot}`)) {
               myPicks.push({ round, pick: slot, overall, slot });
             }
           }
@@ -14225,9 +14276,10 @@ Respond in JSON format:
       });
 
       // My already-drafted players in this draft
+      // Use draftSlot for the within-round pick display (e.g., R1.5 means round 1, slot 5)
       const mySelections = myDraftedInThisDraft.map((p: any) => ({
         round: p.round,
-        pick: p.pick,
+        pick: p.draftSlot,
         playerName: p.playerName,
         position: p.position,
         playerId: p.playerId,
@@ -14236,15 +14288,11 @@ Respond in JSON format:
       // Build traded picks map: key = "round-slot", value = { originalOwner, newOwner }
       const tradedPicksMap: Record<string, { originalOwnerName: string; newOwnerName: string; newOwnerAvatar: string | null }> = {};
       if (Array.isArray(tradedPicks)) {
-        console.log("[DEBUG traded_picks] currentSeason:", currentSeason, "totalRounds:", totalRounds);
-        console.log("[DEBUG traded_picks] rosterIdToSlot:", JSON.stringify(rosterIdToSlot));
-        console.log("[DEBUG traded_picks] sample entries:", JSON.stringify(tradedPicks.slice(0, 5)));
         for (const tp of tradedPicks) {
           if (String(tp.season) === String(currentSeason) && tp.round <= totalRounds) {
             const origRosterId = Number(tp.roster_id);
             const newOwnerId = Number(tp.owner_id);
             const origSlot = rosterIdToSlot[origRosterId];
-            console.log("[DEBUG traded_picks] Processing:", { round: tp.round, roster_id: tp.roster_id, owner_id: tp.owner_id, origSlot, origRosterId, newOwnerId, isDifferent: origRosterId !== newOwnerId });
             if (origSlot && origRosterId !== newOwnerId) {
               const newOwnerUserId = rosterOwnerMap[newOwnerId];
               const origOwnerUserId = rosterOwnerMap[origRosterId];
@@ -14258,7 +14306,6 @@ Respond in JSON format:
             }
           }
         }
-        console.log("[DEBUG traded_picks] Final map:", JSON.stringify(tradedPicksMap));
       }
 
       res.json({
