@@ -13843,8 +13843,14 @@ Respond in JSON format:
       const currentSeason = draft.season || new Date().getFullYear().toString();
 
       const rosterIdToSlot: Record<number, number> = {};
-      for (const [slot, rid] of Object.entries(slotToRoster)) {
-        rosterIdToSlot[Number(rid)] = parseInt(slot);
+      if (Object.keys(slotToRoster).length > 0) {
+        for (const [slot, rid] of Object.entries(slotToRoster)) {
+          rosterIdToSlot[Number(rid)] = parseInt(slot);
+        }
+      } else {
+        (rosters || []).forEach((r: any, idx: number) => {
+          rosterIdToSlot[r.roster_id] = r.roster_id;
+        });
       }
 
       // Build team order with actual names

@@ -18,6 +18,10 @@ import {
   Zap,
   GraduationCap,
   CheckCircle,
+  ArrowRight,
+  Crown,
+  Shield,
+  Sparkles,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 
@@ -123,11 +127,32 @@ const POS_COLORS: Record<string, string> = {
   EDGE: "text-pink-400 bg-pink-400/10 border-pink-400/30",
 };
 
+const POS_BG: Record<string, string> = {
+  QB: "bg-red-500/20",
+  RB: "bg-emerald-500/20",
+  WR: "bg-blue-500/20",
+  TE: "bg-amber-500/20",
+  K: "bg-purple-500/20",
+  DEF: "bg-gray-500/20",
+  LB: "bg-orange-500/20",
+  DL: "bg-rose-500/20",
+  CB: "bg-cyan-500/20",
+  S: "bg-violet-500/20",
+  EDGE: "bg-pink-500/20",
+};
+
 const NEED_COLORS: Record<string, string> = {
   Critical: "text-red-400",
   High: "text-amber-400",
   Moderate: "text-emerald-400",
   Low: "text-muted-foreground",
+};
+
+const NEED_BG: Record<string, string> = {
+  Critical: "bg-red-500/10 border-red-500/20",
+  High: "bg-amber-500/10 border-amber-500/20",
+  Moderate: "bg-emerald-500/10 border-emerald-500/20",
+  Low: "bg-muted/30 border-border",
 };
 
 const TIER_COLORS: Record<string, string> = {
@@ -138,10 +163,16 @@ const TIER_COLORS: Record<string, string> = {
   Depth: "text-muted-foreground",
 };
 
+const TIER_ICONS: Record<string, typeof Crown> = {
+  Elite: Crown,
+  Premium: Sparkles,
+  Solid: Shield,
+};
+
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  pre_draft: { label: "Pre-Draft", className: "text-muted-foreground" },
-  in_progress: { label: "LIVE", className: "text-emerald-400 border-emerald-400/30" },
-  complete: { label: "Complete", className: "text-amber-400 border-amber-400/30" },
+  pre_draft: { label: "Pre-Draft", className: "text-muted-foreground border-muted-foreground/30" },
+  in_progress: { label: "LIVE", className: "text-emerald-400 border-emerald-400/50 bg-emerald-400/10 shadow-[0_0_12px_rgba(52,211,153,0.15)]" },
+  complete: { label: "Complete", className: "text-amber-400 border-amber-400/30 bg-amber-400/10" },
   none: { label: "No Draft", className: "text-muted-foreground" },
 };
 
@@ -172,8 +203,13 @@ export default function LiveDraftBoardPage() {
   if (isLoading) {
     return (
       <div className="p-4 md:p-6 space-y-6 max-w-full mx-auto">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-[400px] w-full" />
+        <Skeleton className="h-10 w-64" />
+        <div className="grid grid-cols-3 gap-2">
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+        </div>
+        <Skeleton className="h-[400px] w-full rounded-xl" />
       </div>
     );
   }
@@ -212,19 +248,26 @@ export default function LiveDraftBoardPage() {
     }
   }
 
+  const totalPicks = board.totalRounds * board.totalTeams;
+  const madeCount = board.picks.length;
+  const progressPct = totalPicks > 0 ? Math.round((madeCount / totalPicks) * 100) : 0;
+
   return (
     <PremiumGate featureName="Draft Command Center">
-      <div className="p-4 md:p-6 space-y-4 max-w-full mx-auto">
+      <div className="p-4 md:p-6 space-y-5 max-w-full mx-auto">
         <PageHeader
           title="Draft Command Center"
-          subtitle={`${board.totalRounds} rounds | ${board.totalTeams} teams | ${data.draftType}${data.isRookieDraft ? " rookie" : ""} draft`}
+          subtitle={`${board.totalRounds} rounds \u00b7 ${board.totalTeams} teams \u00b7 ${data.draftType}${data.isRookieDraft ? " rookie" : ""} draft`}
           icon={<LayoutGrid className="h-6 w-6 text-primary" />}
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {data.status === "in_progress" && (
-                <Radio className="h-4 w-4 text-emerald-400 animate-pulse" />
+                <div className="flex items-center gap-1.5">
+                  <Radio className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
+                  <span className="text-xs text-emerald-400 font-medium hidden sm:inline">Live</span>
+                </div>
               )}
-              <Badge variant="outline" className={statusConfig.className} data-testid="badge-draft-status">
+              <Badge variant="outline" className={`text-xs font-semibold ${statusConfig.className}`} data-testid="badge-draft-status">
                 {data.status === "in_progress" && <Zap className="h-3 w-3 mr-1" />}
                 {statusConfig.label}
               </Badge>
@@ -232,18 +275,32 @@ export default function LiveDraftBoardPage() {
           }
         />
 
+        {(data.status === "in_progress" || data.status === "complete") && (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-1.5 rounded-full bg-muted/50 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-primary/80 to-primary transition-all duration-700 ease-out"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground font-mono tabular-nums whitespace-nowrap">
+              {madeCount}/{totalPicks} picks
+            </span>
+          </div>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3" data-testid="draft-tabs">
-            <TabsTrigger value="board" className="text-xs sm:text-sm" data-testid="tab-board">
-              <LayoutGrid className="h-3.5 w-3.5 mr-1" />
+          <TabsList className="grid w-full grid-cols-3 h-11 bg-muted/40 backdrop-blur-sm" data-testid="draft-tabs">
+            <TabsTrigger value="board" className="text-xs sm:text-sm gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-board">
+              <LayoutGrid className="h-3.5 w-3.5" />
               Board
             </TabsTrigger>
-            <TabsTrigger value="assistant" className="text-xs sm:text-sm" data-testid="tab-assistant">
-              <Brain className="h-3.5 w-3.5 mr-1" />
+            <TabsTrigger value="assistant" className="text-xs sm:text-sm gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-assistant">
+              <Brain className="h-3.5 w-3.5" />
               Assistant
             </TabsTrigger>
-            <TabsTrigger value="predictions" className="text-xs sm:text-sm" data-testid="tab-predictions">
-              <Target className="h-3.5 w-3.5 mr-1" />
+            <TabsTrigger value="predictions" className="text-xs sm:text-sm gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm" data-testid="tab-predictions">
+              <Target className="h-3.5 w-3.5" />
               My Picks
             </TabsTrigger>
           </TabsList>
@@ -251,13 +308,18 @@ export default function LiveDraftBoardPage() {
           {/* BOARD TAB */}
           <TabsContent value="board" className="mt-4">
             {teams.length === 0 ? (
-              <Card><CardContent className="py-8 text-center text-muted-foreground">
-                <p>Draft board data not yet available. Waiting for rosters to be set.</p>
+              <Card className="border-dashed"><CardContent className="py-12 text-center text-muted-foreground">
+                <LayoutGrid className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">Draft board data not yet available.</p>
+                <p className="text-xs mt-1 opacity-70">Waiting for rosters to be set.</p>
               </CardContent></Card>
             ) : (<>
-            <p className="text-xs text-muted-foreground md:hidden mb-2">Scroll horizontally to see all teams</p>
-            <Card>
-              <CardContent className="pt-4 overflow-x-auto -mx-2 px-2">
+            <p className="text-xs text-muted-foreground md:hidden mb-2 flex items-center gap-1">
+              <ArrowRight className="h-3 w-3" />
+              Scroll horizontally to see all teams
+            </p>
+            <Card className="border-border/60 bg-card/80 backdrop-blur-sm overflow-hidden">
+              <CardContent className="pt-4 pb-2 overflow-x-auto -mx-2 px-2">
                 <div className="min-w-max">
                   <div
                     className="grid"
@@ -267,14 +329,14 @@ export default function LiveDraftBoardPage() {
                     {teams.map((team, idx) => (
                       <div
                         key={idx}
-                        className="p-2 text-center border-b border-border"
+                        className="p-2 text-center border-b border-border/40"
                         data-testid={`header-team-${idx}`}
                       >
-                        <Avatar className="h-7 w-7 mx-auto mb-1">
+                        <Avatar className="h-7 w-7 mx-auto mb-1 ring-1 ring-border/30">
                           <AvatarImage src={team.avatar || undefined} />
-                          <AvatarFallback className="text-[10px]">{team.name[0]}</AvatarFallback>
+                          <AvatarFallback className="text-[10px] bg-muted">{team.name[0]}</AvatarFallback>
                         </Avatar>
-                        <p className="text-xs font-medium truncate max-w-[110px] mx-auto">{team.name}</p>
+                        <p className="text-[11px] font-medium truncate max-w-[110px] mx-auto leading-tight">{team.name}</p>
                       </div>
                     ))}
 
@@ -282,10 +344,10 @@ export default function LiveDraftBoardPage() {
                       const round = roundIdx + 1;
                       return (
                         <div key={round} className="contents">
-                          <div className="p-2 flex items-center justify-center text-xs font-mono text-muted-foreground border-r border-border sticky left-0 bg-card z-10">
+                          <div className="p-2 flex items-center justify-center text-xs font-mono text-muted-foreground border-r border-border/30 sticky left-0 bg-card z-10">
                             R{round}
                           </div>
-                          {teams.map((team, teamIdx) => {
+                          {teams.map((team) => {
                             const slot = team.slot;
                             const pick = pickGrid[`${round}-${slot}`];
                             const traded = board.tradedPicks?.[`${round}-${slot}`];
@@ -297,29 +359,33 @@ export default function LiveDraftBoardPage() {
                             return (
                               <div
                                 key={`${round}-${slot}`}
-                                className={`p-1 border border-border/50 min-h-[60px] flex flex-col items-center justify-center relative ${
-                                  isCurrent ? "ring-2 ring-primary bg-primary/5" : ""
+                                className={`p-1 border border-border/20 min-h-[60px] flex flex-col items-center justify-center relative transition-all duration-200 ${
+                                  isCurrent
+                                    ? "ring-2 ring-primary/70 bg-primary/10"
+                                    : pick
+                                      ? `${POS_BG[pick.position] || "bg-muted/10"}`
+                                      : ""
                                 }`}
                                 data-testid={`cell-pick-${round}-${slot}`}
                               >
                                 {traded && (
-                                  <div className="absolute top-0 left-0 right-0 bg-primary/15 text-primary text-[8px] font-medium truncate px-1 py-px text-center" data-testid={`traded-${round}-${slot}`}>
-                                    &rarr;{traded.newOwnerName}
+                                  <div className="absolute top-0 left-0 right-0 bg-primary/20 text-primary text-[8px] font-semibold truncate px-1 py-px text-center backdrop-blur-sm" data-testid={`traded-${round}-${slot}`}>
+                                    <ArrowRight className="h-2 w-2 inline mr-0.5" />{traded.newOwnerName}
                                   </div>
                                 )}
                                 {pick ? (
-                                  <div className={`text-center w-full ${traded ? "mt-2" : ""}`}>
-                                    <p className="text-[10px] font-medium truncate leading-tight">{pick.playerName}</p>
+                                  <div className={`text-center w-full ${traded ? "mt-2.5" : ""}`}>
+                                    <p className="text-[10px] font-semibold truncate leading-tight">{pick.playerName}</p>
                                     <Badge
                                       variant="outline"
-                                      className={`text-[9px] mt-0.5 ${POS_COLORS[pick.position] || ""}`}
+                                      className={`text-[9px] mt-0.5 px-1.5 ${POS_COLORS[pick.position] || ""}`}
                                       data-testid={`badge-position-${round}-${slot}`}
                                     >
                                       {pick.position}
                                     </Badge>
                                   </div>
                                 ) : (
-                                  <span className={`text-[10px] text-muted-foreground/40 font-mono ${traded ? "mt-2" : ""}`}>{overall}</span>
+                                  <span className={`text-[10px] text-muted-foreground/30 font-mono ${traded ? "mt-2.5" : ""}`}>{overall}</span>
                                 )}
                               </div>
                             );
@@ -335,13 +401,12 @@ export default function LiveDraftBoardPage() {
           </TabsContent>
 
           {/* ASSISTANT TAB */}
-          <TabsContent value="assistant" className="mt-4 space-y-4">
-            {/* My Selections So Far */}
+          <TabsContent value="assistant" className="mt-4 space-y-5">
             {assistant.mySelections && assistant.mySelections.length > 0 && (
-              <Card data-testid="card-my-selections">
+              <Card className="border-emerald-500/20 bg-emerald-500/[0.03]" data-testid="card-my-selections">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-emerald-400" />
+                  <CardTitle className="text-sm flex items-center gap-2 tracking-wide uppercase text-emerald-400">
+                    <CheckCircle className="h-4 w-4" />
                     My Selections
                   </CardTitle>
                 </CardHeader>
@@ -350,16 +415,16 @@ export default function LiveDraftBoardPage() {
                     {assistant.mySelections.map((sel) => (
                       <div
                         key={sel.playerId}
-                        className="flex items-center gap-2 p-2 rounded-md border border-border bg-muted/30"
+                        className="flex items-center gap-2 p-2 rounded-lg border border-emerald-500/15 bg-emerald-500/5 hover-elevate"
                         data-testid={`selection-${sel.playerId}`}
                       >
-                        <span className="text-[10px] text-muted-foreground font-mono">
+                        <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
                           R{sel.round}.{sel.pick}
                         </span>
                         <Badge variant="outline" className={`text-[10px] ${POS_COLORS[sel.position] || ""}`}>
                           {sel.position}
                         </Badge>
-                        <span className="text-xs font-medium">{sel.playerName}</span>
+                        <span className="text-xs font-semibold">{sel.playerName}</span>
                       </div>
                     ))}
                   </div>
@@ -367,26 +432,25 @@ export default function LiveDraftBoardPage() {
               </Card>
             )}
 
-            {/* Roster Needs */}
-            <Card data-testid="card-roster-needs">
+            <Card data-testid="card-roster-needs" className="border-border/60">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="text-sm flex items-center gap-2 tracking-wide uppercase text-muted-foreground">
                   <Target className="h-4 w-4 text-primary" />
                   Roster Needs
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {Object.entries(assistant.rosterNeeds).map(([pos, need]) => (
                     <div
                       key={pos}
-                      className="flex items-center justify-between p-3 rounded-md border border-border"
+                      className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${NEED_BG[need] || "bg-muted/20 border-border"}`}
                       data-testid={`roster-need-${pos}`}
                     >
-                      <Badge variant="outline" className={`text-xs ${POS_COLORS[pos] || ""}`}>
+                      <Badge variant="outline" className={`text-xs font-semibold ${POS_COLORS[pos] || ""}`}>
                         {pos}
                       </Badge>
-                      <span className={`text-sm font-medium ${NEED_COLORS[need] || "text-muted-foreground"}`}>
+                      <span className={`text-xs font-bold ${NEED_COLORS[need] || "text-muted-foreground"}`}>
                         {need}
                       </span>
                     </div>
@@ -395,73 +459,87 @@ export default function LiveDraftBoardPage() {
               </CardContent>
             </Card>
 
-            {/* Recommendations */}
-            <Card data-testid="card-recommendations">
+            <Card data-testid="card-recommendations" className="border-border/60">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  Recommendations
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2 tracking-wide uppercase text-muted-foreground">
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                    Recommendations
+                  </CardTitle>
                   {assistant.myPicks.length > 0 && (
-                    <span className="text-xs text-muted-foreground font-normal ml-auto">
-                      Next: R{assistant.myPicks[0].round}, Pick {assistant.myPicks[0].pick}
-                    </span>
+                    <Badge variant="secondary" className="text-[10px] font-mono">
+                      Next: R{assistant.myPicks[0].round}.{assistant.myPicks[0].pick}
+                    </Badge>
                   )}
-                </CardTitle>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2.5">
                 {assistant.recommendations.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No recommendations available yet.</p>
+                  <div className="py-6 text-center">
+                    <Brain className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm text-muted-foreground">No recommendations available yet.</p>
+                  </div>
                 ) : (
-                  assistant.recommendations.map((rec, idx) => (
-                    <div
-                      key={rec.playerId}
-                      className="flex items-start gap-3 p-3 rounded-md border border-border hover-elevate"
-                      data-testid={`row-recommendation-${rec.playerId}`}
-                    >
-                      <div className="flex items-center justify-center h-6 w-6 rounded-full bg-muted text-xs font-mono shrink-0">
-                        {idx + 1}
+                  assistant.recommendations.map((rec, idx) => {
+                    const TierIcon = TIER_ICONS[rec.tier || ""] || null;
+                    return (
+                      <div
+                        key={rec.playerId}
+                        className="group flex items-start gap-3 p-3.5 rounded-xl border border-border/40 bg-muted/5 hover-elevate"
+                        data-testid={`row-recommendation-${rec.playerId}`}
+                      >
+                        <div className={`flex items-center justify-center h-7 w-7 rounded-full text-xs font-bold shrink-0 ${
+                          idx === 0 ? "bg-primary/20 text-primary" : "bg-muted/60 text-muted-foreground"
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <Badge variant="outline" className={`text-xs shrink-0 font-semibold ${POS_COLORS[rec.position] || ""}`}>
+                          {rec.position}
+                        </Badge>
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <p className="text-sm font-bold">{rec.name}</p>
+                          {rec.college && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <GraduationCap className="h-3 w-3 shrink-0" />
+                              <span>{rec.college}</span>
+                            </div>
+                          )}
+                          <p className="text-xs text-muted-foreground/80 leading-relaxed">{rec.reason}</p>
+                        </div>
+                        <div className="text-right shrink-0 space-y-0.5">
+                          <p className="text-sm font-mono font-bold text-primary tabular-nums">{rec.value?.toLocaleString()}</p>
+                          {rec.tier && (
+                            <div className={`flex items-center gap-0.5 justify-end ${TIER_COLORS[rec.tier] || "text-muted-foreground"}`}>
+                              {TierIcon && <TierIcon className="h-3 w-3" />}
+                              <span className="text-[10px] font-semibold">{rec.tier}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <Badge variant="outline" className={`text-xs shrink-0 ${POS_COLORS[rec.position] || ""}`}>
-                        {rec.position}
-                      </Badge>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{rec.name}</p>
-                        {rec.college && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                            <GraduationCap className="h-3 w-3" />
-                            <span>{rec.college}</span>
-                          </div>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-0.5">{rec.reason}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-sm font-mono text-primary">{rec.value?.toLocaleString()}</p>
-                        {rec.tier && (
-                          <p className={`text-[10px] ${TIER_COLORS[rec.tier] || "text-muted-foreground"}`}>{rec.tier}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </CardContent>
             </Card>
 
-            {/* Upcoming Picks */}
             {assistant.myPicks.length > 0 && (
-              <Card data-testid="card-upcoming-picks">
+              <Card data-testid="card-upcoming-picks" className="border-border/60">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Remaining Picks</CardTitle>
+                  <CardTitle className="text-sm tracking-wide uppercase text-muted-foreground">Remaining Picks</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
-                    {assistant.myPicks.map((pick) => (
+                    {assistant.myPicks.map((pick, idx) => (
                       <Badge
                         key={pick.overall}
                         variant="outline"
-                        className="text-sm"
+                        className={`text-xs font-mono tabular-nums ${
+                          idx === 0 ? "border-primary/40 text-primary bg-primary/5" : ""
+                        }`}
                         data-testid={`badge-pick-${pick.overall}`}
                       >
-                        R{pick.round}, Pick {pick.pick} (#{pick.overall})
+                        R{pick.round}.{pick.pick}
+                        <span className="text-muted-foreground/60 ml-1">#{pick.overall}</span>
                       </Badge>
                     ))}
                   </div>
@@ -471,21 +549,21 @@ export default function LiveDraftBoardPage() {
           </TabsContent>
 
           {/* PREDICTIONS TAB */}
-          <TabsContent value="predictions" className="mt-4 space-y-4">
+          <TabsContent value="predictions" className="mt-4 space-y-5">
             {assistant.myPicks.length === 0 && (assistant.mySelections?.length || 0) === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  <p className="text-sm">No picks assigned to you for this draft.</p>
+              <Card className="border-dashed">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Target className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                  <p className="text-sm font-medium">No picks assigned to you for this draft.</p>
                 </CardContent>
               </Card>
             ) : (
               <>
-                {/* Already drafted */}
                 {assistant.mySelections && assistant.mySelections.length > 0 && (
-                  <Card data-testid="card-completed-picks">
+                  <Card data-testid="card-completed-picks" className="border-emerald-500/20">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-emerald-400" />
+                      <CardTitle className="text-sm flex items-center gap-2 tracking-wide uppercase text-emerald-400">
+                        <CheckCircle className="h-4 w-4" />
                         Completed Picks
                       </CardTitle>
                     </CardHeader>
@@ -493,73 +571,80 @@ export default function LiveDraftBoardPage() {
                       {assistant.mySelections.map((sel) => (
                         <div
                           key={sel.playerId}
-                          className="flex items-center gap-3 p-2 rounded-md border border-emerald-500/20 bg-emerald-500/5"
+                          className="flex items-center gap-3 p-2.5 rounded-lg border border-emerald-500/15 bg-emerald-500/5"
                           data-testid={`completed-pick-${sel.playerId}`}
                         >
-                          <span className="text-xs text-muted-foreground font-mono w-12">
+                          <span className="text-xs text-muted-foreground font-mono tabular-nums w-12">
                             R{sel.round}.{sel.pick}
                           </span>
-                          <Badge variant="outline" className={`text-xs ${POS_COLORS[sel.position] || ""}`}>
+                          <Badge variant="outline" className={`text-xs font-semibold ${POS_COLORS[sel.position] || ""}`}>
                             {sel.position}
                           </Badge>
-                          <span className="text-sm font-medium">{sel.playerName}</span>
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-400 ml-auto" />
+                          <span className="text-sm font-bold">{sel.playerName}</span>
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-400 ml-auto shrink-0" />
                         </div>
                       ))}
                     </CardContent>
                   </Card>
                 )}
 
-                {/* Predictions for remaining picks */}
                 {assistant.predictions && assistant.predictions.map((pred) => (
-                  <Card key={`${pred.round}-${pred.pick}`} data-testid={`card-prediction-${pred.round}-${pred.pick}`}>
-                    <CardHeader className="pb-2">
+                  <Card key={`${pred.round}-${pred.pick}`} className="border-border/60 overflow-hidden" data-testid={`card-prediction-${pred.round}-${pred.pick}`}>
+                    <CardHeader className="pb-2 bg-muted/5">
                       <div className="flex items-center justify-between gap-2">
-                        <CardTitle className="text-base">
+                        <CardTitle className="text-sm font-bold">
                           Round {pred.round}, Pick {pred.pick}
                         </CardTitle>
-                        <Badge variant="secondary" className="text-xs font-mono">
+                        <Badge variant="secondary" className="text-[10px] font-mono tabular-nums">
                           #{pred.overall}
                         </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-2">
+                    <CardContent className="space-y-2 pt-3">
                       {pred.likelyAvailable.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Projected available players will appear as the draft progresses.</p>
+                        <div className="py-4 text-center">
+                          <p className="text-xs text-muted-foreground">Projected available players will appear as the draft progresses.</p>
+                        </div>
                       ) : (
                         <>
-                          <p className="text-xs text-muted-foreground mb-2">Projected available at this pick:</p>
-                          {pred.likelyAvailable.map((prospect) => (
-                            <div
-                              key={prospect.id}
-                              className="flex items-center gap-3 p-2 rounded-md border border-border hover-elevate"
-                              data-testid={`row-prospect-${prospect.id}`}
-                            >
-                              <div className="flex items-center justify-center h-5 w-5 rounded-full bg-muted text-[10px] font-mono shrink-0">
-                                {prospect.rank}
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-2">Projected Available</p>
+                          {pred.likelyAvailable.map((prospect, pIdx) => {
+                            const TierIcon = TIER_ICONS[prospect.tier] || null;
+                            return (
+                              <div
+                                key={prospect.id}
+                                className="group flex items-center gap-3 p-2.5 rounded-lg border border-border/30 bg-muted/5 hover-elevate"
+                                data-testid={`row-prospect-${prospect.id}`}
+                              >
+                                <div className={`flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold shrink-0 ${
+                                  pIdx === 0 ? "bg-primary/20 text-primary" : "bg-muted/60 text-muted-foreground"
+                                }`}>
+                                  {prospect.rank}
+                                </div>
+                                <Badge variant="outline" className={`text-[10px] font-semibold ${POS_COLORS[prospect.position] || ""}`}>
+                                  {prospect.position}
+                                </Badge>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold truncate">{prospect.name}</p>
+                                  {prospect.college && (
+                                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                      <GraduationCap className="h-3 w-3 shrink-0" />
+                                      <span>{prospect.college}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="text-xs font-mono font-bold tabular-nums">{prospect.value?.toLocaleString()}</p>
+                                  {prospect.tier && (
+                                    <div className={`flex items-center gap-0.5 justify-end ${TIER_COLORS[prospect.tier] || "text-muted-foreground"}`}>
+                                      {TierIcon && <TierIcon className="h-2.5 w-2.5" />}
+                                      <span className="text-[9px] font-semibold">{prospect.tier}</span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                              <Badge variant="outline" className={`text-[10px] ${POS_COLORS[prospect.position] || ""}`}>
-                                {prospect.position}
-                              </Badge>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{prospect.name}</p>
-                                {prospect.college && (
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <GraduationCap className="h-3 w-3" />
-                                    <span>{prospect.college}</span>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="text-right shrink-0">
-                                <p className="text-xs font-mono">{prospect.value?.toLocaleString()}</p>
-                                {prospect.tier && (
-                                  <p className={`text-[10px] ${TIER_COLORS[prospect.tier] || "text-muted-foreground"}`}>
-                                    {prospect.tier}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </>
                       )}
                     </CardContent>
