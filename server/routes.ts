@@ -13844,7 +13844,7 @@ Respond in JSON format:
 
       const rosterIdToSlot: Record<number, number> = {};
       for (const [slot, rid] of Object.entries(slotToRoster)) {
-        rosterIdToSlot[rid as number] = parseInt(slot);
+        rosterIdToSlot[Number(rid)] = parseInt(slot);
       }
 
       // Build team order with actual names
@@ -13888,30 +13888,38 @@ Respond in JSON format:
       const myRosterId = myRoster?.roster_id;
       const myDraftSlot = draftOrder[sleeperUserId || ""] || (myRosterId ? rosterIdToSlot[myRosterId] : undefined) || 0;
 
-      // Pick ownership: keyed by slot, value is owning roster_id
+      // Pick ownership: keyed by "round-slot", value is owning roster_id (number)
       const pickOwnership: Record<string, number> = {};
       for (let round = 1; round <= totalRounds; round++) {
         for (let slot = 1; slot <= totalTeams; slot++) {
           const rosterId = slotToRoster[slot] || slot;
-          pickOwnership[`${round}-${slot}`] = typeof rosterId === "number" ? rosterId : parseInt(rosterId);
+          pickOwnership[`${round}-${slot}`] = typeof rosterId === "number" ? rosterId : parseInt(String(rosterId));
         }
       }
+      // Override ownership with traded picks from Sleeper API
+      // tp.roster_id = original owner's roster_id (determines column)
+      // tp.owner_id = current owner's roster_id
       if (Array.isArray(tradedPicks)) {
         for (const tp of tradedPicks) {
-          if (tp.season === currentSeason) {
-            const origSlot = rosterIdToSlot[tp.roster_id] || tp.roster_id;
-            pickOwnership[`${tp.round}-${origSlot}`] = tp.owner_id;
+          if (String(tp.season) === String(currentSeason) && tp.round <= totalRounds) {
+            const origRosterId = Number(tp.roster_id);
+            const newOwnerId = Number(tp.owner_id);
+            const origSlot = rosterIdToSlot[origRosterId];
+            if (origSlot && origRosterId !== newOwnerId) {
+              pickOwnership[`${tp.round}-${origSlot}`] = newOwnerId;
+            }
           }
         }
       }
 
       // Find MY picks (including traded ones), filtering out already-made picks
+      const myRosterIdNum = Number(myRosterId);
       const alreadyPickedOveralls = new Set(formattedPicks.map((p: any) => (p.round - 1) * totalTeams + p.draftSlot));
       const myPicks: Array<{ round: number; pick: number; overall: number; slot: number }> = [];
       for (let round = 1; round <= totalRounds; round++) {
         for (let slot = 1; slot <= totalTeams; slot++) {
           const currentOwner = pickOwnership[`${round}-${slot}`];
-          if (currentOwner === myRosterId) {
+          if (currentOwner === myRosterIdNum) {
             const overall = (round - 1) * totalTeams + slot;
             if (!alreadyPickedOveralls.has(overall)) {
               myPicks.push({ round, pick: slot, overall, slot });
@@ -13966,8 +13974,15 @@ Respond in JSON format:
 
       // Get available prospects (not yet picked)
       // Sleeper uses numeric player IDs, devy players use name-based IDs — match by normalized name
+      // Strip common suffixes (Jr, Sr, II, III, IV, V) for fuzzy matching
+      const NAME_SUFFIXES_DRAFT = /\s+(jr\.?|sr\.?|ii|iii|iv|v|2nd|3rd)$/i;
+      const normalizeName = (name: string) => {
+        return name?.toLowerCase().trim()
+          .replace(NAME_SUFFIXES_DRAFT, "")
+          .replace(/[^a-z]/g, "") || "";
+      };
       const pickedPlayerNames = new Set(
-        formattedPicks.map((p: any) => p.playerName?.toLowerCase().replace(/[^a-z]/g, ""))
+        formattedPicks.map((p: any) => normalizeName(p.playerName))
       );
       const devyPlayers = ktcValues.getDevyPlayers();
       
@@ -13978,7 +13993,7 @@ Respond in JSON format:
       
       const rookieProspects = devyPlayers
         .filter((p) => {
-          const normalizedName = p.name?.toLowerCase().replace(/[^a-z]/g, "") || "";
+          const normalizedName = normalizeName(p.name || "");
           if (!normalizedName || pickedPlayerNames.has(normalizedName)) return false;
           if (isRookieDraft) {
             if (!p.draftEligibleYear || p.draftEligibleYear > draftYear) return false;
@@ -14098,13 +14113,15 @@ Respond in JSON format:
       const tradedPicksMap: Record<string, { originalOwnerName: string; newOwnerName: string; newOwnerAvatar: string | null }> = {};
       if (Array.isArray(tradedPicks)) {
         for (const tp of tradedPicks) {
-          if (tp.season === currentSeason) {
-            const origSlot = rosterIdToSlot[tp.roster_id] || tp.roster_id;
-            const newOwnerUserId = rosterOwnerMap[tp.owner_id];
-            const origOwnerUserId = rosterOwnerMap[tp.roster_id];
-            const newOwner = newOwnerUserId ? userMap[newOwnerUserId] : null;
-            const origOwner = origOwnerUserId ? userMap[origOwnerUserId] : null;
-            if (tp.owner_id !== tp.roster_id) {
+          if (String(tp.season) === String(currentSeason) && tp.round <= totalRounds) {
+            const origRosterId = Number(tp.roster_id);
+            const newOwnerId = Number(tp.owner_id);
+            const origSlot = rosterIdToSlot[origRosterId];
+            if (origSlot && origRosterId !== newOwnerId) {
+              const newOwnerUserId = rosterOwnerMap[newOwnerId];
+              const origOwnerUserId = rosterOwnerMap[origRosterId];
+              const newOwner = newOwnerUserId ? userMap[newOwnerUserId] : null;
+              const origOwner = origOwnerUserId ? userMap[origOwnerUserId] : null;
               tradedPicksMap[`${tp.round}-${origSlot}`] = {
                 originalOwnerName: origOwner?.name || `Team ${origSlot}`,
                 newOwnerName: newOwner?.name || `Team ?`,
