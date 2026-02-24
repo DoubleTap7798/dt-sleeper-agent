@@ -11563,11 +11563,31 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         try {
           const txns = await sleeperApi.getAllLeagueTransactions(season.leagueId);
           allTransactions.push(...txns.map((t: any) => ({ ...t, season: season.season })));
-        } catch (e) { /* skip unavailable seasons */ }
+        } catch (e) {}
       }
 
-      const userTrades = allTransactions.filter((t: any) => t.type === "trade" && t.status === "complete" && t.roster_ids?.includes(userRosterId));
+      const allTrades = allTransactions.filter((t: any) => t.type === "trade" && t.status === "complete");
+      const userTrades = allTrades.filter((t: any) => t.roster_ids?.includes(userRosterId));
       const userWaivers = allTransactions.filter((t: any) => (t.type === "waiver" || t.type === "free_agent") && t.status === "complete" && (t.adds && Object.values(t.adds).includes(userRosterId)));
+
+      const leagueType = league.settings?.type === 2 ? "dynasty" : league.settings?.type === 1 ? "keeper" : "redraft";
+      const rosterPositions = league.roster_positions || [];
+      const isSuperFlex = rosterPositions.some((p: string) => p === "SUPER_FLEX");
+      const hasTaxiSquad = (league.settings?.taxi_slots || 0) > 0;
+
+      let hasRookieDraft = false;
+      let hasFuturePickTrades = false;
+      let hasDevyAssets = false;
+      const currentYear = new Date().getFullYear();
+
+      const agesAcquired: number[] = [];
+      const agesTradedAway: number[] = [];
+      const positionsAcquired: Record<string, number> = {};
+      const positionsTradedAway: Record<string, number> = {};
+      let totalPicksAcquired = 0;
+      let totalPicksTraded = 0;
+      const futurePicksByYear: Record<number, number> = {};
+      let tradesWithPicks = 0;
 
       const tradeDetails = userTrades.map((t: any) => {
         const acquired: string[] = [];
@@ -11579,9 +11599,16 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             const p = allPlayers?.[pid];
             const name = p ? (p.full_name || `${p.first_name} ${p.last_name}`) : pid;
             const pos = p?.position || "?";
-            const age = p?.age || "?";
-            if (rid === userRosterId) acquired.push(`${name} (${pos}, age ${age})`);
-            else traded.push(`${name} (${pos}, age ${age})`);
+            const age = p?.age || null;
+            if (rid === userRosterId) {
+              acquired.push(`${name} (${pos}, age ${age || "?"})`);
+              if (age) agesAcquired.push(age);
+              if (pos !== "?") positionsAcquired[pos] = (positionsAcquired[pos] || 0) + 1;
+            } else {
+              traded.push(`${name} (${pos}, age ${age || "?"})`);
+              if (age) agesTradedAway.push(age);
+              if (pos !== "?") positionsTradedAway[pos] = (positionsTradedAway[pos] || 0) + 1;
+            }
           }
         }
         if (t.drops) {
@@ -11590,18 +11617,143 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
               const p = allPlayers?.[pid];
               const name = p ? (p.full_name || `${p.first_name} ${p.last_name}`) : pid;
               traded.push(`${name} (${p?.position || "?"}, age ${p?.age || "?"})`);
+              if (p?.age) agesTradedAway.push(p.age);
             }
           }
         }
         if (t.draft_picks) {
+          let tradeHasPicks = false;
           for (const pick of t.draft_picks) {
             const pickStr = `${pick.season} Round ${pick.round}`;
-            if (pick.owner_id === userRosterId) picksAcquired.push(pickStr);
-            else if (pick.previous_owner_id === userRosterId) picksTraded.push(pickStr);
+            if (pick.owner_id === userRosterId) {
+              picksAcquired.push(pickStr);
+              totalPicksAcquired++;
+              tradeHasPicks = true;
+              if (pick.season > currentYear) {
+                hasFuturePickTrades = true;
+                futurePicksByYear[pick.season] = (futurePicksByYear[pick.season] || 0) + 1;
+              }
+            } else if (pick.previous_owner_id === userRosterId) {
+              picksTraded.push(pickStr);
+              totalPicksTraded++;
+              tradeHasPicks = true;
+              if (pick.season > currentYear) {
+                hasFuturePickTrades = true;
+                futurePicksByYear[pick.season] = (futurePicksByYear[pick.season] || 0) - 1;
+              }
+            }
           }
+          if (tradeHasPicks) tradesWithPicks++;
         }
         return { season: t.season, acquired, traded, picksAcquired, picksTraded };
       });
+
+      if (leagueType === "dynasty" || leagueType === "keeper") {
+        try {
+          const drafts = await sleeperApi.getLeagueDrafts(leagueId);
+          hasRookieDraft = drafts?.some((d: any) => d.type === "snake" && d.metadata?.type === "rookie") || false;
+        } catch (e) {}
+      }
+
+      if (userRoster?.taxi?.length > 0) {
+        const taxiPlayers = userRoster.taxi.map((pid: string) => allPlayers?.[pid]).filter(Boolean);
+        hasDevyAssets = taxiPlayers.some((p: any) => p?.years_exp === 0 || (p?.status === "Inactive" && p?.team === null));
+      }
+
+      let primaryFormat = "Redraft";
+      const alsoActiveIn: string[] = [];
+      if (leagueType === "dynasty") {
+        primaryFormat = "Dynasty";
+        if (league.settings?.best_ball === 1) { primaryFormat = "Dynasty Best Ball"; }
+        if (hasDevyAssets || hasTaxiSquad) alsoActiveIn.push("Devy");
+      } else if (leagueType === "keeper") {
+        primaryFormat = "Keeper";
+      }
+      if (league.settings?.best_ball === 1 && primaryFormat !== "Dynasty Best Ball") alsoActiveIn.push("Best Ball");
+
+      const avgAgeAcquired = agesAcquired.length > 0 ? +(agesAcquired.reduce((a, b) => a + b, 0) / agesAcquired.length).toFixed(1) : null;
+      const avgAgeTradedAway = agesTradedAway.length > 0 ? +(agesTradedAway.reduce((a, b) => a + b, 0) / agesTradedAway.length).toFixed(1) : null;
+      const netAgeDelta = avgAgeAcquired && avgAgeTradedAway ? +(avgAgeAcquired - avgAgeTradedAway).toFixed(1) : null;
+      const ageBiasLabel = netAgeDelta === null ? "Insufficient Data" : netAgeDelta < -1.5 ? "Youth-Leaning" : netAgeDelta > 1.5 ? "Veteran-Leaning" : "Balanced";
+
+      const pickExposurePct = userTrades.length > 0 ? Math.round((tradesWithPicks / userTrades.length) * 100) : 0;
+      const netPicksGainedLost = totalPicksAcquired - totalPicksTraded;
+
+      const totalManagerTradesInLeague = allTrades.length;
+      const tradesByRoster: Record<number, number> = {};
+      allTrades.forEach((t: any) => { t.roster_ids?.forEach((rid: number) => { tradesByRoster[rid] = (tradesByRoster[rid] || 0) + 1; }); });
+      const tradeCountsSorted = Object.values(tradesByRoster).sort((a, b) => a - b);
+      const userTradeCount = tradesByRoster[userRosterId] || 0;
+      let tradePercentile = 50;
+      if (tradeCountsSorted.length > 0) {
+        const belowCount = tradeCountsSorted.filter(c => c < userTradeCount).length;
+        tradePercentile = Math.round((belowCount / tradeCountsSorted.length) * 100);
+      }
+
+      const rosterPlayerIds = userRoster.players || [];
+      const rosterAges: number[] = [];
+      const rosterByPosition: Record<string, number> = {};
+      for (const pid of rosterPlayerIds) {
+        const p = allPlayers?.[pid];
+        if (p) {
+          if (p.age) rosterAges.push(p.age);
+          const pos = p.position || "?";
+          rosterByPosition[pos] = (rosterByPosition[pos] || 0) + 1;
+        }
+      }
+      const avgRosterAge = rosterAges.length > 0 ? +(rosterAges.reduce((a, b) => a + b, 0) / rosterAges.length).toFixed(1) : null;
+
+      const leagueAvgByPosition: Record<string, number> = {};
+      for (const r of rosters || []) {
+        for (const pid of (r.players || [])) {
+          const p = allPlayers?.[pid];
+          if (p?.position) {
+            leagueAvgByPosition[p.position] = (leagueAvgByPosition[p.position] || 0) + 1;
+          }
+        }
+      }
+      const rosterCount = rosters?.length || 1;
+      for (const pos of Object.keys(leagueAvgByPosition)) {
+        leagueAvgByPosition[pos] = +(leagueAvgByPosition[pos] / rosterCount).toFixed(1);
+      }
+
+      const overweightPositions: string[] = [];
+      const underweightPositions: string[] = [];
+      for (const pos of Object.keys({ ...rosterByPosition, ...leagueAvgByPosition })) {
+        const userCount = rosterByPosition[pos] || 0;
+        const leagueAvg = leagueAvgByPosition[pos] || 0;
+        if (userCount > leagueAvg + 1) overweightPositions.push(pos);
+        else if (userCount < leagueAvg - 1) underweightPositions.push(pos);
+      }
+
+      const qbWarning = isSuperFlex && (rosterByPosition["QB"] || 0) < (leagueAvgByPosition["QB"] || 0)
+        ? "QB exposure below league allocation average — potential structural risk in Superflex formats."
+        : null;
+
+      const isDynasty = leagueType === "dynasty" || leagueType === "keeper";
+
+      const computedMetrics = {
+        primaryFormat,
+        alsoActiveIn,
+        isSuperFlex,
+        isDynasty,
+        tradeCount: userTrades.length,
+        waiverCount: userWaivers.length,
+        tradePercentile,
+        pickExposurePct,
+        netPicksGainedLost,
+        futurePicksByYear,
+        avgAgeAcquired,
+        avgAgeTradedAway,
+        netAgeDelta,
+        ageBiasLabel,
+        overweightPositions,
+        underweightPositions,
+        qbWarning,
+        avgRosterAge,
+        rosterByPosition,
+        leagueAvgByPosition,
+      };
 
       const waiverDetails = userWaivers.slice(0, 30).map((t: any) => {
         const added: string[] = [];
@@ -11625,29 +11777,81 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         return { season: t.season, added, dropped, type: t.type };
       });
 
-      const analysisPrompt = `Analyze this fantasy football manager's transaction history and create a detailed manager profile. Be specific and data-driven.
+      const dynastySection = isDynasty ? `
+DYNASTY-SPECIFIC ANALYSIS:
+- Roster avg age: ${avgRosterAge || "unknown"}
+- Has taxi squad: ${hasTaxiSquad}
+- Has devy assets: ${hasDevyAssets}
+- Has rookie drafts: ${hasRookieDraft}
+- Future pick trades detected: ${hasFuturePickTrades}
+- Net picks gained/lost: ${netPicksGainedLost > 0 ? "+" : ""}${netPicksGainedLost}
+- Age bias: ${ageBiasLabel} (avg acquired: ${avgAgeAcquired || "N/A"}, avg traded away: ${avgAgeTradedAway || "N/A"})
 
-League: ${league.name} (${league.settings?.type === 2 ? "Dynasty" : league.settings?.type === 1 ? "Keeper" : "Redraft"}, ${league.scoring_settings?.rec !== undefined ? `${league.scoring_settings.rec} PPR` : "Standard"})
+Provide dynasty-specific fields:
+  "assetPortfolioOutlook": {
+    "rosterAgeCurve": "one of: below_avg, avg, above_avg",
+    "contenderWindow": "one of: 1-2 years, 2-4 years, rebuild",
+    "volatilityScore": "one of: low, medium, high",
+    "liquidityScore": "one of: low, medium, high"
+  },
+  "competitiveTimeline": {
+    "year1": "one of: rebuild, fringe, contender",
+    "year2": "one of: fringe, strong_contender, contender",
+    "year3plus": "one of: window_closing, sustainable, dependent_on_draft_conversion"
+  },` : "";
+
+      const analysisPrompt = `You are a professional fantasy football portfolio analyst. Analyze this manager's transaction history using institutional asset management language. Be specific and data-driven.
+
+League: ${league.name} (${leagueType}, ${league.scoring_settings?.rec !== undefined ? `${league.scoring_settings.rec} PPR` : "Standard"}${isSuperFlex ? ", Superflex" : ""})
+Format: ${primaryFormat}${alsoActiveIn.length > 0 ? ` | Also active in: ${alsoActiveIn.join(", ")}` : ""}
+
+PRE-COMPUTED METRICS:
+- Trade activity: ${userTrades.length} trades, ${tradePercentile}th percentile in league
+- ${pickExposurePct}% of trades included draft picks
+- Net draft capital: ${netPicksGainedLost > 0 ? "+" : ""}${netPicksGainedLost} picks
+- Age curve: avg acquired ${avgAgeAcquired || "N/A"}, avg traded away ${avgAgeTradedAway || "N/A"}, delta ${netAgeDelta || "N/A"} (${ageBiasLabel})
+- Waiver moves: ${userWaivers.length}
+- Positional overweight: ${overweightPositions.length > 0 ? overweightPositions.join(", ") : "none"}
+- Positional underweight: ${underweightPositions.length > 0 ? underweightPositions.join(", ") : "none"}
 
 TRADES (${tradeDetails.length} total):
 ${tradeDetails.length > 0 ? tradeDetails.map((t, i) => `Trade ${i + 1} (${t.season}): Acquired [${t.acquired.join(", ")}${t.picksAcquired.length ? ", picks: " + t.picksAcquired.join(", ") : ""}] | Traded away [${t.traded.join(", ")}${t.picksTraded.length ? ", picks: " + t.picksTraded.join(", ") : ""}]`).join("\n") : "No trades found."}
 
 WAIVER/FA MOVES (${waiverDetails.length} shown of ${userWaivers.length} total):
 ${waiverDetails.length > 0 ? waiverDetails.map((w) => `${w.type === "waiver" ? "Waiver" : "FA"} (${w.season}): Added [${w.added.join(", ")}]${w.dropped.length ? " | Dropped [" + w.dropped.join(", ") + "]" : ""}`).join("\n") : "No waiver moves found."}
+${dynastySection}
 
-Create a JSON profile with these fields:
+Create a JSON profile. Use professional asset management language throughout — variance instead of risk, asset appreciation instead of improvement, conviction instead of activity. Strategic tendencies should be sharp analytical bullets. Competitive advantages and strategic leaks should use institutional analyst tone.
+
 {
   "managerStyle": "one of: aggressive_trader, patient_builder, win_now, rebuilder, balanced, opportunistic",
-  "positionPreferences": { "favored": ["positions they target most"], "avoided": ["positions they rarely target"] },
+  "riskVariance": "one of: high_variance, moderate_variance, low_variance",
+  "timeHorizon": "one of: win_now, balanced, long_term_growth",
+  "archetypeDescription": "2-3 sentence professional description of this manager's approach using portfolio analysis language",
+  "topSummaryLine": "one punchy shareable sentence summarizing this manager, e.g. 'High-upside dynasty builder with aggressive asset cycling and strong long-term orientation.'",
+  "tradeActivity": "one of: very_active, active, passive",
   "agePreference": "one of: youth_chaser, prime_age, veteran_friendly, balanced",
-  "riskTolerance": "one of: high_risk, moderate, conservative",
-  "tradeFrequency": "one of: very_active, active, moderate, passive",
   "draftPickStrategy": "one of: accumulator, spender, balanced",
   "waiverActivity": "one of: aggressive, moderate, passive",
-  "keyPatterns": ["3-5 specific observed patterns from their history"],
-  "strengths": ["2-3 things they do well"],
-  "blindSpots": ["2-3 areas they could improve"],
-  "summary": "2-3 sentence personality summary of this manager"
+  "positionalBias": {
+    "overweight": ["positions overweighted vs league avg"],
+    "underweight": ["positions underweighted vs league avg"]
+  },
+  "strategicTendencies": ["3-5 sharp analytical bullets using institutional language, e.g. 'Actively converts peak-value veterans into multi-asset packages'"],
+  "competitiveAdvantages": ["3-4 strengths using professional tone, e.g. 'Strong long-term asset valuation'"],
+  "strategicLeaks": ["3-4 weaknesses using professional tone, e.g. 'Underinvestment in positional scarcity (QB/TE)'"],
+  "radarChart": {
+    "riskVariance": 0-100,
+    "youthBias": 0-100,
+    "pickAggression": 0-100,
+    "tradeFrequency": 0-100,
+    "positionalBalance": 0-100,
+    "contenderIndex": 0-100
+  }${isDynasty ? `,
+  "assetPortfolioOutlook": { "rosterAgeCurve": "below_avg/avg/above_avg", "contenderWindow": "1-2 years/2-4 years/rebuild", "volatilityScore": "low/medium/high", "liquidityScore": "low/medium/high" },
+  "competitiveTimeline": { "year1": "rebuild/fringe/contender", "year2": "fringe/strong_contender/contender", "year3plus": "window_closing/sustainable/dependent_on_draft_conversion" }` : `,
+  "shortTermCompetitiveIndex": "one of: strong_contender, competitive, rebuilding",
+  "rosterStabilityScore": "one of: high, moderate, low"`}
 }
 
 Return ONLY valid JSON, no markdown.`;
@@ -11655,20 +11859,33 @@ Return ONLY valid JSON, no markdown.`;
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "You are a fantasy football analytics expert. Analyze transaction histories to build accurate manager profiles. Return only valid JSON." },
+          { role: "system", content: "You are an elite fantasy football portfolio analyst. Analyze transaction histories to build quantified, professional manager profiles. Use institutional asset management language. Return only valid JSON." },
           { role: "user", content: analysisPrompt },
         ],
-        max_tokens: 1000,
+        max_tokens: 2000,
         temperature: 0.3,
       });
 
-      let profileData;
+      let aiProfile;
       try {
         const raw = response.choices[0]?.message?.content || "{}";
-        profileData = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+        aiProfile = JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
       } catch (e) {
-        profileData = { summary: response.choices[0]?.message?.content || "Unable to analyze", managerStyle: "balanced", riskTolerance: "moderate", agePreference: "balanced", tradeFrequency: userTrades.length > 10 ? "very_active" : userTrades.length > 5 ? "active" : "moderate", positionPreferences: { favored: [], avoided: [] }, draftPickStrategy: "balanced", waiverActivity: userWaivers.length > 20 ? "aggressive" : "moderate", keyPatterns: [], strengths: [], blindSpots: [] };
+        aiProfile = {
+          managerStyle: "balanced", riskVariance: "moderate_variance", timeHorizon: "balanced",
+          archetypeDescription: "Unable to generate detailed analysis.", topSummaryLine: "Manager profile analysis incomplete.",
+          tradeActivity: userTrades.length > 10 ? "very_active" : userTrades.length > 5 ? "active" : "passive",
+          agePreference: "balanced", draftPickStrategy: "balanced", waiverActivity: userWaivers.length > 20 ? "aggressive" : "moderate",
+          positionalBias: { overweight: overweightPositions, underweight: underweightPositions },
+          strategicTendencies: [], competitiveAdvantages: [], strategicLeaks: [],
+          radarChart: { riskVariance: 50, youthBias: 50, pickAggression: 50, tradeFrequency: 50, positionalBalance: 50, contenderIndex: 50 },
+        };
       }
+
+      const profileData = {
+        ...aiProfile,
+        _computedMetrics: computedMetrics,
+      };
 
       const saved = await storage.upsertManagerProfile(userId, leagueId, profileData, userTrades.length, userWaivers.length);
 

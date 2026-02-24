@@ -1,0 +1,273 @@
+FEATURE SPEC: AI Manager Profile v2 (Dynasty-Optimized)
+
+Objective
+
+Upgrade the existing AI Manager Profile page to:
+	•	Lean heavily into Dynasty, Dynasty Best Ball, and Devy formats
+	•	Maintain compatibility with redraft leagues
+	•	Increase analytical depth and perceived intelligence
+	•	Improve engagement through quantified behavioral metrics
+	•	Elevate language to feel like professional asset portfolio analysis
+
+⸻
+
+1. HEADER SECTION
+
+Replace current header area with:
+
+Title:
+AI Manager Profile
+
+Subtext line:
+Based on {trade_count} trades and {waiver_count} waiver moves • Updated {date}
+
+Add a dynamic format detection label under the header:
+
+Primary Format Detected: {Dynasty / Redraft / Best Ball / Devy}
+
+If applicable, add:
+Also active in: {Dynasty Best Ball, Devy, etc.}
+
+Format detection should be inferred from:
+	•	League type
+	•	Presence of rookie drafts
+	•	Future draft pick trades
+	•	Taxi squads / devy assets
+
+⸻
+
+2. CORE ARCHETYPE CARD
+
+Replace current archetype card with the following structure:
+
+Archetype Name (large text)
+Example: Aggressive Trader
+
+Add two metadata tags:
+
+Risk Profile: {Low Variance / Moderate Variance / High Variance}
+
+Time Horizon: {Win-Now / Balanced / Long-Term Growth}
+
+Replace description with:
+
+“This manager aggressively retools their roster through high-variance trades. They prioritize long-term asset appreciation, favor younger players and draft capital, and show strong conviction in upside swings.”
+
+Remove redundant labels like “High Risk Risk.”
+
+Use more analytical terminology:
+	•	Variance instead of risk
+	•	Asset appreciation instead of improvement
+	•	Conviction instead of activity
+
+⸻
+
+3. BEHAVIOR METRICS SECTION
+
+Replace simple labels (Very Active, Balanced, etc.) with quantified metrics.
+
+Trade Activity
+
+Display:
+Trade Activity: {Very Active / Active / Passive}
+Percentile Rank: {X}th percentile among league managers
+
+Draft Pick Exposure
+
+Show:
+% of trades including draft picks
+Net future picks gained/lost
+Future draft capital balance by year
+
+Age Curve Bias
+
+Show:
+Average age acquired
+Average age traded away
+Net age delta
+
+Label:
+Youth-Leaning / Balanced / Veteran-Leaning
+
+⸻
+
+4. POSITIONAL INVESTMENT BIAS
+
+Rename “Position Preferences” to:
+
+Positional Investment Bias
+
+Display:
+
+Overweight: {positions}
+Underweight: {positions}
+
+Calculate relative to:
+League positional allocation averages
+
+If Superflex:
+Add warning if QB allocation below league average:
+“QB exposure below league allocation average — potential structural risk in Superflex formats.”
+
+Frame as portfolio weighting.
+
+⸻
+
+5. STRATEGIC TENDENCIES
+
+Rename “Key Patterns” to:
+
+Strategic Tendencies
+
+Replace generic phrasing with higher-level strategic language:
+
+Examples:
+	•	Actively converts peak-value veterans into multi-asset packages.
+	•	Willing to consolidate picks for elite upside swings.
+	•	Comfortable absorbing short-term volatility for long-term gain.
+	•	Prioritizes future liquidity over short-term floor stability.
+
+Keep this section to 3–5 sharp bullets.
+
+⸻
+
+6. COMPETITIVE ADVANTAGES
+
+Rename “Strengths” to:
+
+Competitive Advantages
+
+Examples:
+	•	Strong long-term asset valuation.
+	•	High conviction trade execution.
+	•	Effective depth accumulation.
+	•	Clear directional roster strategy.
+
+Tone: professional, analytical.
+
+⸻
+
+7. STRATEGIC LEAKS
+
+Rename “Areas to Improve” to:
+
+Strategic Leaks
+
+Examples:
+	•	Underinvestment in positional scarcity (QB/TE).
+	•	Risk stacking via simultaneous youth exposure.
+	•	Over-concentration in volatile asset profiles.
+	•	Over-rotation in active trade windows.
+
+Avoid casual tone. Keep professional.
+
+⸻
+
+8. DYNASTY-ONLY SECTION: ASSET PORTFOLIO OUTLOOK
+
+This section only appears for Dynasty / Devy formats.
+
+Title:
+Asset Portfolio Outlook
+
+Display:
+
+Roster Age Curve: {Below Avg / Avg / Above Avg}
+Contender Window: {1–2 Years / 2–4 Years / Rebuild}
+Volatility Score: {Low / Medium / High}
+Liquidity Score: {Low / Medium / High}
+
+Definitions:
+Volatility Score = variance of asset profiles + youth exposure
+Liquidity Score = tradable asset density + draft capital count
+
+⸻
+
+9. COMPETITIVE TIMELINE MODEL (Dynasty Only)
+
+Title:
+Competitive Timeline Projection
+
+AI Projection:
+
+Year 1: {Rebuild / Fringe / Contender}
+Year 2: {Fringe / Strong Contender}
+Year 3+: {Window Closing / Sustainable / Dependent on Draft Conversion}
+
+Model should factor:
+	•	Age curve
+	•	Pick capital
+	•	Positional scarcity
+	•	Elite asset concentration
+
+⸻
+
+10. VISUAL RADAR CHART (Optional Advanced Enhancement)
+
+Add radar chart with the following axes:
+	•	Risk / Variance
+	•	Youth Bias
+	•	Pick Aggression
+	•	Trade Frequency
+	•	Positional Balance
+	•	Contender Index
+
+Scale 0–100.
+
+This should visually compare:
+User vs League Average.
+
+⸻
+
+11. TOP SUMMARY LINE
+
+Add one-line AI summary at top of page under header:
+
+Example:
+“High-upside dynasty builder with aggressive asset cycling and strong long-term orientation.”
+
+Keep it punchy and shareable.
+
+⸻
+
+12. REDRAFT COMPATIBILITY
+
+If league is Redraft:
+
+Hide:
+	•	Asset Portfolio Outlook
+	•	Competitive Timeline Projection
+	•	Draft Pick Exposure (future years)
+
+Replace with:
+Short-Term Competitive Index
+Roster Stability Score
+
+Keep overall structure consistent.
+
+⸻
+
+DESIGN GUIDELINES
+	•	Gold = Identity / Archetype
+	•	Green = Competitive Advantages
+	•	Red/Amber = Strategic Leaks
+	•	Neutral Dark = Metrics
+
+Tone:
+Professional asset management language.
+Avoid casual phrasing.
+Avoid fluff.
+
+This page should feel like:
+	•	Portfolio analysis
+	•	Hedge fund evaluation
+	•	Dynasty roster audit
+
+⸻
+
+SUCCESS METRIC
+
+Users should:
+	•	Screenshot and share their profile
+	•	Compare against league mates
+	•	Adjust behavior to improve their “profile score”
