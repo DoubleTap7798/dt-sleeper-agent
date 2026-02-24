@@ -18,6 +18,7 @@ import {
   DollarSign,
   CalendarRange,
   ShieldAlert,
+  Shield,
   Trophy,
   Play,
   Loader2,
@@ -29,6 +30,9 @@ import {
   XCircle,
   Search,
   X,
+  Zap,
+  Activity,
+  BarChart3,
 } from "lucide-react";
 
 type TabId = "matchup" | "lineup" | "trade" | "faab" | "season" | "portfolio" | "championship" | "exploit" | "regression" | "equity";
@@ -995,7 +999,61 @@ function SeasonTab({ leagueId }: { leagueId: string }) {
   );
 }
 
+function PortfolioArchetypeBadge({ archetype, label, description }: { archetype: string; label: string; description: string }) {
+  const colorMap: Record<string, string> = {
+    glass_cannon: "from-red-500/20 to-amber-500/20 border-red-500/40 text-red-400",
+    fortress: "from-emerald-500/20 to-green-500/20 border-emerald-500/40 text-emerald-400",
+    balanced_contender: "from-amber-500/20 to-yellow-500/20 border-amber-500/40 text-amber-400",
+    volatile_lottery: "from-purple-500/20 to-pink-500/20 border-purple-500/40 text-purple-400",
+    concentrated_bet: "from-orange-500/20 to-red-500/20 border-orange-500/40 text-orange-400",
+    depth_resilient: "from-blue-500/20 to-cyan-500/20 border-blue-500/40 text-blue-400",
+  };
+  const iconComponents: Record<string, any> = {
+    glass_cannon: Zap, fortress: Shield, balanced_contender: Activity,
+    volatile_lottery: Sparkles, concentrated_bet: Target, depth_resilient: ShieldAlert,
+  };
+  const cls = colorMap[archetype] || colorMap.balanced_contender;
+  const IconComp = iconComponents[archetype] || BarChart3;
+  return (
+    <div className={`bg-gradient-to-r ${cls} border rounded-xl p-4 flex items-center gap-4`} data-testid="badge-portfolio-archetype">
+      <div className="w-10 h-10 rounded-lg bg-black/20 flex items-center justify-center">
+        <IconComp className="h-5 w-5" />
+      </div>
+      <div>
+        <div className="text-lg font-bold tracking-wide">{label}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">{description}</div>
+      </div>
+    </div>
+  );
+}
+
+function ImpactRow({ label, impact }: { label: string; impact: { weeklyVariancePts: number; playoffProbDelta: number; titleEquityDelta: number } }) {
+  const fmtDelta = (v: number, suffix = "") => {
+    const sign = v > 0 ? "+" : "";
+    return `${sign}${(v * 100).toFixed(1)}%${suffix}`;
+  };
+  const fmtPts = (v: number) => {
+    const sign = v > 0 ? "+" : "";
+    return `${sign}${v.toFixed(1)} pts`;
+  };
+  return (
+    <div className="grid grid-cols-4 gap-2 items-center py-2 border-b border-zinc-800/50 last:border-0" data-testid={`impact-row-${label.toLowerCase().replace(/\s/g, "-")}`}>
+      <span className="text-xs text-muted-foreground font-medium">{label}</span>
+      <span className={`text-xs font-mono text-center ${impact.weeklyVariancePts > 0 ? "text-red-400" : "text-emerald-400"}`}>
+        {fmtPts(impact.weeklyVariancePts)}
+      </span>
+      <span className={`text-xs font-mono text-center ${impact.playoffProbDelta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+        {fmtDelta(impact.playoffProbDelta)}
+      </span>
+      <span className={`text-xs font-mono text-center ${impact.titleEquityDelta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+        {fmtDelta(impact.titleEquityDelta)}
+      </span>
+    </div>
+  );
+}
+
 function PortfolioTab({ leagueId }: { leagueId: string }) {
+  const [activeWhatIfs, setActiveWhatIfs] = useState<Set<string>>(new Set());
   const mutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("GET", `/api/engine/portfolio/${leagueId}`);
@@ -1005,24 +1063,144 @@ function PortfolioTab({ leagueId }: { leagueId: string }) {
 
   const data = mutation.data;
 
+  const toggleWhatIf = (id: string) => {
+    setActiveWhatIfs(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const computeAdjusted = () => {
+    if (!data?.whatIfScenarios) return null;
+    let divAdj = 0, fragAdj = 0, volAdj = 0, teAdj = 0, varAdj = 0;
+    for (const s of data.whatIfScenarios) {
+      if (activeWhatIfs.has(s.id)) {
+        divAdj += s.riskDelta.diversification;
+        fragAdj += s.riskDelta.fragility;
+        volAdj += s.riskDelta.volatility;
+        teAdj += s.titleEquityDelta;
+        varAdj += s.weeklyVarianceDelta;
+      }
+    }
+    return {
+      diversification: Math.min(1, Math.max(0, (data.diversificationScore || 0) + divAdj)),
+      fragility: Math.min(1, Math.max(0, (data.fragilityScore || 0) + fragAdj)),
+      volatility: Math.min(1, Math.max(0, (data.volatilityScore || 0) + volAdj)),
+      titleEquity: Math.max(0, (data.baselineTitleEquity || 0) + teAdj),
+      variance: Math.max(0, Math.sqrt(data.totalWeeklyVariance || 0) + varAdj),
+      titleEquityDelta: teAdj,
+    };
+  };
+
+  const adjusted = computeAdjusted();
+
   return (
     <div className="space-y-4">
-      <RunButton onClick={() => mutation.mutate()} isPending={mutation.isPending} />
+      <RunButton onClick={() => mutation.mutate()} isPending={mutation.isPending} label="Run Portfolio Analysis" />
       <ErrorCard error={mutation.error as Error | null} />
 
       {data && (
         <>
+          {data.archetype && (
+            <PortfolioArchetypeBadge archetype={data.archetype} label={data.archetypeLabel} description={data.archetypeDescription} />
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Card className="border-amber-500/20">
+              <CardContent className="p-4 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Title Equity</p>
+                <p className="text-3xl font-bold text-amber-400 font-mono" data-testid="text-portfolio-title-equity">
+                  {((data.baselineTitleEquity || 0) * 100).toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-500/20">
+              <CardContent className="p-4 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Playoff Prob</p>
+                <p className="text-3xl font-bold text-emerald-400 font-mono" data-testid="text-portfolio-playoff-prob">
+                  {((data.baselinePlayoffProb || 0) * 100).toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-500/20">
+              <CardContent className="p-4 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Weekly Variance</p>
+                <p className="text-3xl font-bold text-red-400 font-mono" data-testid="text-portfolio-weekly-variance">
+                  ±{Math.sqrt(data.totalWeeklyVariance || 0).toFixed(1)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card className="border-amber-500/20">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-amber-400">Portfolio Scores</CardTitle>
+              <CardTitle className="text-sm text-amber-400">Risk → Impact Translation</CardTitle>
+              <p className="text-[10px] text-muted-foreground">How each risk metric affects your championship odds</p>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="grid grid-cols-4 gap-2 pb-2 border-b border-zinc-700">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase">Metric</span>
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase text-center">Wkly Var</span>
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase text-center">Playoff Δ</span>
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase text-center">Title Δ</span>
+              </div>
+              {data.impactTranslations && (
+                <>
+                  <ImpactRow label="Diversification" impact={data.impactTranslations.diversification} />
+                  <ImpactRow label="Fragility" impact={data.impactTranslations.fragility} />
+                  <ImpactRow label="Volatility" impact={data.impactTranslations.volatility} />
+                  <ImpactRow label="Playoff Leverage" impact={data.impactTranslations.playoffLeverage} />
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-amber-400">Portfolio Gauges</CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-4">
               <GaugeBar value={data.diversificationScore ?? 0} label="Diversification" />
-              <GaugeBar value={data.fragilityScore ?? 0} label="Fragility" />
-              <GaugeBar value={data.volatilityScore ?? 0} label="Volatility" />
+              <GaugeBar value={data.fragilityScore ?? 0} label="Fragility" invertColor />
+              <GaugeBar value={data.volatilityScore ?? 0} label="Volatility" invertColor />
               <GaugeBar value={data.playoffLeverageScore ?? 0} label="Playoff Leverage" />
             </CardContent>
           </Card>
+
+          {data.stressTests && data.stressTests.length > 0 && (
+            <Card className="border-red-500/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-red-400">Stress Tests</CardTitle>
+                <p className="text-[10px] text-muted-foreground">What happens if your most concentrated teams underperform by 60%</p>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-2">
+                {data.stressTests.map((test: any) => (
+                  <div key={test.team} className="flex items-center justify-between p-3 rounded-lg bg-zinc-900 border border-zinc-800" data-testid={`stress-test-${test.team}`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                        <span className="text-xs font-bold text-red-400">{test.team}</span>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium">{test.playerCount} players stacked</span>
+                        <p className="text-[10px] text-muted-foreground">−{test.projectedLoss.toFixed(1)} pts/wk projected loss</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground font-mono">{(test.titleEquityBefore * 100).toFixed(1)}%</span>
+                        <span className="text-xs text-muted-foreground">→</span>
+                        <span className="text-xs text-red-400 font-mono font-bold">{(test.titleEquityAfter * 100).toFixed(1)}%</span>
+                      </div>
+                      <span className={`text-xs font-mono font-bold ${test.titleEquityDelta < 0 ? "text-red-400" : "text-emerald-400"}`}>
+                        {test.titleEquityDelta > 0 ? "+" : ""}{(test.titleEquityDelta * 100).toFixed(1)}% title equity
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {data.teamConcentration && Object.keys(data.teamConcentration).length > 0 && (
             <Card className="border-amber-500/20">
@@ -1034,16 +1212,80 @@ function PortfolioTab({ leagueId }: { leagueId: string }) {
                   .sort(([, a]: any, [, b]: any) => b - a)
                   .slice(0, 8)
                   .map(([team, val]: [string, any]) => (
-                    <GaugeBar key={team} value={val} label={team} />
+                    <GaugeBar key={team} value={val} label={team} max={Math.max(...Object.values(data.teamConcentration) as number[], 1)} />
                   ))}
               </CardContent>
             </Card>
           )}
 
-          {data.recommendation && (
-            <Card className="border-amber-500/20">
-              <CardContent className="p-4">
-                <p className="text-sm" data-testid="text-portfolio-recommendation">{data.recommendation}</p>
+          {data.whatIfScenarios && data.whatIfScenarios.length > 0 && (
+            <Card className="border-emerald-500/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-emerald-400">What-If Simulator</CardTitle>
+                <p className="text-[10px] text-muted-foreground">Toggle scenarios to see recalculated risk + title equity delta</p>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-3">
+                {data.whatIfScenarios.map((scenario: any) => {
+                  const isActive = activeWhatIfs.has(scenario.id);
+                  return (
+                    <button
+                      key={scenario.id}
+                      onClick={() => toggleWhatIf(scenario.id)}
+                      className={`w-full text-left p-3 rounded-lg border transition-all ${
+                        isActive
+                          ? "bg-emerald-500/10 border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.1)]"
+                          : "bg-zinc-900 border-zinc-800"
+                      }`}
+                      data-testid={`whatif-toggle-${scenario.id}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                            isActive ? "border-emerald-400 bg-emerald-500/20" : "border-zinc-600"
+                          }`}>
+                            {isActive && <div className="w-2 h-2 rounded-sm bg-emerald-400" />}
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium">{scenario.label}</span>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{scenario.description}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-sm font-mono font-bold ${scenario.titleEquityDelta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {scenario.titleEquityDelta >= 0 ? "+" : ""}{(scenario.titleEquityDelta * 100).toFixed(1)}% TE
+                          </span>
+                          <p className="text-[10px] text-muted-foreground">{scenario.weeklyVarianceDelta > 0 ? "+" : ""}{scenario.weeklyVarianceDelta.toFixed(1)} pts var</p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {activeWhatIfs.size > 0 && adjusted && (
+                  <div className="mt-4 p-4 rounded-lg bg-zinc-900/80 border border-emerald-500/20" data-testid="whatif-results">
+                    <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-3">Simulated Portfolio</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase">Diversification</p>
+                        <p className="text-lg font-bold font-mono text-amber-400">{adjusted.diversification.toFixed(2)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase">Fragility</p>
+                        <p className="text-lg font-bold font-mono text-amber-400">{adjusted.fragility.toFixed(2)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase">Volatility</p>
+                        <p className="text-lg font-bold font-mono text-amber-400">{adjusted.volatility.toFixed(2)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase">Title Equity Δ</p>
+                        <p className={`text-lg font-bold font-mono ${adjusted.titleEquityDelta >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {adjusted.titleEquityDelta >= 0 ? "+" : ""}{(adjusted.titleEquityDelta * 100).toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
