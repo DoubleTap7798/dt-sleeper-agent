@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { PremiumGate } from "@/components/premium-gate";
@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Brain,
   Swords,
@@ -23,10 +22,12 @@ import {
   Loader2,
   TrendingUp,
   TrendingDown,
-  Minus,
   Sparkles,
   Target,
   AlertTriangle,
+  XCircle,
+  Search,
+  X,
 } from "lucide-react";
 
 type TabId = "matchup" | "lineup" | "trade" | "faab" | "season" | "portfolio" | "championship";
@@ -113,6 +114,32 @@ function RecommendationBadge({ rec }: { rec: string }) {
   );
 }
 
+function ErrorCard({ error }: { error: Error | null }) {
+  if (!error) return null;
+  const msg = error.message || "An unexpected error occurred";
+  const cleanMsg = msg.replace(/^\d+:\s*/, "").replace(/^"(.*)"$/, "$1");
+
+  let parsed: string;
+  try {
+    const obj = JSON.parse(cleanMsg);
+    parsed = obj.error || obj.message || cleanMsg;
+  } catch {
+    parsed = cleanMsg;
+  }
+
+  return (
+    <Card className="border-red-500/30 bg-red-500/5">
+      <CardContent className="p-4 flex items-start gap-3">
+        <XCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium text-red-400">Something went wrong</p>
+          <p className="text-sm text-muted-foreground mt-1" data-testid="text-error-message">{parsed}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function DecisionCard({ decision }: { decision: any }) {
   if (!decision) return null;
   return (
@@ -174,13 +201,14 @@ function RunButton({ onClick, isPending, label = "Run Analysis" }: { onClick: ()
     <Button
       onClick={onClick}
       disabled={isPending}
-      className="bg-amber-500/20 text-amber-400 border border-amber-500/30"
+      variant="outline"
+      className="bg-amber-500/20 text-amber-400 border-amber-500/30"
       data-testid="button-run-analysis"
     >
       {isPending ? (
         <>
           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          Running 10,000 simulations...
+          Running simulations...
         </>
       ) : (
         <>
@@ -189,6 +217,115 @@ function RunButton({ onClick, isPending, label = "Run Analysis" }: { onClick: ()
         </>
       )}
     </Button>
+  );
+}
+
+interface SelectedPlayer {
+  id: string;
+  name: string;
+  position: string;
+  team: string;
+}
+
+function PlayerSearchInput({
+  label,
+  selectedPlayers,
+  onAdd,
+  onRemove,
+  labelColor = "text-amber-400",
+  testIdPrefix,
+}: {
+  label: string;
+  selectedPlayers: SelectedPlayer[];
+  onAdd: (player: SelectedPlayer) => void;
+  onRemove: (id: string) => void;
+  labelColor?: string;
+  testIdPrefix: string;
+}) {
+  const [search, setSearch] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const { data: searchResults, isLoading: searchLoading, error: searchError } = useQuery({
+    queryKey: [`/api/fantasy/players?search=${encodeURIComponent(search)}&limit=10`],
+    enabled: search.length >= 2,
+    staleTime: 30000,
+  });
+
+  const players = (searchResults as any)?.players || [];
+  const selectedIds = new Set(selectedPlayers.map(p => p.id));
+
+  return (
+    <div className="space-y-2">
+      <label className={`text-sm font-medium ${labelColor}`}>{label}</label>
+      <div className="relative">
+        <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700 rounded-md px-3 py-2 flex-wrap min-h-[40px]">
+          {selectedPlayers.map(p => (
+            <Badge
+              key={p.id}
+              variant="outline"
+              className="text-xs border-amber-500/30 text-amber-400 gap-1 shrink-0"
+              data-testid={`badge-player-${p.id}`}
+            >
+              {p.name} ({p.position})
+              <button onClick={() => onRemove(p.id)} className="ml-0.5" data-testid={`button-remove-player-${p.id}`}>
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+          <div className="flex-1 min-w-[120px] relative">
+            <Input
+              value={search}
+              onChange={e => {
+                setSearch(e.target.value);
+                setShowDropdown(true);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+              placeholder="Search players..."
+              className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0 text-sm"
+              data-testid={`${testIdPrefix}-search`}
+            />
+          </div>
+        </div>
+        {showDropdown && search.length >= 2 && (
+          <div className="absolute z-50 mt-1 w-full bg-zinc-900 border border-zinc-700 rounded-md shadow-lg max-h-48 overflow-y-auto" data-testid={`${testIdPrefix}-dropdown`}>
+            {searchLoading && (
+              <div className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Searching...
+              </div>
+            )}
+            {searchError && (
+              <div className="px-3 py-2 text-sm text-red-400">Search failed. Try again.</div>
+            )}
+            {!searchLoading && !searchError && players.length === 0 && (
+              <div className="px-3 py-2 text-sm text-muted-foreground" data-testid={`${testIdPrefix}-no-results`}>No players found</div>
+            )}
+            {players
+              .filter((p: any) => !selectedIds.has(p.id))
+              .map((p: any) => (
+                <button
+                  key={p.id}
+                  className="w-full text-left px-3 py-2 hover:bg-zinc-800 flex items-center justify-between text-sm"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onAdd({ id: p.id, name: p.name, position: p.position, team: p.team });
+                    setSearch("");
+                    setShowDropdown(false);
+                  }}
+                  data-testid={`${testIdPrefix}-option-${p.id}`}
+                >
+                  <span>{p.name}</span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
+                    <span className="text-xs text-muted-foreground">{p.team}</span>
+                  </div>
+                </button>
+              ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -201,66 +338,109 @@ function MatchupTab({ leagueId }: { leagueId: string }) {
   });
 
   const data = mutation.data;
+  const isOffseason = data && (!data.simulation?.opponentScoreDistribution || data.opponentLineup?.length === 0);
 
   return (
     <div className="space-y-4">
       <RunButton onClick={() => mutation.mutate()} isPending={mutation.isPending} />
+      <ErrorCard error={mutation.error as Error | null} />
+
       {data && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="border-amber-500/20 md:col-span-1">
-              <CardContent className="p-6 text-center space-y-2">
-                <p className="text-xs text-muted-foreground uppercase">Win Probability</p>
-                <div className="relative mx-auto w-28 h-28">
-                  <svg viewBox="0 0 36 36" className="w-28 h-28 -rotate-90">
-                    <path
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="rgb(63 63 70)"
-                      strokeWidth="3"
-                    />
-                    <path
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke={data.simulation.winProbability > 0.55 ? "rgb(52 211 153)" : data.simulation.winProbability > 0.45 ? "rgb(251 191 36)" : "rgb(248 113 113)"}
-                      strokeWidth="3"
-                      strokeDasharray={`${data.simulation.winProbability * 100}, 100`}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl font-bold" data-testid="text-win-probability">
-                      {pctStr(data.simulation.winProbability)}
-                    </span>
+          {isOffseason && (
+            <Card className="border-amber-500/20 bg-amber-500/5">
+              <CardContent className="p-4 flex items-center gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
+                <p className="text-sm text-amber-300">Offseason mode - showing your roster projections based on last season's data. Opponent data unavailable.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {data.simulation && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="border-amber-500/20 md:col-span-1">
+                <CardContent className="p-6 text-center space-y-2">
+                  <p className="text-xs text-muted-foreground uppercase">Win Probability</p>
+                  <div className="relative mx-auto w-28 h-28">
+                    <svg viewBox="0 0 36 36" className="w-28 h-28 -rotate-90">
+                      <path
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none"
+                        stroke="rgb(63 63 70)"
+                        strokeWidth="3"
+                      />
+                      <path
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none"
+                        stroke={data.simulation.winProbability > 0.55 ? "rgb(52 211 153)" : data.simulation.winProbability > 0.45 ? "rgb(251 191 36)" : "rgb(248 113 113)"}
+                        strokeWidth="3"
+                        strokeDasharray={`${data.simulation.winProbability * 100}, 100`}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-2xl font-bold" data-testid="text-win-probability">
+                        {pctStr(data.simulation.winProbability)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Expected Margin: <span className={`font-bold ${colorForValue(data.simulation.expectedMargin)}`} data-testid="text-expected-margin">{data.simulation.expectedMargin > 0 ? "+" : ""}{data.simulation.expectedMargin.toFixed(1)}</span>
-                </p>
-              </CardContent>
-            </Card>
+                  <p className="text-sm text-muted-foreground">
+                    Expected Margin: <span className={`font-bold ${colorForValue(data.simulation.expectedMargin)}`} data-testid="text-expected-margin">{data.simulation.expectedMargin > 0 ? "+" : ""}{data.simulation.expectedMargin.toFixed(1)}</span>
+                  </p>
+                </CardContent>
+              </Card>
 
-            <Card className="border-amber-500/20 md:col-span-2">
+              <Card className="border-amber-500/20 md:col-span-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-amber-400">Score Distributions</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0 space-y-4">
+                  {data.simulation.userScoreDistribution && (
+                    <ScoreRange
+                      floor={data.simulation.userScoreDistribution.p25}
+                      median={data.simulation.userScoreDistribution.p50}
+                      ceiling={data.simulation.userScoreDistribution.p75}
+                      label="Your Team"
+                    />
+                  )}
+                  {data.simulation.opponentScoreDistribution && (
+                    <ScoreRange
+                      floor={data.simulation.opponentScoreDistribution.p25}
+                      median={data.simulation.opponentScoreDistribution.p50}
+                      ceiling={data.simulation.opponentScoreDistribution.p75}
+                      label="Opponent"
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {data.userLineup && data.userLineup.length > 0 && (
+            <Card className="border-amber-500/20">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-amber-400">Score Distributions</CardTitle>
+                <CardTitle className="text-sm text-amber-400">Your Roster Projections</CardTitle>
               </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-4">
-                <ScoreRange
-                  floor={data.simulation.userScoreDistribution.p25}
-                  median={data.simulation.userScoreDistribution.p50}
-                  ceiling={data.simulation.userScoreDistribution.p75}
-                  label="Your Team"
-                />
-                <ScoreRange
-                  floor={data.simulation.opponentScoreDistribution.p25}
-                  median={data.simulation.opponentScoreDistribution.p50}
-                  ceiling={data.simulation.opponentScoreDistribution.p75}
-                  label="Opponent"
-                />
+              <CardContent className="p-4 pt-0">
+                <div className="space-y-1">
+                  {data.userLineup.map((p: any) => (
+                    <div key={p.playerId} className="flex items-center justify-between text-sm py-1.5 border-b border-zinc-800 last:border-0">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] w-8 justify-center">{p.position}</Badge>
+                        <span>{p.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-mono">
+                        <span className="text-red-400">{p.floor.toFixed(1)}</span>
+                        <span className="text-amber-400 font-bold">{p.median.toFixed(1)}</span>
+                        <span className="text-emerald-400">{p.ceiling.toFixed(1)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
-          </div>
+          )}
 
-          {data.keyMatchups && (
+          {data.keyMatchups && data.keyMatchups.length > 0 && (
             <Card className="border-amber-500/20">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm text-amber-400">Key Positional Matchups</CardTitle>
@@ -315,6 +495,8 @@ function LineupTab({ leagueId }: { leagueId: string }) {
   return (
     <div className="space-y-4">
       <RunButton onClick={() => mutation.mutate()} isPending={mutation.isPending} />
+      <ErrorCard error={mutation.error as Error | null} />
+
       {data && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -375,14 +557,23 @@ function LineupTab({ leagueId }: { leagueId: string }) {
                 ))}
                 <div className="flex items-center justify-between pt-2 text-sm">
                   <span className="text-muted-foreground">Total EV Gain</span>
-                  <span className="font-bold text-emerald-400" data-testid="text-total-ev-gain">+{data.totalEvGain.toFixed(1)}</span>
+                  <span className="font-bold text-emerald-400" data-testid="text-total-ev-gain">+{data.totalEvGain?.toFixed(1) || "0.0"}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Win Prob Change</span>
-                  <span className={`font-bold ${colorForValue(data.winProbabilityChange)}`}>
-                    {data.winProbabilityChange > 0 ? "+" : ""}{pctStr(data.winProbabilityChange)}
+                  <span className={`font-bold ${colorForValue(data.winProbabilityChange || 0)}`}>
+                    {(data.winProbabilityChange || 0) > 0 ? "+" : ""}{pctStr(data.winProbabilityChange || 0)}
                   </span>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {data.swaps && data.swaps.length === 0 && (
+            <Card className="border-emerald-500/20 bg-emerald-500/5">
+              <CardContent className="p-4 flex items-center gap-3">
+                <Target className="h-5 w-5 text-emerald-400 shrink-0" />
+                <p className="text-sm text-emerald-300">Your current lineup is already optimal!</p>
               </CardContent>
             </Card>
           )}
@@ -395,13 +586,16 @@ function LineupTab({ leagueId }: { leagueId: string }) {
 }
 
 function TradeTab({ leagueId }: { leagueId: string }) {
-  const [giveIds, setGiveIds] = useState("");
-  const [getIds, setGetIds] = useState("");
+  const [givePlayers, setGivePlayers] = useState<SelectedPlayer[]>([]);
+  const [getPlayers, setGetPlayers] = useState<SelectedPlayer[]>([]);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const givePlayerIds = giveIds.split(",").map(s => s.trim()).filter(Boolean);
-      const getPlayerIds = getIds.split(",").map(s => s.trim()).filter(Boolean);
+      const givePlayerIds = givePlayers.map(p => p.id);
+      const getPlayerIds = getPlayers.map(p => p.id);
+      if (givePlayerIds.length === 0 || getPlayerIds.length === 0) {
+        throw new Error("Please select at least one player on each side of the trade");
+      }
       const res = await apiRequest("POST", `/api/engine/trade-eval/${leagueId}`, { givePlayerIds, getPlayerIds });
       return await res.json();
     },
@@ -412,32 +606,29 @@ function TradeTab({ leagueId }: { leagueId: string }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-amber-400">You Give (Player IDs, comma-separated)</label>
-          <Input
-            value={giveIds}
-            onChange={e => setGiveIds(e.target.value)}
-            placeholder="e.g. 4046, 6794"
-            className="bg-zinc-900 border-zinc-700"
-            data-testid="input-give-players"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-emerald-400">You Get (Player IDs, comma-separated)</label>
-          <Input
-            value={getIds}
-            onChange={e => setGetIds(e.target.value)}
-            placeholder="e.g. 5849, 4981"
-            className="bg-zinc-900 border-zinc-700"
-            data-testid="input-get-players"
-          />
-        </div>
+        <PlayerSearchInput
+          label="You Give"
+          selectedPlayers={givePlayers}
+          onAdd={(p) => setGivePlayers(prev => [...prev, p])}
+          onRemove={(id) => setGivePlayers(prev => prev.filter(p => p.id !== id))}
+          labelColor="text-red-400"
+          testIdPrefix="input-give"
+        />
+        <PlayerSearchInput
+          label="You Get"
+          selectedPlayers={getPlayers}
+          onAdd={(p) => setGetPlayers(prev => [...prev, p])}
+          onRemove={(id) => setGetPlayers(prev => prev.filter(p => p.id !== id))}
+          labelColor="text-emerald-400"
+          testIdPrefix="input-get"
+        />
       </div>
       <RunButton
         onClick={() => mutation.mutate()}
         isPending={mutation.isPending}
         label="Evaluate Trade"
       />
+      <ErrorCard error={mutation.error as Error | null} />
 
       {data && (
         <>
@@ -514,11 +705,12 @@ function TradeTab({ leagueId }: { leagueId: string }) {
 }
 
 function FaabTab({ leagueId }: { leagueId: string }) {
-  const [targetId, setTargetId] = useState("");
+  const [targetPlayer, setTargetPlayer] = useState<SelectedPlayer | null>(null);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/engine/waiver-eval/${leagueId}`, { targetPlayerId: targetId.trim() });
+      if (!targetPlayer) throw new Error("Please search and select a player first");
+      const res = await apiRequest("POST", `/api/engine/waiver-eval/${leagueId}`, { targetPlayerId: targetPlayer.id });
       return await res.json();
     },
   });
@@ -527,21 +719,20 @@ function FaabTab({ leagueId }: { leagueId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2 max-w-sm">
-        <label className="text-sm font-medium text-amber-400">Target Player ID</label>
-        <Input
-          value={targetId}
-          onChange={e => setTargetId(e.target.value)}
-          placeholder="e.g. 9509"
-          className="bg-zinc-900 border-zinc-700"
-          data-testid="input-target-player"
-        />
-      </div>
+      <PlayerSearchInput
+        label="Target Player"
+        selectedPlayers={targetPlayer ? [targetPlayer] : []}
+        onAdd={(p) => setTargetPlayer(p)}
+        onRemove={() => setTargetPlayer(null)}
+        labelColor="text-amber-400"
+        testIdPrefix="input-faab"
+      />
       <RunButton
         onClick={() => mutation.mutate()}
         isPending={mutation.isPending}
         label="Optimize FAAB Bid"
       />
+      <ErrorCard error={mutation.error as Error | null} />
 
       {data && (
         <>
@@ -618,6 +809,8 @@ function SeasonTab({ leagueId }: { leagueId: string }) {
   return (
     <div className="space-y-4">
       <RunButton onClick={() => mutation.mutate()} isPending={mutation.isPending} />
+      <ErrorCard error={mutation.error as Error | null} />
+
       {data && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -746,6 +939,8 @@ function PortfolioTab({ leagueId }: { leagueId: string }) {
   return (
     <div className="space-y-4">
       <RunButton onClick={() => mutation.mutate()} isPending={mutation.isPending} />
+      <ErrorCard error={mutation.error as Error | null} />
+
       {data && (
         <>
           <Card className="border-amber-500/20">
@@ -804,6 +999,8 @@ function ChampionshipTab({ leagueId }: { leagueId: string }) {
   return (
     <div className="space-y-4">
       <RunButton onClick={() => mutation.mutate()} isPending={mutation.isPending} />
+      <ErrorCard error={mutation.error as Error | null} />
+
       {data && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

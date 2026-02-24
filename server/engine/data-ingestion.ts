@@ -354,9 +354,35 @@ export async function getMatchupContext(
     throw new Error(`Roster not found for user ${sleeperUserId}`);
   }
 
+  if (!matchups || matchups.length === 0) {
+    const allPlayerIds = [...userContext.players];
+    const allProjections = await getPlayerProjections(
+      allPlayerIds,
+      leagueContext.scoringSettings,
+      leagueContext.season,
+      leagueContext.currentWeek
+    );
+    const projectionMap = new Map<string, PlayerProjection>();
+    allProjections.forEach(p => projectionMap.set(p.playerId, p));
+    const userProjections = userContext.players
+      .map(id => projectionMap.get(id))
+      .filter((p): p is PlayerProjection => p !== undefined);
+    return {
+      week,
+      userRoster: userContext,
+      opponentRoster: {
+        rosterId: 0, ownerId: '', players: [], starters: [],
+        wins: 0, losses: 0, ties: 0, fpts: 0, fptsAgainst: 0,
+        rank: 0, faabRemaining: 0, waiverPosition: 0,
+      },
+      userProjections,
+      opponentProjections: [],
+    };
+  }
+
   const userMatchup = matchups.find(m => m.roster_id === userContext.rosterId);
   if (!userMatchup) {
-    throw new Error(`No matchup found for roster ${userContext.rosterId} in week ${week}`);
+    throw new Error(`No matchup found for roster ${userContext.rosterId} in week ${week}. The season may not have started yet.`);
   }
 
   const opponentMatchup = matchups.find(

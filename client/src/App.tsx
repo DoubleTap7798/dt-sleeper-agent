@@ -69,6 +69,7 @@ import CommunityChatPage from "@/pages/community-chat";
 import DraftRecapPage from "@/pages/draft-recap";
 import ManagerProfilePage from "@/pages/manager-profile";
 import DecisionEnginePage from "@/pages/decision-engine";
+import FeaturesPage from "@/pages/features";
 
 import UserProfilePage from "@/pages/user-profile";
 import LeaderboardPage from "@/pages/leaderboard";
@@ -116,6 +117,9 @@ function Router() {
     <Switch>
       <Route path="/">
         {isAuthenticated ? <DashboardPage /> : <LandingPage />}
+      </Route>
+      <Route path="/features">
+        <FeaturesPage />
       </Route>
       <Route path="/auth">
         {isAuthenticated ? <DashboardPage /> : <AuthPage />}
