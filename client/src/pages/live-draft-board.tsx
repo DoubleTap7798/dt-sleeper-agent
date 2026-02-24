@@ -120,6 +120,8 @@ interface DraftCommandData {
   isRookieDraft?: boolean;
   playerPool?: PlayerPoolType;
   autoDetectedPool?: PlayerPoolType;
+  effectiveLeagueId?: string;
+  activeDraftLeagueName?: string;
   board: {
     picks: BoardPick[];
     teamOrder: TeamOrderEntry[];
@@ -439,6 +441,15 @@ export default function LiveDraftBoardPage() {
             </div>
           }
         />
+
+        {data.activeDraftLeagueName && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20" data-testid="banner-cross-league-draft">
+            <Info className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-xs text-primary">
+              Showing active draft from <span className="font-semibold">{data.activeDraftLeagueName}</span>
+            </span>
+          </div>
+        )}
 
         {(data.status === "in_progress" || data.status === "complete") && (
           <div className="flex items-center gap-3">

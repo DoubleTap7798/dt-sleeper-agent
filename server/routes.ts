@@ -14069,29 +14069,50 @@ Respond in JSON format:
       const rawDrafts = await draftsRes.json();
       drafts = Array.isArray(rawDrafts) ? rawDrafts : [];
 
-      if (drafts.length === 0 && sleeperUserId) {
+      const hasActiveDraft = drafts.some((d: any) => d.status === "drafting" || d.status === "paused");
+
+      if (!hasActiveDraft && sleeperUserId) {
         try {
           const leagueRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
           const leagueInfo = await leagueRes.json();
           const leagueName = leagueInfo?.name?.toLowerCase().trim();
 
-          if (leagueName || !leagueInfo) {
-            const allLeagues = await getAllUserLeagues(sleeperUserId);
+          const allLeagues = await getAllUserLeagues(sleeperUserId);
+
+          for (const lg of allLeagues) {
+            if (lg.league_id === leagueId) continue;
+            const nameMatch = leagueName
+              ? lg.name?.toLowerCase().trim() === leagueName
+              : false;
+            const prevMatch = lg.previous_league_id === leagueId;
+            if (nameMatch || prevMatch) {
+              const altDraftsRes = await fetch(`https://api.sleeper.app/v1/league/${lg.league_id}/drafts`);
+              const altDrafts = await altDraftsRes.json();
+              if (Array.isArray(altDrafts) && altDrafts.some((d: any) => d.status === "drafting" || d.status === "paused")) {
+                drafts = altDrafts;
+                effectiveLeagueId = lg.league_id;
+                break;
+              }
+            }
+          }
+
+          const stillNoActive = !drafts.some((d: any) => d.status === "drafting" || d.status === "paused");
+          if (stillNoActive) {
             for (const lg of allLeagues) {
-              if (lg.league_id === leagueId) continue;
-              const nameMatch = leagueName
-                ? lg.name?.toLowerCase().trim() === leagueName
-                : false;
-              const prevMatch = lg.previous_league_id === leagueId;
-              if (nameMatch || prevMatch) {
+              if (lg.league_id === leagueId || lg.league_id === effectiveLeagueId) continue;
+              if (lg.status !== "drafting" && lg.status !== "pre_draft") continue;
+              try {
                 const altDraftsRes = await fetch(`https://api.sleeper.app/v1/league/${lg.league_id}/drafts`);
                 const altDrafts = await altDraftsRes.json();
-                if (Array.isArray(altDrafts) && altDrafts.length > 0) {
-                  drafts = altDrafts;
-                  effectiveLeagueId = lg.league_id;
-                  break;
+                if (Array.isArray(altDrafts)) {
+                  const activeDraft = altDrafts.find((d: any) => d.status === "drafting" || d.status === "paused");
+                  if (activeDraft) {
+                    drafts = altDrafts;
+                    effectiveLeagueId = lg.league_id;
+                    break;
+                  }
                 }
-              }
+              } catch {}
             }
           }
         } catch (e) {
@@ -14928,12 +14949,22 @@ Respond in JSON format:
         }
       }
 
+      let activeDraftLeagueName: string | undefined;
+      if (effectiveLeagueId !== leagueId) {
+        try {
+          const effLeagueRes = await sleeperApi.getLeague(effectiveLeagueId);
+          activeDraftLeagueName = effLeagueRes?.name;
+        } catch {}
+      }
+
       res.json({
         status,
         draftType,
         isRookieDraft,
         playerPool,
         autoDetectedPool,
+        effectiveLeagueId: effectiveLeagueId !== leagueId ? effectiveLeagueId : undefined,
+        activeDraftLeagueName,
         board: {
           picks: formattedPicks,
           teamOrder,
