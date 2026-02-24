@@ -597,13 +597,13 @@ function TeamProfileBadge({ profile, avgAge }: { profile: "contender" | "balance
     balanced: { 
       icon: Shield, 
       label: "Balanced", 
-      color: "bg-blue-500/20 text-blue-400 border-blue-500/50",
+      color: "bg-primary/20 text-primary border-primary/50",
       description: "Mix of youth and experience"
     },
     rebuild: { 
       icon: Hourglass, 
       label: "Rebuilding", 
-      color: "bg-purple-500/20 text-purple-400 border-purple-500/50",
+      color: "bg-red-500/15 text-red-400 border-red-500/40",
       description: "Young roster with upside"
     },
   };
@@ -662,8 +662,8 @@ function MovementIndicator({ rank, prevRank, isCurrentSeason }: { rank: number; 
 function RecommendationCard({ rec, leagueId }: { rec: DashboardData["recommendations"][0]; leagueId: string }) {
   const priorityConfig = {
     high: { icon: AlertTriangle, color: "text-red-400", bg: "bg-red-500/10 border-red-500/30" },
-    medium: { icon: Lightbulb, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/30" },
-    low: { icon: ChevronRight, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/30" },
+    medium: { icon: Lightbulb, color: "text-primary", bg: "bg-primary/10 border-primary/30" },
+    low: { icon: ChevronRight, color: "text-primary/60", bg: "bg-primary/10 border-primary/30" },
   };
 
   const typeIcons: Record<string, any> = {
@@ -1087,7 +1087,7 @@ export default function HomePage() {
     );
   }
 
-  // SINGLE LEAGUE VIEW - Quant Trading Terminal Dashboard
+  // SINGLE LEAGUE VIEW - Command Center V2: Strategic Decision War Room
   const recentActivity = (() => {
     const notifications = notificationsData?.notifications || [];
     const seen = new Set<string>();
@@ -1096,296 +1096,454 @@ export default function HomePage() {
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).slice(0, 5);
+    }).slice(0, 3);
   })();
 
   const topRec = dashboardData?.recommendations?.[0];
+  const secondaryRecs = dashboardData?.recommendations?.slice(1, 4) || [];
 
   const parseInsightBullets = (blurb: string): string[] => {
     if (!blurb) return [];
     const sentences = blurb.split(/\.\s+/).filter(s => s.trim().length > 5);
-    return sentences.slice(0, 4).map(s => s.endsWith(".") ? s : s + ".");
+    return sentences.slice(0, 3).map(s => s.endsWith(".") ? s : s + ".");
   };
 
   const insightBullets = parseInsightBullets(dashboardData?.weeklyBlurb || "");
 
-  const getImpactLabel = (priority: string) => {
-    const config: Record<string, { label: string; color: string }> = {
-      high: { label: "HIGH", color: "bg-red-500/20 text-red-400 border-red-500/40" },
-      medium: { label: "MED", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40" },
-      low: { label: "LOW", color: "bg-blue-500/20 text-blue-400 border-blue-500/40" },
-    };
-    return config[priority] || config.medium;
+  const playoffRate = leagueData && leagueData.totalSeasons > 0
+    ? ((leagueData.playoffAppearances / leagueData.totalSeasons) * 100).toFixed(0)
+    : "0";
+
+  const riskScore = dashboardData?.teamProfile === "contender" ? 25 :
+    dashboardData?.teamProfile === "balanced" ? 50 : 75;
+
+  const posStrengths = dashboardData?.rosterStrength || { QB: 0, RB: 0, WR: 0, TE: 0 };
+  const weakestPos = (["QB", "RB", "WR", "TE"] as const).reduce((min, pos) =>
+    posStrengths[pos] < posStrengths[min] ? pos : min, "QB" as "QB" | "RB" | "WR" | "TE"
+  );
+
+  const strengthValues = Object.values(posStrengths);
+  const avgStrength = strengthValues.length > 0 ? strengthValues.reduce((a, b) => a + b, 0) / strengthValues.length : 0;
+  const fragility = dashboardData ? Math.max(0, Math.min(100, 100 - avgStrength + (dashboardData.biggestNeed ? 15 : 0))) : 50;
+  const volatility = dashboardData ? Math.max(0, Math.min(100, Math.abs(posStrengths.QB - posStrengths.RB) + Math.abs(posStrengths.WR - posStrengths.TE))) : 50;
+  const diversification = dashboardData ? Math.max(0, Math.min(100, avgStrength - (Math.max(...strengthValues) - Math.min(...strengthValues)) * 0.5)) : 50;
+
+  const momentumDirection = Number(winRate) >= 55 ? "up" : Number(winRate) <= 45 ? "down" : "flat";
+
+  const colorFor = (val: number, threshHigh = 60, threshLow = 45) =>
+    val >= threshHigh ? "text-green-400" : val < threshLow ? "text-red-400" : "text-primary";
+
+  const gaugeColor = (val: number, inverted = false) => {
+    const v = inverted ? 100 - val : val;
+    return v >= 60 ? "bg-green-500" : v >= 40 ? "bg-primary" : "bg-red-500";
   };
 
   return (
-    <div className="space-y-10">
-      {/* Compact Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9 ring-1 ring-primary/15">
-            <AvatarImage 
-              src={selectedLeague?.avatar ? `https://sleepercdn.com/avatars/${selectedLeague.avatar}` : undefined}
-              alt={selectedLeague?.name || "League"}
-            />
-            <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
-              {(selectedLeague?.name || leagueData?.leagueName || "L").slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title">
-              {selectedLeague?.name || leagueData?.leagueName || "Command Center"}
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {selectedLeague?.season} Season
-            </p>
+    <div className="space-y-8 min-w-0">
+
+      {/* ═══ 1. STICKY IDENTITY HEADER ═══ */}
+      <div className="sticky top-0 z-30 -mx-4 px-4 py-4 bg-background/95 backdrop-blur-md border-b border-border/30" data-testid="sticky-identity-header">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-8 w-8 ring-1 ring-primary/20">
+                <AvatarImage 
+                  src={selectedLeague?.avatar ? `https://sleepercdn.com/avatars/${selectedLeague.avatar}` : undefined}
+                  alt={selectedLeague?.name || "League"}
+                />
+                <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                  {(selectedLeague?.name || leagueData?.leagueName || "L").slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h1 className="text-sm font-bold tracking-tight" data-testid="text-page-title">
+                  {selectedLeague?.name || leagueData?.leagueName || "Command Center"}
+                </h1>
+                <p className="text-[10px] text-muted-foreground">{selectedLeague?.season} Season</p>
+              </div>
+            </div>
+            {dashboardData && (
+              <TeamProfileBadge profile={dashboardData.teamProfile} avgAge={dashboardData.avgAge} />
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* Championship Equity - HERO */}
+            <div className="col-span-2 lg:col-span-1 bg-gradient-to-br from-primary/15 via-primary/8 to-transparent rounded-xl border border-primary/40 p-4 relative overflow-hidden shadow-[0_0_32px_rgba(217,169,78,0.12)]" data-testid="card-championship-equity">
+              <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-primary/15 to-transparent rounded-bl-full" />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Trophy className="h-3.5 w-3.5 text-primary" />
+                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-primary/80">Title Equity</span>
+              </div>
+              <div className="flex items-end gap-2">
+                <span className="text-4xl font-black text-gradient-gold tracking-tight" data-testid="stat-championship-equity">
+                  {leagueData?.championships || 0}
+                </span>
+                <div className="flex flex-col gap-0.5 mb-1">
+                  <Badge variant="outline" className="text-[8px] px-1 py-0 border-green-500/30 text-green-400">
+                    <ArrowUp className="h-2 w-2 mr-0.5" />7d
+                  </Badge>
+                  <Badge variant="outline" className="text-[8px] px-1 py-0 border-primary/30 text-primary/60">
+                    {leagueData?.runnerUps || 0} 2nd
+                  </Badge>
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <svg width="60" height="20" viewBox="0 0 60 20" className="text-primary/50">
+                  <polyline
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={(() => {
+                      const stats = leagueData?.seasonStats || [];
+                      if (stats.length < 2) return "0,15 15,12 30,10 45,8 60,5";
+                      const maxW = Math.max(...stats.map(s => s.wins), 1);
+                      return stats.slice(-5).map((s, i, a) => {
+                        const x = (i / Math.max(a.length - 1, 1)) * 60;
+                        const y = 18 - (s.wins / maxW) * 16;
+                        return `${x},${y}`;
+                      }).join(" ");
+                    })()}
+                  />
+                </svg>
+                <span className="text-[9px] text-muted-foreground">{leagueData?.totalSeasons || 0} seasons</span>
+              </div>
+              <Link href={`/league/decision-engine?tab=equity&id=${leagueIdFromUrl}`}>
+                <Button size="sm" variant="ghost" className="mt-1 gap-1 text-[10px] text-primary/70 -ml-2 h-6 px-2" data-testid="btn-view-equity">
+                  Deep Dive <ArrowUpRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+
+            {/* Win Probability */}
+            <div className="rounded-xl border border-border/30 bg-card/50 p-4" data-testid="card-win-probability">
+              <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">Win Prob</span>
+              <div className="flex items-end gap-1.5 mt-1">
+                <span className={`text-2xl font-black ${colorFor(Number(winRate))}`} data-testid="stat-win-prob">{winRate}%</span>
+                {Number(winRate) >= 50 ? <ArrowUp className="h-3.5 w-3.5 text-green-400 mb-0.5" /> : <ArrowDown className="h-3.5 w-3.5 text-red-400 mb-0.5" />}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">{leagueData?.totalWins || 0}W-{leagueData?.totalLosses || 0}L</p>
+            </div>
+
+            {/* Playoff Odds */}
+            <div className="rounded-xl border border-border/30 bg-card/50 p-4" data-testid="card-playoff-odds">
+              <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">Playoff Rate</span>
+              <div className="flex items-end gap-1.5 mt-1">
+                <span className={`text-2xl font-black ${colorFor(Number(playoffRate))}`} data-testid="stat-playoff-odds">{playoffRate}%</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">{leagueData?.playoffAppearances || 0} of {leagueData?.totalSeasons || 1} seasons</p>
+            </div>
+
+            {/* Risk Index */}
+            <div className="rounded-xl border border-border/30 bg-card/50 p-4" data-testid="card-risk-index">
+              <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">Risk Index</span>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`text-2xl font-black ${riskScore <= 30 ? "text-green-400" : riskScore >= 60 ? "text-red-400" : "text-primary"}`} data-testid="stat-risk-index">
+                  {riskScore}
+                </span>
+                <span className="text-[10px] text-muted-foreground capitalize">{dashboardData?.teamProfile || "—"}</span>
+              </div>
+              <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all duration-700 ${riskScore <= 30 ? "bg-green-500" : riskScore >= 60 ? "bg-red-500" : "bg-primary"}`} style={{ width: `${riskScore}%` }} />
+              </div>
+            </div>
           </div>
         </div>
-        {dashboardData && (
-          <TeamProfileBadge profile={dashboardData.teamProfile} avgAge={dashboardData.avgAge} />
-        )}
       </div>
 
-      {/* 1. TOP POWER STRIP - 4 Signal Cards */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        {/* Win Probability */}
-        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_20px_rgba(217,169,78,0.08)]" data-testid="card-win-probability">
-          <CardContent className="py-5 px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/60 mb-2">Win Probability</p>
-            <div className="flex items-end gap-2">
-              <span className={`text-3xl font-bold ${Number(winRate) >= 60 ? "text-green-400" : Number(winRate) >= 45 ? "text-foreground" : "text-red-400"}`} data-testid="stat-win-prob">
-                {winRate}%
-              </span>
-              {Number(winRate) >= 50 ? (
-                <ArrowUp className="h-4 w-4 text-green-400 mb-1" />
-              ) : (
-                <ArrowDown className="h-4 w-4 text-red-400 mb-1" />
-              )}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-2">
-              {leagueData?.totalWins || 0}W-{leagueData?.totalLosses || 0}L
-            </p>
-          </CardContent>
-        </Card>
+      {/* ═══ 2. STRATEGIC SNAPSHOT ═══ */}
+      <div data-testid="section-strategic-snapshot">
+        <div className="flex items-center gap-2 mb-4">
+          <Target className="h-4 w-4 text-primary/60" />
+          <h2 className="text-xs font-bold uppercase tracking-[0.15em] text-primary/60">Strategic Snapshot</h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Left Column */}
+          <div className="space-y-4">
+            {/* Primary Constraint */}
+            <Card className="border-red-500/20 bg-gradient-to-br from-red-500/5 to-transparent" data-testid="card-primary-constraint">
+              <CardContent className="py-5 px-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-400" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-red-400/80">Primary Constraint</span>
+                  </div>
+                  <Badge variant="outline" className="text-[9px] border-red-500/30 text-red-400">WEAKEST LINK</Badge>
+                </div>
+                {dashboardData?.biggestNeed ? (
+                  <div className="space-y-2">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-black text-red-400">{dashboardData.biggestNeed.position}</span>
+                      <span className="text-sm text-muted-foreground">
+                        #{dashboardData.biggestNeed.rank} of {dashboardData.positionRanks[dashboardData.biggestNeed.position]?.total || "?"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{dashboardData.biggestNeed.message}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] text-muted-foreground/60">Strength:</span>
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-red-500 rounded-full" style={{ width: `${posStrengths[weakestPos]}%` }} />
+                      </div>
+                      <span className="text-[10px] font-bold text-red-400">{posStrengths[weakestPos].toFixed(0)}%</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 py-2">
+                    <Shield className="h-4 w-4 text-green-400" />
+                    <span className="text-sm text-green-400 font-medium">No critical weaknesses detected</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-        {/* Playoff Odds */}
-        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_20px_rgba(217,169,78,0.08)]" data-testid="card-playoff-odds">
-          <CardContent className="py-5 px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/60 mb-2">Playoff Odds</p>
-            <div className="flex items-end gap-2">
-              <span className="text-3xl font-bold text-gradient-gold" data-testid="stat-playoff-odds">
-                {leagueData?.playoffAppearances || 0}
-              </span>
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-2">
-              {leagueData?.totalSeasons || 1} seasons tracked
-            </p>
-          </CardContent>
-        </Card>
+            {/* Highest EV Action */}
+            <Card className="border-primary/25 bg-gradient-to-br from-primary/8 to-transparent" data-testid="card-highest-ev-action">
+              <CardContent className="py-5 px-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-primary/70">Highest EV Action</span>
+                  </div>
+                  {topRec && (
+                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${
+                      topRec.priority === "high" ? "border-red-500/40 text-red-400" :
+                      topRec.priority === "medium" ? "border-primary/40 text-primary" :
+                      "border-muted-foreground/30 text-muted-foreground"
+                    }`}>
+                      {topRec.priority === "high" ? "HIGH" : topRec.priority === "medium" ? "MED" : "LOW"} IMPACT
+                    </Badge>
+                  )}
+                </div>
+                {topRec ? (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-bold" data-testid="text-top-action-title">{topRec.title}</h3>
+                    <ul className="space-y-1">
+                      {topRec.description.split(/\.\s+/).filter(s => s.trim().length > 3).slice(0, 2).map((bullet, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                          <span className="text-primary/40 mt-0.5 shrink-0">•</span>
+                          <span>{bullet.endsWith(".") ? bullet : bullet + "."}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {topRec.action && (
+                      <Link href={topRec.action}>
+                        <Button size="sm" className="mt-1 gap-1.5 bg-primary/15 text-primary border border-primary/30 h-7 text-[11px]" data-testid="btn-top-action">
+                          Execute <ArrowUpRight className="h-3 w-3" />
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground py-2">No actions available right now</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Championship Equity - HERO card */}
-        <Card className="border-primary/40 bg-gradient-to-br from-primary/15 via-primary/8 to-transparent shadow-[0_0_32px_rgba(217,169,78,0.15)] lg:col-span-1 relative overflow-hidden" data-testid="card-championship-equity">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-primary/10 to-transparent rounded-bl-full" />
-          <CardContent className="py-5 px-4 relative">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Trophy className="h-3.5 w-3.5 text-primary" />
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70">Championship Equity</p>
-            </div>
-            <div className="flex items-end gap-2">
-              <span className="text-3xl font-bold text-gradient-gold" data-testid="stat-championships">
-                {leagueData?.championships || 0}
-              </span>
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-2">
-              {leagueData?.runnerUps ? `${leagueData.runnerUps} runner-up finishes` : "Career titles"}
-            </p>
-            <Link href={`/league/decision-engine?tab=equity&id=${leagueIdFromUrl}`}>
-              <Button size="sm" variant="ghost" className="mt-2 gap-1 text-xs text-primary/80 -ml-2" data-testid="btn-view-equity">
-                View Tracker <ArrowUpRight className="h-3 w-3" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+          {/* Right Column */}
+          <div className="space-y-4">
+            {/* Momentum Panel */}
+            <Card className="border-border/30" data-testid="card-momentum">
+              <CardContent className="py-5 px-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <TrendingUp className="h-4 w-4 text-primary/60" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">Momentum</span>
+                  <div className={`ml-auto flex items-center gap-1 text-xs font-bold ${
+                    momentumDirection === "up" ? "text-green-400" : momentumDirection === "down" ? "text-red-400" : "text-primary"
+                  }`}>
+                    {momentumDirection === "up" ? <ArrowUp className="h-3.5 w-3.5" /> : momentumDirection === "down" ? <ArrowDown className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
+                    {momentumDirection === "up" ? "RISING" : momentumDirection === "down" ? "FALLING" : "STEADY"}
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Win Rate</span>
+                    <span className={`text-sm font-bold ${colorFor(Number(winRate))}`}>{winRate}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Record</span>
+                    <span className="text-sm font-bold">{leagueData?.totalWins || 0}-{leagueData?.totalLosses || 0}{leagueData?.totalTies ? `-${leagueData.totalTies}` : ""}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Best Finish</span>
+                    <span className="text-sm font-medium">{leagueData?.bestFinish || "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Championships</span>
+                    <span className="text-sm font-bold text-gradient-gold">{leagueData?.championships || 0}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Team Risk Index */}
-        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_20px_rgba(217,169,78,0.08)]" data-testid="card-risk-index">
-          <CardContent className="py-5 px-4">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Gauge className="h-3.5 w-3.5 text-primary/60" />
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/60">Risk Index</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-3xl font-bold capitalize" data-testid="stat-team-profile">
-                {dashboardData?.teamProfile || "—"}
-              </span>
-            </div>
-            <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
-              <div 
-                className={`h-full rounded-full transition-all duration-700 ${
-                  dashboardData?.teamProfile === "contender" ? "bg-green-500 w-[85%]" :
-                  dashboardData?.teamProfile === "balanced" ? "bg-yellow-500 w-[50%]" :
-                  "bg-purple-500 w-[25%]"
-                }`}
-              />
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-2">{dashboardData?.playerCount || 0} rostered</p>
-          </CardContent>
-        </Card>
+            {/* League Pressure Index */}
+            <Card className="border-border/30" data-testid="card-league-pressure">
+              <CardContent className="py-5 px-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Gauge className="h-4 w-4 text-primary/60" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">League Pressure</span>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Standings Position</span>
+                    <span className="text-sm font-bold">
+                      {leagueData?.seasonStats?.[leagueData.seasonStats.length - 1]?.rank || "—"} of {leagueData?.seasonStats?.[leagueData.seasonStats.length - 1]?.totalTeams || "?"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Playoff Rate</span>
+                    <span className={`text-sm font-bold ${colorFor(Number(playoffRate))}`}>{playoffRate}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Avg Team Age</span>
+                    <span className="text-sm font-medium">{dashboardData?.avgAge || "—"} yrs</span>
+                  </div>
+                  <Link href={`/league/decision-engine?tab=exploit&id=${leagueIdFromUrl}`}>
+                    <Button size="sm" variant="ghost" className="w-full text-[11px] gap-1 mt-1 h-7" data-testid="btn-exploit-report">
+                      View Exploit Report <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
 
-      {/* 2. STRATEGIC STATUS GRID - 2x2 */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* A. Roster Strength Breakdown */}
-        <Card data-testid="card-roster-strength">
+      {/* ═══ 3. PORTFOLIO ARCHITECTURE ═══ */}
+      <div data-testid="section-portfolio-architecture">
+        <div className="flex items-center gap-2 mb-4">
+          <BarChart3 className="h-4 w-4 text-primary/60" />
+          <h2 className="text-xs font-bold uppercase tracking-[0.15em] text-primary/60">Portfolio Architecture</h2>
+          <Badge variant="outline" className="text-[9px] ml-auto">{dashboardData?.playerCount || 0} assets</Badge>
+        </div>
+        <Card className="border-border/30" data-testid="card-portfolio">
           <CardContent className="py-5 px-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary/70" />
-                <span className="text-sm font-semibold">Roster Strength</span>
-              </div>
-              <Badge variant="outline" className="text-[10px]">{dashboardData?.playerCount || 0} players</Badge>
-            </div>
-            {dashboardData && dashboardData.playerCount > 0 ? (
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Position Strength Bars */}
               <div className="space-y-3">
-                {(["QB", "RB", "WR", "TE"] as const).map((pos) => (
-                  <StrengthBar 
-                    key={pos}
-                    position={pos} 
-                    value={dashboardData.rosterStrength[pos]} 
-                    rank={dashboardData.positionRanks[pos]?.rank || 0}
-                    total={dashboardData.positionRanks[pos]?.total || 0}
-                    onClick={() => setSelectedPosition(pos)}
-                  />
-                ))}
-                {dashboardData.biggestNeed && (
-                  <div className="flex items-center gap-2 mt-2 p-2 rounded bg-yellow-500/5 border border-yellow-500/20">
-                    <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
-                    <span className="text-xs text-muted-foreground">{dashboardData.biggestNeed.message}</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">Position Strength</span>
+                {dashboardData && dashboardData.playerCount > 0 ? (
+                  <div className="space-y-2.5">
+                    {(["QB", "RB", "WR", "TE"] as const).map((pos) => (
+                      <StrengthBar 
+                        key={pos}
+                        position={pos} 
+                        value={dashboardData.rosterStrength[pos]} 
+                        rank={dashboardData.positionRanks[pos]?.rank || 0}
+                        total={dashboardData.positionRanks[pos]?.total || 0}
+                        onClick={() => setSelectedPosition(pos)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Users className="h-6 w-6 mx-auto mb-2 opacity-40" />
+                    <p className="text-xs">Rosters not yet available</p>
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="text-center py-6 text-muted-foreground">
-                <Users className="h-7 w-7 mx-auto mb-2 opacity-40" />
-                <p className="text-xs">Rosters not yet available</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* B. Market Position */}
-        <Card data-testid="card-market-position">
-          <CardContent className="py-5 px-5">
-            <div className="flex items-center gap-2 mb-4">
-              <ArrowRightLeft className="h-4 w-4 text-primary/70" />
-              <span className="text-sm font-semibold">Market Position</span>
-            </div>
-            {tradeIdeasLoading ? (
-              <div className="space-y-3">
-                {[1, 2].map(i => <Skeleton key={i} className="h-14" />)}
-              </div>
-            ) : tradeIdeasData?.tradeIdeas && tradeIdeasData.tradeIdeas.length > 0 ? (
-              <div className="space-y-3">
-                {tradeIdeasData.tradeIdeas.slice(0, 2).map((idea, idx) => (
-                  <div key={idx} className="p-3 rounded-lg border border-border/30 bg-muted/20 space-y-1.5" data-testid={`trade-idea-${idx}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage src={idea.tradePartner.avatar || undefined} />
-                          <AvatarFallback className="text-[8px]">{idea.tradePartner.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs font-medium">{idea.tradePartner.name}</span>
-                      </div>
-                      <Badge variant={idea.fairnessScore >= 70 ? "default" : "outline"} className="text-[10px]">
-                        {idea.fairnessScore}%
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px]">
-                      <span className="text-red-400">{idea.give.map(p => p.name).join(", ")}</span>
-                      <ArrowRightLeft className="h-3 w-3 text-muted-foreground shrink-0" />
-                      <span className="text-green-400">{idea.get.map(p => p.name).join(", ")}</span>
-                    </div>
+              {/* Portfolio Metrics */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">Risk Metrics</span>
+                {/* Fragility */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Fragility</span>
+                    <span className={`text-xs font-bold ${fragility >= 60 ? "text-red-400" : fragility >= 40 ? "text-primary" : "text-green-400"}`}>
+                      {fragility.toFixed(0)}
+                    </span>
                   </div>
-                ))}
-                <Link href={`/league/trade?id=${leagueIdFromUrl}`}>
-                  <Button size="sm" variant="ghost" className="w-full text-xs gap-1" data-testid="btn-view-trade-calc">
-                    View All Ideas <ChevronRight className="h-3.5 w-3.5" />
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-700 ${gaugeColor(fragility, true)}`} style={{ width: `${fragility}%` }} />
+                  </div>
+                </div>
+                {/* Volatility */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Volatility</span>
+                    <span className={`text-xs font-bold ${volatility >= 60 ? "text-red-400" : volatility >= 40 ? "text-primary" : "text-green-400"}`}>
+                      {volatility.toFixed(0)}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-700 ${gaugeColor(volatility, true)}`} style={{ width: `${volatility}%` }} />
+                  </div>
+                </div>
+                {/* Diversification */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Diversification</span>
+                    <span className={`text-xs font-bold ${diversification >= 60 ? "text-green-400" : diversification >= 40 ? "text-primary" : "text-red-400"}`}>
+                      {diversification.toFixed(0)}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-700 ${gaugeColor(diversification)}`} style={{ width: `${diversification}%` }} />
+                  </div>
+                </div>
+                <Link href={`/league/decision-engine?tab=portfolio&id=${leagueIdFromUrl}`}>
+                  <Button size="sm" variant="ghost" className="w-full text-[11px] gap-1 mt-1 h-7" data-testid="btn-full-portfolio">
+                    Full Analysis <ArrowUpRight className="h-3 w-3" />
                   </Button>
                 </Link>
               </div>
-            ) : (
-              <div className="text-center py-6">
-                <ArrowRightLeft className="h-7 w-7 mx-auto text-muted-foreground mb-2 opacity-40" />
-                <p className="text-xs text-muted-foreground">No trade signals detected</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* C. Trend & Momentum */}
-        <Card data-testid="card-trend-momentum">
-          <CardContent className="py-5 px-5">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="h-4 w-4 text-primary/70" />
-              <span className="text-sm font-semibold">Trend & Momentum</span>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Championships</span>
-                <span className="text-sm font-bold text-gradient-gold">{leagueData?.championships || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Best Finish</span>
-                <span className="text-sm font-medium">{leagueData?.bestFinish || "—"}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Playoff Rate</span>
-                <span className={`text-sm font-medium ${
-                  leagueData && leagueData.totalSeasons > 0 && (leagueData.playoffAppearances / leagueData.totalSeasons) >= 0.6 
-                    ? "text-green-400" : "text-muted-foreground"
-                }`}>
-                  {leagueData && leagueData.totalSeasons > 0 
-                    ? `${((leagueData.playoffAppearances / leagueData.totalSeasons) * 100).toFixed(0)}%` 
-                    : "—"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Win Rate</span>
-                <span className={`text-sm font-medium ${Number(winRate) >= 60 ? "text-green-400" : Number(winRate) < 45 ? "text-red-400" : "text-muted-foreground"}`}>
-                  {winRate}%
-                </span>
-              </div>
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        {/* D. League Edge Snapshot */}
-        <Card data-testid="card-league-edge">
+      {/* ═══ 4. SCENARIO SIMULATOR STRIP ═══ */}
+      <div data-testid="section-scenario-simulator">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity className="h-4 w-4 text-primary/60" />
+          <h2 className="text-xs font-bold uppercase tracking-[0.15em] text-primary/60">Quick Scenarios</h2>
+        </div>
+        <Card className="border-border/30" data-testid="card-scenario-sim">
           <CardContent className="py-5 px-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Target className="h-4 w-4 text-primary/70" />
-              <span className="text-sm font-semibold">League Edge</span>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              <Link href={`/league/decision-engine?tab=matchup&id=${leagueIdFromUrl}`} className="block">
+                <div className="p-3 rounded-lg border border-border/30 bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer text-center space-y-1" data-testid="scenario-matchup">
+                  <Target className="h-5 w-5 text-primary mx-auto" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Matchup Sim</p>
+                  <p className="text-lg font-black text-primary">{winRate}%</p>
+                  <p className="text-[9px] text-muted-foreground">Week Win Prob</p>
+                </div>
+              </Link>
+              <Link href={`/league/decision-engine?tab=outlook&id=${leagueIdFromUrl}`} className="block">
+                <div className="p-3 rounded-lg border border-border/30 bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer text-center space-y-1" data-testid="scenario-playoff">
+                  <Crown className="h-5 w-5 text-primary mx-auto" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Playoff Sim</p>
+                  <p className="text-lg font-black text-primary">{playoffRate}%</p>
+                  <p className="text-[9px] text-muted-foreground">Make Playoffs</p>
+                </div>
+              </Link>
+              <Link href={`/league/decision-engine?tab=equity&id=${leagueIdFromUrl}`} className="block">
+                <div className="p-3 rounded-lg border border-primary/30 bg-gradient-to-br from-primary/8 to-transparent hover:from-primary/12 transition-colors cursor-pointer text-center space-y-1" data-testid="scenario-title">
+                  <Trophy className="h-5 w-5 text-primary mx-auto" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-primary/60">Title Path</p>
+                  <p className="text-lg font-black text-gradient-gold">{leagueData?.championships || 0}</p>
+                  <p className="text-[9px] text-muted-foreground">Career Titles</p>
+                </div>
+              </Link>
+              <Link href={`/league/decision-engine?tab=portfolio&id=${leagueIdFromUrl}`} className="block">
+                <div className="p-3 rounded-lg border border-border/30 bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer text-center space-y-1" data-testid="scenario-risk">
+                  <Gauge className="h-5 w-5 text-primary mx-auto" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Risk Profile</p>
+                  <p className={`text-lg font-black ${riskScore <= 30 ? "text-green-400" : riskScore >= 60 ? "text-red-400" : "text-primary"}`}>{riskScore}</p>
+                  <p className="text-[9px] text-muted-foreground">Risk Score</p>
+                </div>
+              </Link>
             </div>
-            <div className="space-y-3">
-              {dashboardData?.biggestNeed ? (
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium">Weakness: {dashboardData.biggestNeed.position}</p>
-                    <p className="text-[11px] text-muted-foreground">#{dashboardData.biggestNeed.rank} of {dashboardData.positionRanks[dashboardData.biggestNeed.position]?.total || "?"}</p>
-                  </div>
-                </div>
-              ) : null}
-              <div className="flex items-start gap-2">
-                <Shield className="h-3.5 w-3.5 text-primary/60 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs font-medium">Team Profile</p>
-                  <p className="text-[11px] text-muted-foreground capitalize">{dashboardData?.teamProfile || "Unknown"} • Avg age {dashboardData?.avgAge || "—"}</p>
-                </div>
-              </div>
-              <Link href={`/league/decision-engine?tab=exploit&id=${leagueIdFromUrl}`}>
-                <Button size="sm" variant="ghost" className="w-full text-xs gap-1 mt-1" data-testid="btn-exploit-report">
-                  Exploit Report <ChevronRight className="h-3.5 w-3.5" />
+            <div className="mt-4 pt-3 border-t border-border/20 flex items-center justify-center gap-2">
+              <Link href={`/league/decision-engine?id=${leagueIdFromUrl}`}>
+                <Button size="sm" variant="outline" className="gap-1.5 text-[11px] h-8 border-primary/30 text-primary" data-testid="btn-full-decision-engine">
+                  <Brain className="h-3.5 w-3.5" />
+                  Open Decision Engine
+                  <ArrowUpRight className="h-3 w-3" />
                 </Button>
               </Link>
             </div>
@@ -1393,189 +1551,258 @@ export default function HomePage() {
         </Card>
       </div>
 
-      {/* 3. RECOMMENDED ACTION PANEL - Full Width */}
-      {topRec && (
-        <Card className="border-primary/25 bg-gradient-to-r from-primary/8 via-primary/3 to-transparent" data-testid="card-recommended-action">
-          <CardContent className="py-6 px-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Zap className="h-4 w-4 text-primary" />
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-primary/70">Recommended Action</span>
-              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ml-auto ${getImpactLabel(topRec.priority).color}`} data-testid="badge-impact">
-                {getImpactLabel(topRec.priority).label} IMPACT
-              </Badge>
-            </div>
-            <h3 className="text-base font-bold mb-2" data-testid="text-top-action-title">{topRec.title}</h3>
-            <ul className="space-y-1.5 mb-4">
-              {topRec.description.split(/\.\s+/).filter(s => s.trim().length > 3).slice(0, 3).map((bullet, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                  <span className="text-primary/50 mt-0.5">•</span>
-                  <span>{bullet.endsWith(".") ? bullet : bullet + "."}</span>
-                </li>
-              ))}
-            </ul>
-            {topRec.action && (
-              <Link href={topRec.action}>
-                <Button size="sm" className="gap-1.5 bg-primary/15 text-primary border border-primary/30" data-testid="btn-top-action">
-                  Take Action <ArrowUpRight className="h-3.5 w-3.5" />
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Additional Recommendations - Bullet Format */}
-      {dashboardData?.recommendations && dashboardData.recommendations.length > 1 && (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {dashboardData.recommendations.slice(1).map((rec, idx) => {
-            const impact = getImpactLabel(rec.priority);
-            return (
-              <Card key={idx} className="border-border/30" data-testid={`card-rec-${idx + 1}`}>
-                <CardContent className="py-4 px-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold">{rec.title}</span>
-                    <Badge variant="outline" className={`text-[9px] px-1 py-0 ${impact.color}`}>
-                      {impact.label}
-                    </Badge>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">{rec.description}</p>
-                  {rec.action && (
-                    <Link href={rec.action}>
-                      <Button size="sm" variant="ghost" className="text-xs gap-1 mt-2 -ml-2 text-primary/70" data-testid={`btn-rec-${idx + 1}`}>
-                        Go <ArrowUpRight className="h-3 w-3" />
-                      </Button>
-                    </Link>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+      {/* ═══ 5. TITLE PATH VISUALIZATION ═══ */}
+      <div data-testid="section-title-path">
+        <div className="flex items-center gap-2 mb-4">
+          <Crown className="h-4 w-4 text-primary/60" />
+          <h2 className="text-xs font-bold uppercase tracking-[0.15em] text-primary/60">Title Path</h2>
         </div>
-      )}
-
-      {/* 4. AI INSIGHT - Structured Bullets */}
-      {insightBullets.length > 0 && (
-        <Card className="border-border/30" data-testid="card-ai-insight">
+        <Card className="border-border/30" data-testid="card-title-path">
           <CardContent className="py-5 px-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Brain className="h-4 w-4 text-primary/70" />
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-primary/60">AI Signals</span>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Mini Season Journey */}
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">Season Journey</span>
+                {leagueData?.seasonStats && leagueData.seasonStats.length > 0 ? (
+                  <div className="space-y-2">
+                    {leagueData.seasonStats.slice(-5).map((season, idx) => {
+                      const isChamp = season.isChampion;
+                      const isPlayoff = season.isPlayoffs;
+                      return (
+                        <div key={idx} className={`flex items-center gap-3 p-2.5 rounded-lg border ${
+                          isChamp ? "border-primary/40 bg-primary/5" : isPlayoff ? "border-green-500/20 bg-green-500/5" : "border-border/20 bg-muted/20"
+                        }`} data-testid={`season-row-${idx}`}>
+                          <span className="text-xs font-bold text-muted-foreground w-10">{season.season}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold">{season.wins}-{season.losses}{season.ties ? `-${season.ties}` : ""}</span>
+                              <span className="text-[10px] text-muted-foreground">#{season.rank}</span>
+                            </div>
+                          </div>
+                          {isChamp && <Trophy className="h-3.5 w-3.5 text-primary shrink-0" />}
+                          {isPlayoff && !isChamp && <Medal className="h-3.5 w-3.5 text-green-400 shrink-0" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Crown className="h-6 w-6 mx-auto mb-2 opacity-40" />
+                    <p className="text-xs">No season history available</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Performance Distribution */}
+              <div className="space-y-3">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">Performance Distribution</span>
+                <div className="space-y-4">
+                  {/* Win Distribution Curve */}
+                  <div className="bg-muted/20 rounded-lg p-4 border border-border/20">
+                    <svg width="100%" height="80" viewBox="0 0 200 80" preserveAspectRatio="xMidYMid meet" className="text-primary">
+                      {(() => {
+                        const stats = leagueData?.seasonStats || [];
+                        if (stats.length < 2) {
+                          return (
+                            <text x="100" y="45" textAnchor="middle" className="fill-muted-foreground text-[10px]" fontSize="10">
+                              Need more seasons
+                            </text>
+                          );
+                        }
+                        const winPcts = stats.map(s => s.wins / Math.max(s.wins + s.losses, 1));
+                        const buckets = [0, 0, 0, 0, 0]; // 0-20, 20-40, 40-60, 60-80, 80-100
+                        winPcts.forEach(pct => {
+                          const idx = Math.min(4, Math.floor(pct * 5));
+                          buckets[idx]++;
+                        });
+                        const maxBucket = Math.max(...buckets, 1);
+                        const barWidth = 30;
+                        const gap = 10;
+                        const startX = (200 - (5 * barWidth + 4 * gap)) / 2;
+                        const labels = ["0-20%", "20-40%", "40-60%", "60-80%", "80-100%"];
+                        return (
+                          <>
+                            {buckets.map((count, i) => {
+                              const barHeight = (count / maxBucket) * 50;
+                              const x = startX + i * (barWidth + gap);
+                              const y = 55 - barHeight;
+                              return (
+                                <g key={i}>
+                                  <rect
+                                    x={x}
+                                    y={y}
+                                    width={barWidth}
+                                    height={barHeight}
+                                    rx="3"
+                                    className={count > 0 ? "fill-primary/60" : "fill-muted/40"}
+                                  />
+                                  <text x={x + barWidth / 2} y={68} textAnchor="middle" className="fill-muted-foreground" fontSize="7">
+                                    {labels[i]}
+                                  </text>
+                                  {count > 0 && (
+                                    <text x={x + barWidth / 2} y={y - 3} textAnchor="middle" className="fill-primary" fontSize="9" fontWeight="bold">
+                                      {count}
+                                    </text>
+                                  )}
+                                </g>
+                              );
+                            })}
+                            <text x="100" y="78" textAnchor="middle" className="fill-muted-foreground" fontSize="7">
+                              Win Rate Distribution
+                            </text>
+                          </>
+                        );
+                      })()}
+                    </svg>
+                  </div>
+
+                  {/* Key Stats Summary */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-center p-2 rounded-lg bg-muted/20 border border-border/20">
+                      <span className="text-lg font-black text-gradient-gold">{leagueData?.championships || 0}</span>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Titles</p>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-muted/20 border border-border/20">
+                      <span className="text-lg font-black text-green-400">{leagueData?.playoffAppearances || 0}</span>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Playoffs</p>
+                    </div>
+                    <div className="text-center p-2 rounded-lg bg-muted/20 border border-border/20">
+                      <span className="text-lg font-black text-primary">{leagueData?.totalSeasons || 0}</span>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Seasons</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <ul className="space-y-2">
-              {insightBullets.map((bullet, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm text-muted-foreground leading-relaxed">
-                  <span className="text-primary/40 mt-0.5 shrink-0">•</span>
-                  <span>{bullet}</span>
-                </li>
-              ))}
-            </ul>
           </CardContent>
         </Card>
-      )}
+      </div>
 
-      {/* 5. ALERTS & SIGNALS - Collapsible */}
-      <Collapsible open={alertsOpen} onOpenChange={setAlertsOpen}>
-        <Card className="border-border/20" data-testid="card-alerts-signals">
-          <CollapsibleTrigger asChild>
-            <CardContent className="py-4 px-5 cursor-pointer">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-primary/60" />
-                  <span className="text-sm font-semibold">Alerts & Signals</span>
-                  {recentActivity.length > 0 && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5">{recentActivity.length}</Badge>
-                  )}
+      {/* ═══ 6. SIGNALS PANEL ═══ */}
+      <div data-testid="section-signals">
+        <Collapsible open={alertsOpen} onOpenChange={setAlertsOpen}>
+          <Card className="border-border/20" data-testid="card-signals">
+            <CollapsibleTrigger asChild>
+              <CardContent className="py-4 px-5 cursor-pointer">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-primary/60" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">Signals & Alerts</span>
+                    {(recentActivity.length + insightBullets.length + secondaryRecs.length) > 0 && (
+                      <Badge variant="secondary" className="text-[9px] px-1.5 h-4">
+                        {Math.min(3, recentActivity.length + insightBullets.length + secondaryRecs.length)}
+                      </Badge>
+                    )}
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${alertsOpen ? "rotate-180" : ""}`} />
                 </div>
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${alertsOpen ? "rotate-180" : ""}`} />
-              </div>
-            </CardContent>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="pt-0 pb-4 px-5">
-              {isLoadingActivity ? (
-                <div className="space-y-2">
-                  {[1, 2].map(i => <Skeleton key={i} className="h-10" />)}
-                </div>
-              ) : recentActivity.length > 0 ? (
-                <div className="space-y-2">
-                  {recentActivity.map((activity, idx) => (
-                    <div 
-                      key={activity.id} 
-                      className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/30"
-                      data-testid={`activity-row-${idx}`}
-                    >
-                      <div className="shrink-0 mt-0.5">
-                        {activity.type === "trade" ? (
-                          <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground" />
-                        ) : activity.type === "waiver" ? (
-                          <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
-                        ) : (
-                          <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                        )}
+              </CardContent>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0 pb-5 px-5 space-y-3">
+                {/* AI Insight Bullets */}
+                {insightBullets.slice(0, 3).map((bullet, i) => (
+                  <div key={`insight-${i}`} className="flex items-start gap-3 p-3 rounded-lg bg-muted/20 border border-border/20" data-testid={`signal-insight-${i}`}>
+                    <Brain className="h-3.5 w-3.5 text-primary/50 mt-0.5 shrink-0" />
+                    <p className="text-xs text-muted-foreground leading-relaxed">{bullet}</p>
+                  </div>
+                ))}
+
+                {/* Secondary Recommendations */}
+                {secondaryRecs.slice(0, Math.max(0, 3 - insightBullets.length)).map((rec, idx) => (
+                  <div key={`rec-${idx}`} className="flex items-start gap-3 p-3 rounded-lg bg-muted/20 border border-border/20" data-testid={`signal-rec-${idx}`}>
+                    <Zap className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${
+                      rec.priority === "high" ? "text-red-400" : rec.priority === "medium" ? "text-primary" : "text-muted-foreground"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold">{rec.title}</span>
+                        <Badge variant="outline" className={`text-[8px] px-1 py-0 ${
+                          rec.priority === "high" ? "border-red-500/30 text-red-400" : "border-border/40 text-muted-foreground"
+                        }`}>
+                          {rec.priority === "high" ? "HIGH" : rec.priority === "medium" ? "MED" : "LOW"}
+                        </Badge>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium" data-testid={`activity-message-${idx}`}>{activity.message}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{rec.description.split(".")[0]}.</p>
+                    </div>
+                    {rec.action && (
+                      <Link href={rec.action}>
+                        <ArrowUpRight className="h-3.5 w-3.5 text-primary/40 hover:text-primary shrink-0" />
+                      </Link>
+                    )}
+                  </div>
+                ))}
+
+                {/* Activity Signals */}
+                {recentActivity.length > 0 && (insightBullets.length + secondaryRecs.length) < 3 && (
+                  recentActivity.slice(0, Math.max(0, 3 - insightBullets.length - secondaryRecs.length)).map((activity, idx) => (
+                    <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/20 border border-border/20" data-testid={`signal-activity-${idx}`}>
+                      {activity.type === "trade" ? <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" /> :
+                       activity.type === "waiver" ? <UserPlus className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" /> :
+                       <Users className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium">{activity.message}</p>
                         <p className="text-[10px] text-muted-foreground">{new Date(activity.createdAt).toLocaleDateString()}</p>
                       </div>
-                      <Badge variant="outline" className="text-[9px] shrink-0 capitalize">{activity.type.replace("_", " ")}</Badge>
+                      <Badge variant="outline" className="text-[8px] shrink-0 capitalize">{activity.type.replace("_", " ")}</Badge>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-4">No recent alerts</p>
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+                  ))
+                )}
 
-      {/* Team Takeover (collapsed by default) */}
+                {(insightBullets.length + secondaryRecs.length + recentActivity.length) === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4">No signals detected</p>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      </div>
+
+      {/* ═══ SECONDARY: Team Takeover (collapsed) ═══ */}
       <Collapsible>
-        <Card className="border-border/20" data-testid="card-team-takeover">
+        <Card className="border-border/10" data-testid="card-team-takeover">
           <CollapsibleTrigger asChild>
-            <CardContent className="py-4 px-5 cursor-pointer">
+            <CardContent className="py-3 px-5 cursor-pointer">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-semibold">Team Takeover</span>
+                  <RefreshCw className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  <span className="text-xs text-muted-foreground">Team Takeover</span>
                   {leagueData?.takeoverSeason && (
-                    <Badge variant="outline" className="text-[10px]">From {leagueData.takeoverSeason}</Badge>
+                    <Badge variant="outline" className="text-[9px]">From {leagueData.takeoverSeason}</Badge>
                   )}
                 </div>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/50" />
               </div>
             </CardContent>
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent className="pt-0 pb-4 px-5">
               <p className="text-xs text-muted-foreground mb-3">
-                Took over an orphan team? Set your start date to exclude previous owner stats.
+                Set your start date to exclude previous owner stats.
               </p>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                <Select
-                  value={leagueData?.takeoverSeason?.toString() || "all"}
-                  onValueChange={(value) => {
-                    if (value === "all") {
-                      clearTakeoverMutation.mutate();
-                    } else {
-                      setTakeoverMutation.mutate(parseInt(value));
-                    }
-                  }}
-                  disabled={setTakeoverMutation.isPending || clearTakeoverMutation.isPending}
-                >
-                  <SelectTrigger className="w-[200px]" data-testid="select-takeover-season">
-                    <SelectValue placeholder="Select takeover season" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Seasons</SelectItem>
-                    {yearOptions.map((year) => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year} Season
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select
+                value={leagueData?.takeoverSeason?.toString() || "all"}
+                onValueChange={(value) => {
+                  if (value === "all") {
+                    clearTakeoverMutation.mutate();
+                  } else {
+                    setTakeoverMutation.mutate(parseInt(value));
+                  }
+                }}
+                disabled={setTakeoverMutation.isPending || clearTakeoverMutation.isPending}
+              >
+                <SelectTrigger className="w-[200px]" data-testid="select-takeover-season">
+                  <SelectValue placeholder="Select takeover season" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Seasons</SelectItem>
+                  {yearOptions.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year} Season
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </CardContent>
           </CollapsibleContent>
         </Card>
