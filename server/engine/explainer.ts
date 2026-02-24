@@ -142,18 +142,33 @@ export async function explainSeasonOutlook(result: SeasonOutlookResult): Promise
 }
 
 export async function explainPortfolio(portfolio: PortfolioAnalysis): Promise<string> {
-  const sys = `You are a roster construction analyst for competitive fantasy football. Explain the portfolio risk analysis in 2-3 sentences. Be specific about concentration risks and actionable improvements. Do NOT invent statistics.`;
+  const sys = `You are a quantitative portfolio risk analyst for competitive fantasy football. Write 3-4 bullet points. Each bullet MUST:
+- Start with a specific metric or number from the data
+- Quantify the impact on title equity or weekly variance
+- Name specific NFL teams or positions affected
+- End with one concrete, actionable trade/waiver move
+
+NEVER use phrases like "consider diversifying", "you might want to", "it's worth noting". Every sentence must contain a number. Be direct and prescriptive like a Bloomberg terminal alert.
+
+Format: Use bullet points starting with •`;
 
   const data = JSON.stringify({
-    diversificationScore: portfolio.diversificationScore.toFixed(2),
-    fragilityScore: portfolio.fragilityScore.toFixed(2),
-    volatilityScore: portfolio.volatilityScore.toFixed(2),
-    playoffLeverageScore: portfolio.playoffLeverageScore.toFixed(2),
-    boomBustClustering: portfolio.boomBustClustering.toFixed(2),
-    injuryFragilityIndex: portfolio.injuryFragilityIndex.toFixed(2),
+    archetype: portfolio.archetypeLabel,
+    archetypeDesc: portfolio.archetypeDescription,
+    diversification: portfolio.diversificationScore.toFixed(2),
+    fragility: portfolio.fragilityScore.toFixed(2),
+    volatility: portfolio.volatilityScore.toFixed(2),
+    playoffLeverage: portfolio.playoffLeverageScore.toFixed(2),
+    titleEquity: (portfolio.baselineTitleEquity * 100).toFixed(1) + '%',
+    weeklyVariance: portfolio.totalWeeklyVariance.toFixed(1),
     teamConcentration: portfolio.teamConcentration,
     positionalDepth: portfolio.positionalDepth,
-    recommendation: portfolio.recommendation,
+    stressTests: portfolio.stressTests.map(s => ({
+      team: s.team,
+      players: s.playerCount,
+      titleEquityDrop: (s.titleEquityDelta * 100).toFixed(1) + '%',
+    })),
+    topRisk: portfolio.recommendation,
   });
 
   return explainWithLLM(sys, data);
