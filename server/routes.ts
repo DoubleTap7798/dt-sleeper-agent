@@ -14630,7 +14630,7 @@ Respond in JSON format:
       };
 
       // --- 9. DRAFT CAPITAL VALUE (round-based) ---
-      const currentRound = Math.ceil(currentPick / board.totalTeams) || 1;
+      const currentRound = Math.ceil(currentPick / totalTeams) || 1;
       const draftCapitalValue = (round: number): number => {
         if (round <= 2) return 1.0;
         if (round <= 4) return 0.8;
