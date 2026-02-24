@@ -1,0 +1,215 @@
+Upgrade Draft Suggestion Engine to Dynasty-Aware Strategic Model (v2)
+
+We need to replace the current “top raw value” suggestion system with a contextual, strategy-aware draft intelligence model.
+
+The current system surfaces highest rated players (e.g., 7,700 Elite QBs repeatedly) without properly adjusting for:
+	•	Roster construction
+	•	Positional saturation
+	•	Draft round
+	•	League-wide positional runs
+	•	Dynasty window (contender vs rebuild)
+	•	Replacement value
+	•	Positional scarcity
+	•	Future pick value
+
+We are building a Dynasty / Dynasty Best Ball / Devy-first platform. The AI must behave like a sharp dynasty GM.
+
+⸻
+
+🧠 NEW SUGGESTION MODEL ARCHITECTURE
+
+1. Composite Draft Score (Replace Static Ranking)
+
+Instead of:
+finalScore = playerBaseScore
+
+Use:
+
+finalScore =
+(baseValue * 0.35) +
+(rosterNeedWeight * 0.20) +
+(positionalScarcity * 0.15) +
+(dynastyWindowFit * 0.10) +
+(draftCapitalValue * 0.10) +
+(tierDropoffImpact * 0.05) +
+(runDetectionImpact * 0.05)
+
+Weights adjustable.
+
+⸻
+
+2. Roster Construction Awareness
+
+Calculate:
+	•	Starters filled?
+	•	Depth at each position?
+	•	Age curve at each position?
+	•	Future positional cliffs?
+
+Example logic:
+
+IF user has:
+	•	3 RBs in first 5 rounds
+	•	2 starting QBs already rostered
+	•	Low WR depth
+
+THEN:
+	•	QB score gets heavily penalized
+	•	WR scarcity boost increases
+	•	Elite TE bump if only 0-1 rostered
+
+⸻
+
+3. Positional Saturation Penalty
+
+If roster count > optimal threshold:
+
+QB:
+	•	2QBs rostered → -25% score adjustment
+	•	3QBs rostered → -45%
+
+RB:
+	•	4 early RBs → moderate penalty
+
+Prevent nonsense like:
+	•	Suggesting 6th QB
+	•	Ignoring WR entirely
+
+⸻
+
+4. Tier-Based Draft Intelligence
+
+Group players into tiers.
+
+If:
+Current player is last in Tier A
+Next tier drop is significant
+
+Boost urgency score.
+
+Example:
+IF last Elite TE available
+AND TE scarcity high
+THEN + tier urgency modifier
+
+⸻
+
+5. League Draft Flow Detection
+
+Track last 10 picks:
+
+If:
+	•	4 QBs drafted in last 12 picks
+THEN:
+	•	QB scarcity rising
+	•	Slight urgency boost
+	•	But still adjusted by roster needs
+
+⸻
+
+6. Dynasty Window Profile
+
+Each team classified:
+	•	Win Now
+	•	Balanced
+	•	Rebuild
+	•	Productive Struggle
+
+Based on:
+	•	Age weighted roster value
+	•	Current projected points
+	•	Draft capital owned
+
+Then:
+
+Win Now:
+	•	Boost older producers
+	•	Slight discount on devy prospects
+
+Rebuild:
+	•	Boost 20–23 age assets
+	•	Boost future upside
+	•	Discount aging RBs
+
+⸻
+
+7. Replace “Elite” Badge With Contextual Badges
+
+Instead of:
+Elite
+
+Use dynamic tags:
+	•	“Win Now Anchor”
+	•	“Rebuild Cornerstone”
+	•	“Scarcity Play”
+	•	“Tier Break Risk”
+	•	“Value vs ADP”
+	•	“Depth Stabilizer”
+	•	“High Variance Bet”
+
+Make AI explain WHY.
+
+⸻
+
+8. Improve Recommendation UI Logic
+
+Instead of showing 3 QBs in a row:
+
+Enforce:
+	•	Max 2 per position in top 5 suggestions
+	•	At least 3 different positions shown
+	•	Include 1 “contrarian upside” pick
+
+⸻
+
+9. Add Pick Explanation Engine
+
+Each recommendation must generate:
+	•	Strategic reason
+	•	Roster impact
+	•	Dynasty fit
+	•	Risk profile
+	•	Alternative path if passed
+
+Example:
+
+Kyle Lauletta
+Strategic Fit: Luxury QB depth — not needed immediately
+Risk: Medium (developmental)
+Better Move: Consider WR for balance
+
+⸻
+
+10. Add Smart Guardrails
+
+IF:
+RosterNeed(QB) = Low
+AND QB count >= 2
+AND Round > 8
+
+Then:
+Apply heavy QB penalty unless massive value gap.
+
+⸻
+
+🚀 Additional Enhancements (High Level)
+
+Future upgrades:
+	•	Monte Carlo roster outcome simulation
+	•	Draft board future state projection
+	•	Trade-up suggestion trigger
+	•	Best Ball stack logic
+	•	Devy age curve modeling
+
+⸻
+
+🎯 Goal
+
+The AI must:
+	•	Think like a dynasty GM
+	•	Adjust based on team direction
+	•	Avoid static ranking spam
+	•	Surface intelligent, diversified suggestions
+	•	Explain reasoning clearly
+
+We are building elite dynasty intelligence — not a basic draft helper.
