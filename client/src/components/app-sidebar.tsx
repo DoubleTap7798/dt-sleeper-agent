@@ -148,9 +148,7 @@ const navigationGroups: NavGroup[] = [
     icon: ArrowLeftRight,
     subgroups: ["Trade Lab", "Market Intel", "Waivers"],
     items: [
-      { title: "Trade Evaluator", url: "/league/decision-engine?tab=trade", icon: RefreshCw, requiresLeague: true, premium: true, subgroup: "Trade Lab", description: "Monte Carlo trade analysis" },
-      { title: "Trade Calculator", url: "/league/trade", icon: RefreshCw, requiresLeague: true, premium: true, subgroup: "Trade Lab" },
-      { title: "Trade Analyzer AI", url: "/league/trade-analyzer", icon: Brain, requiresLeague: true, premium: true, subgroup: "Trade Lab" },
+      { title: "Trade Lab", url: "/league/trade-lab", icon: ArrowLeftRight, requiresLeague: true, premium: true, subgroup: "Trade Lab", description: "Value check, impact sim & AI strategy" },
       { title: "Trade History", url: "/league/history", icon: History, requiresLeague: true, premium: true, subgroup: "Trade Lab" },
       { title: "Player Trends", url: "/league/trends", icon: Activity, premium: true, subgroup: "Market Intel" },
       { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true, premium: true, subgroup: "Market Intel" },

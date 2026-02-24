@@ -51,6 +51,7 @@ import CollegeStatsPage from "@/pages/college-stats";
 import TransferPortalPage from "@/pages/transfer-portal";
 import TrashTalkPage from "@/pages/trash-talk";
 import TradeAnalyzerPage from "@/pages/trade-analyzer";
+import TradeLabPage from "@/pages/trade-lab";
 import MidSeasonReviewPage from "@/pages/mid-season-review";
 import TaxiOptimizerPage from "@/pages/taxi-optimizer";
 import MatchupHeatmapPage from "@/pages/matchup-heatmap";
@@ -260,12 +261,15 @@ function Router() {
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
-      <Route path="/league/trade">
+      <Route path="/league/trade-lab">
         <AuthenticatedRoute>
           <LeagueLayout>
-            <TradeCalculatorPage />
+            <TradeLabPage />
           </LeagueLayout>
         </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/trade">
+        <RedirectTo path="/league/trade-lab?tab=quick-check" />
       </Route>
       <Route path="/league/history">
         <AuthenticatedRoute>
@@ -455,11 +459,7 @@ function Router() {
         <RedirectTo path="/league/lineup-lab?tab=boom-bust" />
       </Route>
       <Route path="/league/trade-analyzer">
-        <AuthenticatedRoute>
-          <LeagueLayout>
-            <TradeAnalyzerPage />
-          </LeagueLayout>
-        </AuthenticatedRoute>
+        <RedirectTo path="/league/trade-lab?tab=strategy" />
       </Route>
       <Route path="/league/mid-season-review">
         <AuthenticatedRoute>

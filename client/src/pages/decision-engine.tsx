@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useSearch } from "wouter";
+import { useSearch, useLocation } from "wouter";
 import { useSelectedLeague } from "./league-layout";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { PremiumGate } from "@/components/premium-gate";
@@ -36,7 +36,7 @@ type TabId = "matchup" | "lineup" | "trade" | "faab" | "season" | "portfolio" | 
 const TABS: { id: TabId; label: string; icon: any }[] = [
   { id: "matchup", label: "Matchup Sim", icon: Swords },
   { id: "lineup", label: "Lineup Optimizer", icon: LayoutList },
-  { id: "trade", label: "Trade Evaluator", icon: ArrowRightLeft },
+
   { id: "faab", label: "FAAB Optimizer", icon: DollarSign },
   { id: "season", label: "Season Outlook", icon: CalendarRange },
   { id: "portfolio", label: "Portfolio Risk", icon: ShieldAlert },
@@ -1156,15 +1156,24 @@ export default function DecisionEnginePage() {
   const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
   const searchString = useSearch();
+  const [, setLocation] = useLocation();
   
   const validTabs: TabId[] = ["matchup", "lineup", "trade", "faab", "season", "portfolio", "championship", "exploit", "regression", "equity"];
   const urlParams = new URLSearchParams(searchString);
   const tabFromUrl = urlParams.get("tab") as TabId | null;
-  const resolvedTab = tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : "matchup";
+
+  useEffect(() => {
+    if (tabFromUrl === "trade") {
+      const id = urlParams.get("id");
+      setLocation(`/league/trade-lab?tab=impact${id ? `&id=${id}` : ""}`);
+    }
+  }, [tabFromUrl]);
+
+  const resolvedTab = tabFromUrl && validTabs.includes(tabFromUrl) && tabFromUrl !== "trade" ? tabFromUrl : "matchup";
   const [activeTab, setActiveTab] = useState<TabId>(resolvedTab);
   
   useEffect(() => {
-    if (tabFromUrl && validTabs.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+    if (tabFromUrl && validTabs.includes(tabFromUrl) && tabFromUrl !== "trade" && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
   }, [tabFromUrl]);
@@ -1213,7 +1222,7 @@ export default function DecisionEnginePage() {
 
         {activeTab === "matchup" && <MatchupTab leagueId={leagueId} />}
         {activeTab === "lineup" && <LineupTab leagueId={leagueId} />}
-        {activeTab === "trade" && <TradeTab leagueId={leagueId} />}
+        
         {activeTab === "faab" && <FaabTab leagueId={leagueId} />}
         {activeTab === "season" && <SeasonTab leagueId={leagueId} />}
         {activeTab === "portfolio" && <PortfolioTab leagueId={leagueId} />}
