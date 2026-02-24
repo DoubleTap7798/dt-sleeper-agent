@@ -205,10 +205,12 @@ const draftGroup: NavGroup = {
   ],
 };
 
-const utilityItems: NavItem[] = [
+const socialItems: NavItem[] = [
   { title: "Trash Talk", url: "/league/trash-talk", icon: MessageSquare, premium: true, requiresLeague: true },
   { title: "Community Chat", url: "/chat", icon: MessageSquare },
-  { title: "All Leagues $", url: "/accounting", icon: DollarSign },
+];
+
+const settingsToolsItems: NavItem[] = [
   { title: "Accounting", url: "/league/accounting", icon: DollarSign, requiresLeague: true },
   { title: "League Info", url: "/league/info", icon: Settings, requiresLeague: true },
   { title: "History", url: "/league/timeline", icon: Clock, requiresLeague: true },
@@ -493,13 +495,48 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
           );
         })}
 
+        {socialItems.filter(item => !item.requiresLeague || !isAllLeagues).length > 0 && (
+          <SidebarGroup className="py-1">
+            <SidebarGroupLabel className="px-4 py-1 text-[10px] uppercase tracking-widest text-sidebar-foreground/40">
+              Social
+            </SidebarGroupLabel>
+            <SidebarGroupContent className="px-2">
+              <SidebarMenu>
+                {socialItems
+                  .filter(item => !item.requiresLeague || !isAllLeagues)
+                  .map((item) => {
+                  const isActive = location === item.url;
+                  const linkUrl = leagueId ? `${item.url}?id=${leagueId}` : item.url;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}
+                      >
+                        <Link href={linkUrl}>
+                          <item.icon className="h-3.5 w-3.5" />
+                          <span className="flex-1 text-[13px]">{item.title}</span>
+                          {item.premium && !isPremium && (
+                            <Crown className="h-3 w-3 text-primary/60 shrink-0" />
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
         <SidebarGroup className="py-1">
           <SidebarGroupLabel className="px-4 py-1 text-[10px] uppercase tracking-widest text-sidebar-foreground/40">
-            More
+            Settings / Tools
           </SidebarGroupLabel>
           <SidebarGroupContent className="px-2">
             <SidebarMenu>
-              {utilityItems
+              {settingsToolsItems
                 .filter(item => !item.requiresLeague || !isAllLeagues)
                 .map((item) => {
                 const isActive = location === item.url;
