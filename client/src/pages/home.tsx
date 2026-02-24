@@ -857,58 +857,51 @@ export default function HomePage() {
         </div>
 
         <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-          <Card className="hover-glow" data-testid="card-total-leagues">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium">Career Seasons</CardTitle>
-              <Calendar className="h-4 w-4 text-primary/60" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-gradient-gold" data-testid="stat-total-leagues">
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/8 to-transparent" data-testid="card-total-leagues">
+            <CardContent className="py-4 px-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/60 mb-1">Career Seasons</p>
+              <div className="text-2xl font-bold text-gradient-gold" data-testid="stat-total-leagues">
                 {careerData?.totalSeasons || careerData?.leagueStats?.length || 0}
               </div>
-              <p className="text-xs text-muted-foreground">{careerData?.totalLeagues || leagues?.length || 0} active leagues</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{careerData?.totalLeagues || leagues?.length || 0} active leagues</p>
             </CardContent>
           </Card>
 
-          <Card className="hover-glow" data-testid="card-record">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium">Overall Record</CardTitle>
-              <TrendingUp className="h-4 w-4 text-primary/60" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-record">
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/8 to-transparent" data-testid="card-record">
+            <CardContent className="py-4 px-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/60 mb-1">Overall Record</p>
+              <div className="text-2xl font-bold" data-testid="stat-record">
                 {careerData?.totalWins || 0}-{careerData?.totalLosses || 0}
                 {careerData?.totalTies ? `-${careerData.totalTies}` : ""}
               </div>
-              <p className="text-xs text-muted-foreground">{winRate}% win rate</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className={`text-xs font-medium ${Number(winRate) >= 60 ? "text-green-400" : Number(winRate) >= 45 ? "text-muted-foreground" : "text-red-400"}`}>
+                  {winRate}%
+                </span>
+                <span className="text-[10px] text-muted-foreground">win rate</span>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="hover-glow" data-testid="card-championships">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium">Championships</CardTitle>
-              <Trophy className="h-4 w-4 text-primary/60" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold text-gradient-gold" data-testid="stat-championships">
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/8 to-transparent" data-testid="card-championships">
+            <CardContent className="py-4 px-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/60 mb-1">Championships</p>
+              <div className="text-2xl font-bold text-gradient-gold" data-testid="stat-championships">
                 {careerData?.championships || 0}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground mt-1">
                 {careerData?.runnerUps ? `${careerData.runnerUps} runner-ups` : "Titles won"}
               </p>
             </CardContent>
           </Card>
 
-          <Card className="hover-glow" data-testid="card-playoffs">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium">Playoff Apps</CardTitle>
-              <Medal className="h-4 w-4 text-primary/60" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold" data-testid="stat-playoffs">
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/8 to-transparent" data-testid="card-playoffs">
+            <CardContent className="py-4 px-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/60 mb-1">Playoff Apps</p>
+              <div className="text-2xl font-bold" data-testid="stat-playoffs">
                 {careerData?.playoffAppearances || 0}
               </div>
-              <p className="text-xs text-muted-foreground">Total appearances</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Total appearances</p>
             </CardContent>
           </Card>
         </div>
@@ -1089,8 +1082,6 @@ export default function HomePage() {
   }
 
   // SINGLE LEAGUE VIEW - Action-First Dashboard
-  // Deduplicate recent activity by transactionId to avoid showing same transaction twice
-  // Use id as fallback if transactionId is missing
   const recentActivity = (() => {
     const notifications = notificationsData?.notifications || [];
     const seen = new Set<string>();
@@ -1102,25 +1093,27 @@ export default function HomePage() {
     }).slice(0, 5);
   })();
 
+  const topRec = dashboardData?.recommendations?.[0];
+
   return (
-    <div className="space-y-6">
-      {/* Header with league info */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-8">
+      {/* Compact Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10 ring-1 ring-primary/15 shadow-[0_0_10px_rgba(217,169,78,0.08)]">
+          <Avatar className="h-9 w-9 ring-1 ring-primary/15">
             <AvatarImage 
               src={selectedLeague?.avatar ? `https://sleepercdn.com/avatars/${selectedLeague.avatar}` : undefined}
               alt={selectedLeague?.name || "League"}
             />
-            <AvatarFallback className="text-sm font-bold bg-primary/10 text-primary">
+            <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
               {(selectedLeague?.name || leagueData?.leagueName || "L").slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-xl font-bold tracking-tight" data-testid="text-page-title">
+            <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title">
               {selectedLeague?.name || leagueData?.leagueName || "Dashboard"}
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {selectedLeague?.season} Season
             </p>
           </div>
@@ -1130,16 +1123,92 @@ export default function HomePage() {
         )}
       </div>
 
-      {dashboardData?.weeklyBlurb && (
-        <Card className="border-primary/20 bg-gradient-to-r from-primary/8 via-primary/4 to-transparent shadow-[0_0_20px_rgba(217,169,78,0.06)]" data-testid="card-weekly-insight">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <div className="p-1.5 rounded-lg bg-primary/15">
-                <Zap className="h-4 w-4 text-primary shrink-0" />
+      {/* Hero Section: Key Metrics Strip */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_24px_rgba(217,169,78,0.1)]" data-testid="card-hero-record">
+          <CardContent className="py-4 px-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-1">Record</p>
+            <div className="text-2xl font-bold text-gradient-gold" data-testid="stat-league-record">
+              {leagueData?.totalWins || 0}-{leagueData?.totalLosses || 0}{leagueData?.totalTies ? `-${leagueData.totalTies}` : ""}
+            </div>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className={`text-xs font-medium ${Number(winRate) >= 60 ? "text-green-400" : Number(winRate) >= 45 ? "text-muted-foreground" : "text-red-400"}`}>
+                {winRate}%
+              </span>
+              <span className="text-[10px] text-muted-foreground">win rate</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_24px_rgba(217,169,78,0.1)]" data-testid="card-hero-championships">
+          <CardContent className="py-4 px-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-1">Championships</p>
+            <div className="text-2xl font-bold text-gradient-gold" data-testid="stat-league-championships">
+              {leagueData?.championships || 0}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              {leagueData?.runnerUps ? `${leagueData.runnerUps} runner-ups` : "Titles won"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_24px_rgba(217,169,78,0.1)]" data-testid="card-hero-playoffs">
+          <CardContent className="py-4 px-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-1">Playoff Apps</p>
+            <div className="text-2xl font-bold" data-testid="stat-league-playoffs">
+              {leagueData?.playoffAppearances || 0}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">{leagueData?.totalSeasons || 1} seasons</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_24px_rgba(217,169,78,0.1)]" data-testid="card-hero-profile">
+          <CardContent className="py-4 px-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-1">Team Profile</p>
+            <div className="text-lg font-bold capitalize" data-testid="stat-team-profile">
+              {dashboardData?.teamProfile || "—"}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">{dashboardData?.playerCount || 0} rostered</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recommended Action Banner */}
+      {topRec && (
+        <Card className="border-primary/20 bg-gradient-to-r from-primary/8 via-primary/4 to-transparent" data-testid="card-top-action">
+          <CardContent className="py-3.5 px-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`p-1.5 rounded-lg shrink-0 ${topRec.priority === "high" ? "bg-red-500/15 text-red-400" : topRec.priority === "medium" ? "bg-yellow-500/15 text-yellow-400" : "bg-blue-500/15 text-blue-400"}`}>
+                  <Zap className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70">Recommended Action</p>
+                  <p className="text-sm font-medium truncate">{topRec.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">{topRec.description}</p>
+                </div>
               </div>
+              {topRec.action && (
+                <Link href={topRec.action}>
+                  <Button size="sm" variant="outline" className="shrink-0 gap-1" data-testid="btn-top-action">
+                    Go <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Weekly Insight - condensed */}
+      {dashboardData?.weeklyBlurb && (
+        <Card className="border-border/50" data-testid="card-weekly-insight">
+          <CardContent className="py-3.5 px-4">
+            <div className="flex items-start gap-3">
+              <Brain className="h-4 w-4 text-primary/70 mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs font-semibold text-primary/80 uppercase tracking-wider mb-1">Weekly Insight</p>
-                <p className="text-sm leading-relaxed">{dashboardData.weeklyBlurb}</p>
+                <p className="text-[10px] font-semibold text-primary/60 uppercase tracking-widest mb-0.5">AI Insight</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">{dashboardData.weeklyBlurb}</p>
               </div>
             </div>
           </CardContent>
@@ -1246,18 +1315,18 @@ export default function HomePage() {
       {/* Biggest Need Alert */}
       {dashboardData?.biggestNeed && dashboardData.biggestNeed.rank > (dashboardData.positionRanks[dashboardData.biggestNeed.position]?.total || 10) / 2 && (
         <Card className="border-yellow-500/30 bg-yellow-500/5" data-testid="card-biggest-need">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                <div>
+          <CardContent className="py-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
+                <div className="min-w-0">
                   <p className="font-medium text-sm">Biggest Need: {dashboardData.biggestNeed.position}</p>
-                  <p className="text-xs text-muted-foreground">{dashboardData.biggestNeed.message}</p>
+                  <p className="text-xs text-muted-foreground truncate">{dashboardData.biggestNeed.message}</p>
                 </div>
               </div>
               <Link href={`/league/waivers?id=${leagueIdFromUrl}&position=${dashboardData.biggestNeed.position}`}>
-                <Button size="sm" variant="outline" data-testid="btn-address-need">
-                  Find help <ChevronRight className="h-4 w-4 ml-1" />
+                <Button size="sm" variant="outline" className="shrink-0 gap-1" data-testid="btn-address-need">
+                  Find help <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </Link>
             </div>
@@ -1353,64 +1422,6 @@ export default function HomePage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Quick Stats Row */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Card data-testid="card-league-record">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-xs font-medium">League Record</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold" data-testid="stat-league-record">
-              {leagueData?.totalWins || 0}-{leagueData?.totalLosses || 0}
-              {leagueData?.totalTies ? `-${leagueData.totalTies}` : ""}
-            </div>
-            <p className="text-xs text-muted-foreground">{winRate}% win rate</p>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-league-championships">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-xs font-medium">Championships</CardTitle>
-            <Trophy className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold" data-testid="stat-league-championships">
-              {leagueData?.championships || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {leagueData?.runnerUps ? `${leagueData.runnerUps} runner-ups` : "Titles"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-league-playoffs">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-xs font-medium">Playoff Apps</CardTitle>
-            <Medal className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold" data-testid="stat-league-playoffs">
-              {leagueData?.playoffAppearances || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">Appearances</p>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-league-seasons">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-xs font-medium">Seasons</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold" data-testid="stat-league-seasons">
-              {leagueData?.totalSeasons || 1}
-            </div>
-            <p className="text-xs text-muted-foreground">In this league</p>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Recent Activity */}
       <Card data-testid="card-recent-activity">

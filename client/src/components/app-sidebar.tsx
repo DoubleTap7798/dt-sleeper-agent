@@ -109,106 +109,112 @@ interface NavGroup {
   icon: any;
   items: NavItem[];
   requiresLeague?: boolean;
+  isDevy?: boolean;
 }
 
-// Consolidated navigation structure
 const navigationGroups: NavGroup[] = [
   {
-    title: "League",
-    icon: Trophy,
-    requiresLeague: true,
+    title: "Command Center",
+    icon: LayoutDashboard,
     items: [
-      { title: "Activity Feed", url: "/league/activity", icon: Activity, requiresLeague: false },
-      { title: "Standings", url: "/league/standings", icon: BarChart3, requiresLeague: true },
+      { title: "Dashboard", url: "/league", icon: LayoutDashboard, description: "Home & overview" },
+      { title: "League Overview", url: "/league/standings", icon: BarChart3, requiresLeague: true },
+      { title: "Title Equity", url: "/league/decision-engine?tab=equity", icon: TrendingUp, requiresLeague: true, premium: true, description: "Championship odds tracker" },
+      { title: "AI Assistant", url: "/league/ai-chat", icon: Bot, premium: true, description: "AI fantasy advisor" },
       { title: "Power Rankings", url: "/league/power-rankings", icon: Zap, requiresLeague: true },
-      { title: "Season Projections", url: "/league/season-projections", icon: TrendingUp, requiresLeague: true, premium: true },
-      { title: "Playoff Bracket", url: "/league/bracket", icon: GitBranch, requiresLeague: true },
-      { title: "Rivalries", url: "/league/rivalries", icon: Swords, requiresLeague: true },
+      { title: "Activity Feed", url: "/league/activity", icon: Activity },
       { title: "Trophy Room", url: "/league/trophies", icon: Trophy, requiresLeague: true },
-      { title: "Accounting", url: "/league/accounting", icon: DollarSign, requiresLeague: true },
-      { title: "Predictions", url: "/league/predictions", icon: Target, requiresLeague: true, premium: true },
-      { title: "League Info", url: "/league/info", icon: Settings, requiresLeague: true },
-      { title: "History", url: "/league/timeline", icon: Clock, requiresLeague: true },
+      { title: "Leaderboard", url: "/leaderboard", icon: Crown },
+      { title: "NFL", url: "/league/nfl", icon: Shield },
     ],
   },
   {
-    title: "My Team",
-    icon: Users,
+    title: "Game Day Engine",
+    icon: Cpu,
     requiresLeague: true,
     items: [
-      { title: "Roster", url: "/league/roster", icon: Users, requiresLeague: true },
-      { title: "Lineup Advice", url: "/league/lineup", icon: Target, requiresLeague: true, premium: true },
+      { title: "Matchup Simulator", url: "/league/matchups", icon: Gamepad2, requiresLeague: true },
       { title: "Lineup Optimizer", url: "/league/lineup-optimizer", icon: Zap, requiresLeague: true, premium: true },
-      { title: "Matchups", url: "/league/matchups", icon: Gamepad2, requiresLeague: true },
+      { title: "Lineup Advice", url: "/league/lineup", icon: Target, requiresLeague: true, premium: true },
       { title: "Matchup Heat Map", url: "/league/matchup-heatmap", icon: MapIcon, requiresLeague: true, premium: true },
+      { title: "Boom/Bust Cards", url: "/league/boom-bust", icon: Gauge, requiresLeague: true, premium: true },
       { title: "Schedule", url: "/league/schedule", icon: CalendarDays, requiresLeague: true },
       { title: "Injury Report", url: "/league/injuries", icon: ShieldAlert, requiresLeague: true },
-      { title: "Taxi Optimizer", url: "/league/taxi-optimizer", icon: ListChecks, requiresLeague: true, premium: true },
-      { title: "Mid-Season Review", url: "/league/mid-season-review", icon: Gauge, requiresLeague: true, premium: true },
-      { title: "Watchlist", url: "/league/watchlist", icon: Eye, premium: true },
-      { title: "Team Report", url: "/league/team-report", icon: Share2, requiresLeague: true, premium: true },
+      { title: "Roster", url: "/league/roster", icon: Users, requiresLeague: true },
+      { title: "Predictions", url: "/league/predictions", icon: Target, requiresLeague: true, premium: true },
     ],
   },
   {
-    title: "Players",
-    icon: Search,
+    title: "Market & Trades",
+    icon: ArrowLeftRight,
     items: [
-      { title: "NFL Players", url: "/league/players", icon: UserCircle },
-      { title: "Stat Leaders", url: "/league/stat-leaders", icon: BarChart3 },
-      { title: "Waiver Wire", url: "/league/waivers", icon: UserCog, requiresLeague: true, premium: true },
-      { title: "Player Trends", url: "/league/trends", icon: Activity, premium: true },
-      { title: "Usage Trends", url: "/league/usage-trends", icon: Activity, requiresLeague: true, premium: true },
-      { title: "Compare", url: "/league/compare", icon: GitCompare, premium: true },
-      { title: "Boom/Bust Cards", url: "/league/boom-bust", icon: Gauge, requiresLeague: true, premium: true },
-      { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true, premium: true },
-      { title: "Depth Charts", url: "/league/depth-chart", icon: Layers },
-    ],
-  },
-  {
-    title: "Devy Command Center",
-    icon: GraduationCap,
-    items: [
-      { title: "Rankings", url: "/league/devy/rankings", icon: Layers, premium: true },
-      { title: "My Portfolio", url: "/league/devy/portfolio", icon: Briefcase, premium: true },
-      { title: "Market Intel", url: "/league/devy/market", icon: Flame, premium: true },
-      { title: "College Stats", url: "/league/devy/college-stats", icon: BarChart3, premium: true },
-      { title: "Transfer Portal", url: "/league/devy/transfer-portal", icon: ArrowLeftRight, premium: true },
-    ],
-  },
-  {
-    title: "Draft Central",
-    icon: Target,
-    items: [
-      { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
-      { title: "Draft Command Center", url: "/league/live-draft", icon: Radio, requiresLeague: true, premium: true },
-      { title: "Draft Recap", url: "/league/draft-recap", icon: Award, requiresLeague: true, premium: true },
-      { title: "Pick Values", url: "/league/draft-pick-values", icon: TrendingUp },
-    ],
-  },
-  {
-    title: "Trades",
-    icon: RefreshCw,
-    requiresLeague: true,
-    items: [
+      { title: "Trade Evaluator", url: "/league/decision-engine?tab=trade", icon: RefreshCw, requiresLeague: true, premium: true, description: "Monte Carlo trade analysis" },
       { title: "Trade Calculator", url: "/league/trade", icon: RefreshCw, requiresLeague: true, premium: true },
       { title: "Trade Analyzer AI", url: "/league/trade-analyzer", icon: Brain, requiresLeague: true, premium: true },
       { title: "Trade History", url: "/league/history", icon: History, requiresLeague: true, premium: true },
+      { title: "NFL Players", url: "/league/players", icon: UserCircle },
+      { title: "Stat Leaders", url: "/league/stat-leaders", icon: BarChart3 },
+      { title: "Player Trends", url: "/league/trends", icon: Activity, premium: true },
+      { title: "Compare", url: "/league/compare", icon: GitCompare, premium: true },
+      { title: "Waiver Wire", url: "/league/waivers", icon: UserCog, requiresLeague: true, premium: true },
+      { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true, premium: true },
+      { title: "Depth Charts", url: "/league/depth-chart", icon: Layers },
+      { title: "Manager Profile", url: "/league/manager-profile", icon: Brain, requiresLeague: true },
+      { title: "Watchlist", url: "/league/watchlist", icon: Eye, premium: true },
+    ],
+  },
+  {
+    title: "Season Strategy",
+    icon: Trophy,
+    requiresLeague: true,
+    items: [
+      { title: "Championship Path", url: "/league/decision-engine?tab=championship", icon: Trophy, requiresLeague: true, premium: true, description: "Path to the title" },
+      { title: "Portfolio Risk", url: "/league/decision-engine?tab=portfolio", icon: ShieldAlert, requiresLeague: true, premium: true },
+      { title: "FAAB Optimizer", url: "/league/decision-engine?tab=faab", icon: DollarSign, requiresLeague: true, premium: true },
+      { title: "Exploit Report", url: "/league/decision-engine?tab=exploit", icon: Target, requiresLeague: true, premium: true },
+      { title: "Season Projections", url: "/league/season-projections", icon: TrendingUp, requiresLeague: true, premium: true },
+      { title: "Playoff Bracket", url: "/league/bracket", icon: GitBranch, requiresLeague: true },
+      { title: "Rivalries", url: "/league/rivalries", icon: Swords, requiresLeague: true },
+      { title: "Mid-Season Review", url: "/league/mid-season-review", icon: Gauge, requiresLeague: true, premium: true },
+      { title: "Taxi Optimizer", url: "/league/taxi-optimizer", icon: ListChecks, requiresLeague: true, premium: true },
+      { title: "Team Report", url: "/league/team-report", icon: Share2, requiresLeague: true, premium: true },
+      { title: "Usage Trends", url: "/league/usage-trends", icon: Activity, requiresLeague: true, premium: true },
     ],
   },
 ];
 
-// Standalone items (not grouped)
-const standaloneItems: NavItem[] = [
-  { title: "Home", url: "/league", icon: LayoutDashboard, description: "Dashboard & actions" },
-  { title: "AI Assistant", url: "/league/ai-chat", icon: Bot, description: "AI fantasy football advisor", premium: true },
-  { title: "Decision Engine", url: "/league/decision-engine", icon: Cpu, description: "Monte Carlo simulations & optimization", premium: true, requiresLeague: true },
-  { title: "Manager Profile", url: "/league/manager-profile", icon: Brain, description: "AI-learned trading personality", requiresLeague: true },
-  { title: "Trash Talk", url: "/league/trash-talk", icon: MessageSquare, description: "AI-powered league roasts", premium: true, requiresLeague: true },
-  { title: "Leaderboard", url: "/leaderboard", icon: Crown, description: "Global user rankings" },
-  { title: "Community Chat", url: "/chat", icon: MessageSquare, description: "Chat with other users" },
-  { title: "All Leagues $", url: "/accounting", icon: DollarSign, description: "Financial summary across all leagues" },
-  { title: "NFL", url: "/league/nfl", icon: Shield, description: "News, schedule & standings" },
-  { title: "Notifications", url: "/settings/notifications", icon: Bell, description: "Alert preferences" },
+const devyGroup: NavGroup = {
+  title: "Devy Command Center",
+  icon: GraduationCap,
+  isDevy: true,
+  items: [
+    { title: "Rankings", url: "/league/devy/rankings", icon: Layers, premium: true },
+    { title: "My Portfolio", url: "/league/devy/portfolio", icon: Briefcase, premium: true },
+    { title: "Market Intel", url: "/league/devy/market", icon: Flame, premium: true },
+    { title: "College Stats", url: "/league/devy/college-stats", icon: BarChart3, premium: true },
+    { title: "Transfer Portal", url: "/league/devy/transfer-portal", icon: ArrowLeftRight, premium: true },
+  ],
+};
+
+const draftGroup: NavGroup = {
+  title: "Draft Central",
+  icon: Target,
+  items: [
+    { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
+    { title: "Draft Command Center", url: "/league/live-draft", icon: Radio, requiresLeague: true, premium: true },
+    { title: "Draft Recap", url: "/league/draft-recap", icon: Award, requiresLeague: true, premium: true },
+    { title: "Pick Values", url: "/league/draft-pick-values", icon: TrendingUp },
+  ],
+};
+
+const utilityItems: NavItem[] = [
+  { title: "Trash Talk", url: "/league/trash-talk", icon: MessageSquare, premium: true, requiresLeague: true },
+  { title: "Community Chat", url: "/chat", icon: MessageSquare },
+  { title: "All Leagues $", url: "/accounting", icon: DollarSign },
+  { title: "Accounting", url: "/league/accounting", icon: DollarSign, requiresLeague: true },
+  { title: "League Info", url: "/league/info", icon: Settings, requiresLeague: true },
+  { title: "History", url: "/league/timeline", icon: Clock, requiresLeague: true },
+  { title: "Notifications", url: "/settings/notifications", icon: Bell },
 ];
 
 export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChange }: AppSidebarProps) {
@@ -217,7 +223,7 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
   const { user, logout } = useAuth();
   const { isPremium, isGrandfathered, isLoading: subLoading } = useSubscription();
   
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["League", "My Team"]));
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["Command Center"]));
   const [userClosedGroups, setUserClosedGroups] = useState<Set<string>>(new Set());
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -263,13 +269,13 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
     return user?.email?.[0]?.toUpperCase() || "U";
   };
 
-  // Filter groups based on whether a league is selected and devy settings
-  const filteredNavGroups = navigationGroups.filter(group => {
-    if (group.title === "Devy Command Center" && !devyEnabled) return false;
-    return true;
-  });
+  const allGroups = [
+    ...navigationGroups,
+    draftGroup,
+    ...(devyEnabled ? [devyGroup] : []),
+  ];
 
-  const visibleGroups = filteredNavGroups.filter(group => 
+  const visibleGroups = allGroups.filter(group => 
     !group.requiresLeague || !isAllLeagues
   );
 
@@ -395,48 +401,18 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Standalone Navigation Items */}
-        <SidebarGroup>
-          <SidebarGroupContent className="px-2">
-            <SidebarMenu>
-              {standaloneItems.map((item) => {
-                const isActive = location === item.url;
-                const linkUrl = leagueId ? `${item.url}?id=${leagueId}` : item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.description}
-                      data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}
-                    >
-                      <Link href={linkUrl}>
-                        <item.icon className="h-4 w-4" />
-                        <span className="flex-1">{item.title}</span>
-                        {item.premium && !isPremium && (
-                          <Crown className="h-3 w-3 text-primary/60 shrink-0" data-testid={`icon-premium-${item.title.toLowerCase().replace(/\s/g, "-")}`} />
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Grouped Navigation */}
         {visibleGroups.map((group) => {
           const isOpen = openGroups.has(group.title);
           const hasActiveItem = group.items.some(item => isItemActive(item.url));
           const visibleItems = group.items.filter(item => !item.requiresLeague || !isAllLeagues);
           
           if (visibleItems.length === 0) return null;
+          const isExpanded = userClosedGroups.has(group.title) ? false : (isOpen || hasActiveItem);
 
           return (
-            <SidebarGroup key={group.title}>
+            <SidebarGroup key={group.title} className="py-1">
               <SidebarGroupContent className="px-2">
-                <Collapsible open={userClosedGroups.has(group.title) ? false : (isOpen || hasActiveItem)} onOpenChange={(open) => toggleGroup(group.title, open)}>
+                <Collapsible open={isExpanded} onOpenChange={(open) => toggleGroup(group.title, open)}>
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <CollapsibleTrigger asChild>
@@ -444,16 +420,16 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                           className={hasActiveItem ? "bg-sidebar-accent" : ""}
                           data-testid={`nav-group-${group.title.toLowerCase().replace(/\s/g, "-")}`}
                         >
-                          <group.icon className="h-4 w-4" />
-                          <span className="font-medium">{group.title}</span>
-                          <ChevronRight className={`ml-auto h-4 w-4 transition-transform ${(userClosedGroups.has(group.title) ? false : (isOpen || hasActiveItem)) ? "rotate-90" : ""}`} />
+                          <group.icon className="h-4 w-4 text-primary/80" />
+                          <span className="font-semibold text-sm tracking-wide">{group.title}</span>
+                          <ChevronRight className={`ml-auto h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
                         </SidebarMenuButton>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <SidebarMenuSub>
                           {visibleItems.map((item) => {
                             const isActive = isItemActive(item.url);
-                            const linkUrl = leagueId ? `${item.url}?id=${leagueId}` : item.url;
+                            const linkUrl = leagueId ? (item.url.includes("?") ? `${item.url}&id=${leagueId}` : `${item.url}?id=${leagueId}`) : item.url;
                             return (
                               <SidebarMenuSubItem key={item.title}>
                                 <SidebarMenuSubButton
@@ -461,11 +437,11 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
                                   isActive={isActive}
                                   data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}
                                 >
-                                  <Link href={linkUrl}>
-                                    <item.icon className="h-4 w-4" />
-                                    <span className="flex-1">{item.title}</span>
+                                  <Link href={linkUrl} title={item.description}>
+                                    <item.icon className="h-3.5 w-3.5" />
+                                    <span className="flex-1 text-[13px]">{item.title}</span>
                                     {item.premium && !isPremium && (
-                                      <Crown className="h-3 w-3 text-primary/60 shrink-0" data-testid={`icon-premium-${item.title.toLowerCase().replace(/\s/g, "-")}`} />
+                                      <Crown className="h-3 w-3 text-primary/60 shrink-0" />
                                     )}
                                   </Link>
                                 </SidebarMenuSubButton>
@@ -481,6 +457,39 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
             </SidebarGroup>
           );
         })}
+
+        <SidebarGroup className="py-1">
+          <SidebarGroupLabel className="px-4 py-1 text-[10px] uppercase tracking-widest text-sidebar-foreground/40">
+            More
+          </SidebarGroupLabel>
+          <SidebarGroupContent className="px-2">
+            <SidebarMenu>
+              {utilityItems
+                .filter(item => !item.requiresLeague || !isAllLeagues)
+                .map((item) => {
+                const isActive = location === item.url;
+                const linkUrl = leagueId ? `${item.url}?id=${leagueId}` : item.url;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      data-testid={`nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}
+                    >
+                      <Link href={linkUrl}>
+                        <item.icon className="h-3.5 w-3.5" />
+                        <span className="flex-1 text-[13px]">{item.title}</span>
+                        {item.premium && !isPremium && (
+                          <Crown className="h-3 w-3 text-primary/60 shrink-0" />
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border/50 p-3 space-y-2">

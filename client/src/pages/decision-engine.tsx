@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSearch } from "wouter";
 import { useSelectedLeague } from "./league-layout";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { PremiumGate } from "@/components/premium-gate";
@@ -63,18 +64,49 @@ function pctStr(val: number): string {
   return `${(val * 100).toFixed(1)}%`;
 }
 
-function GaugeBar({ value, max = 1, label }: { value: number; max?: number; label: string }) {
+function GaugeBar({ value, max = 1, label, invertColor = false }: { value: number; max?: number; label: string; invertColor?: boolean }) {
   const pct = Math.min(100, Math.max(0, (value / max) * 100));
-  const color = pct > 70 ? "bg-emerald-500" : pct > 40 ? "bg-amber-500" : "bg-red-500";
+  const colorPct = invertColor ? 100 - pct : pct;
+  const color = colorPct > 70 ? "bg-emerald-500" : colorPct > 40 ? "bg-amber-500" : "bg-red-500";
+  const textColor = colorPct > 70 ? "text-emerald-400" : colorPct > 40 ? "text-amber-400" : "text-red-400";
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <div className="flex justify-between text-xs">
         <span className="text-muted-foreground">{label}</span>
-        <span className="font-mono">{value.toFixed(2)}</span>
+        <span className={`font-mono font-medium ${textColor}`}>{value.toFixed(2)}</span>
       </div>
-      <div className="h-2.5 rounded-full bg-zinc-800 overflow-hidden">
-        <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+      <div className="h-2 rounded-full bg-zinc-800/80 overflow-hidden">
+        <div className={`h-full rounded-full ${color} transition-all duration-500`} style={{ width: `${pct}%` }} />
       </div>
+    </div>
+  );
+}
+
+function ConfidenceBadge({ value, label = "Confidence" }: { value: number; label?: string }) {
+  const pct = (value * 100);
+  const color = pct >= 75 ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" :
+                pct >= 50 ? "text-amber-400 border-amber-500/30 bg-amber-500/10" :
+                "text-red-400 border-red-500/30 bg-red-500/10";
+  return (
+    <Badge variant="outline" className={`text-xs font-mono ${color}`} data-testid="badge-confidence">
+      {label}: {pct.toFixed(0)}%
+    </Badge>
+  );
+}
+
+function MetricCard({ label, value, delta, suffix = "", color }: { label: string; value: string; delta?: number; suffix?: string; color?: string }) {
+  return (
+    <div className="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800/80 text-center space-y-1">
+      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+      <p className={`text-xl font-bold font-mono ${color || "text-amber-400"}`} data-testid={`metric-${label.toLowerCase().replace(/\s/g, "-")}`}>
+        {value}{suffix}
+      </p>
+      {delta !== undefined && (
+        <div className={`flex items-center justify-center gap-0.5 text-xs font-medium ${delta > 0 ? "text-emerald-400" : delta < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+          {delta > 0 ? <TrendingUp className="h-3 w-3" /> : delta < 0 ? <TrendingDown className="h-3 w-3" /> : null}
+          <span>{delta > 0 ? "+" : ""}{delta.toFixed(1)}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -183,17 +215,38 @@ function DecisionCard({ decision }: { decision: any }) {
 }
 
 function AiAnalysisCard({ explanation }: { explanation: string | undefined | null }) {
+  const [expanded, setExpanded] = useState(false);
   if (!explanation) return null;
+
+  const lines = explanation.split("\n").filter(l => l.trim());
+  const bullets = lines.map(l => l.replace(/^[-•*]\s*/, "").trim()).filter(Boolean);
+  const preview = bullets.slice(0, 3);
+  const hasMore = bullets.length > 3;
+
   return (
     <Card className="border-amber-500/20">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-amber-400" />
-          <span className="text-amber-400">AI Analysis</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-0">
-        <p className="text-sm text-muted-foreground whitespace-pre-wrap" data-testid="text-ai-analysis">{explanation}</p>
+      <CardContent className="p-4">
+        <button
+          className="w-full flex items-center justify-between mb-2"
+          onClick={() => setExpanded(!expanded)}
+          data-testid="button-toggle-analysis"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-amber-400" />
+            <span className="text-sm font-semibold text-amber-400">AI Analysis</span>
+          </div>
+          {hasMore && (
+            <span className="text-[10px] text-muted-foreground">{expanded ? "Show less" : `+${bullets.length - 3} more`}</span>
+          )}
+        </button>
+        <ul className="space-y-1.5">
+          {(expanded ? bullets : preview).map((b, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+              <span className="text-amber-500/60 mt-1 shrink-0">•</span>
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
       </CardContent>
     </Card>
   );
@@ -467,23 +520,15 @@ function MatchupTab({ leagueId }: { leagueId: string }) {
           )}
 
           {data.simulation && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="p-3 rounded-md bg-zinc-900 border border-amber-500/20 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase">Upset Prob</p>
-                <p className="text-xl font-bold text-amber-400" data-testid="text-upset-prob">{pctStr(data.simulation.upsetProbability || 0)}</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <MetricCard label="Upset Prob" value={pctStr(data.simulation.upsetProbability || 0)} color={data.simulation.upsetProbability > 0.3 ? "text-red-400" : "text-amber-400"} />
+                <MetricCard label="Volatility" value={`${((data.simulation.volatilityScore || 0) * 100).toFixed(0)}%`} color={data.simulation.volatilityScore > 0.6 ? "text-red-400" : "text-amber-400"} />
+                <MetricCard label="Confidence" value={pctStr(data.simulation.confidenceScore || 0)} color={data.simulation.confidenceScore > 0.7 ? "text-emerald-400" : "text-amber-400"} />
+                <MetricCard label="Iterations" value={`${((data.simulation.iterations || 10000) / 1000).toFixed(0)}K`} color="text-zinc-300" />
               </div>
-              <div className="p-3 rounded-md bg-zinc-900 border border-amber-500/20 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase">Volatility</p>
-                <p className="text-xl font-bold text-amber-400" data-testid="text-volatility">{((data.simulation.volatilityScore || 0) * 100).toFixed(0)}%</p>
-              </div>
-              <div className="p-3 rounded-md bg-zinc-900 border border-amber-500/20 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase">Confidence</p>
-                <p className="text-xl font-bold text-emerald-400" data-testid="text-confidence">{pctStr(data.simulation.confidenceScore || 0)}</p>
-              </div>
-              <div className="p-3 rounded-md bg-zinc-900 border border-amber-500/20 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase">Iterations</p>
-                <p className="text-xl font-bold text-zinc-300" data-testid="text-iterations">{((data.simulation.iterations || 10000) / 1000).toFixed(0)}K</p>
-              </div>
+              <GaugeBar value={data.simulation.volatilityScore || 0} label="Volatility Index" invertColor />
+              <GaugeBar value={data.simulation.confidenceScore || 0} label="Confidence Level" />
             </div>
           )}
 
@@ -1110,7 +1155,19 @@ export default function DecisionEnginePage() {
   usePageTitle("Decision Engine");
   const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
-  const [activeTab, setActiveTab] = useState<TabId>("matchup");
+  const searchString = useSearch();
+  
+  const validTabs: TabId[] = ["matchup", "lineup", "trade", "faab", "season", "portfolio", "championship", "exploit", "regression", "equity"];
+  const urlParams = new URLSearchParams(searchString);
+  const tabFromUrl = urlParams.get("tab") as TabId | null;
+  const resolvedTab = tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : "matchup";
+  const [activeTab, setActiveTab] = useState<TabId>(resolvedTab);
+  
+  useEffect(() => {
+    if (tabFromUrl && validTabs.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   if (!leagueId) {
     return (
@@ -1123,29 +1180,32 @@ export default function DecisionEnginePage() {
 
   return (
     <PremiumGate featureName="Decision Engine">
-      <div className="space-y-4 max-w-5xl mx-auto">
+      <div className="space-y-6 max-w-5xl mx-auto">
         <div className="flex items-center gap-3">
-          <Brain className="h-6 w-6 text-amber-400" />
+          <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <Brain className="h-5 w-5 text-amber-400" />
+          </div>
           <div>
-            <h1 className="text-2xl font-bold" data-testid="text-page-title">Decision Engine</h1>
-            <p className="text-sm text-muted-foreground">Monte Carlo simulations & AI-powered analysis</p>
+            <h1 className="text-xl font-bold tracking-tight" data-testid="text-page-title">Decision Engine</h1>
+            <p className="text-xs text-muted-foreground">10K Monte Carlo iterations per simulation</p>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 pb-2 border-b border-zinc-800/50">
           {TABS.map(tab => {
             const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
             return (
               <Button
                 key={tab.id}
-                variant={activeTab === tab.id ? "default" : "outline"}
+                variant={isActive ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setActiveTab(tab.id)}
-                className={activeTab === tab.id ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : ""}
+                className={isActive ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-[0_0_12px_rgba(217,169,78,0.1)]" : "text-muted-foreground"}
                 data-testid={`tab-${tab.id}`}
               >
                 <Icon className="h-3.5 w-3.5 mr-1.5" />
-                {tab.label}
+                <span className="text-xs">{tab.label}</span>
               </Button>
             );
           })}

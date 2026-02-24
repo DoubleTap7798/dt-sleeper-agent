@@ -12,9 +12,9 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 ## System Architecture
 
 ### UI/UX Decisions
-- **Action-First Dashboard**: Prioritizes personalized recommendations, roster strength, team profile, biggest need, and weekly AI insights.
+- **Action-First Dashboard**: Hero metric strip (Record, Championships, Playoffs, Team Profile) with gold gradient cards, recommended action banner, AI insight card, roster strength bars, and trade ideas. Color-coded metrics (green positive, red negative). Quant-trading-dashboard aesthetic with visible numbers first, explanations below.
 - **Persistent League Selector**: Always visible for quick league switching.
-- **Consolidated Navigation**: Grouped collapsible sections (League, My Team, Players, Devy Command Center, Draft Central, Trades).
+- **Hierarchical Sidebar Navigation**: 4 strategic top-level categories (Command Center, Game Day Engine, Market & Trades, Season Strategy) with collapsible accordion structure, plus Draft Central, Devy Command Center, and a "More" utility section. Designed for quant-trading-dashboard aesthetic with reduced cognitive load.
 - **Design Theme**: Premium dark theme with black background and amber/gold accent color, featuring gold glow effects, amber-tinted borders, and warm gold accent highlights.
 - **Position Colors**: Distinct colors for player positions (QB, RB, WR, TE, K, EDGE, DL, LB, CB, S, FLEX, SUPERFLEX).
 - **League Breakdown**: Uniform grid layout showing League Name, Record, Place, Status, and Movement.
