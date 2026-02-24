@@ -336,3 +336,58 @@ export const insertManagerProfileSchema = createInsertSchema(managerProfiles).om
 
 export type ManagerProfile = typeof managerProfiles.$inferSelect;
 export type InsertManagerProfile = z.infer<typeof insertManagerProfileSchema>;
+
+export const simulationResults = pgTable("simulation_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  leagueId: text("league_id").notNull(),
+  simulationType: text("simulation_type").notNull(),
+  week: integer("week"),
+  resultData: jsonb("result_data").notNull(),
+  explanation: text("explanation"),
+  computedAt: timestamp("computed_at").defaultNow(),
+});
+
+export const insertSimulationResultSchema = createInsertSchema(simulationResults).omit({
+  id: true,
+  computedAt: true,
+});
+
+export type SimulationResultRecord = typeof simulationResults.$inferSelect;
+export type InsertSimulationResult = z.infer<typeof insertSimulationResultSchema>;
+
+export const engineRiskProfiles = pgTable("engine_risk_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  leagueId: text("league_id").notNull(),
+  classification: text("classification").notNull(),
+  profileData: jsonb("profile_data").notNull(),
+  computedAt: timestamp("computed_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertEngineRiskProfileSchema = createInsertSchema(engineRiskProfiles).omit({
+  id: true,
+  computedAt: true,
+  updatedAt: true,
+});
+
+export type EngineRiskProfile = typeof engineRiskProfiles.$inferSelect;
+export type InsertEngineRiskProfile = z.infer<typeof insertEngineRiskProfileSchema>;
+
+export const portfolioSnapshots = pgTable("portfolio_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  leagueId: text("league_id").notNull(),
+  snapshotData: jsonb("snapshot_data").notNull(),
+  week: integer("week").notNull(),
+  computedAt: timestamp("computed_at").defaultNow(),
+});
+
+export const insertPortfolioSnapshotSchema = createInsertSchema(portfolioSnapshots).omit({
+  id: true,
+  computedAt: true,
+});
+
+export type PortfolioSnapshot = typeof portfolioSnapshots.$inferSelect;
+export type InsertPortfolioSnapshot = z.infer<typeof insertPortfolioSnapshotSchema>;

@@ -16,6 +16,14 @@ import { db } from "./db";
 import * as schema from "@shared/schema";
 import { eq, and, desc, sql, isNull, or, ilike, ne, asc } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, getLiveStripeClient } from "./stripeClient";
+import * as engineOptimizer from "./engine/optimizer";
+import * as engineExplainer from "./engine/explainer";
+import { getLeagueContext, getPositionalScarcity, getAllRosterContexts, getStandings, getPlayerProjections } from "./engine/data-ingestion";
+import { buildCorrelationMatrix } from "./engine/projection-model";
+import { analyzePortfolio } from "./engine/portfolio-analyzer";
+import { computeChampionshipPath } from "./engine/championship-path";
+import { analyzeRiskProfile } from "./engine/risk-profiler";
+import type { PlayerProjection } from "./engine/types";
 
 // Server-side response cache for expensive API routes
 class RouteCache {
@@ -14205,6 +14213,302 @@ Respond in JSON format:
   // ========================
   // NOTIFICATION PREFERENCES ENDPOINTS
   // ========================
+
+  // ========================
+  // DECISION ENGINE ENDPOINTS
+  // ========================
+
+  app.get("/api/engine/matchup-sim/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const week = parseInt(req.query.week as string) || undefined;
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const leagueCtx = await getLeagueContext(leagueId);
+      const targetWeek = week || leagueCtx.currentWeek;
+
+      const analysis = await engineOptimizer.runMatchupAnalysis(leagueId, sleeperUserId, targetWeek);
+
+      let explanation: string | undefined;
+      try {
+        explanation = await engineExplainer.explainMatchup(analysis);
+      } catch (e) {}
+
+      await db.insert(schema.simulationResults).values({
+        userId,
+        leagueId,
+        simulationType: 'matchup',
+        week: targetWeek,
+        resultData: analysis as any,
+        explanation,
+      });
+
+      res.json({ ...analysis, explanation });
+    } catch (error: any) {
+      console.error("Engine matchup sim error:", error);
+      res.status(500).json({ error: error.message || "Matchup simulation failed" });
+    }
+  });
+
+  app.get("/api/engine/lineup-optimize/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const week = parseInt(req.query.week as string) || undefined;
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const leagueCtx = await getLeagueContext(leagueId);
+      const targetWeek = week || leagueCtx.currentWeek;
+
+      const result = await engineOptimizer.runLineupOptimization(leagueId, sleeperUserId, targetWeek);
+
+      let explanation: string | undefined;
+      try {
+        explanation = await engineExplainer.explainLineupOptimization(result);
+      } catch (e) {}
+
+      res.json({ ...result, explanation });
+    } catch (error: any) {
+      console.error("Engine lineup optimize error:", error);
+      res.status(500).json({ error: error.message || "Lineup optimization failed" });
+    }
+  });
+
+  app.post("/api/engine/trade-eval/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const { givePlayerIds, getPlayerIds } = req.body;
+      if (!Array.isArray(givePlayerIds) || !Array.isArray(getPlayerIds)) {
+        return res.status(400).json({ error: "givePlayerIds and getPlayerIds must be arrays" });
+      }
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const analysis = await engineOptimizer.runTradeAnalysis(leagueId, sleeperUserId, givePlayerIds, getPlayerIds);
+
+      let explanation: string | undefined;
+      try {
+        explanation = await engineExplainer.explainTrade(analysis);
+      } catch (e) {}
+
+      await db.insert(schema.simulationResults).values({
+        userId,
+        leagueId,
+        simulationType: 'trade',
+        resultData: analysis as any,
+        explanation,
+      });
+
+      res.json({ ...analysis, explanation });
+    } catch (error: any) {
+      console.error("Engine trade eval error:", error);
+      res.status(500).json({ error: error.message || "Trade evaluation failed" });
+    }
+  });
+
+  app.post("/api/engine/waiver-eval/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const { targetPlayerId } = req.body;
+      if (!targetPlayerId) return res.status(400).json({ error: "targetPlayerId required" });
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const analysis = await engineOptimizer.runWaiverAnalysis(leagueId, sleeperUserId, targetPlayerId);
+
+      let explanation: string | undefined;
+      try {
+        explanation = await engineExplainer.explainWaiver(analysis);
+      } catch (e) {}
+
+      res.json({ ...analysis, explanation });
+    } catch (error: any) {
+      console.error("Engine waiver eval error:", error);
+      res.status(500).json({ error: error.message || "Waiver evaluation failed" });
+    }
+  });
+
+  app.get("/api/engine/season-outlook/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const result = await engineOptimizer.runSeasonOutlook(leagueId, sleeperUserId);
+
+      let explanation: string | undefined;
+      try {
+        explanation = await engineExplainer.explainSeasonOutlook(result);
+      } catch (e) {}
+
+      await db.insert(schema.simulationResults).values({
+        userId,
+        leagueId,
+        simulationType: 'season_outlook',
+        resultData: result as any,
+        explanation,
+      });
+
+      res.json({ ...result, explanation });
+    } catch (error: any) {
+      console.error("Engine season outlook error:", error);
+      res.status(500).json({ error: error.message || "Season outlook failed" });
+    }
+  });
+
+  app.get("/api/engine/portfolio/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const [leagueCtx, allRosters, allPlayers] = await Promise.all([
+        getLeagueContext(leagueId),
+        getAllRosterContexts(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      const userRoster = allRosters.find(r => r.ownerId === sleeperUserId);
+      if (!userRoster) return res.status(404).json({ error: "Roster not found" });
+
+      const userProjs = await getPlayerProjections(
+        userRoster.starters || [],
+        leagueCtx.scoringSettings,
+        leagueCtx.season,
+        leagueCtx.currentWeek,
+      );
+
+      const portfolio = analyzePortfolio(userRoster, userProjs, allPlayers, leagueCtx);
+
+      let explanation: string | undefined;
+      try {
+        explanation = await engineExplainer.explainPortfolio(portfolio);
+      } catch (e) {}
+
+      const leagueCtxForWeek = await getLeagueContext(leagueId);
+      await db.insert(schema.portfolioSnapshots).values({
+        userId,
+        leagueId,
+        snapshotData: portfolio as any,
+        week: leagueCtxForWeek.currentWeek,
+      });
+
+      res.json({ ...portfolio, explanation });
+    } catch (error: any) {
+      console.error("Engine portfolio error:", error);
+      res.status(500).json({ error: error.message || "Portfolio analysis failed" });
+    }
+  });
+
+  app.get("/api/engine/championship-path/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const [leagueCtx, allRosters, standings, allPlayers] = await Promise.all([
+        getLeagueContext(leagueId),
+        getAllRosterContexts(leagueId),
+        getStandings(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      const userRoster = allRosters.find(r => r.ownerId === sleeperUserId);
+      if (!userRoster) return res.status(404).json({ error: "Roster not found" });
+
+      const allPlayerIds = new Set<string>();
+      allRosters.forEach(r => r.players.forEach(id => allPlayerIds.add(id)));
+      const projections = await getPlayerProjections(
+        Array.from(allPlayerIds),
+        leagueCtx.scoringSettings,
+        leagueCtx.season,
+        leagueCtx.currentWeek,
+      );
+
+      const projMap = new Map(projections.map(p => [p.playerId, p]));
+      const projByRoster = new Map<number, PlayerProjection[]>();
+      for (const roster of allRosters) {
+        const rosterProjs = (roster.starters || [])
+          .map((id: string) => projMap.get(id))
+          .filter(Boolean) as PlayerProjection[];
+        projByRoster.set(roster.rosterId, rosterProjs);
+      }
+
+      const corrMatrix = buildCorrelationMatrix(projections, allPlayers);
+      const path = computeChampionshipPath(userRoster.rosterId, standings, projByRoster, corrMatrix, leagueCtx);
+
+      let explanation: string | undefined;
+      try {
+        explanation = await engineExplainer.explainChampionshipPath(path);
+      } catch (e) {}
+
+      res.json({ ...path, explanation });
+    } catch (error: any) {
+      console.error("Engine championship path error:", error);
+      res.status(500).json({ error: error.message || "Championship path analysis failed" });
+    }
+  });
+
+  app.get("/api/engine/risk-profile/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const existing = await db.select().from(schema.engineRiskProfiles)
+        .where(and(eq(schema.engineRiskProfiles.userId, userId), eq(schema.engineRiskProfiles.leagueId, leagueId)))
+        .limit(1);
+
+      if (existing[0] && Date.now() - new Date(existing[0].computedAt!).getTime() < 24 * 60 * 60 * 1000) {
+        return res.json(existing[0].profileData);
+      }
+
+      const transactions = await sleeperApi.getAllLeagueTransactions(leagueId);
+      const riskProfile = analyzeRiskProfile(
+        sleeperUserId,
+        leagueId,
+        transactions,
+        [],
+        [],
+        [],
+      );
+
+      if (existing[0]) {
+        await db.update(schema.engineRiskProfiles)
+          .set({ classification: riskProfile.classification, profileData: riskProfile as any, updatedAt: new Date() })
+          .where(eq(schema.engineRiskProfiles.id, existing[0].id));
+      } else {
+        await db.insert(schema.engineRiskProfiles).values({
+          userId,
+          leagueId,
+          classification: riskProfile.classification,
+          profileData: riskProfile as any,
+        });
+      }
+
+      res.json(riskProfile);
+    } catch (error: any) {
+      console.error("Engine risk profile error:", error);
+      res.status(500).json({ error: error.message || "Risk profile analysis failed" });
+    }
+  });
 
   return httpServer;
 }

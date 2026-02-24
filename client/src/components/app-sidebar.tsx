@@ -50,6 +50,7 @@ import {
   Bell,
   Radio,
   Award,
+  Cpu,
 } from "lucide-react";
 import {
   Sidebar,
@@ -200,6 +201,7 @@ const navigationGroups: NavGroup[] = [
 const standaloneItems: NavItem[] = [
   { title: "Home", url: "/league", icon: LayoutDashboard, description: "Dashboard & actions" },
   { title: "AI Assistant", url: "/league/ai-chat", icon: Bot, description: "AI fantasy football advisor", premium: true },
+  { title: "Decision Engine", url: "/league/decision-engine", icon: Cpu, description: "Monte Carlo simulations & optimization", premium: true, requiresLeague: true },
   { title: "Manager Profile", url: "/league/manager-profile", icon: Brain, description: "AI-learned trading personality", requiresLeague: true },
   { title: "Trash Talk", url: "/league/trash-talk", icon: MessageSquare, description: "AI-powered league roasts", premium: true, requiresLeague: true },
   { title: "Leaderboard", url: "/leaderboard", icon: Crown, description: "Global user rankings" },

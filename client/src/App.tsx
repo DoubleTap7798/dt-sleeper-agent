@@ -68,6 +68,7 @@ import WeeklyPredictionsPage from "@/pages/weekly-predictions";
 import CommunityChatPage from "@/pages/community-chat";
 import DraftRecapPage from "@/pages/draft-recap";
 import ManagerProfilePage from "@/pages/manager-profile";
+import DecisionEnginePage from "@/pages/decision-engine";
 
 import UserProfilePage from "@/pages/user-profile";
 import LeaderboardPage from "@/pages/leaderboard";
@@ -357,6 +358,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <WatchlistPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/decision-engine">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DecisionEnginePage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
