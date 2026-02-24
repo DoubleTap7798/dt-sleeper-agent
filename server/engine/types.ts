@@ -140,6 +140,42 @@ export interface UserRiskProfile {
   };
 }
 
+export type PortfolioArchetype =
+  | 'glass_cannon'
+  | 'fortress'
+  | 'balanced_contender'
+  | 'volatile_lottery'
+  | 'concentrated_bet'
+  | 'depth_resilient';
+
+export interface ImpactTranslation {
+  weeklyVariancePts: number;
+  playoffProbDelta: number;
+  titleEquityDelta: number;
+}
+
+export interface StressTestResult {
+  team: string;
+  playerCount: number;
+  projectedLoss: number;
+  titleEquityBefore: number;
+  titleEquityAfter: number;
+  titleEquityDelta: number;
+}
+
+export interface WhatIfScenario {
+  id: string;
+  label: string;
+  description: string;
+  riskDelta: {
+    diversification: number;
+    fragility: number;
+    volatility: number;
+  };
+  titleEquityDelta: number;
+  weeklyVarianceDelta: number;
+}
+
 export interface PortfolioAnalysis {
   diversificationScore: number;
   fragilityScore: number;
@@ -150,6 +186,20 @@ export interface PortfolioAnalysis {
   boomBustClustering: number;
   injuryFragilityIndex: number;
   recommendation: string;
+  archetype: PortfolioArchetype;
+  archetypeLabel: string;
+  archetypeDescription: string;
+  impactTranslations: {
+    diversification: ImpactTranslation;
+    fragility: ImpactTranslation;
+    volatility: ImpactTranslation;
+    playoffLeverage: ImpactTranslation;
+  };
+  stressTests: StressTestResult[];
+  whatIfScenarios: WhatIfScenario[];
+  totalWeeklyVariance: number;
+  baselinePlayoffProb: number;
+  baselineTitleEquity: number;
 }
 
 export interface ChampionshipPath {
