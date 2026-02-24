@@ -102,12 +102,14 @@ export function computePlayerDistribution(scores: number[]): {
 
 export function getDefaultCorrelations(): Map<string, number> {
   const defaults = new Map<string, number>();
-  defaults.set('qb_wr', 0.4);
+  defaults.set('qb_wr', 0.45);
   defaults.set('qb_te', 0.3);
   defaults.set('qb_rb', 0.15);
-  defaults.set('rb_def', -0.1);
+  defaults.set('rb_def', -0.15);
   defaults.set('same_team', 0.05);
+  defaults.set('same_team_wr', -0.08);
   defaults.set('opp_def', -0.15);
+  defaults.set('game_stack', 0.15);
   defaults.set('general', 0.0);
   return defaults;
 }
@@ -125,6 +127,7 @@ function classifyCorrelationType(
     if ((pos1 === 'QB' && pos2 === 'WR') || (pos1 === 'WR' && pos2 === 'QB')) return 'qb_wr';
     if ((pos1 === 'QB' && pos2 === 'TE') || (pos1 === 'TE' && pos2 === 'QB')) return 'qb_te';
     if ((pos1 === 'QB' && pos2 === 'RB') || (pos1 === 'RB' && pos2 === 'QB')) return 'qb_rb';
+    if (pos1 === 'WR' && pos2 === 'WR') return 'same_team_wr';
     return 'same_team';
   }
 

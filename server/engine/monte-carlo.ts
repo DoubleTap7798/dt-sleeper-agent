@@ -205,6 +205,10 @@ export function simulateMatchup(
   }
   confidenceScore = Math.max(0.1, Math.min(0.99, confidenceScore));
 
+  const userMean = userScores.reduce((a, b) => a + b, 0) / iterations;
+  const userStd = Math.sqrt(userScores.reduce((s, v) => s + (v - userMean) ** 2, 0) / iterations);
+  const volatilityScore = userMean > 0 ? Math.round(Math.min(1, userStd / userMean) * 100) / 100 : 0.5;
+
   return {
     winProbability,
     expectedMargin: Math.round(expectedMargin * 100) / 100,
@@ -214,6 +218,7 @@ export function simulateMatchup(
     userScoreDistribution: computeDistribution(userScores),
     opponentScoreDistribution: computeDistribution(opponentScores),
     iterations,
+    volatilityScore,
   };
 }
 
@@ -224,7 +229,7 @@ export function simulateSeason(
   playerProjectionsByRoster: Map<number, PlayerProjection[]>,
   correlationMatrix: CorrelationMatrix,
   leagueContext: LeagueContext,
-  iterations: number = 5000
+  iterations: number = 10000
 ): SeasonSimResult {
   const playoffSpots = leagueContext.playoffTeams;
   const finishCounts: Record<number, number> = {};

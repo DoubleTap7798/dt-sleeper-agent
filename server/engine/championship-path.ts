@@ -13,7 +13,7 @@ export function computeChampionshipPath(
   playerProjectionsByRoster: Map<number, PlayerProjection[]>,
   correlationMatrix: CorrelationMatrix,
   leagueContext: LeagueContext,
-  iterations: number = 3000
+  iterations: number = 10000
 ): ChampionshipPath {
   const { currentWeek, totalRegularSeasonWeeks } = leagueContext;
 
@@ -248,7 +248,7 @@ export function computeChampionshipDelta(
   standings: StandingsEntry[],
   correlationMatrix: CorrelationMatrix,
   leagueContext: LeagueContext,
-  iterations: number = 2000
+  iterations: number = 10000
 ): { currentOdds: number; newOdds: number; delta: number } {
   const { currentWeek, totalRegularSeasonWeeks } = leagueContext;
 

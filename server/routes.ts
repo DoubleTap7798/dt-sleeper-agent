@@ -23,6 +23,8 @@ import { buildCorrelationMatrix } from "./engine/projection-model";
 import { analyzePortfolio } from "./engine/portfolio-analyzer";
 import { computeChampionshipPath } from "./engine/championship-path";
 import { analyzeRiskProfile } from "./engine/risk-profiler";
+import { scanForExploits } from "./engine/exploit-scanner";
+import { detectRegressionAlerts } from "./engine/regression-detector";
 import type { PlayerProjection } from "./engine/types";
 
 // Server-side response cache for expensive API routes
@@ -14360,6 +14362,19 @@ Respond in JSON format:
         explanation,
       });
 
+      if (result.seasonSim) {
+        try {
+          const leagueCtxSnap = await getLeagueContext(leagueId);
+          await db.insert(schema.titleEquitySnapshots).values({
+            userId,
+            leagueId,
+            week: leagueCtxSnap.currentWeek,
+            championshipOdds: result.seasonSim.championshipProbability || 0,
+            playoffOdds: result.seasonSim.playoffProbability || 0,
+          });
+        } catch (e) {}
+      }
+
       res.json({ ...result, explanation });
     } catch (error: any) {
       console.error("Engine season outlook error:", error);
@@ -14461,6 +14476,103 @@ Respond in JSON format:
     } catch (error: any) {
       console.error("Engine championship path error:", error);
       res.status(500).json({ error: error.message || "Championship path analysis failed" });
+    }
+  });
+
+  app.get("/api/engine/exploit-report/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const [leagueCtx, allRosters, allPlayers, leagueUsers] = await Promise.all([
+        getLeagueContext(leagueId),
+        getAllRosterContexts(leagueId),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeagueUsers(leagueId),
+      ]);
+
+      const userMap = new Map<string, string>();
+      for (const u of leagueUsers) {
+        userMap.set(u.user_id, u.display_name || u.username || u.user_id.slice(0, 8));
+      }
+
+      const allPlayerIds = new Set<string>();
+      allRosters.forEach(r => r.starters.forEach(id => allPlayerIds.add(id)));
+      const projections = await getPlayerProjections(
+        Array.from(allPlayerIds),
+        leagueCtx.scoringSettings,
+        leagueCtx.season,
+        leagueCtx.currentWeek,
+      );
+
+      const projByRoster = new Map<number, typeof projections>();
+      for (const roster of allRosters) {
+        const rosterProjs = roster.starters
+          .map(id => projections.find(p => p.playerId === id))
+          .filter(Boolean) as typeof projections;
+        projByRoster.set(roster.rosterId, rosterProjs);
+      }
+
+      const scarcity = getPositionalScarcity(projections, leagueCtx);
+      const report = scanForExploits(leagueCtx, allRosters, projByRoster, scarcity, allPlayers, userMap);
+
+      res.json(report);
+    } catch (error: any) {
+      console.error("Engine exploit report error:", error);
+      res.status(500).json({ error: error.message || "Exploit report failed" });
+    }
+  });
+
+  app.get("/api/engine/regression-alerts/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const [leagueCtx, allRosters, allPlayers] = await Promise.all([
+        getLeagueContext(leagueId),
+        getAllRosterContexts(leagueId),
+        sleeperApi.getAllPlayers(),
+      ]);
+
+      const allPlayerIds = new Set<string>();
+      allRosters.forEach(r => r.players.forEach(id => allPlayerIds.add(id)));
+      const projections = await getPlayerProjections(
+        Array.from(allPlayerIds),
+        leagueCtx.scoringSettings,
+        leagueCtx.season,
+        leagueCtx.currentWeek,
+      );
+
+      const alerts = detectRegressionAlerts(projections, allPlayers);
+      res.json({ alerts });
+    } catch (error: any) {
+      console.error("Engine regression alerts error:", error);
+      res.status(500).json({ error: error.message || "Regression alert detection failed" });
+    }
+  });
+
+  app.get("/api/engine/title-equity/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const snapshots = await db.select().from(schema.titleEquitySnapshots)
+        .where(and(eq(schema.titleEquitySnapshots.userId, userId), eq(schema.titleEquitySnapshots.leagueId, leagueId)))
+        .orderBy(asc(schema.titleEquitySnapshots.week));
+
+      res.json({ snapshots });
+    } catch (error: any) {
+      console.error("Engine title equity error:", error);
+      res.status(500).json({ error: error.message || "Title equity retrieval failed" });
     }
   });
 

@@ -30,7 +30,7 @@ import {
   X,
 } from "lucide-react";
 
-type TabId = "matchup" | "lineup" | "trade" | "faab" | "season" | "portfolio" | "championship";
+type TabId = "matchup" | "lineup" | "trade" | "faab" | "season" | "portfolio" | "championship" | "exploit" | "regression" | "equity";
 
 const TABS: { id: TabId; label: string; icon: any }[] = [
   { id: "matchup", label: "Matchup Sim", icon: Swords },
@@ -40,6 +40,9 @@ const TABS: { id: TabId; label: string; icon: any }[] = [
   { id: "season", label: "Season Outlook", icon: CalendarRange },
   { id: "portfolio", label: "Portfolio Risk", icon: ShieldAlert },
   { id: "championship", label: "Championship Path", icon: Trophy },
+  { id: "exploit", label: "Exploit Report", icon: Target },
+  { id: "regression", label: "Regression Alerts", icon: TrendingDown },
+  { id: "equity", label: "Title Equity", icon: Sparkles },
 ];
 
 const REC_CONFIG: Record<string, { label: string; className: string }> = {
@@ -461,6 +464,27 @@ function MatchupTab({ leagueId }: { leagueId: string }) {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {data.simulation && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="p-3 rounded-md bg-zinc-900 border border-amber-500/20 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase">Upset Prob</p>
+                <p className="text-xl font-bold text-amber-400" data-testid="text-upset-prob">{pctStr(data.simulation.upsetProbability || 0)}</p>
+              </div>
+              <div className="p-3 rounded-md bg-zinc-900 border border-amber-500/20 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase">Volatility</p>
+                <p className="text-xl font-bold text-amber-400" data-testid="text-volatility">{((data.simulation.volatilityScore || 0) * 100).toFixed(0)}%</p>
+              </div>
+              <div className="p-3 rounded-md bg-zinc-900 border border-amber-500/20 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase">Confidence</p>
+                <p className="text-xl font-bold text-emerald-400" data-testid="text-confidence">{pctStr(data.simulation.confidenceScore || 0)}</p>
+              </div>
+              <div className="p-3 rounded-md bg-zinc-900 border border-amber-500/20 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase">Iterations</p>
+                <p className="text-xl font-bold text-zinc-300" data-testid="text-iterations">{((data.simulation.iterations || 10000) / 1000).toFixed(0)}K</p>
+              </div>
+            </div>
           )}
 
           {data.riskAssessment && (
@@ -1134,7 +1158,364 @@ export default function DecisionEnginePage() {
         {activeTab === "season" && <SeasonTab leagueId={leagueId} />}
         {activeTab === "portfolio" && <PortfolioTab leagueId={leagueId} />}
         {activeTab === "championship" && <ChampionshipTab leagueId={leagueId} />}
+        {activeTab === "exploit" && <ExploitTab leagueId={leagueId} />}
+        {activeTab === "regression" && <RegressionTab leagueId={leagueId} />}
+        {activeTab === "equity" && <TitleEquityTab leagueId={leagueId} />}
       </div>
     </PremiumGate>
+  );
+}
+
+function ExploitTab({ leagueId }: { leagueId: string }) {
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", `/api/engine/exploit-report/${leagueId}`);
+      return await res.json();
+    },
+  });
+
+  const data = mutation.data;
+
+  return (
+    <div className="space-y-4">
+      <RunButton onClick={() => mutation.mutate()} isPending={mutation.isPending} label="Scan League" />
+      <ErrorCard error={mutation.error as Error | null} />
+
+      {data && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.mostDesperateTeam && (
+              <Card className="border-red-500/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-red-400 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" /> Most Desperate Team
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <p className="font-bold text-lg" data-testid="text-desperate-team">{data.mostDesperateTeam.username}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{data.mostDesperateTeam.reason}</p>
+                  <div className="mt-2">
+                    <GaugeBar value={data.mostDesperateTeam.desperationScore} label="Desperation Level" />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {data.mostOverconfidentTeam && (
+              <Card className="border-amber-500/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" /> Most Overconfident Team
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <p className="font-bold text-lg" data-testid="text-overconfident-team">{data.mostOverconfidentTeam.username}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{data.mostOverconfidentTeam.reason}</p>
+                  <div className="mt-2">
+                    <GaugeBar value={data.mostOverconfidentTeam.overconfidenceScore} label="Overconfidence Level" />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {data.byeWeekCrunchTeams && data.byeWeekCrunchTeams.length > 0 && (
+            <Card className="border-amber-500/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
+                  <CalendarRange className="h-4 w-4" /> Bye Week Crunch
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-2">
+                {data.byeWeekCrunchTeams.map((t: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between p-2 rounded-md bg-zinc-900 border border-zinc-800" data-testid={`card-bye-crunch-${i}`}>
+                    <span className="text-sm font-medium">{t.username}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-red-400 border-red-500/30 text-xs">{t.byeCount} starters on bye</Badge>
+                      <span className="text-xs text-muted-foreground">Week {t.week}</span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {data.lowFaabVulnerability && data.lowFaabVulnerability.length > 0 && (
+            <Card className="border-amber-500/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" /> Low FAAB Vulnerability
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-2">
+                {data.lowFaabVulnerability.map((t: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between p-2 rounded-md bg-zinc-900 border border-zinc-800" data-testid={`card-low-faab-${i}`}>
+                    <span className="text-sm font-medium">{t.username}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono text-red-400">${t.faabRemaining}</span>
+                      <span className="text-xs text-muted-foreground">({Math.round(t.faabPct * 100)}% left)</span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {data.overexposedOffenses && data.overexposedOffenses.length > 0 && (
+            <Card className="border-amber-500/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4" /> Overexposed Offenses
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-2">
+                {data.overexposedOffenses.map((t: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between p-2 rounded-md bg-zinc-900 border border-zinc-800" data-testid={`card-overexposed-${i}`}>
+                    <div>
+                      <span className="text-sm font-bold text-amber-400">{t.team}</span>
+                      <span className="text-xs text-muted-foreground ml-2">({t.playerCount} starters)</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{t.owners.join(", ")}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {data.weeklyExploits && data.weeklyExploits.length > 0 && (
+            <Card className="border-emerald-500/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-emerald-400 flex items-center gap-2">
+                  <Brain className="h-4 w-4" /> Exploit Intelligence
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-2">
+                {data.weeklyExploits.map((e: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-sm p-2 rounded-md bg-zinc-900 border border-emerald-500/10" data-testid={`text-exploit-${i}`}>
+                    <Target className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span className="text-emerald-200">{e}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+const ALERT_TYPE_CONFIG: Record<string, { label: string; color: string; borderColor: string }> = {
+  td_overperformance: { label: "TD Overperformance", color: "text-red-400", borderColor: "border-red-500/20" },
+  td_underperformance: { label: "TD Underperformance", color: "text-emerald-400", borderColor: "border-emerald-500/20" },
+  usage_spike: { label: "Usage Spike", color: "text-emerald-400", borderColor: "border-emerald-500/20" },
+  usage_decline: { label: "Usage Decline", color: "text-red-400", borderColor: "border-red-500/20" },
+  breakout_candidate: { label: "Breakout Candidate", color: "text-amber-400", borderColor: "border-amber-500/20" },
+  regression_candidate: { label: "Regression Risk", color: "text-red-400", borderColor: "border-red-500/20" },
+};
+
+const SEVERITY_CONFIG: Record<string, { label: string; className: string }> = {
+  high: { label: "HIGH", className: "bg-red-500/20 text-red-400 border-red-500/30" },
+  medium: { label: "MED", className: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
+  low: { label: "LOW", className: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" },
+};
+
+function RegressionTab({ leagueId }: { leagueId: string }) {
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", `/api/engine/regression-alerts/${leagueId}`);
+      return await res.json();
+    },
+  });
+
+  const data = mutation.data;
+
+  return (
+    <div className="space-y-4">
+      <RunButton onClick={() => mutation.mutate()} isPending={mutation.isPending} label="Scan Players" />
+      <ErrorCard error={mutation.error as Error | null} />
+
+      {data?.alerts && data.alerts.length === 0 && (
+        <Card className="border-emerald-500/20 bg-emerald-500/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Target className="h-5 w-5 text-emerald-400 shrink-0" />
+            <p className="text-sm text-emerald-300">No significant regression or breakout alerts detected.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {data?.alerts && data.alerts.length > 0 && (
+        <div className="space-y-3">
+          {data.alerts.map((alert: any, i: number) => {
+            const typeConfig = ALERT_TYPE_CONFIG[alert.alertType] || { label: alert.alertType, color: "text-zinc-400", borderColor: "border-zinc-500/20" };
+            const sevConfig = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.low;
+            return (
+              <Card key={i} className={typeConfig.borderColor} data-testid={`card-alert-${i}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-sm">{alert.playerName}</span>
+                        <Badge variant="outline" className="text-[10px]">{alert.position}</Badge>
+                        <span className="text-xs text-muted-foreground">{alert.team}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant="outline" className={`text-[10px] ${typeConfig.color}`}>{typeConfig.label}</Badge>
+                        <Badge variant="outline" className={`text-[10px] ${sevConfig.className}`}>{sevConfig.label}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{alert.description}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[10px] text-muted-foreground uppercase">{alert.metric}</p>
+                      <p className={`font-bold font-mono ${typeConfig.color}`}>
+                        {alert.currentValue.toFixed(1)} <span className="text-xs text-muted-foreground">vs</span> {alert.expectedValue.toFixed(1)}
+                      </p>
+                      <p className={`text-xs font-mono ${colorForValue(alert.delta)}`}>
+                        {alert.delta > 0 ? "+" : ""}{alert.delta.toFixed(1)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TitleEquityTab({ leagueId }: { leagueId: string }) {
+  const { data, isLoading } = useQuery<{ snapshots: any[] }>({
+    queryKey: ["/api/engine/title-equity", leagueId],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/engine/title-equity/${leagueId}`);
+      return await res.json();
+    },
+  });
+
+  const snapshots = data?.snapshots || [];
+  const maxChamp = Math.max(0.01, ...snapshots.map(s => s.championshipOdds || 0));
+  const maxPlayoff = Math.max(0.01, ...snapshots.map(s => s.playoffOdds || 0));
+
+  return (
+    <div className="space-y-4">
+      {isLoading && (
+        <div className="flex items-center justify-center p-8">
+          <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+        </div>
+      )}
+
+      {!isLoading && snapshots.length === 0 && (
+        <Card className="border-amber-500/20 bg-amber-500/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Sparkles className="h-5 w-5 text-amber-400 shrink-0" />
+            <div>
+              <p className="text-sm text-amber-300">No title equity data yet.</p>
+              <p className="text-xs text-muted-foreground mt-1">Run the Season Outlook analysis each week to start tracking your championship odds over time.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {snapshots.length > 0 && (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="border-amber-500/20">
+              <CardContent className="p-4 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase">Latest Champ Odds</p>
+                <p className="text-3xl font-bold text-amber-400" data-testid="text-latest-champ-odds">
+                  {pctStr(snapshots[snapshots.length - 1]?.championshipOdds || 0)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-500/20">
+              <CardContent className="p-4 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase">Latest Playoff Odds</p>
+                <p className="text-3xl font-bold text-emerald-400" data-testid="text-latest-playoff-odds">
+                  {pctStr(snapshots[snapshots.length - 1]?.playoffOdds || 0)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="border-amber-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-amber-400">Championship Odds Over Time</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="h-40 flex items-end gap-1">
+                {snapshots.map((s: any, i: number) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1" data-testid={`bar-equity-${i}`}>
+                    <div
+                      className="w-full bg-amber-500/60 rounded-t-sm transition-all"
+                      style={{ height: `${Math.max(4, (s.championshipOdds / maxChamp) * 120)}px` }}
+                      title={`Wk ${s.week}: ${pctStr(s.championshipOdds)}`}
+                    />
+                    <span className="text-[9px] text-muted-foreground">{s.week}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-2">Week</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-amber-400">Playoff Odds Over Time</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="h-40 flex items-end gap-1">
+                {snapshots.map((s: any, i: number) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full bg-emerald-500/60 rounded-t-sm transition-all"
+                      style={{ height: `${Math.max(4, (s.playoffOdds / maxPlayoff) * 120)}px` }}
+                      title={`Wk ${s.week}: ${pctStr(s.playoffOdds)}`}
+                    />
+                    <span className="text-[9px] text-muted-foreground">{s.week}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-2">Week</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-amber-400">History</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-800">
+                    <th className="text-left py-2 text-muted-foreground text-xs">Week</th>
+                    <th className="text-right py-2 text-muted-foreground text-xs">Champ Odds</th>
+                    <th className="text-right py-2 text-muted-foreground text-xs">Playoff Odds</th>
+                    <th className="text-right py-2 text-muted-foreground text-xs">Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {snapshots.map((s: any, i: number) => {
+                    const prevChamp = i > 0 ? snapshots[i - 1].championshipOdds : s.championshipOdds;
+                    const delta = s.championshipOdds - prevChamp;
+                    return (
+                      <tr key={i} className="border-b border-zinc-800/50" data-testid={`row-equity-${i}`}>
+                        <td className="py-1.5">Wk {s.week}</td>
+                        <td className="text-right font-mono text-amber-400">{pctStr(s.championshipOdds)}</td>
+                        <td className="text-right font-mono text-emerald-400">{pctStr(s.playoffOdds)}</td>
+                        <td className={`text-right font-mono ${colorForValue(delta)}`}>
+                          {i > 0 ? `${delta > 0 ? "+" : ""}${pctStr(delta)}` : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
   );
 }

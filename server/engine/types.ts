@@ -19,7 +19,7 @@ export interface CorrelationEntry {
   player2Id: string;
   correlation: number;
   sampleSize: number;
-  type: 'qb_wr' | 'qb_te' | 'qb_rb' | 'rb_def' | 'same_team' | 'opp_def' | 'general';
+  type: 'qb_wr' | 'qb_te' | 'qb_rb' | 'rb_def' | 'same_team' | 'same_team_wr' | 'opp_def' | 'game_stack' | 'general';
 }
 
 export interface CorrelationMatrix {
@@ -82,6 +82,7 @@ export interface SimulationResult {
   marginVariance: number;
   upsetProbability: number;
   confidenceScore: number;
+  volatilityScore: number;
   userScoreDistribution: { p25: number; p50: number; p75: number; mean: number; stdDev: number };
   opponentScoreDistribution: { p25: number; p50: number; p75: number; mean: number; stdDev: number };
   iterations: number;

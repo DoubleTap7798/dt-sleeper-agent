@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -391,3 +391,21 @@ export const insertPortfolioSnapshotSchema = createInsertSchema(portfolioSnapsho
 
 export type PortfolioSnapshot = typeof portfolioSnapshots.$inferSelect;
 export type InsertPortfolioSnapshot = z.infer<typeof insertPortfolioSnapshotSchema>;
+
+export const titleEquitySnapshots = pgTable("title_equity_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  leagueId: text("league_id").notNull(),
+  week: integer("week").notNull(),
+  championshipOdds: real("championship_odds").notNull(),
+  playoffOdds: real("playoff_odds").notNull(),
+  computedAt: timestamp("computed_at").defaultNow(),
+});
+
+export const insertTitleEquitySnapshotSchema = createInsertSchema(titleEquitySnapshots).omit({
+  id: true,
+  computedAt: true,
+});
+
+export type TitleEquitySnapshot = typeof titleEquitySnapshots.$inferSelect;
+export type InsertTitleEquitySnapshot = z.infer<typeof insertTitleEquitySnapshotSchema>;
