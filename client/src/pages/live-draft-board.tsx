@@ -192,6 +192,7 @@ const TIER_COLORS: Record<string, string> = {
   Solid: "text-green-400",
   Upside: "text-blue-400",
   Depth: "text-muted-foreground",
+  Flier: "text-zinc-500",
 };
 
 const TIER_ICONS: Record<string, typeof Crown> = {

@@ -423,17 +423,6 @@ export function getDevyPlayerByName(name: string): (KTCDevyPlayer & { rank: numb
   };
 }
 
-// KTC values cache (in production, you'd fetch from KTC API or scrape)
-// These are sample values - in production, integrate with KTC's actual API
-const POSITION_BASE_VALUES: Record<string, number> = {
-  QB: 7000,
-  RB: 6000,
-  WR: 6500,
-  TE: 5000,
-  K: 500,
-  DEF: 500,
-};
-
 const PICK_VALUES: Record<string, Record<number, number>> = {
   "2025": {
     1: 7500,
@@ -458,50 +447,69 @@ const PICK_VALUES: Record<string, Record<number, number>> = {
   },
 };
 
-// Sample player values - in production this would come from KTC API
-// Format: playerId -> { value, trend }
-const PLAYER_VALUES_OVERRIDE: Record<string, PlayerValue> = {};
-
 export function getPlayerValue(
   playerId: string,
   position: string,
   age: number | null,
-  yearsExp: number
+  yearsExp: number,
+  searchRank?: number,
+  hasTeam?: boolean
 ): number {
-  // Check for override value first
-  if (PLAYER_VALUES_OVERRIDE[playerId]) {
-    return PLAYER_VALUES_OVERRIDE[playerId].value;
+  const onRoster = hasTeam ?? false;
+  const rank = searchRank ?? (onRoster ? 500 : 9999);
+
+  const positionCeiling: Record<string, number> = {
+    QB: 9500, RB: 8500, WR: 9000, TE: 7500,
+    K: 800, DEF: 800, LB: 3000, DL: 3000, CB: 2500, S: 2500, EDGE: 3000,
+  };
+  const ceiling = positionCeiling[position] || 3000;
+
+  let value: number;
+
+  if (rank <= 15) {
+    value = ceiling * (1.0 - (rank - 1) * 0.008);
+  } else if (rank <= 50) {
+    value = ceiling * (0.88 - (rank - 15) * 0.006);
+  } else if (rank <= 150) {
+    value = ceiling * (0.67 - (rank - 50) * 0.003);
+  } else if (rank <= 400) {
+    value = ceiling * (0.37 - (rank - 150) * 0.001);
+  } else if (rank <= 1000) {
+    value = ceiling * (0.12 - (rank - 400) * 0.00012);
+  } else if (rank <= 3000) {
+    value = ceiling * (0.05 - (rank - 1000) * 0.00002);
+  } else {
+    value = onRoster ? ceiling * 0.01 : ceiling * 0.005;
   }
 
-  // Calculate base value from position
-  let baseValue = POSITION_BASE_VALUES[position] || 3000;
-
-  // Age adjustment
   if (age) {
     if (position === "QB") {
-      // QBs have longer careers
-      if (age < 27) baseValue *= 1.1;
-      else if (age > 32) baseValue *= 0.6;
-      else if (age > 35) baseValue *= 0.3;
+      if (age <= 26) value *= 1.08;
+      else if (age >= 33 && age <= 36) value *= 0.75;
+      else if (age > 36) value *= 0.5;
     } else if (position === "RB") {
-      // RBs decline faster
-      if (age < 24) baseValue *= 1.2;
-      else if (age > 27) baseValue *= 0.7;
-      else if (age > 29) baseValue *= 0.4;
-    } else if (position === "WR" || position === "TE") {
-      // WRs and TEs have longer primes
-      if (age < 26) baseValue *= 1.1;
-      else if (age > 30) baseValue *= 0.7;
-      else if (age > 32) baseValue *= 0.4;
+      if (age <= 23) value *= 1.15;
+      else if (age >= 27 && age <= 29) value *= 0.7;
+      else if (age > 29) value *= 0.4;
+    } else if (position === "WR") {
+      if (age <= 25) value *= 1.08;
+      else if (age >= 30 && age <= 32) value *= 0.75;
+      else if (age > 32) value *= 0.45;
+    } else if (position === "TE") {
+      if (age <= 25) value *= 1.05;
+      else if (age >= 31) value *= 0.65;
     }
   }
 
-  // Experience adjustment
-  if (yearsExp === 0) baseValue *= 0.8; // Rookies
-  else if (yearsExp === 1) baseValue *= 0.95; // 2nd year
-  else if (yearsExp > 10) baseValue *= 0.5; // Veterans
+  if (yearsExp === 0) value *= 0.85;
+  else if (yearsExp === 1) value *= 0.95;
+  else if (yearsExp > 12) value *= 0.45;
 
-  return Math.round(baseValue);
+  if (!onRoster && rank > 500) {
+    value *= 0.3;
+  }
+
+  return Math.max(Math.round(value), 0);
 }
 
 export function getPickValue(year: string, round: number): number {
@@ -510,13 +518,13 @@ export function getPickValue(year: string, round: number): number {
 }
 
 export function calculateTradeValue(
-  players: Array<{ playerId: string; position: string; age: number | null; yearsExp: number }>,
+  players: Array<{ playerId: string; position: string; age: number | null; yearsExp: number; searchRank?: number; hasTeam?: boolean }>,
   picks: Array<{ year: string; round: number }>
 ): number {
   let totalValue = 0;
 
   for (const player of players) {
-    totalValue += getPlayerValue(player.playerId, player.position, player.age, player.yearsExp);
+    totalValue += getPlayerValue(player.playerId, player.position, player.age, player.yearsExp, player.searchRank, player.hasTeam);
   }
 
   for (const pick of picks) {

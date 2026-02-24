@@ -14440,8 +14440,11 @@ Respond in JSON format:
         });
 
         return veterans.map((p) => {
-          const value = ktcValues.getPlayerValue(p.pid, p.position, p.age || 25, p.years_exp || 1);
-          const tier = value >= 7000 ? 1 : value >= 5000 ? 2 : value >= 3000 ? 3 : value >= 1500 ? 4 : 5;
+          const value = ktcValues.getPlayerValue(p.pid, p.position, p.age || 25, p.years_exp || 1, p.search_rank, !!p.team);
+          const posCeiling: Record<string, number> = { QB: 9500, RB: 8500, WR: 9000, TE: 7500, K: 800, DEF: 800 };
+          const ceil = posCeiling[p.position] || 3000;
+          const pct = ceil > 0 ? value / ceil : 0;
+          const tier = pct >= 0.85 ? 1 : pct >= 0.65 ? 2 : pct >= 0.4 ? 3 : pct >= 0.18 ? 4 : pct >= 0.06 ? 5 : 6;
           return {
             id: p.pid,
             name: p.full_name || `${p.first_name} ${p.last_name}`,
@@ -14453,7 +14456,7 @@ Respond in JSON format:
             nflTeam: p.team || undefined,
           };
         })
-        .filter(p => p.value > 0);
+        .filter(p => p.value >= 50);
       };
 
       if (playerPool === "rookies") {
@@ -14474,7 +14477,7 @@ Respond in JSON format:
       for (const pid of existingRoster) {
         const player = allPlayers?.[pid];
         if (player) {
-          const pv = ktcValues.getPlayerValue(pid, player.position || "?", player.age || 25, player.years_exp || 1);
+          const pv = ktcValues.getPlayerValue(pid, player.position || "?", player.age || 25, player.years_exp || 1, player.search_rank, !!player.team);
           myRosterPlayers.push({
             name: player.full_name || "",
             pos: player.position || "?",
@@ -14538,7 +14541,8 @@ Respond in JSON format:
         if (t <= 2) return "Premium";
         if (t <= 3) return "Solid";
         if (t <= 4) return "Upside";
-        return "Depth";
+        if (t <= 5) return "Depth";
+        return "Flier";
       };
 
       const tierGroups: Record<string, typeof availablePlayers> = {};
