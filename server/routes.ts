@@ -14411,7 +14411,72 @@ Respond in JSON format:
 
       availablePlayers.sort((a, b) => (b.value || 0) - (a.value || 0));
 
-      // === SMART RECOMMENDATIONS ENGINE ===
+      // === DYNASTY-AWARE STRATEGIC SUGGESTION ENGINE v2 ===
+
+      // --- 1. DYNASTY WINDOW CLASSIFIER ---
+      const myRosterPlayers: Array<{ name: string; pos: string; age: number; value: number }> = [];
+      for (const pid of existingRoster) {
+        const player = allPlayers?.[pid];
+        if (player) {
+          const pv = ktcValues.getPlayerValue(pid, player.position || "?", player.age || 25, player.years_exp || 1);
+          myRosterPlayers.push({
+            name: player.full_name || "",
+            pos: player.position || "?",
+            age: player.age || 25,
+            value: pv,
+          });
+        }
+      }
+
+      const avgAge = myRosterPlayers.length > 0
+        ? myRosterPlayers.reduce((s, p) => s + p.age, 0) / myRosterPlayers.length
+        : 25;
+      const ageWeightedValue = myRosterPlayers.length > 0
+        ? myRosterPlayers.reduce((s, p) => s + p.value * (1 - Math.max(0, p.age - 26) * 0.03), 0) / Math.max(myRosterPlayers.length, 1)
+        : 0;
+
+      type DynastyWindow = "win_now" | "balanced" | "productive_struggle" | "rebuild";
+      let dynastyWindow: DynastyWindow;
+      if (avgAge >= 28 && ageWeightedValue < 3000) dynastyWindow = "rebuild";
+      else if (avgAge >= 27) dynastyWindow = "productive_struggle";
+      else if (avgAge <= 25.5 && ageWeightedValue > 4000) dynastyWindow = "win_now";
+      else dynastyWindow = "balanced";
+
+      const WINDOW_LABELS: Record<DynastyWindow, string> = {
+        win_now: "Win Now", balanced: "Balanced", productive_struggle: "Productive Struggle", rebuild: "Rebuild",
+      };
+
+      // --- 2. POSITIONAL DEPTH + AGE CURVE ANALYSIS ---
+      const starterThreshold: Record<string, number> = { QB: 2, RB: 4, WR: 4, TE: 2 };
+      const posDepth: Record<string, { count: number; need: string; gapSize: number; avgAge: number; agingCliff: boolean }> = {};
+      const posAges: Record<string, number[]> = {};
+      myRosterPlayers.forEach(p => {
+        if (!posAges[p.pos]) posAges[p.pos] = [];
+        posAges[p.pos].push(p.age);
+      });
+
+      Object.entries(rosterNeeds).forEach(([pos, need]) => {
+        const have = posCount[pos] || 0;
+        const ideal = starterThreshold[pos] || 2;
+        const ages = posAges[pos] || [];
+        const posAvgAge = ages.length > 0 ? ages.reduce((a, b) => a + b, 0) / ages.length : 25;
+        const ageCutoff = pos === "RB" ? 27 : pos === "QB" ? 32 : 29;
+        const agingCliff = ages.filter(a => a >= ageCutoff).length >= Math.ceil(ages.length * 0.5);
+        posDepth[pos] = { count: have, need, gapSize: Math.max(0, ideal - have), avgAge: posAvgAge, agingCliff };
+      });
+
+      // --- 3. POSITIONAL SATURATION PENALTY ---
+      const saturationPenalty = (pos: string, count: number): number => {
+        const thresholds: Record<string, number[]> = {
+          QB: [2, 3], RB: [5, 7], WR: [5, 7], TE: [2, 3],
+        };
+        const [soft, hard] = thresholds[pos] || [3, 5];
+        if (count >= hard) return 0.45;
+        if (count >= soft) return 0.25;
+        return 0;
+      };
+
+      // --- 4. TIER GROUPING + DROPOFF DETECTION ---
       const tierLabel = (t: number): string => {
         if (t <= 1) return "Elite";
         if (t <= 2) return "Premium";
@@ -14420,123 +14485,356 @@ Respond in JSON format:
         return "Depth";
       };
 
-      // Analyze roster composition deeply
-      const myRosterPlayers: Array<{ name: string; pos: string; age: number }> = [];
-      for (const pid of existingRoster) {
-        const player = allPlayers?.[pid];
-        if (player) {
-          myRosterPlayers.push({
-            name: player.full_name || "",
-            pos: player.position || "?",
-            age: player.age || 25,
-          });
-        }
-      }
-      const avgAge = myRosterPlayers.length > 0
-        ? myRosterPlayers.reduce((s, p) => s + p.age, 0) / myRosterPlayers.length
-        : 25;
-      const isRebuild = avgAge > 27.5;
-      const isContender = avgAge <= 25.5;
-
-      // Positional depth analysis (starter-quality vs depth)
-      const starterThreshold: Record<string, number> = { QB: 2, RB: 4, WR: 4, TE: 2 };
-      const posDepth: Record<string, { count: number; need: string; gapSize: number }> = {};
-      Object.entries(rosterNeeds).forEach(([pos, need]) => {
-        const have = posCount[pos] || 0;
-        const ideal = starterThreshold[pos] || 2;
-        posDepth[pos] = { count: have, need, gapSize: Math.max(0, ideal - have) };
+      const tierGroups: Record<string, typeof availablePlayers> = {};
+      availablePlayers.forEach(p => {
+        const tl = tierLabel(p.tier);
+        if (!tierGroups[tl]) tierGroups[tl] = [];
+        tierGroups[tl].push(p);
       });
 
-      // Picks remaining context
+      const isLastInTier = (player: typeof availablePlayers[0]): boolean => {
+        const tl = tierLabel(player.tier);
+        const group = tierGroups[tl] || [];
+        const samePosTier = group.filter(p => p.position === player.position);
+        return samePosTier.length <= 1;
+      };
+
+      const tierDropoffScore = (player: typeof availablePlayers[0]): number => {
+        if (!isLastInTier(player)) return 0;
+        const tl = tierLabel(player.tier);
+        const nextTierPlayers = availablePlayers.filter(
+          p => p.position === player.position && p.tier > player.tier
+        );
+        if (nextTierPlayers.length === 0) return 0.3;
+        const valueDrop = player.value - (nextTierPlayers[0]?.value || 0);
+        const dropPct = player.value > 0 ? valueDrop / player.value : 0;
+        return dropPct > 0.3 ? 1.0 : dropPct > 0.15 ? 0.6 : 0.2;
+      };
+
+      // --- 5. LEAGUE DRAFT FLOW DETECTION ---
+      const recentPicks = formattedPicks.slice(-12);
+      const recentPosCounts: Record<string, number> = {};
+      recentPicks.forEach(p => {
+        recentPosCounts[p.position] = (recentPosCounts[p.position] || 0) + 1;
+      });
+
+      const posRunDetection = (pos: string): number => {
+        const runCount = recentPosCounts[pos] || 0;
+        if (runCount >= 5) return 0.8;
+        if (runCount >= 4) return 0.5;
+        if (runCount >= 3) return 0.2;
+        return 0;
+      };
+
+      // --- 6. POSITIONAL SCARCITY CALCULATOR ---
+      const posScarcity = (pos: string): number => {
+        const available = availablePlayers.filter(p => p.position === pos);
+        const topAvailable = available.filter(p => p.tier <= 3).length;
+        if (topAvailable === 0) return 1.0;
+        if (topAvailable <= 2) return 0.8;
+        if (topAvailable <= 5) return 0.5;
+        if (topAvailable <= 10) return 0.2;
+        return 0;
+      };
+
+      // --- 7. DYNASTY WINDOW FIT SCORE ---
+      const dynastyFitScore = (player: typeof availablePlayers[0]): number => {
+        const playerAge = (() => {
+          const sp = allPlayers?.[player.id];
+          return sp?.age || (player.college ? 21 : 25);
+        })();
+
+        if (dynastyWindow === "win_now") {
+          if (playerAge >= 26 && playerAge <= 30 && player.tier <= 3) return 0.9;
+          if (playerAge >= 24) return 0.5;
+          if (playerAge <= 22) return 0.2;
+          return 0.4;
+        }
+        if (dynastyWindow === "rebuild") {
+          if (playerAge <= 23) return 1.0;
+          if (playerAge <= 25) return 0.7;
+          if (playerAge >= 28) return 0.1;
+          return 0.4;
+        }
+        if (dynastyWindow === "productive_struggle") {
+          if (playerAge <= 24) return 0.8;
+          if (playerAge <= 26) return 0.6;
+          return 0.3;
+        }
+        return 0.5;
+      };
+
+      // --- 8. ROSTER NEED WEIGHT ---
+      const rosterNeedWeight = (pos: string): number => {
+        const depth = posDepth[pos];
+        if (!depth) return 0.3;
+        const needMultiplier = depth.need === "Critical" ? 1.0 : depth.need === "High" ? 0.7 : depth.need === "Moderate" ? 0.4 : 0.1;
+        const agingBonus = depth.agingCliff ? 0.2 : 0;
+        return Math.min(1.0, needMultiplier + agingBonus);
+      };
+
+      // --- 9. DRAFT CAPITAL VALUE (round-based) ---
+      const currentRound = Math.ceil(currentPick / board.totalTeams) || 1;
+      const draftCapitalValue = (round: number): number => {
+        if (round <= 2) return 1.0;
+        if (round <= 4) return 0.8;
+        if (round <= 8) return 0.5;
+        if (round <= 12) return 0.3;
+        return 0.15;
+      };
+      const currentDraftCapital = draftCapitalValue(currentRound);
+
+      // --- 10. COMPOSITE DRAFT SCORE ---
+      const WEIGHTS = {
+        baseValue: 0.35,
+        rosterNeed: 0.20,
+        scarcity: 0.15,
+        dynastyFit: 0.10,
+        draftCapital: 0.10,
+        tierDropoff: 0.05,
+        runDetection: 0.05,
+      };
+
+      const maxValue = availablePlayers.length > 0 ? availablePlayers[0].value : 1;
+
+      const scoredPlayers = availablePlayers.map(player => {
+        const baseNorm = maxValue > 0 ? player.value / maxValue : 0;
+        const needW = rosterNeedWeight(player.position);
+        const scarcityW = posScarcity(player.position);
+        const dynastyW = dynastyFitScore(player);
+        const capitalW = currentDraftCapital;
+        const dropoffW = tierDropoffScore(player);
+        const runW = posRunDetection(player.position);
+
+        const satPenalty = saturationPenalty(player.position, posCount[player.position] || 0);
+
+        const rawScore =
+          (baseNorm * WEIGHTS.baseValue) +
+          (needW * WEIGHTS.rosterNeed) +
+          (scarcityW * WEIGHTS.scarcity) +
+          (dynastyW * WEIGHTS.dynastyFit) +
+          (capitalW * WEIGHTS.draftCapital) +
+          (dropoffW * WEIGHTS.tierDropoff) +
+          (runW * WEIGHTS.runDetection);
+
+        const finalScore = rawScore * (1 - satPenalty);
+
+        return { ...player, compositeScore: finalScore, baseNorm, needW, scarcityW, dynastyW, dropoffW, runW, satPenalty };
+      });
+
+      scoredPlayers.sort((a, b) => b.compositeScore - a.compositeScore);
+
+      // --- 11. CONTEXTUAL BADGE ASSIGNMENT ---
+      type ContextualBadge = "Win Now Anchor" | "Rebuild Cornerstone" | "Scarcity Play" | "Tier Break Risk" | "Value vs ADP" | "Depth Stabilizer" | "High Variance Bet";
+
+      const assignBadge = (p: typeof scoredPlayers[0]): ContextualBadge => {
+        if (p.dropoffW >= 0.6) return "Tier Break Risk";
+        if (p.scarcityW >= 0.7 && p.needW >= 0.5) return "Scarcity Play";
+        if (dynastyWindow === "win_now" && p.dynastyW >= 0.8) return "Win Now Anchor";
+        if (dynastyWindow === "rebuild" && p.dynastyW >= 0.8) return "Rebuild Cornerstone";
+        if (p.baseNorm >= 0.7 && p.needW <= 0.2) return "Value vs ADP";
+        if (p.needW >= 0.6 && p.baseNorm < 0.4) return "Depth Stabilizer";
+        if (p.tier >= 4 && p.baseNorm >= 0.3) return "High Variance Bet";
+        if (dynastyWindow === "win_now") return "Win Now Anchor";
+        if (dynastyWindow === "rebuild") return "Rebuild Cornerstone";
+        return "Value vs ADP";
+      };
+
+      const BADGE_COLORS: Record<ContextualBadge, string> = {
+        "Win Now Anchor": "amber",
+        "Rebuild Cornerstone": "emerald",
+        "Scarcity Play": "red",
+        "Tier Break Risk": "red",
+        "Value vs ADP": "blue",
+        "Depth Stabilizer": "emerald",
+        "High Variance Bet": "violet",
+      };
+
+      // --- 12. PICK EXPLANATION ENGINE ---
+      const buildExplanation = (p: typeof scoredPlayers[0], rank: number) => {
+        const badge = assignBadge(p);
+        const depth = posDepth[p.position];
+        const playerAge = allPlayers?.[p.id]?.age || (p.college ? 21 : 25);
+
+        let strategicReason = "";
+        if (badge === "Scarcity Play") {
+          strategicReason = `Only ${availablePlayers.filter(x => x.position === p.position && x.tier <= 3).length} quality ${p.position}s remain in this draft pool`;
+        } else if (badge === "Tier Break Risk") {
+          strategicReason = `Last ${tierLabel(p.tier)}-tier ${p.position} available — significant drop after this pick`;
+        } else if (badge === "Win Now Anchor") {
+          strategicReason = `Peak-age producer who accelerates your contention window`;
+        } else if (badge === "Rebuild Cornerstone") {
+          strategicReason = `Young asset (${playerAge}) with long-term dynasty upside for your rebuild`;
+        } else if (badge === "Value vs ADP") {
+          strategicReason = `Ranked significantly higher than current draft position — falling value`;
+        } else if (badge === "Depth Stabilizer") {
+          strategicReason = `Fills a positional gap — you have ${depth?.count || 0} ${p.position}s rostered`;
+        } else {
+          strategicReason = `High-ceiling prospect with breakout potential`;
+        }
+
+        let rosterImpact = "";
+        if (depth) {
+          if (depth.need === "Critical") rosterImpact = `Fills critical ${p.position} hole (${depth.count} rostered, need ${starterThreshold[p.position] || 2})`;
+          else if (depth.need === "High") rosterImpact = `Addresses high ${p.position} need (${depth.count}/${starterThreshold[p.position] || 2})`;
+          else if (depth.need === "Moderate") rosterImpact = `Adds depth at ${p.position} (${depth.count} rostered)`;
+          else rosterImpact = `Luxury add at ${p.position} — ${depth.count} already rostered`;
+        }
+
+        const dynastyFit = `${WINDOW_LABELS[dynastyWindow]} build | Player age: ${playerAge} | ${
+          dynastyWindow === "rebuild" && playerAge <= 23 ? "Core dynasty asset" :
+          dynastyWindow === "win_now" && playerAge >= 26 ? "Immediate impact" :
+          "Versatile timeline fit"
+        }`;
+
+        let riskProfile: "Low" | "Medium" | "High" = "Medium";
+        if (p.tier <= 1 && p.needW >= 0.5) riskProfile = "Low";
+        else if (p.tier >= 4 || p.satPenalty > 0.2) riskProfile = "High";
+
+        const alternativePath = (() => {
+          if (p.needW <= 0.2 && depth) {
+            const betterNeedPos = Object.entries(posDepth)
+              .filter(([pos, d]) => pos !== p.position && (d.need === "Critical" || d.need === "High"))
+              .sort((a, b) => b[1].gapSize - a[1].gapSize)[0];
+            if (betterNeedPos) {
+              return `Consider ${betterNeedPos[0]} instead — ${betterNeedPos[1].need.toLowerCase()} need with ${betterNeedPos[1].count} rostered`;
+            }
+          }
+          if (p.satPenalty > 0) {
+            return `You have ${posCount[p.position] || 0} ${p.position}s — diversify to strengthen other positions`;
+          }
+          return null;
+        })();
+
+        return { badge, badgeColor: BADGE_COLORS[badge], strategicReason, rosterImpact, dynastyFit, riskProfile, alternativePath };
+      };
+
+      // --- 13. DIVERSIFIED OUTPUT (max 2/position, min 3 positions, 1 contrarian) ---
       const picksLeft = myPicks.length;
       const nextPick = myPicks[0];
       const picksBetweenMyNext = nextPick ? nextPick.overall - currentPick : 0;
 
-      // Build recommendations with contextual, roster-specific reasoning
       const recommendations: Array<{
         playerId: string;
         name: string;
         position: string;
         value: number;
+        compositeScore: number;
         reason: string;
         college?: string;
         tier?: string;
+        badge?: string;
+        badgeColor?: string;
+        strategicReason?: string;
+        rosterImpact?: string;
+        dynastyFit?: string;
+        riskProfile?: string;
+        alternativePath?: string | null;
       }> = [];
       const addedIds = new Set<string>();
+      const posInRecs: Record<string, number> = {};
 
-      if (availablePlayers.length > 0) {
-        // 1. Best Player Available with context
-        const bpa = availablePlayers[0];
-        const bpaRosterFit = posDepth[bpa.position];
-        let bpaReason = `#1 player available`;
-        if (bpaRosterFit?.need === "Critical" || bpaRosterFit?.need === "High") {
-          bpaReason += ` — also fills your ${bpa.position} need (${bpaRosterFit.need.toLowerCase()})`;
-        } else if (bpaRosterFit?.need === "Low") {
-          bpaReason += ` — luxury pick, you're set at ${bpa.position} (${bpaRosterFit.count} rostered)`;
+      if (scoredPlayers.length > 0) {
+        for (const player of scoredPlayers) {
+          if (recommendations.length >= 7) break;
+          if (addedIds.has(player.id)) continue;
+
+          const posUsed = posInRecs[player.position] || 0;
+          if (posUsed >= 2) continue;
+
+          addedIds.add(player.id);
+          posInRecs[player.position] = posUsed + 1;
+
+          const explanation = buildExplanation(player, recommendations.length + 1);
+
+          let reason = explanation.strategicReason;
+          if (player.nflTeam) reason += ` | ${player.nflTeam}`;
+
+          recommendations.push({
+            playerId: player.id,
+            name: player.name,
+            position: player.position,
+            value: player.value,
+            compositeScore: Math.round(player.compositeScore * 1000),
+            reason,
+            college: player.college,
+            tier: tierLabel(player.tier),
+            badge: explanation.badge,
+            badgeColor: explanation.badgeColor,
+            strategicReason: explanation.strategicReason,
+            rosterImpact: explanation.rosterImpact,
+            dynastyFit: explanation.dynastyFit,
+            riskProfile: explanation.riskProfile,
+            alternativePath: explanation.alternativePath,
+          });
         }
-        if (bpa.nflTeam) bpaReason += ` | Landed: ${bpa.nflTeam}`;
-        addedIds.add(bpa.id);
-        recommendations.push({
-          playerId: bpa.id,
-          name: bpa.name,
-          position: bpa.position,
-          value: bpa.value,
-          reason: bpaReason,
-          college: bpa.college,
-          tier: tierLabel(bpa.tier),
-        });
 
-        // 2. Best roster-fit pick (highest value at a position of need)
-        const needPositions = Object.entries(posDepth)
-          .filter(([_, d]) => d.need === "Critical" || d.need === "High" || d.need === "Moderate")
-          .sort((a, b) => b[1].gapSize - a[1].gapSize)
-          .map(([pos]) => pos);
-
-        for (const pos of needPositions) {
-          if (recommendations.length >= 5) break;
-          const fitPlayer = availablePlayers.find(p => p.position === pos && !addedIds.has(p.id));
-          if (fitPlayer) {
-            addedIds.add(fitPlayer.id);
-            const depth = posDepth[pos];
-            let reason = `Best ${pos} available — you have ${depth.count} rostered`;
-            if (depth.need === "Critical") reason += " (critical need)";
-            else if (depth.need === "High") reason += " (high need)";
-            else reason += " (depth add)";
-            if (picksBetweenMyNext > 5 && fitPlayer === availablePlayers.find(p => p.position === pos)) {
-              reason += ` | May not last ${picksBetweenMyNext} more picks`;
+        const positionsUsed = new Set(recommendations.map(r => r.position));
+        if (positionsUsed.size < 3 && recommendations.length < 7) {
+          const missingPositions = ["QB", "RB", "WR", "TE"].filter(p => !positionsUsed.has(p));
+          for (const pos of missingPositions) {
+            if (recommendations.length >= 7) break;
+            const candidate = scoredPlayers.find(p => p.position === pos && !addedIds.has(p.id));
+            if (candidate) {
+              addedIds.add(candidate.id);
+              posInRecs[pos] = (posInRecs[pos] || 0) + 1;
+              const explanation = buildExplanation(candidate, recommendations.length + 1);
+              let reason = explanation.strategicReason;
+              if (candidate.nflTeam) reason += ` | ${candidate.nflTeam}`;
+              recommendations.push({
+                playerId: candidate.id,
+                name: candidate.name,
+                position: candidate.position,
+                value: candidate.value,
+                compositeScore: Math.round(candidate.compositeScore * 1000),
+                reason,
+                college: candidate.college,
+                tier: tierLabel(candidate.tier),
+                badge: explanation.badge,
+                badgeColor: explanation.badgeColor,
+                strategicReason: explanation.strategicReason,
+                rosterImpact: explanation.rosterImpact,
+                dynastyFit: explanation.dynastyFit,
+                riskProfile: explanation.riskProfile,
+                alternativePath: explanation.alternativePath,
+              });
             }
-            if (fitPlayer.nflTeam) reason += ` | Landed: ${fitPlayer.nflTeam}`;
+          }
+        }
+
+        if (recommendations.length < 7) {
+          const contrarian = scoredPlayers.find(p =>
+            !addedIds.has(p.id) &&
+            (p.tier >= 3 && p.baseNorm >= 0.2) &&
+            (posInRecs[p.position] || 0) < 2
+          );
+          if (contrarian) {
+            addedIds.add(contrarian.id);
+            const explanation = buildExplanation(contrarian, recommendations.length + 1);
+            explanation.badge = "High Variance Bet" as any;
+            explanation.badgeColor = BADGE_COLORS["High Variance Bet"];
             recommendations.push({
-              playerId: fitPlayer.id,
-              name: fitPlayer.name,
-              position: fitPlayer.position,
-              value: fitPlayer.value,
-              reason,
-              college: fitPlayer.college,
-              tier: tierLabel(fitPlayer.tier),
+              playerId: contrarian.id,
+              name: contrarian.name,
+              position: contrarian.position,
+              value: contrarian.value,
+              compositeScore: Math.round(contrarian.compositeScore * 1000),
+              reason: `Contrarian upside — ${explanation.strategicReason}`,
+              college: contrarian.college,
+              tier: tierLabel(contrarian.tier),
+              badge: "High Variance Bet",
+              badgeColor: "violet",
+              strategicReason: explanation.strategicReason,
+              rosterImpact: explanation.rosterImpact,
+              dynastyFit: explanation.dynastyFit,
+              riskProfile: "High",
+              alternativePath: explanation.alternativePath,
             });
           }
         }
 
-        // 3. Value/sleeper pick — high value falling in the draft
-        const valueTarget = availablePlayers
-          .slice(0, 15)
-          .find(p => !addedIds.has(p.id));
-        if (valueTarget && recommendations.length < 5) {
-          addedIds.add(valueTarget.id);
-          let reason = `Value pick — ranked higher than current draft position`;
-          if (isRebuild) reason += " | Good dynasty asset for rebuild";
-          if (valueTarget.nflTeam) reason += ` | Landed: ${valueTarget.nflTeam}`;
-          recommendations.push({
-            playerId: valueTarget.id,
-            name: valueTarget.name,
-            position: valueTarget.position,
-            value: valueTarget.value,
-            reason,
-            college: valueTarget.college,
-            tier: tierLabel(valueTarget.tier),
-          });
-        }
+        recommendations.sort((a, b) => (b.compositeScore || 0) - (a.compositeScore || 0));
+        if (recommendations.length > 5) recommendations.length = 5;
       }
 
       // Predictions: for each remaining pick, show likely available players
@@ -14617,6 +14915,9 @@ Respond in JSON format:
           predictions,
           mySelections,
           posCount,
+          dynastyWindow,
+          dynastyWindowLabel: WINDOW_LABELS[dynastyWindow],
+          currentRound,
         },
       });
     } catch (error) {

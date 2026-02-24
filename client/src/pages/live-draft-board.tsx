@@ -26,6 +26,16 @@ import {
   Users,
   Baby,
   UserCheck,
+  AlertTriangle,
+  Crosshair,
+  Anchor,
+  Gem,
+  BarChart3,
+  Layers,
+  Flame,
+  ChevronDown,
+  ChevronUp,
+  Info,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 
@@ -60,9 +70,17 @@ interface Recommendation {
   name: string;
   position: string;
   value: number;
+  compositeScore?: number;
   reason: string;
   college?: string;
   tier?: string;
+  badge?: string;
+  badgeColor?: string;
+  strategicReason?: string;
+  rosterImpact?: string;
+  dynastyFit?: string;
+  riskProfile?: string;
+  alternativePath?: string | null;
 }
 
 interface Prediction {
@@ -118,6 +136,9 @@ interface DraftCommandData {
     predictions: Prediction[];
     mySelections: MySelection[];
     posCount: Record<string, number>;
+    dynastyWindow?: string;
+    dynastyWindowLabel?: string;
+    currentRound?: number;
   };
 }
 
@@ -177,6 +198,29 @@ const TIER_ICONS: Record<string, typeof Crown> = {
   Solid: Shield,
 };
 
+const BADGE_STYLES: Record<string, { className: string; icon: typeof Crown }> = {
+  "Win Now Anchor": { className: "text-amber-400 bg-amber-400/10 border-amber-400/30", icon: Anchor },
+  "Rebuild Cornerstone": { className: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30", icon: Gem },
+  "Scarcity Play": { className: "text-red-400 bg-red-400/10 border-red-400/30", icon: Crosshair },
+  "Tier Break Risk": { className: "text-red-400 bg-red-400/10 border-red-400/30", icon: AlertTriangle },
+  "Value vs ADP": { className: "text-blue-400 bg-blue-400/10 border-blue-400/30", icon: BarChart3 },
+  "Depth Stabilizer": { className: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30", icon: Layers },
+  "High Variance Bet": { className: "text-violet-400 bg-violet-400/10 border-violet-400/30", icon: Flame },
+};
+
+const RISK_STYLES: Record<string, string> = {
+  Low: "text-emerald-400",
+  Medium: "text-amber-400",
+  High: "text-red-400",
+};
+
+const WINDOW_STYLES: Record<string, { className: string; icon: typeof Crown }> = {
+  win_now: { className: "text-amber-400 border-amber-400/30 bg-amber-400/10", icon: Crown },
+  balanced: { className: "text-blue-400 border-blue-400/30 bg-blue-400/10", icon: BarChart3 },
+  productive_struggle: { className: "text-violet-400 border-violet-400/30 bg-violet-400/10", icon: TrendingUp },
+  rebuild: { className: "text-emerald-400 border-emerald-400/30 bg-emerald-400/10", icon: Gem },
+};
+
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   pre_draft: { label: "Pre-Draft", className: "text-muted-foreground border-muted-foreground/30" },
   in_progress: { label: "LIVE", className: "text-emerald-400 border-emerald-400/50 bg-emerald-400/10 shadow-[0_0_12px_rgba(52,211,153,0.15)]" },
@@ -189,6 +233,108 @@ const POOL_OPTIONS: Array<{ value: PlayerPoolType; label: string; icon: typeof U
   { value: "veterans", label: "Veterans Only", icon: UserCheck, description: "No rookies in pool" },
   { value: "rookies", label: "Rookies Only", icon: Baby, description: "No veterans in pool" },
 ];
+
+function RecommendationCard({ rec, rank }: { rec: Recommendation; rank: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const badgeStyle = BADGE_STYLES[rec.badge || ""] || BADGE_STYLES["Value vs ADP"];
+  const BadgeIcon = badgeStyle.icon;
+  const TierIcon = TIER_ICONS[rec.tier || ""] || null;
+
+  return (
+    <div
+      className="rounded-xl border border-border/40 bg-muted/5 hover-elevate overflow-hidden"
+      data-testid={`row-recommendation-${rec.playerId}`}
+    >
+      <div
+        className="flex items-start gap-3 p-3.5 cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+        data-testid={`btn-expand-rec-${rec.playerId}`}
+      >
+        <div className={`flex items-center justify-center h-7 w-7 rounded-full text-xs font-bold shrink-0 ${
+          rank === 1 ? "bg-primary/20 text-primary" : "bg-muted/60 text-muted-foreground"
+        }`}>
+          {rank}
+        </div>
+        <Badge variant="outline" className={`text-xs shrink-0 font-semibold ${POS_COLORS[rec.position] || ""}`}>
+          {rec.position}
+        </Badge>
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-bold">{rec.name}</p>
+            {rec.badge && (
+              <Badge variant="outline" className={`text-[10px] font-semibold gap-1 ${badgeStyle.className}`}>
+                <BadgeIcon className="h-2.5 w-2.5" />
+                {rec.badge}
+              </Badge>
+            )}
+          </div>
+          {rec.college && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <GraduationCap className="h-3 w-3 shrink-0" />
+              <span>{rec.college}</span>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground/80 leading-relaxed">{rec.strategicReason || rec.reason}</p>
+        </div>
+        <div className="text-right shrink-0 space-y-1">
+          <p className="text-sm font-mono font-bold text-primary tabular-nums">{rec.value?.toLocaleString()}</p>
+          {rec.tier && (
+            <div className={`flex items-center gap-0.5 justify-end ${TIER_COLORS[rec.tier] || "text-muted-foreground"}`}>
+              {TierIcon && <TierIcon className="h-3 w-3" />}
+              <span className="text-[10px] font-semibold">{rec.tier}</span>
+            </div>
+          )}
+          {rec.riskProfile && (
+            <div className={`text-[10px] font-semibold ${RISK_STYLES[rec.riskProfile] || "text-muted-foreground"}`}>
+              {rec.riskProfile} Risk
+            </div>
+          )}
+          <div className="flex items-center justify-end mt-0.5">
+            {expanded ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
+          </div>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-border/30 px-3.5 pb-3.5 pt-2.5 space-y-2 bg-muted/10" data-testid={`rec-details-${rec.playerId}`}>
+          {rec.rosterImpact && (
+            <div className="flex items-start gap-2">
+              <Target className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Roster Impact</span>
+                <p className="text-xs text-foreground/80">{rec.rosterImpact}</p>
+              </div>
+            </div>
+          )}
+          {rec.dynastyFit && (
+            <div className="flex items-start gap-2">
+              <TrendingUp className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Dynasty Fit</span>
+                <p className="text-xs text-foreground/80">{rec.dynastyFit}</p>
+              </div>
+            </div>
+          )}
+          {rec.alternativePath && (
+            <div className="flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 mt-0.5 text-amber-400/70 shrink-0" />
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-amber-400/70 font-semibold">Alternative</span>
+                <p className="text-xs text-amber-400/60">{rec.alternativePath}</p>
+              </div>
+            </div>
+          )}
+          {rec.compositeScore !== undefined && (
+            <div className="flex items-center justify-end gap-1 pt-1">
+              <span className="text-[10px] text-muted-foreground">Composite Score:</span>
+              <span className="text-xs font-mono font-bold text-primary">{rec.compositeScore}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function LiveDraftBoardPage() {
   usePageTitle("Draft Command Center");
@@ -447,6 +593,31 @@ export default function LiveDraftBoardPage() {
 
           {/* ASSISTANT TAB */}
           <TabsContent value="assistant" className="mt-4 space-y-5">
+            <div className="flex items-center gap-3 flex-wrap">
+              {assistant.dynastyWindow && (
+                <div className="flex items-center gap-2" data-testid="dynasty-window-badge">
+                  {(() => {
+                    const ws = WINDOW_STYLES[assistant.dynastyWindow] || WINDOW_STYLES.balanced;
+                    const WIcon = ws.icon;
+                    return (
+                      <Badge variant="outline" className={`text-xs font-semibold gap-1 ${ws.className}`}>
+                        <WIcon className="h-3 w-3" />
+                        {assistant.dynastyWindowLabel || assistant.dynastyWindow}
+                      </Badge>
+                    );
+                  })()}
+                  {assistant.currentRound && (
+                    <span className="text-xs text-muted-foreground font-mono">Round {assistant.currentRound}</span>
+                  )}
+                </div>
+              )}
+              {assistant.myPicks.length > 0 && (
+                <Badge variant="secondary" className="text-[10px] font-mono ml-auto">
+                  Next: R{assistant.myPicks[0].round}.{assistant.myPicks[0].pick}
+                </Badge>
+              )}
+            </div>
+
             <Card data-testid="card-roster-needs" className="border-border/60">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2 tracking-wide uppercase text-muted-foreground">
@@ -476,63 +647,21 @@ export default function LiveDraftBoardPage() {
 
             <Card data-testid="card-recommendations" className="border-border/60">
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm flex items-center gap-2 tracking-wide uppercase text-muted-foreground">
-                    <TrendingUp className="h-4 w-4 text-primary" />
-                    Recommendations
-                  </CardTitle>
-                  {assistant.myPicks.length > 0 && (
-                    <Badge variant="secondary" className="text-[10px] font-mono">
-                      Next: R{assistant.myPicks[0].round}.{assistant.myPicks[0].pick}
-                    </Badge>
-                  )}
-                </div>
+                <CardTitle className="text-sm flex items-center gap-2 tracking-wide uppercase text-muted-foreground">
+                  <Brain className="h-4 w-4 text-primary" />
+                  Strategic Recommendations
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2.5">
+              <CardContent className="space-y-3">
                 {assistant.recommendations.length === 0 ? (
                   <div className="py-6 text-center">
                     <Brain className="h-8 w-8 mx-auto mb-2 opacity-20" />
                     <p className="text-sm text-muted-foreground">No recommendations available yet.</p>
                   </div>
                 ) : (
-                  assistant.recommendations.map((rec, idx) => {
-                    const TierIcon = TIER_ICONS[rec.tier || ""] || null;
-                    return (
-                      <div
-                        key={rec.playerId}
-                        className="group flex items-start gap-3 p-3.5 rounded-xl border border-border/40 bg-muted/5 hover-elevate"
-                        data-testid={`row-recommendation-${rec.playerId}`}
-                      >
-                        <div className={`flex items-center justify-center h-7 w-7 rounded-full text-xs font-bold shrink-0 ${
-                          idx === 0 ? "bg-primary/20 text-primary" : "bg-muted/60 text-muted-foreground"
-                        }`}>
-                          {idx + 1}
-                        </div>
-                        <Badge variant="outline" className={`text-xs shrink-0 font-semibold ${POS_COLORS[rec.position] || ""}`}>
-                          {rec.position}
-                        </Badge>
-                        <div className="flex-1 min-w-0 space-y-0.5">
-                          <p className="text-sm font-bold">{rec.name}</p>
-                          {rec.college && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <GraduationCap className="h-3 w-3 shrink-0" />
-                              <span>{rec.college}</span>
-                            </div>
-                          )}
-                          <p className="text-xs text-muted-foreground/80 leading-relaxed">{rec.reason}</p>
-                        </div>
-                        <div className="text-right shrink-0 space-y-0.5">
-                          <p className="text-sm font-mono font-bold text-primary tabular-nums">{rec.value?.toLocaleString()}</p>
-                          {rec.tier && (
-                            <div className={`flex items-center gap-0.5 justify-end ${TIER_COLORS[rec.tier] || "text-muted-foreground"}`}>
-                              {TierIcon && <TierIcon className="h-3 w-3" />}
-                              <span className="text-[10px] font-semibold">{rec.tier}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
+                  assistant.recommendations.map((rec, idx) => (
+                    <RecommendationCard key={rec.playerId} rec={rec} rank={idx + 1} />
+                  ))
                 )}
               </CardContent>
             </Card>
