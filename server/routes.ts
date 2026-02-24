@@ -14062,9 +14062,44 @@ Respond in JSON format:
       const userProfile = await storage.getUserProfile(userId);
       const sleeperUserId = userProfile?.sleeperUserId;
 
+      let effectiveLeagueId = leagueId;
+      let drafts: any[] = [];
+
       const draftsRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/drafts`);
-      const drafts = await draftsRes.json();
-      if (!drafts || drafts.length === 0) {
+      const rawDrafts = await draftsRes.json();
+      drafts = Array.isArray(rawDrafts) ? rawDrafts : [];
+
+      if (drafts.length === 0 && sleeperUserId) {
+        try {
+          const leagueRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
+          const leagueInfo = await leagueRes.json();
+          const leagueName = leagueInfo?.name?.toLowerCase().trim();
+
+          if (leagueName || !leagueInfo) {
+            const allLeagues = await getAllUserLeagues(sleeperUserId);
+            for (const lg of allLeagues) {
+              if (lg.league_id === leagueId) continue;
+              const nameMatch = leagueName
+                ? lg.name?.toLowerCase().trim() === leagueName
+                : false;
+              const prevMatch = lg.previous_league_id === leagueId;
+              if (nameMatch || prevMatch) {
+                const altDraftsRes = await fetch(`https://api.sleeper.app/v1/league/${lg.league_id}/drafts`);
+                const altDrafts = await altDraftsRes.json();
+                if (Array.isArray(altDrafts) && altDrafts.length > 0) {
+                  drafts = altDrafts;
+                  effectiveLeagueId = lg.league_id;
+                  break;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error("[DraftCommand] Error resolving league chain:", e);
+        }
+      }
+
+      if (drafts.length === 0) {
         return res.json({
           status: "none",
           board: { picks: [], teamOrder: [], totalRounds: 0, totalTeams: 0, currentPick: 0 },
@@ -14075,9 +14110,9 @@ Respond in JSON format:
       const draft = drafts.find((d: any) => d.status === "drafting") || drafts[0];
       const [picksRes2, rostersRes2, usersRes, tradedPicksRes2] = await Promise.all([
         fetch(`https://api.sleeper.app/v1/draft/${draft.draft_id}/picks`),
-        fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
-        fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`),
-        fetch(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`),
+        fetch(`https://api.sleeper.app/v1/league/${effectiveLeagueId}/rosters`),
+        fetch(`https://api.sleeper.app/v1/league/${effectiveLeagueId}/users`),
+        fetch(`https://api.sleeper.app/v1/league/${effectiveLeagueId}/traded_picks`),
       ]);
       const picks = await picksRes2.json();
       const rosters = await rostersRes2.json();
@@ -14266,7 +14301,7 @@ Respond in JSON format:
       });
 
       // Roster needs based on league roster positions
-      const leagueData = await sleeperApi.getLeague(leagueId);
+      const leagueData = await sleeperApi.getLeague(effectiveLeagueId);
       const rosterPositions = leagueData?.roster_positions || [];
       const posSlots: Record<string, number> = {};
       for (const pos of rosterPositions) {
