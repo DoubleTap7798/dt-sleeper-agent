@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, useLocation, useSearch } from "wouter";
 import { queryClient, localStoragePersister } from "./lib/queryClient";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
@@ -101,7 +102,11 @@ function RedirectTo({ path }: { path: string }) {
   const params = new URLSearchParams(searchString);
   const id = params.get("id");
   const fullPath = id ? `${path}${path.includes("?") ? "&" : "?"}id=${id}` : path;
-  setLocation(fullPath, { replace: true });
+
+  useEffect(() => {
+    setLocation(fullPath, { replace: true });
+  }, [fullPath, setLocation]);
+
   return null;
 }
 

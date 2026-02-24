@@ -714,6 +714,7 @@ export default function HomePage() {
   // State for position player modal (must be at top level before any returns)
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
   const [leagueSort, setLeagueSort] = useState<string>("rank");
+  const [alertsOpen, setAlertsOpen] = useState(false);
 
   const { data: leagues = [] } = useQuery<SleeperLeague[]>({
     queryKey: ["/api/sleeper/leagues"],
@@ -1099,7 +1100,6 @@ export default function HomePage() {
   })();
 
   const topRec = dashboardData?.recommendations?.[0];
-  const [alertsOpen, setAlertsOpen] = useState(false);
 
   const parseInsightBullets = (blurb: string): string[] => {
     if (!blurb) return [];
