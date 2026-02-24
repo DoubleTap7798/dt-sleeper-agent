@@ -101,6 +101,7 @@ interface NavItem {
   icon: any;
   description?: string;
   requiresLeague?: boolean;
+  allLeaguesOnly?: boolean;
   premium?: boolean;
   subgroup?: string;
 }
@@ -212,6 +213,7 @@ const socialItems: NavItem[] = [
 
 const settingsToolsItems: NavItem[] = [
   { title: "Accounting", url: "/league/accounting", icon: DollarSign, requiresLeague: true },
+  { title: "Accounting", url: "/accounting", icon: DollarSign, allLeaguesOnly: true },
   { title: "League Info", url: "/league/info", icon: Settings, requiresLeague: true },
   { title: "History", url: "/league/timeline", icon: Clock, requiresLeague: true },
   { title: "Notifications", url: "/settings/notifications", icon: Bell },
@@ -537,12 +539,12 @@ export function AppSidebar({ leagues, selectedLeague, isAllLeagues, onLeagueChan
           <SidebarGroupContent className="px-2">
             <SidebarMenu>
               {settingsToolsItems
-                .filter(item => !item.requiresLeague || !isAllLeagues)
+                .filter(item => (!item.requiresLeague || !isAllLeagues) && (!item.allLeaguesOnly || isAllLeagues))
                 .map((item) => {
                 const isActive = location === item.url;
                 const linkUrl = leagueId ? `${item.url}?id=${leagueId}` : item.url;
                 return (
-                  <SidebarMenuItem key={item.title}>
+                  <SidebarMenuItem key={item.url}>
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
