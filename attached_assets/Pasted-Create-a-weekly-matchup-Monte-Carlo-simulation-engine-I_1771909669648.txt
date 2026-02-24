@@ -1,0 +1,74 @@
+Create a weekly matchup Monte Carlo simulation engine.
+Inputs:
+User lineup projections (median, variance)
+Opponent lineup projections (median, variance)
+Correlation matrix between players
+Scoring settings
+Process:
+Run minimum 10,000 simulations
+Sample from player distribution (normal or log-normal based on volatility)
+Aggregate team score
+Compare user vs opponent
+Outputs:
+Win probability
+Expected margin
+Variance of outcome
+Upset probability
+Confidence score
+Store simulation outputs in database for LLM explanation layer.
+📊 COPY-PASTE: Trade Expected Value Model
+Build a trade evaluation engine that calculates:
+Rest-of-season projected point delta
+Playoff week weighted projections
+Championship probability delta
+Positional scarcity adjustment
+Injury risk adjustment
+Variance differential
+Output structured JSON:
+{ "ros_point_delta": number, "playoff_weighted_delta": number, "championship_probability_delta": number, "risk_change_score": number, "confidence": number }
+The LLM will only explain this output.
+💰 COPY-PASTE: FAAB Optimization Engine
+Build a waiver bidding optimizer using game theory principles.
+Inputs:
+Player projected seasonal value
+Positional scarcity index
+Remaining FAAB budgets of league
+Historical bidding patterns
+Playoff schedule value
+Team need score
+Model:
+Simulate opponent bid ranges
+Estimate probability distribution of winning at each bid level
+Output: { "minimum_viable_bid": number, "optimal_bid": number, "probability_to_win": number, "expected_seasonal_value_gain": number, "aggression_score": number }
+🧠 COPY-PASTE: User Risk Profiling Engine
+Build a dynamic user risk profile system.
+Track:
+Historical lineup volatility choices
+Trade aggressiveness
+FAAB aggression
+Underdog vs favorite lineup tendencies
+Classify user as:
+Conservative
+Balanced
+Aggressive
+Chaos
+Adjust lineup recommendations based on:
+Projected win probability
+Standing position
+Playoff urgency
+Store profile and update weekly.
+📈 COPY-PASTE: Portfolio Risk Analysis
+Create a roster portfolio analyzer.
+Calculate:
+Offensive team concentration exposure
+Injury fragility index
+Boom/bust clustering
+Positional depth resilience
+Playoff schedule leverage
+Output: { "diversification_score": number, "fragility_score": number, "volatility_score": number, "playoff_leverage_score": number, "recommendation": string }
+🚀 The Feature That Will Make You Elite
+Add this:
+Championship Path Optimization
+Simulate rest-of-season outcomes thousands of times and show:
+"If you make this move, your championship odds increase from 12% to 17%."
+High-stakes grinders think in title equity, not weekly points.
