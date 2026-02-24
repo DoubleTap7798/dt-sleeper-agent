@@ -1,0 +1,193 @@
+STEP 1 — Attach Expected Pick Outcome To Every Prospect
+
+For every prospect on the 2026 board:
+
+Add:
+
+• Projected draft slot range (ex: 1.03–1.08)
+• Historical elite % for that slot
+• Historical bust %
+• Historical average PPG
+• Risk tier
+
+Now each player shows:
+
+Rank #4
+Projected NFL Draft Capital: Round 1
+Projected Rookie Pick: 1.04
+Elite Probability: 28%
+Starter Probability: 62%
+Bust Probability: 28%
+Expected 3-Year Value Score: 73
+
+Now your draft board isn’t a list.
+
+It’s a probability engine.
+
+⸻
+
+STEP 2 — Convert Pick Value Screen Into Dynamic Player Context
+
+Right now your Pick Value screen says:
+
+1.04 → 82 value → 28% elite → 62% starter
+
+But it does NOT say:
+
+Which 2026 prospects historically profile like 1.04 outcomes.
+
+You need to connect:
+
+Pick slot
+↔
+Prospect tier
+↔
+Historical comp band
+
+Add:
+
+“For players projected 1.04–1.06:
+Average elite rate = 25%
+Average starter rate = 60%”
+
+Now users see:
+
+Oh. If I draft this tier, this is the historical outcome band.
+
+That’s powerful.
+
+⸻
+
+STEP 3 — Add “Tier Drop Cliff” Detection
+
+On your 2026 board:
+
+Mark when elite probability drops meaningfully.
+
+Example:
+
+Tier 1: Elite Rate 38%
+Tier 2: Elite Rate 24%
+Tier 3: Elite Rate 12%
+
+Now when someone drafts at 1.06, they see:
+
+⚠ Tier Drop After 1.07
+
+That’s actionable.
+
+⸻
+
+STEP 4 — Add Expected Value Score Per Prospect
+
+Right now prospects are ranked by scouting grade.
+
+You need to rank by:
+
+EV = (Elite% × Elite Value) + (Starter% × Starter Value) − (Bust% × Penalty)
+
+This gives:
+
+Prospect EV Score (0–100)
+
+Now your rankings become data-backed, not opinion-based.
+
+⸻
+
+STEP 5 — Add Position-Specific Historical Modeling
+
+Right now your hit rates are generic.
+
+But 1.04 WR ≠ 1.04 RB ≠ 1.04 QB.
+
+You need:
+
+Historical pick hit rate by:
+• Position
+• Pick range
+• Draft capital
+
+Example:
+
+1.04 RB Elite Rate: 32%
+1.04 WR Elite Rate: 21%
+1.04 QB Elite Rate: 28%
+
+Now your draft board becomes structurally superior.
+
+⸻
+
+WHAT YOU DO WITH 2026 BOARD SPECIFICALLY
+
+You transform it from:
+
+Ranking board
+
+Into:
+
+Outcome-probability board.
+
+Add these columns:
+
+• Projected Pick Range
+• Historical Elite % (based on slot)
+• Historical Bust %
+• EV Score
+• Risk Tier
+• Liquidity Score
+
+⸻
+
+WHAT YOU DO WITH PICK VALUE SCREEN SPECIFICALLY
+
+You:
+	1.	Add positional filters (RB/WR/QB/TE hit rates)
+	2.	Add league format toggle (SF, TE premium)
+	3.	Add “Best Strategy At This Pick” panel
+	4.	Add trade up/down expected value delta
+
+Example at 1.08:
+
+Historically:
+Elite: 14%
+Starter: 44%
+Bust: 46%
+
+But if WR:
+Elite: 18%
+If RB:
+Elite: 12%
+
+Now it becomes strategy.
+
+⸻
+
+MOST IMPORTANT STRUCTURAL CHANGE
+
+Right now:
+
+Draft Board
+Pick Values
+
+are separate pages.
+
+You need:
+
+Pick values embedded inside player profiles.
+
+And:
+
+Player tier EV embedded inside pick value screen.
+
+They must talk to each other.
+
+⸻
+
+IF YOU DO NOTHING ELSE
+
+Do these 3 upgrades:
+	1.	Add projected rookie pick range to each 2026 prospect
+	2.	Show historical elite/bust probability tied to that pick range
+	3.	Add Expected Value Score to rank players
+
+That alone makes it elite-tier.
