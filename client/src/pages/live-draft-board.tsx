@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { PremiumGate } from "@/components/premium-gate";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,6 +23,9 @@ import {
   Crown,
   Shield,
   Sparkles,
+  Users,
+  Baby,
+  UserCheck,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 
@@ -90,10 +94,14 @@ interface TradedPick {
   newOwnerAvatar: string | null;
 }
 
+type PlayerPoolType = "all" | "veterans" | "rookies";
+
 interface DraftCommandData {
   status: "none" | "pre_draft" | "in_progress" | "complete";
   draftType: string;
   isRookieDraft?: boolean;
+  playerPool?: PlayerPoolType;
+  autoDetectedPool?: PlayerPoolType;
   board: {
     picks: BoardPick[];
     teamOrder: TeamOrderEntry[];
@@ -176,14 +184,25 @@ const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   none: { label: "No Draft", className: "text-muted-foreground" },
 };
 
+const POOL_OPTIONS: Array<{ value: PlayerPoolType; label: string; icon: typeof Users; description: string }> = [
+  { value: "all", label: "All Players", icon: Users, description: "Veterans + Rookies" },
+  { value: "veterans", label: "Veterans Only", icon: UserCheck, description: "No rookies in pool" },
+  { value: "rookies", label: "Rookies Only", icon: Baby, description: "No veterans in pool" },
+];
+
 export default function LiveDraftBoardPage() {
   usePageTitle("Draft Command Center");
   const { league } = useSelectedLeague();
   const leagueId = league?.league_id;
   const [activeTab, setActiveTab] = useState("board");
+  const [playerPool, setPlayerPool] = useState<PlayerPoolType | null>(null);
+
+  const draftUrl = playerPool
+    ? `/api/fantasy/draft-command/${leagueId}?playerPool=${playerPool}`
+    : `/api/fantasy/draft-command/${leagueId}`;
 
   const { data, isLoading } = useQuery<DraftCommandData>({
-    queryKey: ["/api/fantasy/draft-command", leagueId],
+    queryKey: [draftUrl],
     enabled: !!leagueId,
     refetchInterval: (query) => {
       const d = query.state.data as DraftCommandData | undefined;
@@ -257,7 +276,7 @@ export default function LiveDraftBoardPage() {
       <div className="p-4 md:p-6 space-y-5 max-w-full mx-auto">
         <PageHeader
           title="Draft Command Center"
-          subtitle={`${board.totalRounds} rounds \u00b7 ${board.totalTeams} teams \u00b7 ${data.draftType}${data.isRookieDraft ? " rookie" : ""} draft`}
+          subtitle={`${board.totalRounds} rounds \u00b7 ${board.totalTeams} teams \u00b7 ${data.draftType} draft`}
           icon={<LayoutGrid className="h-6 w-6 text-primary" />}
           actions={
             <div className="flex items-center gap-3">
@@ -288,6 +307,32 @@ export default function LiveDraftBoardPage() {
             </span>
           </div>
         )}
+
+        <div className="flex items-center gap-2 flex-wrap" data-testid="player-pool-toggle">
+          <span className="text-xs text-muted-foreground font-medium mr-1">Player Pool:</span>
+          {POOL_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            const activePool = data.playerPool || data.autoDetectedPool || "all";
+            const isActive = playerPool === opt.value || (!playerPool && activePool === opt.value);
+            return (
+              <Button
+                key={opt.value}
+                variant={isActive ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPlayerPool(opt.value)}
+                className={`text-xs gap-1.5 ${isActive ? "" : "text-muted-foreground"}`}
+                data-testid={`btn-pool-${opt.value}`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{opt.label}</span>
+                <span className="sm:hidden">{opt.value === "all" ? "All" : opt.value === "veterans" ? "Vets" : "Rooks"}</span>
+              </Button>
+            );
+          })}
+          {playerPool && playerPool !== (data.autoDetectedPool || "all") && (
+            <span className="text-[10px] text-muted-foreground/60 ml-1">(auto: {data.autoDetectedPool})</span>
+          )}
+        </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3 h-11 bg-muted/40 backdrop-blur-sm" data-testid="draft-tabs">
