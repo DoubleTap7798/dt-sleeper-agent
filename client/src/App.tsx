@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, useSearch } from "wouter";
 import { queryClient, localStoragePersister } from "./lib/queryClient";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Toaster } from "@/components/ui/toaster";
@@ -17,7 +17,6 @@ import TradeHistoryPage from "@/pages/trade-history";
 import TrophyRoomPage from "@/pages/trophy-room";
 import RivalryPage from "@/pages/rivalry";
 import MatchupsPage from "@/pages/matchups";
-import SchedulePage from "@/pages/schedule";
 import DevyPage from "@/pages/devy";
 import DevyRankingsPage from "@/pages/devy-rankings";
 import DevyPortfolioPage from "@/pages/devy-portfolio";
@@ -27,8 +26,6 @@ import PlayersPage from "@/pages/players";
 import NewsFeedPage from "@/pages/news-feed";
 import PlayerTrendsPage from "@/pages/player-trends";
 import PlayerComparePage from "@/pages/player-compare";
-import LineupAdvicePage from "@/pages/lineup-advice";
-import LineupOptimizerPage from "@/pages/lineup-optimizer";
 import ProjectionsPage from "@/pages/projections";
 import HomePage from "@/pages/home";
 import RosterPage from "@/pages/roster";
@@ -47,13 +44,11 @@ import StatLeadersPage from "@/pages/stat-leaders";
 import ActivityFeedPage from "@/pages/activity-feed";
 import SeasonProjectionsPage from "@/pages/season-projections";
 import UsageTrendsPage from "@/pages/usage-trends";
-import InjuryTrackerPage from "@/pages/injury-tracker";
 import TeamReportPage from "@/pages/team-report";
 import NFLPage from "@/pages/nfl";
 import CollegeStatsPage from "@/pages/college-stats";
 import TransferPortalPage from "@/pages/transfer-portal";
 import TrashTalkPage from "@/pages/trash-talk";
-import BoomBustPage from "@/pages/boom-bust";
 import TradeAnalyzerPage from "@/pages/trade-analyzer";
 import MidSeasonReviewPage from "@/pages/mid-season-review";
 import TaxiOptimizerPage from "@/pages/taxi-optimizer";
@@ -64,11 +59,12 @@ import SmartDraftAssistantPage from "@/pages/smart-draft-assistant";
 import NotificationPreferencesPage from "@/pages/notification-preferences";
 import LeagueAccountingPage from "@/pages/league-accounting";
 import AllLeaguesAccountingPage from "@/pages/all-leagues-accounting";
-import WeeklyPredictionsPage from "@/pages/weekly-predictions";
 import CommunityChatPage from "@/pages/community-chat";
 import DraftRecapPage from "@/pages/draft-recap";
 import ManagerProfilePage from "@/pages/manager-profile";
 import DecisionEnginePage from "@/pages/decision-engine";
+import LineupLabPage from "@/pages/lineup-lab";
+import GameContextPage from "@/pages/game-context";
 import FeaturesPage from "@/pages/features";
 
 import UserProfilePage from "@/pages/user-profile";
@@ -97,6 +93,16 @@ function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+function RedirectTo({ path }: { path: string }) {
+  const [, setLocation] = useLocation();
+  const searchString = useSearch();
+  const params = new URLSearchParams(searchString);
+  const id = params.get("id");
+  const fullPath = id ? `${path}${path.includes("?") ? "&" : "?"}id=${id}` : path;
+  setLocation(fullPath, { replace: true });
+  return null;
 }
 
 function Router() {
@@ -184,11 +190,7 @@ function Router() {
         </AuthenticatedRoute>
       </Route>
       <Route path="/league/schedule">
-        <AuthenticatedRoute>
-          <LeagueLayout>
-            <SchedulePage />
-          </LeagueLayout>
-        </AuthenticatedRoute>
+        <RedirectTo path="/league/game-context?tab=schedule" />
       </Route>
       <Route path="/league/waivers">
         <AuthenticatedRoute>
@@ -331,18 +333,10 @@ function Router() {
         </AuthenticatedRoute>
       </Route>
       <Route path="/league/lineup">
-        <AuthenticatedRoute>
-          <LeagueLayout>
-            <LineupAdvicePage />
-          </LeagueLayout>
-        </AuthenticatedRoute>
+        <RedirectTo path="/league/lineup-lab?tab=advice" />
       </Route>
       <Route path="/league/lineup-optimizer">
-        <AuthenticatedRoute>
-          <LeagueLayout>
-            <LineupOptimizerPage />
-          </LeagueLayout>
-        </AuthenticatedRoute>
+        <RedirectTo path="/league/lineup-lab?tab=optimizer" />
       </Route>
       <Route path="/league/projections">
         <AuthenticatedRoute>
@@ -369,6 +363,20 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <DecisionEnginePage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/lineup-lab">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <LineupLabPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/game-context">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <GameContextPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>
@@ -415,11 +423,7 @@ function Router() {
         </AuthenticatedRoute>
       </Route>
       <Route path="/league/injuries">
-        <AuthenticatedRoute>
-          <LeagueLayout>
-            <InjuryTrackerPage />
-          </LeagueLayout>
-        </AuthenticatedRoute>
+        <RedirectTo path="/league/game-context?tab=injuries" />
       </Route>
       <Route path="/league/team-report">
         <AuthenticatedRoute>
@@ -443,11 +447,7 @@ function Router() {
         </AuthenticatedRoute>
       </Route>
       <Route path="/league/boom-bust">
-        <AuthenticatedRoute>
-          <LeagueLayout>
-            <BoomBustPage />
-          </LeagueLayout>
-        </AuthenticatedRoute>
+        <RedirectTo path="/league/lineup-lab?tab=boom-bust" />
       </Route>
       <Route path="/league/trade-analyzer">
         <AuthenticatedRoute>
@@ -492,11 +492,7 @@ function Router() {
         </AuthenticatedRoute>
       </Route>
       <Route path="/league/predictions">
-        <AuthenticatedRoute>
-          <LeagueLayout>
-            <WeeklyPredictionsPage />
-          </LeagueLayout>
-        </AuthenticatedRoute>
+        <RedirectTo path="/league/lineup-lab?tab=predictions" />
       </Route>
       <Route path="/league/draft-recap">
         <AuthenticatedRoute>

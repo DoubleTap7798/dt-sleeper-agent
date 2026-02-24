@@ -12,11 +12,16 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { 
   Trophy, Users, TrendingUp, Calendar, Target, Crown, Medal, Activity, 
-  ArrowRightLeft, UserPlus, RefreshCw, Zap, AlertTriangle, ChevronRight,
+  ArrowRightLeft, UserPlus, RefreshCw, Zap, AlertTriangle, ChevronRight, ChevronDown,
   ArrowUpRight, ArrowUp, ArrowDown, Minus, Rocket, Shield, Hourglass, HelpCircle, Lightbulb, X,
-  Share2, Copy, Check, Crosshair, Flame, BarChart3, Gauge, Brain,
+  Share2, Copy, Check, Crosshair, Flame, BarChart3, Gauge, Brain, Bell,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -1081,7 +1086,7 @@ export default function HomePage() {
     );
   }
 
-  // SINGLE LEAGUE VIEW - Action-First Dashboard
+  // SINGLE LEAGUE VIEW - Quant Trading Terminal Dashboard
   const recentActivity = (() => {
     const notifications = notificationsData?.notifications || [];
     const seen = new Set<string>();
@@ -1094,9 +1099,27 @@ export default function HomePage() {
   })();
 
   const topRec = dashboardData?.recommendations?.[0];
+  const [alertsOpen, setAlertsOpen] = useState(false);
+
+  const parseInsightBullets = (blurb: string): string[] => {
+    if (!blurb) return [];
+    const sentences = blurb.split(/\.\s+/).filter(s => s.trim().length > 5);
+    return sentences.slice(0, 4).map(s => s.endsWith(".") ? s : s + ".");
+  };
+
+  const insightBullets = parseInsightBullets(dashboardData?.weeklyBlurb || "");
+
+  const getImpactLabel = (priority: string) => {
+    const config: Record<string, { label: string; color: string }> = {
+      high: { label: "HIGH", color: "bg-red-500/20 text-red-400 border-red-500/40" },
+      medium: { label: "MED", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40" },
+      low: { label: "LOW", color: "bg-blue-500/20 text-blue-400 border-blue-500/40" },
+    };
+    return config[priority] || config.medium;
+  };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {/* Compact Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -1111,7 +1134,7 @@ export default function HomePage() {
           </Avatar>
           <div>
             <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title">
-              {selectedLeague?.name || leagueData?.leagueName || "Dashboard"}
+              {selectedLeague?.name || leagueData?.leagueName || "Command Center"}
             </h1>
             <p className="text-xs text-muted-foreground">
               {selectedLeague?.season} Season
@@ -1123,405 +1146,440 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Hero Section: Key Metrics Strip */}
+      {/* 1. TOP POWER STRIP - 4 Signal Cards */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_24px_rgba(217,169,78,0.1)]" data-testid="card-hero-record">
-          <CardContent className="py-4 px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-1">Record</p>
-            <div className="text-2xl font-bold text-gradient-gold" data-testid="stat-league-record">
-              {leagueData?.totalWins || 0}-{leagueData?.totalLosses || 0}{leagueData?.totalTies ? `-${leagueData.totalTies}` : ""}
-            </div>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className={`text-xs font-medium ${Number(winRate) >= 60 ? "text-green-400" : Number(winRate) >= 45 ? "text-muted-foreground" : "text-red-400"}`}>
+        {/* Win Probability */}
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_20px_rgba(217,169,78,0.08)]" data-testid="card-win-probability">
+          <CardContent className="py-5 px-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/60 mb-2">Win Probability</p>
+            <div className="flex items-end gap-2">
+              <span className={`text-3xl font-bold ${Number(winRate) >= 60 ? "text-green-400" : Number(winRate) >= 45 ? "text-foreground" : "text-red-400"}`} data-testid="stat-win-prob">
                 {winRate}%
               </span>
-              <span className="text-[10px] text-muted-foreground">win rate</span>
+              {Number(winRate) >= 50 ? (
+                <ArrowUp className="h-4 w-4 text-green-400 mb-1" />
+              ) : (
+                <ArrowDown className="h-4 w-4 text-red-400 mb-1" />
+              )}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_24px_rgba(217,169,78,0.1)]" data-testid="card-hero-championships">
-          <CardContent className="py-4 px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-1">Championships</p>
-            <div className="text-2xl font-bold text-gradient-gold" data-testid="stat-league-championships">
-              {leagueData?.championships || 0}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              {leagueData?.runnerUps ? `${leagueData.runnerUps} runner-ups` : "Titles won"}
+            <p className="text-[10px] text-muted-foreground mt-2">
+              {leagueData?.totalWins || 0}W-{leagueData?.totalLosses || 0}L
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_24px_rgba(217,169,78,0.1)]" data-testid="card-hero-playoffs">
-          <CardContent className="py-4 px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-1">Playoff Apps</p>
-            <div className="text-2xl font-bold" data-testid="stat-league-playoffs">
-              {leagueData?.playoffAppearances || 0}
+        {/* Playoff Odds */}
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_20px_rgba(217,169,78,0.08)]" data-testid="card-playoff-odds">
+          <CardContent className="py-5 px-4">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/60 mb-2">Playoff Odds</p>
+            <div className="flex items-end gap-2">
+              <span className="text-3xl font-bold text-gradient-gold" data-testid="stat-playoff-odds">
+                {leagueData?.playoffAppearances || 0}
+              </span>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1">{leagueData?.totalSeasons || 1} seasons</p>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              {leagueData?.totalSeasons || 1} seasons tracked
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_24px_rgba(217,169,78,0.1)]" data-testid="card-hero-profile">
-          <CardContent className="py-4 px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-1">Team Profile</p>
-            <div className="text-lg font-bold capitalize" data-testid="stat-team-profile">
-              {dashboardData?.teamProfile || "—"}
+        {/* Championship Equity - HERO card */}
+        <Card className="border-primary/40 bg-gradient-to-br from-primary/15 via-primary/8 to-transparent shadow-[0_0_32px_rgba(217,169,78,0.15)] lg:col-span-1 relative overflow-hidden" data-testid="card-championship-equity">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-primary/10 to-transparent rounded-bl-full" />
+          <CardContent className="py-5 px-4 relative">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Trophy className="h-3.5 w-3.5 text-primary" />
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70">Championship Equity</p>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1">{dashboardData?.playerCount || 0} rostered</p>
+            <div className="flex items-end gap-2">
+              <span className="text-3xl font-bold text-gradient-gold" data-testid="stat-championships">
+                {leagueData?.championships || 0}
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              {leagueData?.runnerUps ? `${leagueData.runnerUps} runner-up finishes` : "Career titles"}
+            </p>
+            <Link href={`/league/decision-engine?tab=equity&id=${leagueIdFromUrl}`}>
+              <Button size="sm" variant="ghost" className="mt-2 gap-1 text-xs text-primary/80 -ml-2" data-testid="btn-view-equity">
+                View Tracker <ArrowUpRight className="h-3 w-3" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Team Risk Index */}
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-[0_0_20px_rgba(217,169,78,0.08)]" data-testid="card-risk-index">
+          <CardContent className="py-5 px-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Gauge className="h-3.5 w-3.5 text-primary/60" />
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/60">Risk Index</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-3xl font-bold capitalize" data-testid="stat-team-profile">
+                {dashboardData?.teamProfile || "—"}
+              </span>
+            </div>
+            <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all duration-700 ${
+                  dashboardData?.teamProfile === "contender" ? "bg-green-500 w-[85%]" :
+                  dashboardData?.teamProfile === "balanced" ? "bg-yellow-500 w-[50%]" :
+                  "bg-purple-500 w-[25%]"
+                }`}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">{dashboardData?.playerCount || 0} rostered</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recommended Action Banner */}
-      {topRec && (
-        <Card className="border-primary/20 bg-gradient-to-r from-primary/8 via-primary/4 to-transparent" data-testid="card-top-action">
-          <CardContent className="py-3.5 px-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className={`p-1.5 rounded-lg shrink-0 ${topRec.priority === "high" ? "bg-red-500/15 text-red-400" : topRec.priority === "medium" ? "bg-yellow-500/15 text-yellow-400" : "bg-blue-500/15 text-blue-400"}`}>
-                  <Zap className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70">Recommended Action</p>
-                  <p className="text-sm font-medium truncate">{topRec.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{topRec.description}</p>
-                </div>
-              </div>
-              {topRec.action && (
-                <Link href={topRec.action}>
-                  <Button size="sm" variant="outline" className="shrink-0 gap-1" data-testid="btn-top-action">
-                    Go <ArrowUpRight className="h-3.5 w-3.5" />
-                  </Button>
-                </Link>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Weekly Insight - condensed */}
-      {dashboardData?.weeklyBlurb && (
-        <Card className="border-border/50" data-testid="card-weekly-insight">
-          <CardContent className="py-3.5 px-4">
-            <div className="flex items-start gap-3">
-              <Brain className="h-4 w-4 text-primary/70 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[10px] font-semibold text-primary/60 uppercase tracking-widest mb-0.5">AI Insight</p>
-                <p className="text-sm leading-relaxed text-muted-foreground">{dashboardData.weeklyBlurb}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Main Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Roster Strength */}
+      {/* 2. STRATEGIC STATUS GRID - 2x2 */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* A. Roster Strength Breakdown */}
         <Card data-testid="card-roster-strength">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                Roster Strength
-                <Tooltip>
-                  <TooltipTrigger>
-                    <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>Shows your position group strength relative to other teams in your league, based on dynasty values.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </CardTitle>
-              <Badge variant="outline" className="text-xs">{dashboardData?.playerCount || 0} players</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {dashboardData ? (
-              dashboardData.playerCount === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Rosters not yet available for this season</p>
-                  <p className="text-xs mt-1">Check back when the season starts</p>
-                </div>
-              ) : (
-                <>
-                  <p className="text-xs text-muted-foreground mb-2">Tap a position to see your players</p>
-                  <StrengthBar 
-                    position="QB" 
-                    value={dashboardData.rosterStrength.QB} 
-                    rank={dashboardData.positionRanks.QB?.rank || 0}
-                    total={dashboardData.positionRanks.QB?.total || 0}
-                    onClick={() => setSelectedPosition("QB")}
-                  />
-                  <StrengthBar 
-                    position="RB" 
-                    value={dashboardData.rosterStrength.RB} 
-                    rank={dashboardData.positionRanks.RB?.rank || 0}
-                    total={dashboardData.positionRanks.RB?.total || 0}
-                    onClick={() => setSelectedPosition("RB")}
-                  />
-                  <StrengthBar 
-                    position="WR" 
-                    value={dashboardData.rosterStrength.WR} 
-                    rank={dashboardData.positionRanks.WR?.rank || 0}
-                    total={dashboardData.positionRanks.WR?.total || 0}
-                    onClick={() => setSelectedPosition("WR")}
-                  />
-                  <StrengthBar 
-                    position="TE" 
-                    value={dashboardData.rosterStrength.TE} 
-                    rank={dashboardData.positionRanks.TE?.rank || 0}
-                    total={dashboardData.positionRanks.TE?.total || 0}
-                    onClick={() => setSelectedPosition("TE")}
-                  />
-                </>
-              )
-            ) : (
-              <div className="space-y-4">
-                {["QB", "RB", "WR", "TE"].map(pos => (
-                  <div key={pos} className="space-y-1">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-3 w-full" />
-                  </div>
-                ))}
+          <CardContent className="py-5 px-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary/70" />
+                <span className="text-sm font-semibold">Roster Strength</span>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recommended Actions */}
-        <Card data-testid="card-recommendations">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Recommended Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {dashboardData?.recommendations && dashboardData.recommendations.length > 0 ? (
-              dashboardData.recommendations.map((rec, idx) => (
-                <RecommendationCard key={idx} rec={rec} leagueId={leagueIdFromUrl || ""} />
-              ))
+              <Badge variant="outline" className="text-[10px]">{dashboardData?.playerCount || 0} players</Badge>
+            </div>
+            {dashboardData && dashboardData.playerCount > 0 ? (
+              <div className="space-y-3">
+                {(["QB", "RB", "WR", "TE"] as const).map((pos) => (
+                  <StrengthBar 
+                    key={pos}
+                    position={pos} 
+                    value={dashboardData.rosterStrength[pos]} 
+                    rank={dashboardData.positionRanks[pos]?.rank || 0}
+                    total={dashboardData.positionRanks[pos]?.total || 0}
+                    onClick={() => setSelectedPosition(pos)}
+                  />
+                ))}
+                {dashboardData.biggestNeed && (
+                  <div className="flex items-center gap-2 mt-2 p-2 rounded bg-yellow-500/5 border border-yellow-500/20">
+                    <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+                    <span className="text-xs text-muted-foreground">{dashboardData.biggestNeed.message}</span>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="text-center py-6 text-muted-foreground">
-                <Target className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No actions needed right now</p>
+                <Users className="h-7 w-7 mx-auto mb-2 opacity-40" />
+                <p className="text-xs">Rosters not yet available</p>
               </div>
             )}
           </CardContent>
         </Card>
-      </div>
 
-      {/* Biggest Need Alert */}
-      {dashboardData?.biggestNeed && dashboardData.biggestNeed.rank > (dashboardData.positionRanks[dashboardData.biggestNeed.position]?.total || 10) / 2 && (
-        <Card className="border-yellow-500/30 bg-yellow-500/5" data-testid="card-biggest-need">
-          <CardContent className="py-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-medium text-sm">Biggest Need: {dashboardData.biggestNeed.position}</p>
-                  <p className="text-xs text-muted-foreground truncate">{dashboardData.biggestNeed.message}</p>
+        {/* B. Market Position */}
+        <Card data-testid="card-market-position">
+          <CardContent className="py-5 px-5">
+            <div className="flex items-center gap-2 mb-4">
+              <ArrowRightLeft className="h-4 w-4 text-primary/70" />
+              <span className="text-sm font-semibold">Market Position</span>
+            </div>
+            {tradeIdeasLoading ? (
+              <div className="space-y-3">
+                {[1, 2].map(i => <Skeleton key={i} className="h-14" />)}
+              </div>
+            ) : tradeIdeasData?.tradeIdeas && tradeIdeasData.tradeIdeas.length > 0 ? (
+              <div className="space-y-3">
+                {tradeIdeasData.tradeIdeas.slice(0, 2).map((idea, idx) => (
+                  <div key={idx} className="p-3 rounded-lg border border-border/30 bg-muted/20 space-y-1.5" data-testid={`trade-idea-${idx}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-5 w-5">
+                          <AvatarImage src={idea.tradePartner.avatar || undefined} />
+                          <AvatarFallback className="text-[8px]">{idea.tradePartner.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs font-medium">{idea.tradePartner.name}</span>
+                      </div>
+                      <Badge variant={idea.fairnessScore >= 70 ? "default" : "outline"} className="text-[10px]">
+                        {idea.fairnessScore}%
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="text-red-400">{idea.give.map(p => p.name).join(", ")}</span>
+                      <ArrowRightLeft className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="text-green-400">{idea.get.map(p => p.name).join(", ")}</span>
+                    </div>
+                  </div>
+                ))}
+                <Link href={`/league/trade?id=${leagueIdFromUrl}`}>
+                  <Button size="sm" variant="ghost" className="w-full text-xs gap-1" data-testid="btn-view-trade-calc">
+                    View All Ideas <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <ArrowRightLeft className="h-7 w-7 mx-auto text-muted-foreground mb-2 opacity-40" />
+                <p className="text-xs text-muted-foreground">No trade signals detected</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* C. Trend & Momentum */}
+        <Card data-testid="card-trend-momentum">
+          <CardContent className="py-5 px-5">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="h-4 w-4 text-primary/70" />
+              <span className="text-sm font-semibold">Trend & Momentum</span>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Championships</span>
+                <span className="text-sm font-bold text-gradient-gold">{leagueData?.championships || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Best Finish</span>
+                <span className="text-sm font-medium">{leagueData?.bestFinish || "—"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Playoff Rate</span>
+                <span className={`text-sm font-medium ${
+                  leagueData && leagueData.totalSeasons > 0 && (leagueData.playoffAppearances / leagueData.totalSeasons) >= 0.6 
+                    ? "text-green-400" : "text-muted-foreground"
+                }`}>
+                  {leagueData && leagueData.totalSeasons > 0 
+                    ? `${((leagueData.playoffAppearances / leagueData.totalSeasons) * 100).toFixed(0)}%` 
+                    : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Win Rate</span>
+                <span className={`text-sm font-medium ${Number(winRate) >= 60 ? "text-green-400" : Number(winRate) < 45 ? "text-red-400" : "text-muted-foreground"}`}>
+                  {winRate}%
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* D. League Edge Snapshot */}
+        <Card data-testid="card-league-edge">
+          <CardContent className="py-5 px-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Target className="h-4 w-4 text-primary/70" />
+              <span className="text-sm font-semibold">League Edge</span>
+            </div>
+            <div className="space-y-3">
+              {dashboardData?.biggestNeed ? (
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium">Weakness: {dashboardData.biggestNeed.position}</p>
+                    <p className="text-[11px] text-muted-foreground">#{dashboardData.biggestNeed.rank} of {dashboardData.positionRanks[dashboardData.biggestNeed.position]?.total || "?"}</p>
+                  </div>
+                </div>
+              ) : null}
+              <div className="flex items-start gap-2">
+                <Shield className="h-3.5 w-3.5 text-primary/60 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs font-medium">Team Profile</p>
+                  <p className="text-[11px] text-muted-foreground capitalize">{dashboardData?.teamProfile || "Unknown"} • Avg age {dashboardData?.avgAge || "—"}</p>
                 </div>
               </div>
-              <Link href={`/league/waivers?id=${leagueIdFromUrl}&position=${dashboardData.biggestNeed.position}`}>
-                <Button size="sm" variant="outline" className="shrink-0 gap-1" data-testid="btn-address-need">
-                  Find help <ChevronRight className="h-3.5 w-3.5" />
+              <Link href={`/league/decision-engine?tab=exploit&id=${leagueIdFromUrl}`}>
+                <Button size="sm" variant="ghost" className="w-full text-xs gap-1 mt-1" data-testid="btn-exploit-report">
+                  Exploit Report <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
               </Link>
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* 3. RECOMMENDED ACTION PANEL - Full Width */}
+      {topRec && (
+        <Card className="border-primary/25 bg-gradient-to-r from-primary/8 via-primary/3 to-transparent" data-testid="card-recommended-action">
+          <CardContent className="py-6 px-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Zap className="h-4 w-4 text-primary" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-primary/70">Recommended Action</span>
+              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ml-auto ${getImpactLabel(topRec.priority).color}`} data-testid="badge-impact">
+                {getImpactLabel(topRec.priority).label} IMPACT
+              </Badge>
+            </div>
+            <h3 className="text-base font-bold mb-2" data-testid="text-top-action-title">{topRec.title}</h3>
+            <ul className="space-y-1.5 mb-4">
+              {topRec.description.split(/\.\s+/).filter(s => s.trim().length > 3).slice(0, 3).map((bullet, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <span className="text-primary/50 mt-0.5">•</span>
+                  <span>{bullet.endsWith(".") ? bullet : bullet + "."}</span>
+                </li>
+              ))}
+            </ul>
+            {topRec.action && (
+              <Link href={topRec.action}>
+                <Button size="sm" className="gap-1.5 bg-primary/15 text-primary border border-primary/30" data-testid="btn-top-action">
+                  Take Action <ArrowUpRight className="h-3.5 w-3.5" />
+                </Button>
+              </Link>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* Smart Trade Ideas */}
-      <Card data-testid="card-trade-ideas">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Lightbulb className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base font-semibold">Smart Trade Ideas</CardTitle>
-            </div>
-            <Link href={`/league/trade?id=${leagueIdFromUrl}`}>
-              <Button size="sm" variant="ghost" data-testid="btn-view-trade-calc">
-                Trade Calculator <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </Link>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {tradeIdeasLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-20" />
-              ))}
-            </div>
-          ) : tradeIdeasData?.tradeIdeas && tradeIdeasData.tradeIdeas.length > 0 ? (
-            <div className="space-y-4">
-              {tradeIdeasData.tradeIdeas.slice(0, 3).map((idea, idx) => (
-                <div 
-                  key={idx}
-                  className="p-3 rounded-lg border border-border/50 bg-card/50 space-y-2"
-                  data-testid={`trade-idea-${idx}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-6 w-6">
-                        <AvatarImage src={idea.tradePartner.avatar || undefined} alt={idea.tradePartner.name} />
-                        <AvatarFallback className="text-[10px]">
-                          {idea.tradePartner.name.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm font-medium">{idea.tradePartner.name}</span>
-                    </div>
-                    <Badge 
-                      variant={idea.fairnessScore >= 70 ? "default" : idea.fairnessScore >= 50 ? "secondary" : "outline"}
-                      className="text-xs"
-                    >
-                      {idea.fairnessScore >= 70 ? "Fair" : idea.fairnessScore >= 50 ? "Close" : "Reach"}
+      {/* Additional Recommendations - Bullet Format */}
+      {dashboardData?.recommendations && dashboardData.recommendations.length > 1 && (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {dashboardData.recommendations.slice(1).map((rec, idx) => {
+            const impact = getImpactLabel(rec.priority);
+            return (
+              <Card key={idx} className="border-border/30" data-testid={`card-rec-${idx + 1}`}>
+                <CardContent className="py-4 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold">{rec.title}</span>
+                    <Badge variant="outline" className={`text-[9px] px-1 py-0 ${impact.color}`}>
+                      {impact.label}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-1">You give</p>
-                      {idea.give.map((p, i) => (
-                        <span key={i} className="inline-flex items-center gap-1">
-                          <Badge variant="outline" className="text-xs font-normal">
-                            {p.pos}
-                          </Badge>
-                          <span className="font-medium">{p.name}</span>
-                          <span className="text-muted-foreground text-xs">({p.value})</span>
-                        </span>
-                      ))}
-                    </div>
-                    <ArrowRightLeft className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-1">You get</p>
-                      {idea.get.map((p, i) => (
-                        <span key={i} className="inline-flex items-center gap-1">
-                          <Badge variant="outline" className="text-xs font-normal">
-                            {p.pos}
-                          </Badge>
-                          <span className="font-medium">{p.name}</span>
-                          <span className="text-muted-foreground text-xs">({p.value})</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{idea.reason}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-6">
-              <ArrowRightLeft className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                No trade suggestions right now. Check back after more roster analysis.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">{rec.description}</p>
+                  {rec.action && (
+                    <Link href={rec.action}>
+                      <Button size="sm" variant="ghost" className="text-xs gap-1 mt-2 -ml-2 text-primary/70" data-testid={`btn-rec-${idx + 1}`}>
+                        Go <ArrowUpRight className="h-3 w-3" />
+                      </Button>
+                    </Link>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Recent Activity */}
-      <Card data-testid="card-recent-activity">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoadingActivity ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-16" />
-              ))}
+      {/* 4. AI INSIGHT - Structured Bullets */}
+      {insightBullets.length > 0 && (
+        <Card className="border-border/30" data-testid="card-ai-insight">
+          <CardContent className="py-5 px-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Brain className="h-4 w-4 text-primary/70" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-primary/60">AI Signals</span>
             </div>
-          ) : recentActivity.length > 0 ? (
-            <div className="space-y-3">
-              {recentActivity.map((activity, idx) => (
-                <div 
-                  key={activity.id} 
-                  className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
-                  data-testid={`activity-row-${idx}`}
-                >
-                  <div className="shrink-0 mt-0.5">
-                    {activity.type === "trade" ? (
-                      <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                    ) : activity.type === "waiver" ? (
-                      <UserPlus className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm" data-testid={`activity-message-${idx}`}>
-                      {activity.message}
-                    </p>
-                    <p className="text-xs text-muted-foreground" data-testid={`activity-time-${idx}`}>
-                      {new Date(activity.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-xs shrink-0 capitalize" data-testid={`activity-type-${idx}`}>
-                    {activity.type.replace("_", " ")}
-                  </Badge>
+            <ul className="space-y-2">
+              {insightBullets.map((bullet, i) => (
+                <li key={i} className="flex items-start gap-2.5 text-sm text-muted-foreground leading-relaxed">
+                  <span className="text-primary/40 mt-0.5 shrink-0">•</span>
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 5. ALERTS & SIGNALS - Collapsible */}
+      <Collapsible open={alertsOpen} onOpenChange={setAlertsOpen}>
+        <Card className="border-border/20" data-testid="card-alerts-signals">
+          <CollapsibleTrigger asChild>
+            <CardContent className="py-4 px-5 cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-4 w-4 text-primary/60" />
+                  <span className="text-sm font-semibold">Alerts & Signals</span>
+                  {recentActivity.length > 0 && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5">{recentActivity.length}</Badge>
+                  )}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-6">
-              <Activity className="h-8 w-8 mx-auto text-muted-foreground mb-2 opacity-50" />
-              <p className="text-sm text-muted-foreground">No recent activity</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${alertsOpen ? "rotate-180" : ""}`} />
+              </div>
+            </CardContent>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0 pb-4 px-5">
+              {isLoadingActivity ? (
+                <div className="space-y-2">
+                  {[1, 2].map(i => <Skeleton key={i} className="h-10" />)}
+                </div>
+              ) : recentActivity.length > 0 ? (
+                <div className="space-y-2">
+                  {recentActivity.map((activity, idx) => (
+                    <div 
+                      key={activity.id} 
+                      className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/30"
+                      data-testid={`activity-row-${idx}`}
+                    >
+                      <div className="shrink-0 mt-0.5">
+                        {activity.type === "trade" ? (
+                          <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground" />
+                        ) : activity.type === "waiver" ? (
+                          <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                        ) : (
+                          <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium" data-testid={`activity-message-${idx}`}>{activity.message}</p>
+                        <p className="text-[10px] text-muted-foreground">{new Date(activity.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] shrink-0 capitalize">{activity.type.replace("_", " ")}</Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-4">No recent alerts</p>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* Team Takeover (collapsed by default) */}
-      <Card data-testid="card-team-takeover">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="h-5 w-5" />
-            <CardTitle className="text-base font-semibold">Team Takeover</CardTitle>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Took over an orphan team? Set your start date to exclude previous owner stats.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <Select
-              value={leagueData?.takeoverSeason?.toString() || "all"}
-              onValueChange={(value) => {
-                if (value === "all") {
-                  clearTakeoverMutation.mutate();
-                } else {
-                  setTakeoverMutation.mutate(parseInt(value));
-                }
-              }}
-              disabled={setTakeoverMutation.isPending || clearTakeoverMutation.isPending}
-            >
-              <SelectTrigger className="w-[200px]" data-testid="select-takeover-season">
-                <SelectValue placeholder="Select takeover season" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Seasons</SelectItem>
-                {yearOptions.map((year) => (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year} Season
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {leagueData?.takeoverSeason && (
-              <Badge variant="outline" className="text-xs" data-testid="badge-takeover-status">
-                Stats start from {leagueData.takeoverSeason}
-              </Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <Collapsible>
+        <Card className="border-border/20" data-testid="card-team-takeover">
+          <CollapsibleTrigger asChild>
+            <CardContent className="py-4 px-5 cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">Team Takeover</span>
+                  {leagueData?.takeoverSeason && (
+                    <Badge variant="outline" className="text-[10px]">From {leagueData.takeoverSeason}</Badge>
+                  )}
+                </div>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0 pb-4 px-5">
+              <p className="text-xs text-muted-foreground mb-3">
+                Took over an orphan team? Set your start date to exclude previous owner stats.
+              </p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <Select
+                  value={leagueData?.takeoverSeason?.toString() || "all"}
+                  onValueChange={(value) => {
+                    if (value === "all") {
+                      clearTakeoverMutation.mutate();
+                    } else {
+                      setTakeoverMutation.mutate(parseInt(value));
+                    }
+                  }}
+                  disabled={setTakeoverMutation.isPending || clearTakeoverMutation.isPending}
+                >
+                  <SelectTrigger className="w-[200px]" data-testid="select-takeover-season">
+                    <SelectValue placeholder="Select takeover season" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Seasons</SelectItem>
+                    {yearOptions.map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year} Season
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* Position Players Modal */}
       <Dialog open={!!selectedPosition} onOpenChange={(open) => !open && setSelectedPosition(null)}>

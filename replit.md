@@ -12,9 +12,10 @@ DT Sleeper Agent is a fantasy football companion application designed for Sleepe
 ## System Architecture
 
 ### UI/UX Decisions
-- **Action-First Dashboard**: Hero metric strip (Record, Championships, Playoffs, Team Profile) with gold gradient cards, recommended action banner, AI insight card, roster strength bars, and trade ideas. Color-coded metrics (green positive, red negative). Quant-trading-dashboard aesthetic with visible numbers first, explanations below.
+- **Quant Terminal Dashboard**: 4-card Power Strip (Win Probability, Playoff Odds, Championship Equity hero, Team Risk Index gauge), 2x2 Strategic Status Grid (Roster Strength, Market Position, Trend & Momentum, League Edge), full-width Recommended Action Panel with impact badge and structured bullet reasons, AI Signals as bullet insights, collapsible Alerts & Signals. Color-coded: green ≥60%, red <45%, amber neutral. Signal-first with numbers first, explanations below.
 - **Persistent League Selector**: Always visible for quick league switching.
-- **Hierarchical Sidebar Navigation**: 4 strategic top-level categories (Command Center, Game Day Engine, Market & Trades, Season Strategy) with collapsible accordion structure, plus Draft Central, Devy Command Center, and a "More" utility section. Designed for quant-trading-dashboard aesthetic with reduced cognitive load.
+- **Hierarchical Sidebar Navigation**: 4 strategic top-level categories (Command Center, Game Day Engine, Market & Trades, Season Strategy) with collapsible accordion structure, plus Draft Central, Devy Command Center, and a "More" utility section. Subgroup headers in Market & Trades (Trade Lab/Market Intel/Waivers) and Season Strategy (Title Strategy/Risk & Capital/League Edge). Designed for quant-trading-dashboard aesthetic with reduced cognitive load.
+- **Merged Pages**: Lineup Lab (`/league/lineup-lab`) merges Lineup Optimizer, Lineup Advice, Boom/Bust Cards, Predictions into tabbed interface. Game Context (`/league/game-context`) merges Schedule and Injury Report. Legacy routes redirect to new tab containers with query params.
 - **Design Theme**: Premium dark theme with black background and amber/gold accent color, featuring gold glow effects, amber-tinted borders, and warm gold accent highlights.
 - **Position Colors**: Distinct colors for player positions (QB, RB, WR, TE, K, EDGE, DL, LB, CB, S, FLEX, SUPERFLEX).
 - **League Breakdown**: Uniform grid layout showing League Name, Record, Place, Status, and Movement.
