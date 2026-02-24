@@ -1,0 +1,260 @@
+We are upgrading the core intelligence layer of this application.
+
+We are building Dynasty AI Engine v3.
+
+This is not a UI change.
+This is a full backend intelligence upgrade.
+
+The system must evolve from static rankings and reactive suggestions into a predictive franchise simulation engine.
+
+Implement the following architecture:
+
+⸻
+
+1️⃣ PREDICTIVE DRAFT SIMULATION ENGINE
+
+Goal:
+Replace reactive pick suggestions with probabilistic draft forecasting.
+
+Implementation Requirements:
+	1.	Build a Monte Carlo draft simulator.
+	2.	For each upcoming user pick:
+	•	Simulate the remainder of the draft 1,000+ times.
+	•	Model:
+	•	Opponent roster needs
+	•	Historical positional drafting tendencies
+	•	Tier drop-offs
+	•	ADP drift
+	•	Positional run likelihood
+	3.	Calculate probability each player is available at the user’s next pick.
+	4.	Compute Expected Value of:
+	•	Drafting now
+	•	Waiting one round
+	•	Waiting two rounds
+
+Add a new metric:
+
+Draft Leverage Score =
+Future Availability Risk × Tier Dropoff Severity × Positional Scarcity
+
+UI Output Must Include:
+	•	Probability player is gone by next pick
+	•	Tier cliff warning
+	•	Clear reasoning statement
+	•	2–3 sentence executive explanation
+
+Remove generic “Elite” labeling. Replace with contextual intelligence.
+
+⸻
+
+2️⃣ DEVY-INTEGRATED LONG-HORIZON VALUE MODEL
+
+Goal:
+Create unified dynasty + devy valuation engine.
+
+Implementation:
+
+Each player receives a 7-year projected value curve.
+
+Value(t) must incorporate:
+	•	Age curves by position
+	•	Draft capital weighting
+	•	Production trajectory modeling
+	•	Injury risk modeling
+	•	Archetype comp clustering
+	•	Positional longevity curves
+
+For devy players:
+
+Model probabilistic NFL Draft outcome distribution:
+Example:
+	•	20% Round 1
+	•	35% Round 2
+	•	30% Round 3
+	•	15% Day 3
+
+For each branch:
+	•	Assign projected dynasty hit rates
+	•	Simulate contract value arc
+	•	Compute weighted expected dynasty value
+
+Create:
+
+Dynasty Net Present Value (DNPV)
+
+DNPV =
+Σ (Projected Fantasy Production × Age Multiplier × Longevity Modifier × Contention Weight)
+
+All player comparisons must use DNPV as base asset currency.
+
+⸻
+
+3️⃣ FRANCHISE LIFECYCLE MODELING
+
+Goal:
+Automatically classify team competitive window.
+
+For every roster calculate:
+	•	Age-weighted production score
+	•	Draft capital reserves
+	•	Depth insulation score
+	•	Positional peak clustering
+	•	2-year championship probability projection
+
+Classify team dynamically as:
+	•	Win Now
+	•	Contender (1–2 year window)
+	•	Balanced
+	•	Productive Struggle
+	•	Rebuild
+
+Add:
+
+Window Score =
+(Prime Production Weight × Current Projection)
+− (Age Decay Risk × 2-Year Outlook)
+
+All AI recommendations must be weighted by franchise window classification.
+
+⸻
+
+4️⃣ TRUE GM-STYLE TRADE INTELLIGENCE ENGINE
+
+Goal:
+Replace static trade analyzer with probabilistic portfolio evaluation.
+
+For every trade:
+
+Simulate 5-year outcome distributions.
+
+Calculate:
+	•	Immediate EV delta
+	•	3-Year EV delta
+	•	Median outcome
+	•	75th percentile upside
+	•	25th percentile downside
+	•	Bust probability
+	•	Championship probability delta
+
+Add volatility score.
+
+Output must say:
+“This trade increases championship odds by X% but increases long-term volatility by Y%.”
+
+⸻
+
+5️⃣ MARKET AWARENESS LAYER
+
+Track league dynamics:
+	•	Positional scarcity index
+	•	Manager trading frequency
+	•	Risk profile
+	•	Pick hoarding behavior
+	•	Contender vs rebuild distribution
+
+Use this to generate:
+
+Proactive trade targets:
+“Team X is QB desperate and rebuilding. Offer aging QB for 2027 1st.”
+
+System must generate structured counter-offers automatically.
+
+⸻
+
+6️⃣ UNIFIED FRANCHISE ASSET SCORE (UFAS)
+
+Create unified scoring backbone:
+
+UFAS =
+Base Talent Score
+	•	Longevity Multiplier
+	•	Window Fit Adjustment
+	•	Scarcity Multiplier
+− Risk Adjustment
+	•	Market Demand Modifier
+
+All modules (draft, trade, roster, power rankings) must use UFAS.
+
+Eliminate inconsistent scoring logic across tools.
+
+⸻
+
+7️⃣ AI EXPLANATION LAYER UPGRADE
+
+Replace shallow labels like:
+“Elite pick”
+“Good value”
+
+With:
+
+Clear executive-style reasoning including:
+	•	Tier context
+	•	Window alignment
+	•	Scarcity leverage
+	•	Risk profile
+	•	2–3 year EV impact
+
+Each suggestion must feel like:
+A GM briefing.
+
+⸻
+
+8️⃣ ARCHITECTURE REQUIREMENTS
+
+Structure engine into modular services:
+	•	Draft Simulation Service
+	•	Player Valuation Service
+	•	Devy Projection Service
+	•	Trade Simulation Service
+	•	Franchise Modeling Service
+	•	Market Dynamics Service
+
+All feed into central valuation layer.
+
+Use scalable architecture for:
+	•	Parallel simulations
+	•	Cached player value curves
+	•	Reusable probability models
+
+Prepare for future GPU or distributed scaling.
+
+⸻
+
+9️⃣ POWER RANKINGS REBUILD
+
+Replace static composite score with:
+
+Championship Probability Score
+Median Outcome Projection
+Volatility Index
+
+Rank teams by probabilistic future outcomes, not roster strength alone.
+
+⸻
+
+🔟 OUTPUT STANDARD
+
+Every AI output must:
+	1.	Provide quantitative backing
+	2.	Provide probabilistic insight
+	3.	Provide forward-looking implications
+	4.	Align with franchise window
+	5.	Avoid generic wording
+
+⸻
+
+FINAL OBJECTIVE
+
+This system must function as:
+
+A dynasty franchise simulator.
+
+Not a rankings app.
+Not a draft helper.
+Not a calculator.
+
+A predictive front-office engine.
+
+⸻
+
+End of implementation directive.
