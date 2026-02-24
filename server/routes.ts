@@ -27,6 +27,15 @@ import { scanForExploits } from "./engine/exploit-scanner";
 import { detectRegressionAlerts } from "./engine/regression-detector";
 import { buildEliteProfile } from "./engine/player-profile-engine";
 import type { PlayerProjection } from "./engine/types";
+import * as playerValuationService from "./engine/player-valuation-service";
+import * as devyProjectionService from "./engine/devy-projection-service";
+import * as franchiseModelingService from "./engine/franchise-modeling-service";
+import * as ufasService from "./engine/ufas-service";
+import * as draftSimulationService from "./engine/draft-simulation-service";
+import * as tradeSimulationService from "./engine/trade-simulation-service";
+import * as marketDynamicsService from "./engine/market-dynamics-service";
+import * as powerRankingsService from "./engine/power-rankings-service";
+import * as aiExplanationService from "./engine/ai-explanation-service";
 
 // Server-side response cache for expensive API routes
 class RouteCache {
@@ -84,6 +93,7 @@ const matchupsCache = new RouteCache(2 * 60 * 1000);
 const leagueInfoCache = new RouteCache(10 * 60 * 1000);
 const externalApiCache = new RouteCache(5 * 60 * 1000);
 const playersCache = new RouteCache(15 * 60 * 1000);
+const engineV3Cache = new RouteCache(5 * 60 * 1000);
 
 // Validation schemas
 const connectSleeperSchema = z.object({
@@ -15408,6 +15418,556 @@ Respond in JSON format:
     } catch (error: any) {
       console.error("Engine risk profile error:", error);
       res.status(500).json({ error: error.message || "Risk profile analysis failed" });
+    }
+  });
+
+  // ========================================
+  // Dynasty AI Engine v3 API Routes
+  // ========================================
+
+  app.get("/api/engine/v3/player-valuation/:playerId", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const playerId = req.params.playerId as string;
+      const cached = playerValuationService.getCachedValuation(playerId);
+      if (cached) return res.json(cached);
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const player = allPlayers[playerId as string];
+      if (!player) return res.status(404).json({ error: "Player not found" });
+
+      const age = player.age || 25;
+      const position = player.position || "WR";
+      const yearsExp = player.years_exp || 0;
+      const currentValue = ktcValues.getPlayerValue(playerId as string, position, age, yearsExp, player.search_rank, !!player.team);
+      const weeklyScores: number[] = [];
+      const gamesPlayed = weeklyScores.filter((s: number) => s > 0).length;
+
+      const valuation = playerValuationService.computePlayerValuation(
+        playerId as string, position, age, currentValue, weeklyScores,
+        yearsExp, gamesPlayed, 17, 0
+      );
+      playerValuationService.cacheValuation(valuation);
+
+      const ufas = ufasService.computeUFAS(
+        weeklyScores, currentValue, age, position, yearsExp,
+        gamesPlayed, 17, 0, 'balanced',
+        ufasService.computePositionalScarcity([{ position, value: currentValue }]),
+        currentValue
+      );
+
+      const briefing = aiExplanationService.generatePlayerBriefing(valuation, ufas, 'balanced');
+
+      res.json({ valuation, ufas, briefing });
+    } catch (error: any) {
+      console.error("Player valuation error:", error);
+      res.status(500).json({ error: error.message || "Player valuation failed" });
+    }
+  });
+
+  app.get("/api/engine/v3/devy-projections", isAuthenticated, async (_req: Request, res: Response) => {
+    try {
+      const cacheKey = "devy-projections-v3";
+      const cached = engineV3Cache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const rankings = devyProjectionService.getDevyDNPVRankings();
+      engineV3Cache.set(cacheKey, rankings);
+      res.json(rankings);
+    } catch (error: any) {
+      console.error("Devy projections error:", error);
+      res.status(500).json({ error: error.message || "Devy projections failed" });
+    }
+  });
+
+  app.get("/api/engine/v3/devy-projection/:playerId", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const devyPlayers = ktcValues.getDevyPlayers();
+      const player = devyPlayers.find(p => p.id === req.params.playerId as string);
+      if (!player) return res.status(404).json({ error: "Devy player not found" });
+
+      const projection = devyProjectionService.projectDevyPlayer(player as any);
+      res.json(projection);
+    } catch (error: any) {
+      console.error("Devy projection error:", error);
+      res.status(500).json({ error: error.message || "Devy projection failed" });
+    }
+  });
+
+  app.get("/api/engine/v3/franchise-window/:leagueId", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const leagueId = req.params.leagueId as string;
+      const userId = (req as any).userId;
+
+      const cacheKey = `franchise-window-v3-${leagueId}-${userId}`;
+      const cached = engineV3Cache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const rosters = await sleeperApi.getLeagueRosters(leagueId);
+      const leagueInfo = await sleeperApi.getLeague(leagueId);
+
+      const userRoster = rosters.find((r: any) => {
+        const leagueUsers = r.owner_id;
+        return leagueUsers;
+      });
+      if (!userRoster) return res.status(404).json({ error: "Roster not found" });
+
+      const rosterPlayers: franchiseModelingService.RosterPlayer[] = (userRoster.players || []).map((pid: string) => {
+        const p = allPlayers[pid];
+        if (!p) return null;
+        const age = p.age || 25;
+        const position = p.position || "WR";
+        const yearsExp = p.years_exp || 0;
+        const value = ktcValues.getPlayerValue(pid, position, age, yearsExp, p.search_rank, !!p.team);
+        const isStarter = (userRoster.starters || []).includes(pid);
+        return { playerId: pid, position, age, value, weeklyScores: [], isStarter, yearsExp };
+      }).filter(Boolean) as franchiseModelingService.RosterPlayer[];
+
+      const draftPicks = await sleeperApi.getLeagueDraftPicks(leagueId);
+      const draftCapital: franchiseModelingService.DraftCapital[] = (draftPicks || [])
+        .filter((dp: any) => dp.owner_id === userRoster.roster_id)
+        .map((dp: any) => ({
+          year: String(dp.season),
+          round: dp.round,
+          estimatedValue: ktcValues.getPickValue(String(dp.season), dp.round),
+        }));
+
+      const result = franchiseModelingService.analyzefranchiseWindow(rosterPlayers, draftCapital);
+      engineV3Cache.set(cacheKey, result);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Franchise window error:", error);
+      res.status(500).json({ error: error.message || "Franchise window analysis failed" });
+    }
+  });
+
+  app.get("/api/engine/v3/ufas/:leagueId", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const leagueId = req.params.leagueId as string;
+      const userId = (req as any).userId;
+
+      const cacheKey = `ufas-v3-${leagueId}-${userId}`;
+      const cached = engineV3Cache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const rosters = await sleeperApi.getLeagueRosters(leagueId);
+
+      const userRoster = rosters.find((r: any) => r.owner_id);
+      if (!userRoster) return res.status(404).json({ error: "Roster not found" });
+
+      const allPlayerValues: Array<{ position: string; value: number }> = [];
+      for (const roster of rosters) {
+        for (const pid of (roster.players || [])) {
+          const p = allPlayers[pid];
+          if (p?.position) {
+            const value = ktcValues.getPlayerValue(pid, p.position, p.age || 25, p.years_exp || 0, p.search_rank, !!p.team);
+            allPlayerValues.push({ position: p.position, value });
+          }
+        }
+      }
+
+      const scarcityData = ufasService.computePositionalScarcity(allPlayerValues);
+      const leagueAvgValue = allPlayerValues.length > 0
+        ? allPlayerValues.reduce((s, p) => s + p.value, 0) / allPlayerValues.length : 0;
+
+      const players = (userRoster.players || []).map((pid: string) => {
+        const p = allPlayers[pid];
+        if (!p) return null;
+        const age = p.age || 25;
+        const position = p.position || "WR";
+        const value = ktcValues.getPlayerValue(pid, position, age, p.years_exp || 0, p.search_rank, !!p.team);
+        return {
+          playerId: pid, weeklyScores: [] as number[], currentValue: value,
+          age, position, yearsExp: p.years_exp || 0,
+          gamesPlayed: 0, totalPossibleGames: 17, injuryHistoryCount: 0,
+        };
+      }).filter(Boolean) as any[];
+
+      const ufasResults = ufasService.batchComputeUFAS(players, 'balanced', scarcityData, leagueAvgValue);
+
+      const results: any[] = [];
+      ufasResults.forEach((ufas, playerId) => {
+        const p = allPlayers[playerId];
+        results.push({
+          playerId,
+          name: p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : playerId,
+          position: p?.position || 'UNK',
+          ...ufas,
+        });
+      });
+
+      results.sort((a, b) => b.ufas - a.ufas);
+
+      const response = { scarcityData, leagueAvgValue, players: results };
+      engineV3Cache.set(cacheKey, response);
+      res.json(response);
+    } catch (error: any) {
+      console.error("UFAS error:", error);
+      res.status(500).json({ error: error.message || "UFAS computation failed" });
+    }
+  });
+
+  app.post("/api/engine/v3/trade-simulation", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { givePlayerIds, getPlayerIds, franchiseWindow = 'balanced' } = req.body;
+      if (!givePlayerIds?.length || !getPlayerIds?.length) {
+        return res.status(400).json({ error: "Both give and get player IDs required" });
+      }
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+
+      const toAsset = (pid: string): tradeSimulationService.TradeAsset | null => {
+        const p = allPlayers[pid];
+        if (!p) return null;
+        const age = p.age || 25;
+        const position = p.position || "WR";
+        const value = ktcValues.getPlayerValue(pid, position, age, p.years_exp || 0, p.search_rank, !!p.team);
+        return {
+          playerId: pid,
+          name: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+          position, age, currentValue: value,
+          weeklyScores: [], yearsExp: p.years_exp || 0,
+        };
+      };
+
+      const giveAssets = givePlayerIds.map(toAsset).filter(Boolean) as tradeSimulationService.TradeAsset[];
+      const getAssets = getPlayerIds.map(toAsset).filter(Boolean) as tradeSimulationService.TradeAsset[];
+
+      if (giveAssets.length === 0 || getAssets.length === 0) {
+        return res.status(400).json({ error: "Invalid player IDs" });
+      }
+
+      const result = tradeSimulationService.simulateTrade(giveAssets, getAssets, franchiseWindow);
+      const briefing = aiExplanationService.generateTradeBriefing(result, franchiseWindow);
+
+      res.json({ simulation: result, briefing });
+    } catch (error: any) {
+      console.error("Trade simulation error:", error);
+      res.status(500).json({ error: error.message || "Trade simulation failed" });
+    }
+  });
+
+  app.get("/api/engine/v3/market-snapshot/:leagueId", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const leagueId = req.params.leagueId as string;
+      const userId = (req as any).userId;
+
+      const cacheKey = `market-snapshot-v3-${leagueId}-${userId}`;
+      const cached = engineV3Cache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const rosters = await sleeperApi.getLeagueRosters(leagueId);
+      const leagueUsers = await sleeperApi.getLeagueUsers(leagueId);
+      const transactions = await sleeperApi.getAllLeagueTransactions(leagueId);
+
+      const userMap = new Map<string, string>();
+      for (const u of leagueUsers) {
+        userMap.set(u.user_id, u.display_name || u.username || 'Unknown');
+      }
+
+      const rosterData = rosters.map((r: any) => ({
+        rosterId: r.roster_id,
+        ownerName: userMap.get(r.owner_id) || `Team ${r.roster_id}`,
+        players: r.players || [],
+        wins: r.settings?.wins || 0,
+        losses: r.settings?.losses || 0,
+        fpts: r.settings?.fpts || 0,
+      }));
+
+      const playerValues = new Map<string, number>();
+      for (const roster of rosters) {
+        for (const pid of (roster.players || [])) {
+          const p = allPlayers[pid];
+          if (p) {
+            playerValues.set(pid, ktcValues.getPlayerValue(pid, p.position || 'WR', p.age || 25, p.years_exp || 0, p.search_rank, !!p.team));
+          }
+        }
+      }
+
+      const franchiseWindows = new Map<number, franchiseModelingService.FranchiseWindow>();
+      for (const r of rosterData) {
+        franchiseWindows.set(r.rosterId, 'balanced' as franchiseModelingService.FranchiseWindow);
+      }
+
+      const snapshot = marketDynamicsService.buildLeagueMarketSnapshot(
+        rosterData, transactions, allPlayers, franchiseWindows,
+        rosterData[0]?.rosterId || 1, 'balanced', {}, playerValues
+      );
+
+      const briefing = aiExplanationService.generateMarketBriefing(snapshot, 'balanced');
+
+      const response = { snapshot, briefing };
+      engineV3Cache.set(cacheKey, response);
+      res.json(response);
+    } catch (error: any) {
+      console.error("Market snapshot error:", error);
+      res.status(500).json({ error: error.message || "Market snapshot failed" });
+    }
+  });
+
+  app.get("/api/engine/v3/power-rankings/:leagueId", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const leagueId = req.params.leagueId as string;
+
+      const cacheKey = `power-rankings-v3-${leagueId}`;
+      const cached = engineV3Cache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const rosters = await sleeperApi.getLeagueRosters(leagueId);
+      const leagueUsers = await sleeperApi.getLeagueUsers(leagueId);
+
+      const userMap = new Map<string, string>();
+      for (const u of leagueUsers) {
+        userMap.set(u.user_id, u.display_name || u.username || 'Unknown');
+      }
+
+      const allPlayerValues: Array<{ position: string; value: number }> = [];
+      const rosterData: any[] = [];
+
+      for (const roster of rosters) {
+        const players: any[] = [];
+        for (const pid of (roster.players || [])) {
+          const p = allPlayers[pid];
+          if (!p) continue;
+          const age = p.age || 25;
+          const position = p.position || "WR";
+          const value = ktcValues.getPlayerValue(pid, position, age, p.years_exp || 0, p.search_rank, !!p.team);
+          const isStarter = (roster.starters || []).includes(pid);
+          allPlayerValues.push({ position, value });
+          players.push({
+            playerId: pid,
+            name: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+            position, age, value, weeklyScores: [], isStarter,
+          });
+        }
+
+        rosterData.push({
+          rosterId: roster.roster_id,
+          ownerName: userMap.get(roster.owner_id) || `Team ${roster.roster_id}`,
+          players,
+          wins: roster.settings?.wins || 0,
+          losses: roster.settings?.losses || 0,
+          fpts: roster.settings?.fpts || 0,
+        });
+      }
+
+      const scarcityData = ufasService.computePositionalScarcity(allPlayerValues);
+      const leagueAvgValue = allPlayerValues.length > 0
+        ? allPlayerValues.reduce((s, p) => s + p.value, 0) / allPlayerValues.length : 0;
+
+      const ufasScores = new Map<string, ufasService.UFASResult>();
+      const franchiseResults = new Map<number, franchiseModelingService.FranchiseWindowResult>();
+
+      for (const rData of rosterData) {
+        const rosterPlayers: franchiseModelingService.RosterPlayer[] = rData.players.map((p: any) => ({
+          playerId: p.playerId, position: p.position, age: p.age,
+          value: p.value, weeklyScores: p.weeklyScores, isStarter: p.isStarter, yearsExp: 0,
+        }));
+
+        const windowResult = franchiseModelingService.analyzefranchiseWindow(rosterPlayers, []);
+        franchiseResults.set(rData.rosterId, windowResult);
+
+        for (const p of rData.players) {
+          const ufas = ufasService.computeUFAS(
+            p.weeklyScores, p.value, p.age, p.position, 0,
+            0, 17, 0, windowResult.classification, scarcityData, leagueAvgValue
+          );
+          ufasScores.set(p.playerId, ufas);
+        }
+      }
+
+      const result = powerRankingsService.computePowerRankings(rosterData, ufasScores, franchiseResults);
+
+      engineV3Cache.set(cacheKey, result);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Power rankings error:", error);
+      res.status(500).json({ error: error.message || "Power rankings failed" });
+    }
+  });
+
+  app.post("/api/engine/v3/draft-simulation", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { leagueId, currentPick = 1, iterations = 1000 } = req.body;
+      if (!leagueId) return res.status(400).json({ error: "leagueId required" });
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const rosters = await sleeperApi.getLeagueRosters(leagueId);
+      const leagueInfo = await sleeperApi.getLeague(leagueId);
+      const totalTeams = leagueInfo?.total_rosters || rosters.length || 12;
+
+      const devyPlayers = ktcValues.getDevyPlayers();
+      const availablePlayers: draftSimulationService.DraftPlayer[] = devyPlayers.slice(0, 60).map((dp, idx) => ({
+        playerId: dp.id,
+        name: dp.name,
+        position: dp.position,
+        value: dp.value,
+        adp: idx + 1,
+        tier: dp.tier,
+        college: dp.college,
+      }));
+
+      const rostersByTeam = new Map<number, string[]>();
+      for (const r of rosters) {
+        rostersByTeam.set(r.roster_id, r.players || []);
+      }
+
+      const userRosterId = rosters[0]?.roster_id || 1;
+
+      const result = draftSimulationService.buildDraftSimulation(
+        availablePlayers, userRosterId, currentPick,
+        totalTeams, 4, rostersByTeam, allPlayers,
+        Math.min(iterations, 2000)
+      );
+
+      const briefing = aiExplanationService.generateDraftBriefing(result, {});
+
+      res.json({ simulation: result, briefing });
+    } catch (error: any) {
+      console.error("Draft simulation error:", error);
+      res.status(500).json({ error: error.message || "Draft simulation failed" });
+    }
+  });
+
+  app.get("/api/engine/v3/war-room/:leagueId", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const leagueId = req.params.leagueId as string;
+      const userId = (req as any).userId;
+
+      const cacheKey = `war-room-v3-${leagueId}-${userId}`;
+      const cached = engineV3Cache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const rosters = await sleeperApi.getLeagueRosters(leagueId);
+      const leagueUsers = await sleeperApi.getLeagueUsers(leagueId);
+      const transactions = await sleeperApi.getAllLeagueTransactions(leagueId);
+
+      const userMap = new Map<string, string>();
+      for (const u of leagueUsers) {
+        userMap.set(u.user_id, u.display_name || u.username || 'Unknown');
+      }
+
+      const userRoster = rosters[0];
+      if (!userRoster) return res.status(404).json({ error: "Roster not found" });
+
+      const allPlayerValues: Array<{ position: string; value: number }> = [];
+      const rosterPlayersData: franchiseModelingService.RosterPlayer[] = [];
+
+      for (const pid of (userRoster.players || [])) {
+        const p = allPlayers[pid];
+        if (!p) continue;
+        const age = p.age || 25;
+        const position = p.position || "WR";
+        const value = ktcValues.getPlayerValue(pid, position, age, p.years_exp || 0, p.search_rank, !!p.team);
+        const isStarter = (userRoster.starters || []).includes(pid);
+        allPlayerValues.push({ position, value });
+        rosterPlayersData.push({
+          playerId: pid, position, age, value, weeklyScores: [], isStarter, yearsExp: p.years_exp || 0,
+        });
+      }
+
+      const franchiseResult = franchiseModelingService.analyzefranchiseWindow(rosterPlayersData, []);
+
+      const scarcityData = ufasService.computePositionalScarcity(allPlayerValues);
+      const leagueAvgValue = allPlayerValues.length > 0
+        ? allPlayerValues.reduce((s, p) => s + p.value, 0) / allPlayerValues.length : 0;
+
+      const ufasScores = new Map<string, ufasService.UFASResult>();
+      for (const rp of rosterPlayersData) {
+        const ufas = ufasService.computeUFAS(
+          rp.weeklyScores, rp.value, rp.age, rp.position, rp.yearsExp,
+          0, 17, 0, franchiseResult.classification, scarcityData, leagueAvgValue
+        );
+        ufasScores.set(rp.playerId, ufas);
+      }
+
+      const playerValues = new Map<string, number>();
+      for (const r of rosters) {
+        for (const pid of (r.players || [])) {
+          const p = allPlayers[pid];
+          if (p) playerValues.set(pid, ktcValues.getPlayerValue(pid, p.position || 'WR', p.age || 25, p.years_exp || 0, p.search_rank, !!p.team));
+        }
+      }
+
+      const rosterList = rosters.map((r: any) => ({
+        rosterId: r.roster_id,
+        ownerName: userMap.get(r.owner_id) || `Team ${r.roster_id}`,
+        players: r.players || [],
+        wins: r.settings?.wins || 0,
+        losses: r.settings?.losses || 0,
+        fpts: r.settings?.fpts || 0,
+      }));
+
+      const franchiseWindows = new Map<number, franchiseModelingService.FranchiseWindow>();
+      franchiseWindows.set(userRoster.roster_id, franchiseResult.classification);
+
+      const marketSnapshot = marketDynamicsService.buildLeagueMarketSnapshot(
+        rosterList, transactions, allPlayers, franchiseWindows,
+        userRoster.roster_id, franchiseResult.classification, {}, playerValues
+      );
+
+      const prData = rosterList.map((r: any) => ({
+        ...r,
+        players: (r.players as string[]).map((pid: string) => {
+          const p = allPlayers[pid];
+          return {
+            playerId: pid,
+            name: p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : pid,
+            position: p?.position || 'UNK',
+            age: p?.age || 25,
+            value: playerValues.get(pid) || 0,
+            weeklyScores: [] as number[],
+            isStarter: false,
+          };
+        }),
+      }));
+
+      const franchiseResultsMap = new Map<number, franchiseModelingService.FranchiseWindowResult>();
+      franchiseResultsMap.set(userRoster.roster_id, franchiseResult);
+
+      const powerRankings = powerRankingsService.computePowerRankings(prData, ufasScores, franchiseResultsMap);
+      const userRanking = powerRankings.rankings.find(r => r.rosterId === userRoster.roster_id);
+
+      let warRoomBriefing: aiExplanationService.GMBriefing | null = null;
+      if (userRanking) {
+        warRoomBriefing = aiExplanationService.generateWarRoomBriefing(userRanking, franchiseResult, marketSnapshot);
+      }
+
+      const topUFASPlayers: any[] = [];
+      ufasScores.forEach((ufas, playerId) => {
+        const p = allPlayers[playerId];
+        topUFASPlayers.push({
+          playerId,
+          name: p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : playerId,
+          position: p?.position || 'UNK',
+          ...ufas,
+        });
+      });
+      topUFASPlayers.sort((a, b) => b.ufas - a.ufas);
+
+      const response = {
+        briefing: warRoomBriefing,
+        franchiseWindow: franchiseResult,
+        powerRank: userRanking,
+        ufasRoster: topUFASPlayers,
+        marketSnapshot: {
+          contenderCount: marketSnapshot.contenderCount,
+          rebuilderCount: marketSnapshot.rebuilderCount,
+          proactiveTargets: marketSnapshot.proactiveTargets.slice(0, 5),
+          marketNarrative: marketSnapshot.marketNarrative,
+        },
+        scarcityData,
+      };
+
+      engineV3Cache.set(cacheKey, response);
+      res.json(response);
+    } catch (error: any) {
+      console.error("War room error:", error);
+      res.status(500).json({ error: error.message || "War room analysis failed" });
     }
   });
 
