@@ -72,6 +72,20 @@ interface Draft2026Player {
   intangibles: string[];
   scoutingNotes: string | null;
   scouting: DraftScoutingReport | null;
+  projectedPickRange?: string;
+  projectedPickSlot?: string;
+  elitePct?: number;
+  starterPct?: number;
+  bustPct?: number;
+  evScore?: number;
+  riskTier?: string;
+  liquidityScore?: number;
+  historicalAvgPPG?: number;
+  positionEliteRate?: number | null;
+  positionStarterRate?: number | null;
+  positionBustRate?: number | null;
+  ktcValue?: number | null;
+  tier?: string | null;
 }
 
 interface SeasonStats {
@@ -347,6 +361,35 @@ export function DraftProfileModal({
               </div>
             </div>
           )}
+
+          {player.evScore !== undefined && (
+            <div className="grid grid-cols-5 gap-1.5 mt-3" data-testid="probability-stats-row">
+              <div className="text-center p-1.5 bg-muted/50 rounded" data-testid="stat-ev-score">
+                <div className={`text-sm font-bold ${(player.evScore ?? 0) >= 60 ? "text-emerald-400" : (player.evScore ?? 0) >= 40 ? "text-amber-400" : (player.evScore ?? 0) >= 20 ? "text-orange-400" : "text-red-400"}`}>
+                  {player.evScore}
+                </div>
+                <div className="text-[10px] text-muted-foreground">EV Score</div>
+              </div>
+              <div className="text-center p-1.5 bg-muted/50 rounded" data-testid="stat-elite-pct">
+                <div className="text-sm font-bold text-amber-400">{player.elitePct}%</div>
+                <div className="text-[10px] text-muted-foreground">Elite</div>
+              </div>
+              <div className="text-center p-1.5 bg-muted/50 rounded" data-testid="stat-starter-pct">
+                <div className="text-sm font-bold text-emerald-400">{player.starterPct}%</div>
+                <div className="text-[10px] text-muted-foreground">Starter</div>
+              </div>
+              <div className="text-center p-1.5 bg-muted/50 rounded" data-testid="stat-bust-pct">
+                <div className="text-sm font-bold text-red-400">{player.bustPct}%</div>
+                <div className="text-[10px] text-muted-foreground">Bust</div>
+              </div>
+              <div className="text-center p-1.5 bg-muted/50 rounded" data-testid="stat-risk-tier">
+                <div className={`text-sm font-bold ${player.riskTier === "Low" ? "text-emerald-400" : player.riskTier === "Medium" ? "text-amber-400" : player.riskTier === "High" ? "text-orange-400" : "text-red-400"}`}>
+                  {player.riskTier}
+                </div>
+                <div className="text-[10px] text-muted-foreground">Risk</div>
+              </div>
+            </div>
+          )}
         </DialogHeader>
 
         <Tabs defaultValue="bio" className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -422,6 +465,56 @@ export function DraftProfileModal({
                           </div>
                         </CardContent>
                       </Card>
+
+                      {player.evScore !== undefined && (
+                        <Card data-testid="card-probability-breakdown">
+                          <CardContent className="p-4">
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                              <Target className="h-4 w-4 text-amber-400" />
+                              Probability Breakdown
+                            </h3>
+                            <div className="space-y-3 text-sm">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground">Pick Range:</span>
+                                  <span className="font-medium">{player.projectedPickRange}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground">Pick Slot:</span>
+                                  <span className="font-medium">{player.projectedPickSlot}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground">Hist. Avg PPG:</span>
+                                  <span className="font-medium">{player.historicalAvgPPG?.toFixed(1) || "N/A"}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground">Liquidity:</span>
+                                  <span className="font-medium">{player.liquidityScore}/100</span>
+                                </div>
+                              </div>
+                              {player.positionEliteRate != null && (
+                                <div className="mt-2 pt-2 border-t border-border/50">
+                                  <div className="text-xs font-medium text-muted-foreground mb-2">Position-Specific Rates ({player.positionGroup})</div>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div className="text-center p-1.5 bg-muted/50 rounded">
+                                      <div className="text-sm font-bold text-amber-400">{player.positionEliteRate}%</div>
+                                      <div className="text-[10px] text-muted-foreground">Pos Elite</div>
+                                    </div>
+                                    <div className="text-center p-1.5 bg-muted/50 rounded">
+                                      <div className="text-sm font-bold text-emerald-400">{player.positionStarterRate}%</div>
+                                      <div className="text-[10px] text-muted-foreground">Pos Starter</div>
+                                    </div>
+                                    <div className="text-center p-1.5 bg-muted/50 rounded">
+                                      <div className="text-sm font-bold text-red-400">{player.positionBustRate}%</div>
+                                      <div className="text-[10px] text-muted-foreground">Pos Bust</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
 
                       {scouting && (
                         <Card data-testid="card-scouting-report">

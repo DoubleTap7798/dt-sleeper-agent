@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, BarChart3, Table2, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, BarChart3, Table2, Info, Users, Lightbulb, ArrowUp, ArrowDown, Target, ChevronDown, ChevronUp } from "lucide-react";
+import { Link } from "wouter";
 
 interface PickData {
   pick: number;
@@ -23,11 +26,40 @@ interface RoundData {
   picks: PickData[];
 }
 
+interface ProspectData {
+  name: string;
+  position: string;
+  college: string;
+  rank: number;
+  elitePct: number;
+  bustPct: number;
+}
+
+interface StrategyData {
+  strategy: string;
+  tradeAdvice: string;
+  positionTip: string;
+}
+
+interface TradeEvDelta {
+  tradeUpValue: number;
+  tradeDownValue: number;
+  tradeUpSlot: string;
+  tradeDownSlot: string;
+  evDelta: number;
+}
+
 interface DraftPickValues {
   rounds: RoundData[];
   methodology: string;
   lastUpdated: string;
+  prospectsPerPick: Record<string, ProspectData[]>;
+  strategyPerPick: Record<string, StrategyData>;
+  tradeEvDelta: Record<string, TradeEvDelta>;
+  positionFilter: string | null;
 }
+
+const POSITION_TABS = ["All", "QB", "RB", "WR", "TE"] as const;
 
 function getValueColor(value: number): string {
   if (value >= 80) return "hsl(187, 100%, 50%)";
@@ -42,7 +74,142 @@ function getRoundAvgHitRate(round: RoundData): number {
   return Math.round(total / round.picks.length);
 }
 
-function ValueChartView({ rounds }: { rounds: RoundData[] }) {
+function ProspectsPanel({ prospects, slot }: { prospects: ProspectData[]; slot: string }) {
+  if (!prospects || prospects.length === 0) return null;
+  return (
+    <div className="mt-2 p-3 rounded-md bg-muted/50 space-y-1.5" data-testid={`panel-prospects-${slot}`}>
+      <div className="flex items-center gap-1.5 mb-1">
+        <Users className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">2026 Prospects In This Range</span>
+      </div>
+      {prospects.map((p) => (
+        <div key={p.name} className="flex items-center gap-2 text-xs" data-testid={`prospect-${p.name}`}>
+          <Link href="/league/draft-board">
+            <span className="font-medium hover:underline cursor-pointer">{p.name}</span>
+          </Link>
+          <Badge variant="secondary" className="text-[10px]">{p.position}</Badge>
+          <span className="text-muted-foreground">{p.college}</span>
+          {p.elitePct > 0 && (
+            <span style={{ color: "hsl(45, 93%, 47%)" }} className="ml-auto">{p.elitePct}% elite</span>
+          )}
+          {p.bustPct > 0 && (
+            <span style={{ color: "hsl(0, 72%, 51%)" }}>{p.bustPct}% bust</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StrategyPanel({ strategy, slot }: { strategy: StrategyData; slot: string }) {
+  if (!strategy) return null;
+  return (
+    <div className="mt-2 p-3 rounded-md bg-muted/50 space-y-1.5" data-testid={`panel-strategy-${slot}`}>
+      <div className="flex items-center gap-1.5 mb-1">
+        <Lightbulb className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">Best Strategy</span>
+      </div>
+      <p className="text-xs">{strategy.strategy}</p>
+      <div className="flex items-center gap-1.5 mt-1">
+        <Target className="h-3 w-3 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">{strategy.tradeAdvice}</span>
+      </div>
+      {strategy.positionTip && (
+        <p className="text-xs text-muted-foreground italic mt-1">{strategy.positionTip}</p>
+      )}
+    </div>
+  );
+}
+
+function TradeEvPanel({ tradeEv, slot }: { tradeEv: TradeEvDelta; slot: string }) {
+  if (!tradeEv) return null;
+  return (
+    <div className="mt-2 p-3 rounded-md bg-muted/50" data-testid={`panel-trade-ev-${slot}`}>
+      <div className="flex items-center gap-1.5 mb-2">
+        <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">Trade EV Delta</span>
+      </div>
+      <div className="flex items-center gap-4 flex-wrap">
+        {tradeEv.tradeUpSlot && (
+          <div className="flex items-center gap-1.5 text-xs">
+            <ArrowUp className="h-3 w-3" style={{ color: "hsl(142, 71%, 45%)" }} />
+            <span>Trade up to <span className="font-mono font-medium">{tradeEv.tradeUpSlot}</span>:</span>
+            <span className="font-medium" style={{ color: tradeEv.tradeUpValue > 5 ? "hsl(142, 71%, 45%)" : undefined }}>
+              +{tradeEv.tradeUpValue} value
+            </span>
+          </div>
+        )}
+        {tradeEv.tradeDownSlot && (
+          <div className="flex items-center gap-1.5 text-xs">
+            <ArrowDown className="h-3 w-3" style={{ color: "hsl(0, 72%, 51%)" }} />
+            <span>Trade down to <span className="font-mono font-medium">{tradeEv.tradeDownSlot}</span>:</span>
+            <span className="font-medium" style={{ color: tradeEv.tradeDownValue > 5 ? "hsl(0, 72%, 51%)" : undefined }}>
+              -{tradeEv.tradeDownValue} value
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExpandablePickRow({
+  pick,
+  prospects,
+  strategy,
+  tradeEv,
+}: {
+  pick: PickData;
+  prospects: ProspectData[];
+  strategy: StrategyData;
+  tradeEv: TradeEvDelta;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasDetails = (prospects && prospects.length > 0) || strategy || tradeEv;
+
+  return (
+    <div data-testid={`row-pick-value-${pick.displayName}`}>
+      <div
+        className={`flex items-center gap-3 ${hasDetails ? "cursor-pointer" : ""}`}
+        onClick={() => hasDetails && setExpanded(!expanded)}
+      >
+        <span className="w-10 text-sm font-mono font-medium shrink-0">{pick.displayName}</span>
+        <div className="flex-1 h-6 bg-muted rounded-md overflow-hidden relative">
+          <div
+            className="h-full rounded-md transition-all duration-300"
+            style={{
+              width: `${Math.min(pick.value, 100)}%`,
+              backgroundColor: getValueColor(pick.value),
+            }}
+          />
+          <span className="absolute inset-0 flex items-center px-2 text-xs font-medium" style={{ color: pick.value > 50 ? "hsl(0, 0%, 10%)" : undefined }}>
+            {pick.value.toLocaleString()}
+          </span>
+        </div>
+        <span className="w-12 text-xs text-muted-foreground text-right shrink-0">{pick.avgPPG} PPG</span>
+        {hasDetails && (
+          <span className="w-5 shrink-0 text-muted-foreground">
+            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </span>
+        )}
+      </div>
+      {expanded && (
+        <div className="ml-12 mr-5">
+          <ProspectsPanel prospects={prospects} slot={pick.displayName} />
+          <StrategyPanel strategy={strategy} slot={pick.displayName} />
+          <TradeEvPanel tradeEv={tradeEv} slot={pick.displayName} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ValueChartView({ rounds, prospectsPerPick, strategyPerPick, tradeEvDelta }: {
+  rounds: RoundData[];
+  prospectsPerPick: Record<string, ProspectData[]>;
+  strategyPerPick: Record<string, StrategyData>;
+  tradeEvDelta: Record<string, TradeEvDelta>;
+}) {
   return (
     <div className="space-y-6">
       {rounds.map((round) => (
@@ -53,22 +220,13 @@ function ValueChartView({ rounds }: { rounds: RoundData[] }) {
           </CardHeader>
           <CardContent className="space-y-1.5">
             {round.picks.map((pick) => (
-              <div key={pick.displayName} className="flex items-center gap-3" data-testid={`row-pick-value-${pick.displayName}`}>
-                <span className="w-10 text-sm font-mono font-medium shrink-0">{pick.displayName}</span>
-                <div className="flex-1 h-6 bg-muted rounded-md overflow-hidden relative">
-                  <div
-                    className="h-full rounded-md transition-all duration-300"
-                    style={{
-                      width: `${Math.min(pick.value, 100)}%`,
-                      backgroundColor: getValueColor(pick.value),
-                    }}
-                  />
-                  <span className="absolute inset-0 flex items-center px-2 text-xs font-medium" style={{ color: pick.value > 50 ? "hsl(0, 0%, 10%)" : undefined }}>
-                    {pick.value.toLocaleString()}
-                  </span>
-                </div>
-                <span className="w-12 text-xs text-muted-foreground text-right shrink-0">{pick.avgPPG} PPG</span>
-              </div>
+              <ExpandablePickRow
+                key={pick.displayName}
+                pick={pick}
+                prospects={prospectsPerPick[pick.displayName] || []}
+                strategy={strategyPerPick[pick.displayName]}
+                tradeEv={tradeEvDelta[pick.displayName]}
+              />
             ))}
           </CardContent>
         </Card>
@@ -146,7 +304,14 @@ function HitRatesView({ rounds }: { rounds: RoundData[] }) {
   );
 }
 
-function DetailsView({ rounds }: { rounds: RoundData[] }) {
+function DetailsView({ rounds, prospectsPerPick, strategyPerPick, tradeEvDelta }: {
+  rounds: RoundData[];
+  prospectsPerPick: Record<string, ProspectData[]>;
+  strategyPerPick: Record<string, StrategyData>;
+  tradeEvDelta: Record<string, TradeEvDelta>;
+}) {
+  const [expandedPick, setExpandedPick] = useState<string | null>(null);
+
   return (
     <div className="space-y-6">
       {rounds.map((round) => (
@@ -167,25 +332,53 @@ function DetailsView({ rounds }: { rounds: RoundData[] }) {
                     <th className="pb-2 pr-3 font-medium text-muted-foreground text-right">Bust%</th>
                     <th className="pb-2 pr-3 font-medium text-muted-foreground text-right">Avg PPG</th>
                     <th className="pb-2 font-medium text-muted-foreground">Notable Picks</th>
+                    <th className="pb-2 font-medium text-muted-foreground w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {round.picks.map((pick) => (
-                    <tr key={pick.displayName} className="border-b last:border-b-0" data-testid={`row-pick-detail-${pick.displayName}`}>
-                      <td className="py-2 pr-3 font-mono font-medium">{pick.displayName}</td>
-                      <td className="py-2 pr-3 text-right">
-                        <Badge variant="secondary" className="font-mono">{pick.value}</Badge>
-                      </td>
-                      <td className="py-2 pr-3 text-right">{pick.hitRate}%</td>
-                      <td className="py-2 pr-3 text-right" style={{ color: pick.eliteRate > 0 ? "hsl(45, 93%, 47%)" : undefined }}>{pick.eliteRate}%</td>
-                      <td className="py-2 pr-3 text-right" style={{ color: pick.starterRate > 0 ? "hsl(142, 71%, 45%)" : undefined }}>{pick.starterRate}%</td>
-                      <td className="py-2 pr-3 text-right" style={{ color: pick.bustRate >= 50 ? "hsl(0, 72%, 51%)" : undefined }}>{pick.bustRate}%</td>
-                      <td className="py-2 pr-3 text-right font-mono">{pick.avgPPG}</td>
-                      <td className="py-2 text-xs text-muted-foreground">
-                        {pick.notablePicks.length > 0 ? pick.notablePicks.join(", ") : "-"}
-                      </td>
-                    </tr>
-                  ))}
+                  {round.picks.map((pick) => {
+                    const isExpanded = expandedPick === pick.displayName;
+                    const prospects = prospectsPerPick[pick.displayName] || [];
+                    const strategy = strategyPerPick[pick.displayName];
+                    const tradeEv = tradeEvDelta[pick.displayName];
+                    const hasDetails = prospects.length > 0 || strategy || tradeEv;
+
+                    return (
+                      <>
+                        <tr
+                          key={pick.displayName}
+                          className={`border-b last:border-b-0 ${hasDetails ? "cursor-pointer" : ""}`}
+                          onClick={() => hasDetails && setExpandedPick(isExpanded ? null : pick.displayName)}
+                          data-testid={`row-pick-detail-${pick.displayName}`}
+                        >
+                          <td className="py-2 pr-3 font-mono font-medium">{pick.displayName}</td>
+                          <td className="py-2 pr-3 text-right">
+                            <Badge variant="secondary" className="font-mono">{pick.value}</Badge>
+                          </td>
+                          <td className="py-2 pr-3 text-right">{pick.hitRate}%</td>
+                          <td className="py-2 pr-3 text-right" style={{ color: pick.eliteRate > 0 ? "hsl(45, 93%, 47%)" : undefined }}>{pick.eliteRate}%</td>
+                          <td className="py-2 pr-3 text-right" style={{ color: pick.starterRate > 0 ? "hsl(142, 71%, 45%)" : undefined }}>{pick.starterRate}%</td>
+                          <td className="py-2 pr-3 text-right" style={{ color: pick.bustRate >= 50 ? "hsl(0, 72%, 51%)" : undefined }}>{pick.bustRate}%</td>
+                          <td className="py-2 pr-3 text-right font-mono">{pick.avgPPG}</td>
+                          <td className="py-2 text-xs text-muted-foreground">
+                            {pick.notablePicks.length > 0 ? pick.notablePicks.join(", ") : "-"}
+                          </td>
+                          <td className="py-2 text-muted-foreground">
+                            {hasDetails && (isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />)}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr key={`${pick.displayName}-details`}>
+                            <td colSpan={9} className="pb-3">
+                              <ProspectsPanel prospects={prospects} slot={pick.displayName} />
+                              <StrategyPanel strategy={strategy} slot={pick.displayName} />
+                              <TradeEvPanel tradeEv={tradeEv} slot={pick.displayName} />
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -202,6 +395,7 @@ function LoadingSkeleton() {
       <div className="flex items-center gap-2">
         <Skeleton className="h-7 w-48" />
       </div>
+      <Skeleton className="h-10 w-80" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-20" />
@@ -215,9 +409,20 @@ function LoadingSkeleton() {
 
 export default function DraftPickValuePage() {
   usePageTitle("Draft Pick Values");
+  const [positionFilter, setPositionFilter] = useState<string>("All");
+
+  const queryPosition = positionFilter === "All" ? undefined : positionFilter;
 
   const { data, isLoading, error } = useQuery<DraftPickValues>({
-    queryKey: ["/api/draft-pick-values"],
+    queryKey: ["/api/draft-pick-values", queryPosition],
+    queryFn: async () => {
+      const url = queryPosition
+        ? `/api/draft-pick-values?position=${queryPosition}`
+        : "/api/draft-pick-values";
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
   });
 
   if (isLoading) {
@@ -232,13 +437,30 @@ export default function DraftPickValuePage() {
     );
   }
 
-  const { rounds } = data;
+  const { rounds, prospectsPerPick, strategyPerPick, tradeEvDelta } = data;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
         <h2 className="text-xl font-semibold" data-testid="text-page-title">Draft Pick Values</h2>
         <Badge variant="secondary">2018-2024 Data</Badge>
+        {positionFilter !== "All" && (
+          <Badge variant="outline" data-testid="badge-position-filter">{positionFilter}-Specific</Badge>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-wrap" data-testid="tabs-position-filter">
+        {POSITION_TABS.map((pos) => (
+          <Button
+            key={pos}
+            variant={positionFilter === pos ? "default" : "outline"}
+            size="sm"
+            onClick={() => setPositionFilter(pos)}
+            data-testid={`button-position-${pos.toLowerCase()}`}
+          >
+            {pos}
+          </Button>
+        ))}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -279,7 +501,12 @@ export default function DraftPickValuePage() {
         </TabsList>
 
         <TabsContent value="value" className="mt-4">
-          <ValueChartView rounds={rounds} />
+          <ValueChartView
+            rounds={rounds}
+            prospectsPerPick={prospectsPerPick}
+            strategyPerPick={strategyPerPick}
+            tradeEvDelta={tradeEvDelta}
+          />
         </TabsContent>
 
         <TabsContent value="hitrates" className="mt-4">
@@ -287,7 +514,12 @@ export default function DraftPickValuePage() {
         </TabsContent>
 
         <TabsContent value="details" className="mt-4">
-          <DetailsView rounds={rounds} />
+          <DetailsView
+            rounds={rounds}
+            prospectsPerPick={prospectsPerPick}
+            strategyPerPick={strategyPerPick}
+            tradeEvDelta={tradeEvDelta}
+          />
         </TabsContent>
       </Tabs>
     </div>

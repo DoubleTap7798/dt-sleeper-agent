@@ -4518,6 +4518,7 @@ Return ONLY valid JSON, no other text.`;
   app.get("/api/draft/2026", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { getDraft2026Players, getDraft2026Stats, getDraft2026PositionGroups, getDraft2026StockMovers } = await import('./draft-2026-data');
+      const { KTC_DEVY_PLAYERS } = await import('./ktc-values');
       
       const side = req.query.side as string | undefined;
       const positionGroup = req.query.positionGroup as string | undefined;
@@ -4527,12 +4528,199 @@ Return ONLY valid JSON, no other text.`;
       const stats = getDraft2026Stats();
       const positionGroups = getDraft2026PositionGroups();
       const stockMovers = getDraft2026StockMovers();
+
+      const HISTORICAL_PICK_DATA: Record<string, { value: number; hitRate: number; eliteRate: number; starterRate: number; bustRate: number; avgPPG: number }> = {
+        "1.01": { value: 100, hitRate: 82, eliteRate: 45, starterRate: 72, bustRate: 18, avgPPG: 16.2 },
+        "1.02": { value: 93, hitRate: 78, eliteRate: 38, starterRate: 68, bustRate: 22, avgPPG: 14.8 },
+        "1.03": { value: 87, hitRate: 75, eliteRate: 32, starterRate: 65, bustRate: 25, avgPPG: 14.1 },
+        "1.04": { value: 82, hitRate: 72, eliteRate: 28, starterRate: 62, bustRate: 28, avgPPG: 13.5 },
+        "1.05": { value: 77, hitRate: 68, eliteRate: 24, starterRate: 58, bustRate: 32, avgPPG: 12.8 },
+        "1.06": { value: 73, hitRate: 64, eliteRate: 20, starterRate: 54, bustRate: 36, avgPPG: 12.2 },
+        "1.07": { value: 68, hitRate: 58, eliteRate: 16, starterRate: 48, bustRate: 42, avgPPG: 11.5 },
+        "1.08": { value: 64, hitRate: 54, eliteRate: 14, starterRate: 44, bustRate: 46, avgPPG: 10.9 },
+        "1.09": { value: 60, hitRate: 50, eliteRate: 12, starterRate: 40, bustRate: 50, avgPPG: 10.3 },
+        "1.10": { value: 56, hitRate: 46, eliteRate: 10, starterRate: 36, bustRate: 54, avgPPG: 9.7 },
+        "1.11": { value: 53, hitRate: 42, eliteRate: 8, starterRate: 32, bustRate: 58, avgPPG: 9.1 },
+        "1.12": { value: 50, hitRate: 38, eliteRate: 6, starterRate: 28, bustRate: 62, avgPPG: 8.5 },
+        "2.01": { value: 47, hitRate: 35, eliteRate: 5, starterRate: 25, bustRate: 65, avgPPG: 7.8 },
+        "2.02": { value: 44, hitRate: 32, eliteRate: 4, starterRate: 22, bustRate: 68, avgPPG: 7.4 },
+        "2.03": { value: 41, hitRate: 30, eliteRate: 4, starterRate: 20, bustRate: 70, avgPPG: 7.0 },
+        "2.04": { value: 38, hitRate: 28, eliteRate: 3, starterRate: 18, bustRate: 72, avgPPG: 6.6 },
+        "2.05": { value: 35, hitRate: 25, eliteRate: 3, starterRate: 16, bustRate: 75, avgPPG: 6.2 },
+        "2.06": { value: 33, hitRate: 23, eliteRate: 2, starterRate: 14, bustRate: 77, avgPPG: 5.9 },
+        "2.07": { value: 30, hitRate: 20, eliteRate: 2, starterRate: 12, bustRate: 80, avgPPG: 5.5 },
+        "2.08": { value: 28, hitRate: 18, eliteRate: 2, starterRate: 10, bustRate: 82, avgPPG: 5.2 },
+        "2.09": { value: 26, hitRate: 16, eliteRate: 1, starterRate: 9, bustRate: 84, avgPPG: 4.8 },
+        "2.10": { value: 24, hitRate: 15, eliteRate: 1, starterRate: 8, bustRate: 85, avgPPG: 4.5 },
+        "2.11": { value: 22, hitRate: 14, eliteRate: 1, starterRate: 7, bustRate: 86, avgPPG: 4.2 },
+        "2.12": { value: 20, hitRate: 12, eliteRate: 1, starterRate: 6, bustRate: 88, avgPPG: 3.9 },
+        "3.01": { value: 18, hitRate: 10, eliteRate: 1, starterRate: 5, bustRate: 90, avgPPG: 3.5 },
+        "3.02": { value: 16, hitRate: 9, eliteRate: 0, starterRate: 5, bustRate: 91, avgPPG: 3.2 },
+        "3.03": { value: 15, hitRate: 8, eliteRate: 0, starterRate: 4, bustRate: 92, avgPPG: 3.0 },
+        "3.04": { value: 13, hitRate: 7, eliteRate: 0, starterRate: 3, bustRate: 93, avgPPG: 2.7 },
+        "3.05": { value: 12, hitRate: 6, eliteRate: 0, starterRate: 3, bustRate: 94, avgPPG: 2.5 },
+        "3.06": { value: 10, hitRate: 5, eliteRate: 0, starterRate: 2, bustRate: 95, avgPPG: 2.2 },
+      };
+
+      const POS_HIT_RATES: Record<string, Record<string, { eliteRate: number; starterRate: number; bustRate: number }>> = {
+        QB: {
+          "1.01-1.04": { eliteRate: 42, starterRate: 68, bustRate: 20 },
+          "1.05-1.08": { eliteRate: 28, starterRate: 52, bustRate: 35 },
+          "1.09-1.12": { eliteRate: 15, starterRate: 38, bustRate: 50 },
+          "2.01-2.06": { eliteRate: 5, starterRate: 18, bustRate: 75 },
+          "2.07-2.12": { eliteRate: 2, starterRate: 8, bustRate: 88 },
+          "3.01+": { eliteRate: 0, starterRate: 3, bustRate: 95 },
+        },
+        RB: {
+          "1.01-1.04": { eliteRate: 48, starterRate: 75, bustRate: 15 },
+          "1.05-1.08": { eliteRate: 22, starterRate: 50, bustRate: 38 },
+          "1.09-1.12": { eliteRate: 10, starterRate: 32, bustRate: 58 },
+          "2.01-2.06": { eliteRate: 4, starterRate: 18, bustRate: 72 },
+          "2.07-2.12": { eliteRate: 2, starterRate: 8, bustRate: 85 },
+          "3.01+": { eliteRate: 1, starterRate: 3, bustRate: 94 },
+        },
+        WR: {
+          "1.01-1.04": { eliteRate: 38, starterRate: 70, bustRate: 18 },
+          "1.05-1.08": { eliteRate: 20, starterRate: 48, bustRate: 40 },
+          "1.09-1.12": { eliteRate: 8, starterRate: 30, bustRate: 60 },
+          "2.01-2.06": { eliteRate: 4, starterRate: 16, bustRate: 74 },
+          "2.07-2.12": { eliteRate: 2, starterRate: 8, bustRate: 85 },
+          "3.01+": { eliteRate: 0, starterRate: 3, bustRate: 94 },
+        },
+        TE: {
+          "1.01-1.04": { eliteRate: 30, starterRate: 58, bustRate: 28 },
+          "1.05-1.08": { eliteRate: 15, starterRate: 38, bustRate: 48 },
+          "1.09-1.12": { eliteRate: 5, starterRate: 22, bustRate: 68 },
+          "2.01-2.06": { eliteRate: 2, starterRate: 10, bustRate: 82 },
+          "2.07-2.12": { eliteRate: 1, starterRate: 5, bustRate: 90 },
+          "3.01+": { eliteRate: 0, starterRate: 2, bustRate: 96 },
+        },
+      };
+
+      function getPickSlot(rank: number): string {
+        const round = Math.ceil(rank / 12);
+        const pick = ((rank - 1) % 12) + 1;
+        return `${round}.${pick.toString().padStart(2, '0')}`;
+      }
+
+      function getPickRange(rank: number): string {
+        const slot = getPickSlot(rank);
+        const round = Math.ceil(rank / 12);
+        const pick = ((rank - 1) % 12) + 1;
+        const lo = Math.max(1, pick - 2);
+        const hi = Math.min(12, pick + 2);
+        return `${round}.${lo.toString().padStart(2, '0')}-${round}.${hi.toString().padStart(2, '0')}`;
+      }
+
+      function getPosRangeBucket(rank: number): string {
+        if (rank <= 4) return "1.01-1.04";
+        if (rank <= 8) return "1.05-1.08";
+        if (rank <= 12) return "1.09-1.12";
+        if (rank <= 18) return "2.01-2.06";
+        if (rank <= 24) return "2.07-2.12";
+        return "3.01+";
+      }
+
+      function computeEV(elitePct: number, starterPct: number, bustPct: number): number {
+        const ev = (elitePct / 100 * 95) + (starterPct / 100 * 60) - (bustPct / 100 * 30);
+        return Math.max(0, Math.min(100, Math.round(ev)));
+      }
+
+      function getRiskTier(bustPct: number): string {
+        if (bustPct <= 20) return "Low";
+        if (bustPct <= 40) return "Medium";
+        if (bustPct <= 65) return "High";
+        return "Extreme";
+      }
+
+      function getLiquidityScore(rank: number, ktcValue: number): number {
+        const rankScore = Math.max(0, 100 - rank * 2);
+        const valueScore = Math.min(100, ktcValue / 100);
+        return Math.round((rankScore * 0.4 + valueScore * 0.6));
+      }
+
+      const ktcByName: Record<string, typeof KTC_DEVY_PLAYERS[0]> = {};
+      for (const dp of KTC_DEVY_PLAYERS) {
+        ktcByName[dp.name.toLowerCase().trim()] = dp;
+      }
+
+      const enrichedPlayers = players.map(player => {
+        const ktc = ktcByName[player.name.toLowerCase().trim()];
+        const pickSlot = getPickSlot(player.rank);
+        const pickRange = getPickRange(player.rank);
+        const historicalPick = HISTORICAL_PICK_DATA[pickSlot];
+        const posGroup = player.positionGroup;
+        const posBucket = getPosRangeBucket(player.rank);
+        const posRates = POS_HIT_RATES[posGroup]?.[posBucket] || null;
+
+        let elitePct: number;
+        let starterPct: number;
+        let bustPct: number;
+
+        if (ktc && ktc.draftEligibleYear === 2026) {
+          elitePct = ktc.elitePct;
+          starterPct = ktc.starterPct;
+          bustPct = ktc.bustPct;
+        } else if (posRates) {
+          elitePct = posRates.eliteRate;
+          starterPct = posRates.starterRate;
+          bustPct = posRates.bustRate;
+        } else if (historicalPick) {
+          elitePct = historicalPick.eliteRate;
+          starterPct = historicalPick.starterRate;
+          bustPct = historicalPick.bustRate;
+        } else {
+          elitePct = 0;
+          starterPct = 2;
+          bustPct = 95;
+        }
+
+        const evScore = computeEV(elitePct, starterPct, bustPct);
+        const riskTier = getRiskTier(bustPct);
+        const liquidityScore = getLiquidityScore(player.rank, ktc?.value || 0);
+        const historicalAvgPPG = historicalPick?.avgPPG || 0;
+
+        return {
+          ...player,
+          projectedPickRange: pickRange,
+          projectedPickSlot: pickSlot,
+          elitePct,
+          starterPct,
+          bustPct,
+          evScore,
+          riskTier,
+          liquidityScore,
+          historicalAvgPPG,
+          positionEliteRate: posRates?.eliteRate ?? null,
+          positionStarterRate: posRates?.starterRate ?? null,
+          positionBustRate: posRates?.bustRate ?? null,
+          ktcValue: ktc?.value ?? null,
+          tier: ktc?.tier ?? null,
+        };
+      });
+
+      const tierCliffs: { afterRank: number; eliteDropFrom: number; eliteDropTo: number; severity: string }[] = [];
+      const sorted = [...enrichedPlayers].sort((a, b) => a.rank - b.rank);
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+        const drop = prev.elitePct - curr.elitePct;
+        if (drop >= 8 && prev.elitePct >= 15) {
+          tierCliffs.push({
+            afterRank: prev.rank,
+            eliteDropFrom: prev.elitePct,
+            eliteDropTo: curr.elitePct,
+            severity: drop >= 15 ? "major" : "minor",
+          });
+        }
+      }
       
       res.json({
-        players,
+        players: enrichedPlayers,
         stats,
         positionGroups,
         stockMovers,
+        tierCliffs,
         draftYear: 2026,
       });
     } catch (error) {
@@ -12172,7 +12360,36 @@ ${managerProfileContext}`;
     }
   });
 
-  app.get("/api/draft-pick-values", isAuthenticated, (_req: Request, res: Response) => {
+  app.get("/api/draft-pick-values", isAuthenticated, (req: Request, res: Response) => {
+    const position = (req.query as any).position as string | undefined;
+
+    const POS_PICK_MODIFIERS: Record<string, Record<string, { eliteMod: number; starterMod: number; bustMod: number }>> = {
+      QB: {
+        "1": { eliteMod: 1.1, starterMod: 0.95, bustMod: 0.9 },
+        "2": { eliteMod: 0.8, starterMod: 0.7, bustMod: 1.15 },
+        "3": { eliteMod: 0.5, starterMod: 0.6, bustMod: 1.1 },
+        "4": { eliteMod: 0, starterMod: 0.3, bustMod: 1.05 },
+      },
+      RB: {
+        "1": { eliteMod: 1.3, starterMod: 1.1, bustMod: 0.85 },
+        "2": { eliteMod: 1.0, starterMod: 0.9, bustMod: 1.0 },
+        "3": { eliteMod: 0.8, starterMod: 0.7, bustMod: 1.1 },
+        "4": { eliteMod: 0, starterMod: 0.3, bustMod: 1.05 },
+      },
+      WR: {
+        "1": { eliteMod: 0.9, starterMod: 1.0, bustMod: 1.05 },
+        "2": { eliteMod: 1.2, starterMod: 1.1, bustMod: 0.9 },
+        "3": { eliteMod: 0.8, starterMod: 0.8, bustMod: 1.1 },
+        "4": { eliteMod: 0, starterMod: 0.3, bustMod: 1.05 },
+      },
+      TE: {
+        "1": { eliteMod: 0.7, starterMod: 0.8, bustMod: 1.15 },
+        "2": { eliteMod: 0.6, starterMod: 0.7, bustMod: 1.1 },
+        "3": { eliteMod: 0.3, starterMod: 0.5, bustMod: 1.15 },
+        "4": { eliteMod: 0, starterMod: 0.2, bustMod: 1.1 },
+      },
+    };
+
     const draftPickData = {
       rounds: [
         {
@@ -12241,7 +12458,108 @@ ${managerProfileContext}`;
       methodology: "Based on historical dynasty rookie draft data from 2018-2024. Hit Rate = produced fantasy-relevant seasons. Starter Rate = finished as weekly starter. Elite Rate = finished as top-5 at position. Bust Rate = failed to produce meaningful fantasy value within 2 years.",
       lastUpdated: "2025-01-15"
     };
-    res.json(draftPickData);
+
+    if (position && POS_PICK_MODIFIERS[position]) {
+      const mods = POS_PICK_MODIFIERS[position];
+      draftPickData.rounds = draftPickData.rounds.map(round => ({
+        ...round,
+        picks: round.picks.map(pick => {
+          const roundMod = mods[String(round.round)] || mods["4"];
+          return {
+            ...pick,
+            eliteRate: Math.round(Math.min(100, pick.eliteRate * roundMod.eliteMod)),
+            starterRate: Math.round(Math.min(100, pick.starterRate * roundMod.starterMod)),
+            bustRate: Math.round(Math.min(100, pick.bustRate * roundMod.bustMod)),
+          };
+        }),
+      }));
+      draftPickData.methodology = `Position-specific (${position}) historical data from 2018-2024. Rates adjusted for ${position} hit rates at each draft slot.`;
+    }
+
+    const { getDraft2026Players } = require('./draft-2026-data');
+    const { KTC_DEVY_PLAYERS } = require('./ktc-values');
+
+    const allDraftPlayers = getDraft2026Players();
+    const ktcByName: Record<string, any> = {};
+    for (const dp of KTC_DEVY_PLAYERS) {
+      ktcByName[dp.name.toLowerCase().trim()] = dp;
+    }
+
+    const prospectsPerPick: Record<string, { name: string; position: string; college: string; rank: number; elitePct: number; bustPct: number }[]> = {};
+    for (const player of allDraftPlayers) {
+      if (position && player.positionGroup !== position) continue;
+      const round = Math.ceil(player.rank / 12);
+      const pick = ((player.rank - 1) % 12) + 1;
+      const slot = `${round}.${pick.toString().padStart(2, '0')}`;
+      if (!prospectsPerPick[slot]) prospectsPerPick[slot] = [];
+      const ktc = ktcByName[player.name.toLowerCase().trim()];
+      prospectsPerPick[slot].push({
+        name: player.name,
+        position: player.position,
+        college: player.college,
+        rank: player.rank,
+        elitePct: ktc?.elitePct ?? 0,
+        bustPct: ktc?.bustPct ?? 0,
+      });
+    }
+
+    const strategyPerPick: Record<string, { strategy: string; tradeAdvice: string; positionTip: string }> = {};
+    const tradeEvDelta: Record<string, { tradeUpValue: number; tradeDownValue: number; tradeUpSlot: string; tradeDownSlot: string; evDelta: number }> = {};
+
+    for (const round of draftPickData.rounds) {
+      for (let i = 0; i < round.picks.length; i++) {
+        const pick = round.picks[i];
+        const slot = pick.displayName;
+
+        let strategy = "";
+        let tradeAdvice = "";
+        let positionTip = "";
+
+        if (pick.eliteRate >= 30) {
+          strategy = "BPA (Best Player Available) - Elite hit rates justify taking the best talent regardless of position.";
+          tradeAdvice = "Hold this pick unless offered significant overpay. Premium draft capital is scarce.";
+        } else if (pick.eliteRate >= 15) {
+          strategy = "Positional Need with BPA lean - Still strong hit rates. Target position of need but don't reach.";
+          tradeAdvice = "Consider trading down 2-3 spots if you can gain future capital. Value gap is small.";
+        } else if (pick.starterRate >= 20) {
+          strategy = "Target high-ceiling upside plays - Starter rates are decent, so swing for upside.";
+          tradeAdvice = "Accumulate picks in this range by trading down from premium spots. Volume matters here.";
+        } else if (pick.hitRate >= 10) {
+          strategy = "Dart throw territory - Focus on traits and landing spot over polish.";
+          tradeAdvice = "Package multiple picks here to trade up into earlier rounds for better hit rates.";
+        } else {
+          strategy = "Lottery ticket - Target developmental prospects with elite athletic traits.";
+          tradeAdvice = "Use as sweeteners in larger trade packages. Individual value is minimal.";
+        }
+
+        if (position) {
+          const posMap: Record<string, string> = {
+            QB: pick.eliteRate >= 20 ? "Premium QB range - franchise QB upside justifies early selection." : "Low QB hit rate at this slot. Consider waiting or trading up for a QB.",
+            RB: pick.starterRate >= 30 ? "Strong RB range - good chance of landing a weekly starter." : pick.hitRate >= 15 ? "Viable RB range but expect volatile outcomes. Landing spot is key." : "Late RB dart throw - target pass-catching backs for PPR upside.",
+            WR: pick.starterRate >= 25 ? "Prime WR territory - WRs hit more consistently in mid-rounds." : pick.hitRate >= 10 ? "WR depth pick - target route runners over raw athletes at this stage." : "Deep WR flier - college production matters more than athleticism here.",
+            TE: pick.starterRate >= 15 ? "Rare TE value slot - TEs who hit here often become league-winners." : "TE is historically hard to hit. Consider other positions unless elite talent falls.",
+          };
+          positionTip = posMap[position] || "";
+        }
+
+        strategyPerPick[slot] = { strategy, tradeAdvice, positionTip };
+
+        const allPicks = draftPickData.rounds.flatMap(r => r.picks.map(p => ({ ...p, roundNum: r.round })));
+        const currentIdx = allPicks.findIndex(p => p.displayName === slot);
+        const prevPick = currentIdx > 0 ? allPicks[currentIdx - 1] : null;
+        const nextPick = currentIdx < allPicks.length - 1 ? allPicks[currentIdx + 1] : null;
+
+        tradeEvDelta[slot] = {
+          tradeUpValue: prevPick ? prevPick.value - pick.value : 0,
+          tradeDownValue: nextPick ? pick.value - nextPick.value : 0,
+          tradeUpSlot: prevPick ? prevPick.displayName : "",
+          tradeDownSlot: nextPick ? nextPick.displayName : "",
+          evDelta: prevPick && nextPick ? (prevPick.eliteRate - pick.eliteRate) - (pick.eliteRate - nextPick.eliteRate) : 0,
+        };
+      }
+    }
+
+    res.json({ ...draftPickData, prospectsPerPick, strategyPerPick, tradeEvDelta, positionFilter: position || null });
   });
 
   app.get("/api/sleeper/league-timeline/:leagueId", isAuthenticated, async (req: any, res: Response) => {

@@ -33,7 +33,10 @@ import {
   TrendingDown,
   Sparkles,
   Target,
+  AlertTriangle,
+  Zap,
 } from "lucide-react";
+import { Link } from "wouter";
 import { DraftProfileModal } from "@/components/draft-profile-modal";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { InfoTooltip } from "@/components/metric-tooltip";
@@ -75,6 +78,27 @@ interface Draft2026Player {
   intangibles: string[];
   scoutingNotes: string | null;
   scouting: DraftScoutingReport | null;
+  projectedPickRange: string;
+  projectedPickSlot: string;
+  elitePct: number;
+  starterPct: number;
+  bustPct: number;
+  evScore: number;
+  riskTier: string;
+  liquidityScore: number;
+  historicalAvgPPG: number;
+  positionEliteRate: number | null;
+  positionStarterRate: number | null;
+  positionBustRate: number | null;
+  ktcValue: number | null;
+  tier: string | null;
+}
+
+interface TierCliff {
+  afterRank: number;
+  eliteDropFrom: number;
+  eliteDropTo: number;
+  severity: string;
 }
 
 interface DraftStats {
@@ -89,10 +113,11 @@ interface DraftData {
   stats: DraftStats;
   positionGroups: string[];
   stockMovers: { rising: Draft2026Player[]; falling: Draft2026Player[] };
+  tierCliffs: TierCliff[];
   draftYear: number;
 }
 
-type SortField = "rank" | "name" | "position" | "college" | "height" | "weight" | "stock";
+type SortField = "rank" | "name" | "position" | "college" | "height" | "weight" | "stock" | "evScore" | "elitePct" | "bustPct";
 type SortDirection = "asc" | "desc";
 
 function StockIndicator({ status, change }: { status: string; change: number }) {
@@ -135,6 +160,50 @@ function StockBadge({ status, change }: { status: string; change: number }) {
   return null;
 }
 
+function RiskTierBadge({ tier }: { tier: string }) {
+  const colors: Record<string, string> = {
+    Low: "text-emerald-400 border-emerald-400/30",
+    Medium: "text-amber-400 border-amber-400/30",
+    High: "text-orange-400 border-orange-400/30",
+    Extreme: "text-red-400 border-red-400/30",
+  };
+  return (
+    <Badge variant="outline" className={`text-[10px] leading-none no-default-hover-elevate no-default-active-elevate ${colors[tier] || ""}`} data-testid={`badge-risk-${tier.toLowerCase()}`}>
+      {tier}
+    </Badge>
+  );
+}
+
+function EVScoreBadge({ score }: { score: number }) {
+  let color = "text-muted-foreground";
+  if (score >= 60) color = "text-emerald-400";
+  else if (score >= 40) color = "text-amber-400";
+  else if (score >= 20) color = "text-orange-400";
+  else color = "text-red-400";
+  return (
+    <span className={`font-bold text-sm ${color}`} data-testid="text-ev-score">
+      {score}
+    </span>
+  );
+}
+
+function TierCliffMarker({ cliff }: { cliff: TierCliff }) {
+  return (
+    <tr data-testid={`tier-cliff-${cliff.afterRank}`}>
+      <td colSpan={10} className="px-3 py-1.5">
+        <div className={`flex items-center gap-2 text-xs ${cliff.severity === "major" ? "text-red-400" : "text-amber-400"}`}>
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <div className="flex-1 border-t border-dashed border-current" />
+          <span className="font-medium whitespace-nowrap">
+            Tier Drop: Elite {cliff.eliteDropFrom}% → {cliff.eliteDropTo}%
+          </span>
+          <div className="flex-1 border-t border-dashed border-current" />
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export default function DraftBoardPage() {
   usePageTitle("2026 Draft Board");
   const [sideFilter, setSideFilter] = useState<string>("all");
@@ -163,7 +232,9 @@ export default function DraftBoardPage() {
     );
   }
 
-  const { players, stats, positionGroups, stockMovers } = data;
+  const { players, stats, positionGroups, stockMovers, tierCliffs } = data;
+
+  const tierCliffRanks = new Set((tierCliffs || []).map(c => c.afterRank));
 
   const filteredPlayers = players.filter((player) => {
     if (sideFilter !== "all" && player.side !== sideFilter) return false;
@@ -201,6 +272,15 @@ export default function DraftBoardPage() {
       case "stock":
         comparison = a.stockChange - b.stockChange;
         break;
+      case "evScore":
+        comparison = a.evScore - b.evScore;
+        break;
+      case "elitePct":
+        comparison = a.elitePct - b.elitePct;
+        break;
+      case "bustPct":
+        comparison = a.bustPct - b.bustPct;
+        break;
     }
     return sortDirection === "asc" ? comparison : -comparison;
   });
@@ -210,7 +290,7 @@ export default function DraftBoardPage() {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
-      setSortDirection(field === "stock" ? "desc" : "asc");
+      setSortDirection(field === "stock" || field === "evScore" || field === "elitePct" ? "desc" : field === "bustPct" ? "asc" : "asc");
     }
   };
 
@@ -246,7 +326,7 @@ export default function DraftBoardPage() {
               2026 NFL Draft Board
             </h1>
             <p className="text-sm text-muted-foreground" data-testid="text-draft-subtitle">
-              Complete prospect rankings & scouting for the 2026 draft class
+              Complete prospect rankings, probability data & scouting for the 2026 draft class
             </p>
           </div>
         </div>
@@ -259,6 +339,11 @@ export default function DraftBoardPage() {
             Height: p.height,
             Weight: p.weight,
             Stock: p.stockStatus,
+            "EV Score": p.evScore,
+            "Elite%": p.elitePct,
+            "Bust%": p.bustPct,
+            "Risk Tier": p.riskTier,
+            "Pick Range": p.projectedPickRange,
           }))}
           filename="draft-board-2026"
           shareText={formatDraftBoardForShare(sortedPlayers)}
@@ -344,6 +429,19 @@ export default function DraftBoardPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            <Select value={sortField} onValueChange={(val) => { setSortField(val as SortField); setSortDirection(val === "evScore" || val === "elitePct" || val === "stock" ? "desc" : val === "bustPct" ? "asc" : "asc"); }}>
+              <SelectTrigger className="w-[140px]" data-testid="select-sort-field">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="rank" data-testid="option-sort-rank">Sort: Rank</SelectItem>
+                <SelectItem value="evScore" data-testid="option-sort-ev">Sort: EV Score</SelectItem>
+                <SelectItem value="elitePct" data-testid="option-sort-elite">Sort: Elite%</SelectItem>
+                <SelectItem value="bustPct" data-testid="option-sort-bust">Sort: Bust%</SelectItem>
+                <SelectItem value="stock" data-testid="option-sort-stock">Sort: Stock</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <Card data-testid="card-draft-table">
@@ -370,19 +468,31 @@ export default function DraftBoardPage() {
                       <th className="p-3 w-20">
                         <SortButton field="position" label="Pos" />
                       </th>
+                      <th className="p-3 w-24">
+                        <span className="text-xs font-medium">Pick Range</span>
+                      </th>
+                      <th className="p-3 w-16">
+                        <span className="flex items-center gap-1">
+                          <SortButton field="evScore" label="EV" />
+                          <InfoTooltip title="Expected Value Score" description="Composite score (0-100) combining elite upside, starter probability, and bust risk. Higher is better. EV = (Elite% x 95) + (Starter% x 60) - (Bust% x 30)" />
+                        </span>
+                      </th>
+                      <th className="p-3 w-16">
+                        <SortButton field="elitePct" label="Elite%" />
+                      </th>
+                      <th className="p-3 w-16">
+                        <SortButton field="bustPct" label="Bust%" />
+                      </th>
+                      <th className="p-3 w-16">
+                        <span className="text-xs font-medium">Risk</span>
+                      </th>
                       <th className="p-3">
                         <SortButton field="college" label="College" />
-                      </th>
-                      <th className="p-3 w-24">
-                        <SortButton field="height" label="Height" />
-                      </th>
-                      <th className="p-3 w-24">
-                        <SortButton field="weight" label="Weight" />
                       </th>
                       <th className="p-3 w-20">
                         <span className="flex items-center gap-1">
                           <SortButton field="stock" label="Stock" />
-                          <InfoTooltip title="Stock Movement" description="How a prospect's draft stock has changed recently. Rising means they're gaining buzz, falling means concerns are growing. Based on scouting reports and mock drafts." />
+                          <InfoTooltip title="Stock Movement" description="How a prospect's draft stock has changed recently. Rising means they're gaining buzz, falling means concerns are growing." />
                         </span>
                       </th>
                     </tr>
@@ -390,71 +500,90 @@ export default function DraftBoardPage() {
                   <tbody>
                     {sortedPlayers.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
+                        <td colSpan={10} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
                           No prospects match the selected filters
                         </td>
                       </tr>
                     ) : (
-                      sortedPlayers.map((player, index) => (
-                        <tr
-                          key={player.id}
-                          className={`cursor-pointer hover-elevate ${index % 2 === 0 ? "bg-muted/30" : ""}`}
-                          onClick={() => handlePlayerClick(player)}
-                          data-testid={`row-player-${player.id}`}
-                        >
-                          <td className="p-3 font-medium" data-testid={`text-rank-${player.id}`}>
-                            {player.rank}
-                          </td>
-                          <td className="p-3">
-                            <div className="flex flex-col gap-0.5">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-medium" data-testid={`text-name-${player.id}`}>
-                                  {player.name}
+                      sortedPlayers.map((player, index) => {
+                        const showCliff = sortField === "rank" && tierCliffRanks.has(player.rank);
+                        const cliff = showCliff ? (tierCliffs || []).find(c => c.afterRank === player.rank) : null;
+                        return (
+                          <>
+                            <tr
+                              key={player.id}
+                              className={`cursor-pointer hover-elevate ${index % 2 === 0 ? "bg-muted/30" : ""}`}
+                              onClick={() => handlePlayerClick(player)}
+                              data-testid={`row-player-${player.id}`}
+                            >
+                              <td className="p-3 font-medium" data-testid={`text-rank-${player.id}`}>
+                                {player.rank}
+                              </td>
+                              <td className="p-3">
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-medium" data-testid={`text-name-${player.id}`}>
+                                      {player.name}
+                                    </span>
+                                    <StockBadge status={player.stockStatus} change={player.stockChange} />
+                                    {player.intangibles && player.intangibles.length > 0 && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="inline-flex" data-testid={`icon-intangibles-${player.id}`}>
+                                            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" data-testid={`tooltip-intangibles-${player.id}`}>
+                                          <div className="space-y-0.5 text-xs">
+                                            {player.intangibles.map((trait, i) => (
+                                              <div key={i}>{trait}</div>
+                                            ))}
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid={`badge-position-${player.id}`}>
+                                  {player.position}
+                                </Badge>
+                              </td>
+                              <td className="p-3">
+                                <Link href="/league/draft-pick-values" data-testid={`link-pick-range-${player.id}`}>
+                                  <span className="text-xs text-primary/80 hover:text-primary underline underline-offset-2 cursor-pointer">
+                                    {player.projectedPickRange}
+                                  </span>
+                                </Link>
+                              </td>
+                              <td className="p-3" data-testid={`text-ev-${player.id}`}>
+                                <EVScoreBadge score={player.evScore} />
+                              </td>
+                              <td className="p-3">
+                                <span className="text-sm font-medium text-amber-400" data-testid={`text-elite-${player.id}`}>
+                                  {player.elitePct}%
                                 </span>
-                                <StockBadge status={player.stockStatus} change={player.stockChange} />
-                                {player.intangibles && player.intangibles.length > 0 && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="inline-flex" data-testid={`icon-intangibles-${player.id}`}>
-                                        <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" data-testid={`tooltip-intangibles-${player.id}`}>
-                                      <div className="space-y-0.5 text-xs">
-                                        {player.intangibles.map((trait, i) => (
-                                          <div key={i}>{trait}</div>
-                                        ))}
-                                      </div>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                              </div>
-                              {player.scoutingNotes && (
-                                <span className="text-xs text-muted-foreground truncate max-w-[280px] block" data-testid={`text-notes-${player.id}`}>
-                                  {player.scoutingNotes}
+                              </td>
+                              <td className="p-3">
+                                <span className="text-sm font-medium text-red-400" data-testid={`text-bust-${player.id}`}>
+                                  {player.bustPct}%
                                 </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid={`badge-position-${player.id}`}>
-                              {player.position}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-muted-foreground text-sm" data-testid={`text-college-${player.id}`}>
-                            {player.college}
-                          </td>
-                          <td className="p-3 text-sm" data-testid={`text-height-${player.id}`}>
-                            {player.height}
-                          </td>
-                          <td className="p-3 text-sm" data-testid={`text-weight-${player.id}`}>
-                            {player.weight} lbs
-                          </td>
-                          <td className="p-3" data-testid={`text-stock-${player.id}`}>
-                            <StockIndicator status={player.stockStatus} change={player.stockChange} />
-                          </td>
-                        </tr>
-                      ))
+                              </td>
+                              <td className="p-3" data-testid={`text-risk-${player.id}`}>
+                                <RiskTierBadge tier={player.riskTier} />
+                              </td>
+                              <td className="p-3 text-muted-foreground text-sm" data-testid={`text-college-${player.id}`}>
+                                {player.college}
+                              </td>
+                              <td className="p-3" data-testid={`text-stock-${player.id}`}>
+                                <StockIndicator status={player.stockStatus} change={player.stockChange} />
+                              </td>
+                            </tr>
+                            {cliff && <TierCliffMarker key={`cliff-${cliff.afterRank}`} cliff={cliff} />}
+                          </>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -492,14 +621,21 @@ export default function DraftBoardPage() {
                               </Badge>
                               <span className="text-xs text-muted-foreground">{player.college}</span>
                             </div>
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              {player.height} / {player.weight} lbs
-                            </div>
-                            {player.scoutingNotes && (
-                              <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px]">
-                                {player.scoutingNotes}
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <div className="flex items-center gap-1">
+                                <Zap className="h-3 w-3 text-amber-400" />
+                                <span className="text-xs font-semibold">EV: </span>
+                                <EVScoreBadge score={player.evScore} />
                               </div>
-                            )}
+                              <span className="text-xs text-amber-400">Elite {player.elitePct}%</span>
+                              <span className="text-xs text-red-400">Bust {player.bustPct}%</span>
+                              <RiskTierBadge tier={player.riskTier} />
+                            </div>
+                            <Link href="/league/draft-pick-values" onClick={(e: any) => e.stopPropagation()}>
+                              <span className="text-xs text-primary/80 hover:text-primary underline underline-offset-2 cursor-pointer mt-0.5 inline-block">
+                                {player.projectedPickRange}
+                              </span>
+                            </Link>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
