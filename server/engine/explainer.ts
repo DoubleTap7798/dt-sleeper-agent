@@ -9,6 +9,7 @@ import type {
   DecisionMetrics,
   UserRiskProfile,
 } from './types';
+import type { ElitePlayerProfile } from './player-profile-engine';
 import type {
   MatchupAnalysisResult,
   LineupOptimizationResult,
@@ -183,6 +184,69 @@ export async function explainChampionshipPath(path: ChampionshipPath): Promise<s
     delta: `${path.delta > 0 ? '+' : ''}${path.delta.toFixed(1)}%`,
     keyMoves: path.keyMoves,
     weekByWeekOutlook: path.weekByWeekOutlook.slice(0, 6),
+  });
+
+  return explainWithLLM(sys, data);
+}
+
+export async function explainPlayerProfile(profile: ElitePlayerProfile): Promise<string> {
+  const sys = `You are a dynasty fantasy football asset analyst writing an executive brief. Using ONLY the structured data provided, write 4-5 bullet points. Rules:
+- Every bullet MUST reference a specific number from the data
+- Frame in terms of dynasty asset value, not fantasy points
+- Include one actionable BUY/HOLD/SELL signal with reasoning
+- Reference the archetype, Monte Carlo probabilities, and age curve
+- If stress test sensitivity > 0.7, flag it explicitly
+- NO generic advice. NO "consider" or "might want to". Be prescriptive.
+
+Format: Bullet points starting with •`;
+
+  const data = JSON.stringify({
+    player: profile.playerName,
+    position: profile.position,
+    team: profile.team,
+    age: profile.age,
+    archetype: profile.archetype.label,
+    archetypeConfidence: `${(profile.archetype.confidence * 100).toFixed(0)}%`,
+    dynastyAssetScore: {
+      composite: profile.dynastyAssetScore.composite,
+      tier: profile.dynastyAssetScore.tier,
+      production: profile.dynastyAssetScore.productionGrade,
+      age: profile.dynastyAssetScore.ageGrade,
+      roleSecurity: profile.dynastyAssetScore.roleSecurityGrade,
+      volatility: profile.dynastyAssetScore.volatilityGrade,
+    },
+    monteCarlo: {
+      weeklyMean: profile.monteCarlo.mean,
+      floor: profile.monteCarlo.floor,
+      ceiling: profile.monteCarlo.ceiling,
+      boomProb: `${(profile.monteCarlo.boomProb * 100).toFixed(0)}%`,
+      bustProb: `${(profile.monteCarlo.bustProb * 100).toFixed(0)}%`,
+      stdDev: profile.monteCarlo.stdDev,
+    },
+    ageCurve: {
+      currentAge: profile.ageCurve.currentAge,
+      peakWindow: profile.ageCurve.peakWindow,
+      yearsUntilDecline: profile.ageCurve.yearsUntilDecline,
+      depreciationRate: `${profile.ageCurve.depreciationRate}%/yr`,
+      threeYearProjections: profile.ageCurve.projections.map(p => ({
+        year: p.year,
+        value: p.projectedValue,
+        phase: p.phase,
+      })),
+    },
+    marketSentiment: {
+      dynastyValue: profile.marketSentiment.dynastyValue,
+      tier: profile.marketSentiment.dynastyTier,
+      posRank: profile.marketSentiment.positionRank,
+      trend: profile.marketSentiment.valueTrend,
+      valueVsProduction: profile.marketSentiment.valueVsProduction,
+    },
+    topStressTest: profile.stressTests
+      .filter(s => s.sensitivityScore > 0.6)
+      .sort((a, b) => b.sensitivityScore - a.sensitivityScore)
+      .slice(0, 2)
+      .map(s => ({ scenario: s.label, valueDrop: `${(s.valueImpactPct * 100).toFixed(0)}%`, probability: `${(s.probabilityOfOccurrence * 100).toFixed(0)}%`, sensitivity: s.sensitivityScore })),
+    correlationRisk: profile.correlationRisk.stackRiskSummary,
   });
 
   return explainWithLLM(sys, data);

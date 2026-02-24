@@ -25,6 +25,7 @@ import { computeChampionshipPath } from "./engine/championship-path";
 import { analyzeRiskProfile } from "./engine/risk-profiler";
 import { scanForExploits } from "./engine/exploit-scanner";
 import { detectRegressionAlerts } from "./engine/regression-detector";
+import { buildEliteProfile } from "./engine/player-profile-engine";
 import type { PlayerProjection } from "./engine/types";
 
 // Server-side response cache for expensive API routes
@@ -9380,6 +9381,173 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
     } catch (error) {
       console.error("Error fetching splits:", error);
       res.status(500).json({ message: "Failed to fetch splits" });
+    }
+  });
+
+  app.get("/api/player/:playerId/elite-profile", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { playerId } = req.params;
+      const { leagueId } = req.query;
+      const sleeperUserId = req.user?.claims?.metadata?.sleeper_user_id;
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const player = allPlayers[playerId];
+      if (!player) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+
+      const state = await sleeperApi.getState();
+      const currentSeason = parseInt(state?.season || '2025');
+      const currentWeek = state?.week || 1;
+
+      let weeklyScores: number[] = [];
+      try {
+        for (let w = 1; w <= Math.min(currentWeek, 18); w++) {
+          const weekStats = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${currentSeason}/${w}`);
+          if (weekStats.ok) {
+            const data = await weekStats.json();
+            const ps = data[playerId];
+            if (ps) {
+              const pts = (ps.pts_ppr ?? ps.pts_half_ppr ?? ps.pts_std ?? 0);
+              weeklyScores.push(typeof pts === 'number' ? pts : 0);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching weekly stats for elite profile:", e);
+      }
+
+      let projectedMedian = 0;
+      let projectedStdDev = 0;
+      try {
+        const projResp = await fetch(`https://api.sleeper.app/v1/projections/nfl/regular/${currentSeason}/${currentWeek}`);
+        if (projResp.ok) {
+          const projData = await projResp.json();
+          const pp = projData[playerId];
+          if (pp) {
+            projectedMedian = pp.pts_ppr ?? pp.pts_half_ppr ?? pp.pts_std ?? 0;
+            projectedStdDev = projectedMedian * 0.35;
+          }
+        }
+      } catch (e) {}
+
+      let dynastyValue = 0;
+      let ktcValue: number | null = null;
+      const allDynastyValues: { playerId: string; value: number; position: string }[] = [];
+      try {
+        const pos = player.position || 'WR';
+        dynastyValue = dynastyEngine.getQuickPlayerValue(
+          playerId, pos, player.age || 25, player.years_exp || 0,
+          weeklyScores, player.injury_status || null,
+          player.snap_pct || null, player.depth_chart_order || null,
+          player.draft_round ? parseInt(player.draft_round) : null,
+          weeklyScores.filter(s => s > 0).length, 51, false
+        );
+      } catch (e) {}
+
+      let rosterPlayers: string[] = [];
+      if (leagueId && sleeperUserId) {
+        try {
+          const rosters = await sleeperApi.getLeagueRosters(leagueId as string);
+          const userRoster = rosters?.find((r: any) =>
+            r.owner_id === sleeperUserId || (r.co_owners && r.co_owners.includes(sleeperUserId))
+          );
+          if (userRoster?.players) {
+            rosterPlayers = userRoster.players;
+          }
+        } catch (e) {}
+      }
+
+      const profile = buildEliteProfile(
+        playerId, allPlayers, weeklyScores,
+        projectedMedian, projectedStdDev,
+        dynastyValue, ktcValue, allDynastyValues,
+        rosterPlayers, currentSeason
+      );
+
+      res.json(profile);
+    } catch (error) {
+      console.error("Error building elite player profile:", error);
+      res.status(500).json({ message: "Failed to build elite player profile" });
+    }
+  });
+
+  app.post("/api/player/:playerId/elite-summary", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { playerId } = req.params;
+      const { leagueId } = req.body;
+      const sleeperUserId = req.user?.claims?.metadata?.sleeper_user_id;
+
+      const allPlayers = await sleeperApi.getAllPlayers();
+      const player = allPlayers[playerId];
+      if (!player) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+
+      const state = await sleeperApi.getState();
+      const currentSeason = parseInt(state?.season || '2025');
+      const currentWeek = state?.week || 1;
+
+      let weeklyScores: number[] = [];
+      try {
+        for (let w = 1; w <= Math.min(currentWeek, 18); w++) {
+          const weekStats = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${currentSeason}/${w}`);
+          if (weekStats.ok) {
+            const data = await weekStats.json();
+            const ps = data[playerId];
+            if (ps) {
+              const pts = (ps.pts_ppr ?? ps.pts_half_ppr ?? ps.pts_std ?? 0);
+              weeklyScores.push(typeof pts === 'number' ? pts : 0);
+            }
+          }
+        }
+      } catch (e) {}
+
+      let projectedMedian = 0;
+      try {
+        const projResp = await fetch(`https://api.sleeper.app/v1/projections/nfl/regular/${currentSeason}/${currentWeek}`);
+        if (projResp.ok) {
+          const projData = await projResp.json();
+          const pp = projData[playerId];
+          if (pp) { projectedMedian = pp.pts_ppr ?? pp.pts_half_ppr ?? pp.pts_std ?? 0; }
+        }
+      } catch (e) {}
+
+      let dynastyValue = 0;
+      try {
+        const pos = player.position || 'WR';
+        dynastyValue = dynastyEngine.getQuickPlayerValue(
+          playerId, pos, player.age || 25, player.years_exp || 0,
+          weeklyScores, player.injury_status || null,
+          player.snap_pct || null, player.depth_chart_order || null,
+          player.draft_round ? parseInt(player.draft_round) : null,
+          weeklyScores.filter(s => s > 0).length, 51, false
+        );
+      } catch (e) {}
+
+      let rosterPlayers: string[] = [];
+      if (leagueId && sleeperUserId) {
+        try {
+          const rosters = await sleeperApi.getLeagueRosters(leagueId as string);
+          const userRoster = rosters?.find((r: any) =>
+            r.owner_id === sleeperUserId || (r.co_owners && r.co_owners.includes(sleeperUserId))
+          );
+          if (userRoster?.players) { rosterPlayers = userRoster.players; }
+        } catch (e) {}
+      }
+
+      const profile = buildEliteProfile(
+        playerId, allPlayers, weeklyScores,
+        projectedMedian, projectedMedian * 0.35,
+        dynastyValue, null, [],
+        rosterPlayers, currentSeason
+      );
+
+      const summary = await engineExplainer.explainPlayerProfile(profile);
+      res.json({ summary });
+    } catch (error) {
+      console.error("Error generating elite player summary:", error);
+      res.status(500).json({ message: "Failed to generate summary" });
     }
   });
 

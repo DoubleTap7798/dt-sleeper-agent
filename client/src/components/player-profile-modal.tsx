@@ -34,9 +34,11 @@ import {
   Zap,
   Target,
   TrendingUp,
+  Crown,
 } from "lucide-react";
 import { getNFLTeamLogo } from "@/lib/team-logos";
 import { InfoTooltip } from "@/components/metric-tooltip";
+import { ElitePlayerProfileTab } from "@/components/elite-player-profile";
 
 interface NFLVerseProfile {
   playerName: string;
@@ -367,8 +369,9 @@ export function PlayerProfileModal({
             {(() => {
               const safePos = (displayPosition || '').toUpperCase();
               const isOffensive = ['QB', 'RB', 'WR', 'TE'].includes(safePos);
+              const colCount = isOffensive ? 6 : 5;
               return (
-                <TabsList className={isOffensive ? "grid w-full grid-cols-5 gap-1" : "grid w-full grid-cols-4 gap-1"} data-testid="player-profile-tabs">
+                <TabsList className={`grid w-full gap-1`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }} data-testid="player-profile-tabs">
                   <TabsTrigger value="bio" className="text-xs sm:text-sm" data-testid="tab-bio">
                     <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                     <span className="hidden sm:inline">Bio</span>
@@ -391,6 +394,10 @@ export function PlayerProfileModal({
                       <span className="hidden sm:inline">Analytics</span>
                     </TabsTrigger>
                   )}
+                  <TabsTrigger value="elite" className="text-xs sm:text-sm" data-testid="tab-elite">
+                    <Crown className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                    <span className="hidden sm:inline">Elite</span>
+                  </TabsTrigger>
                 </TabsList>
               );
             })()}
@@ -430,6 +437,10 @@ export function PlayerProfileModal({
                   />
                 </TabsContent>
               )}
+
+              <TabsContent value="elite" className="mt-0">
+                <ElitePlayerProfileTab playerId={playerId} />
+              </TabsContent>
             </div>
           </Tabs>
         )}
