@@ -73,6 +73,7 @@ interface Recommendation {
   compositeScore?: number;
   reason: string;
   college?: string;
+  nflTeam?: string;
   tier?: string;
   badge?: string;
   badgeColor?: string;
@@ -92,6 +93,7 @@ interface Prediction {
     name: string;
     position: string;
     college: string;
+    nflTeam?: string;
     value: number;
     tier: string;
     rank: number;
@@ -271,12 +273,17 @@ function RecommendationCard({ rec, rank }: { rec: Recommendation; rank: number }
               </Badge>
             )}
           </div>
-          {rec.college && (
+          {rec.nflTeam ? (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Shield className="h-3 w-3 shrink-0" />
+              <span>{rec.nflTeam}</span>
+            </div>
+          ) : rec.college ? (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <GraduationCap className="h-3 w-3 shrink-0" />
               <span>{rec.college}</span>
             </div>
-          )}
+          ) : null}
           <p className="text-xs text-muted-foreground/80 leading-relaxed">{rec.strategicReason || rec.reason}</p>
         </div>
         <div className="text-right shrink-0 space-y-1">
@@ -782,12 +789,17 @@ export default function LiveDraftBoardPage() {
                                 </Badge>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-semibold truncate">{prospect.name}</p>
-                                  {prospect.college && (
+                                  {prospect.nflTeam ? (
+                                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                      <Shield className="h-3 w-3 shrink-0" />
+                                      <span>{prospect.nflTeam}</span>
+                                    </div>
+                                  ) : prospect.college ? (
                                     <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                                       <GraduationCap className="h-3 w-3 shrink-0" />
                                       <span>{prospect.college}</span>
                                     </div>
-                                  )}
+                                  ) : null}
                                 </div>
                                 <div className="text-right shrink-0">
                                   <p className="text-xs font-mono font-bold tabular-nums">{prospect.value?.toLocaleString()}</p>

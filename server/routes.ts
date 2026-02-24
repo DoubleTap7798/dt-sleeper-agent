@@ -14782,6 +14782,7 @@ Respond in JSON format:
         compositeScore: number;
         reason: string;
         college?: string;
+        nflTeam?: string;
         tier?: string;
         badge?: string;
         badgeColor?: string;
@@ -14818,6 +14819,7 @@ Respond in JSON format:
             compositeScore: Math.round(player.compositeScore * 1000),
             reason,
             college: player.college,
+            nflTeam: player.nflTeam,
             tier: tierLabel(player.tier),
             badge: explanation.badge,
             badgeColor: explanation.badgeColor,
@@ -14849,6 +14851,7 @@ Respond in JSON format:
                 compositeScore: Math.round(candidate.compositeScore * 1000),
                 reason,
                 college: candidate.college,
+                nflTeam: candidate.nflTeam,
                 tier: tierLabel(candidate.tier),
                 badge: explanation.badge,
                 badgeColor: explanation.badgeColor,
@@ -14881,6 +14884,7 @@ Respond in JSON format:
               compositeScore: Math.round(contrarian.compositeScore * 1000),
               reason: `Contrarian upside — ${explanation.strategicReason}`,
               college: contrarian.college,
+              nflTeam: contrarian.nflTeam,
               tier: tierLabel(contrarian.tier),
               badge: "High Variance Bet",
               badgeColor: "violet",
@@ -14907,6 +14911,7 @@ Respond in JSON format:
           name: p.name,
           position: p.position,
           college: p.college || "",
+          nflTeam: p.nflTeam || undefined,
           value: p.value || 0,
           tier: tierLabel(p.tier),
           rank: startIdx + idx + 1,
