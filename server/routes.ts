@@ -11225,19 +11225,13 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         draftPicks = await sleeperApi.getDraftPicks(drafts[0].draft_id);
       }
 
-      // Auto-detect draft type from Sleeper draft settings
-      // player_type: 0 = all players (startup), 1 = rookies only
-      // Also use round count as heuristic: startup drafts typically have 15+ rounds
       let mode = requestedMode as string;
       if (!mode && activeDraft) {
-        const playerType = activeDraft.settings?.player_type;
         const rounds = activeDraft.settings?.rounds || 0;
-        if (playerType === 1 || rounds <= 6) {
-          mode = "rookie";
-        } else if (playerType === 0 || rounds >= 15) {
+        if (rounds > 10) {
           mode = "startup";
         } else {
-          mode = "rookie"; // Default fallback
+          mode = "rookie";
         }
       } else if (!mode) {
         mode = "rookie";
@@ -11669,6 +11663,9 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           
           if (yearsExp === 0 && !hasTeam) continue;
           if (!hasTeam && playerStatus === "Inactive") continue;
+          if (playerStatus === "Inactive" && (player.search_rank || 9999) > 1000) continue;
+          const fantasyPos = player.fantasy_positions || [player.position];
+          if (!fantasyPos.some((fp: string) => allowedPositions.has(fp))) continue;
 
           const playerAge = player.age || 99;
           const ageCeiling = STARTUP_AGE_CEILING[player.position] || 32;
@@ -11706,7 +11703,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             rosterSettings
           );
 
-          if (blendedValue.value <= STARTUP_VALUE_FLOOR) continue;
+          if (currentRound <= 12 && blendedValue.value <= STARTUP_VALUE_FLOOR) continue;
           
           const depthOrder = player.depth_chart_order || 99;
           const hasTeamVal = player.team && player.team !== "" && player.team !== "FA" ? 1 : 0;
@@ -11747,9 +11744,11 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           
           const yearsExp = player.years_exp || 0;
           const hasActiveRole = depthOrder <= 2 || gamesPlayed >= 8 || ppg >= 5.0;
-          if (yearsExp >= 2 && gamesPlayed === 0 && ppg === 0 && depthOrder > 2) continue;
-          if (yearsExp >= 2 && !hasActiveRole && blendedValue.value < 3000) continue;
-          if (yearsExp >= 1 && gamesPlayed === 0 && depthOrder > 3) continue;
+          if (currentRound <= 18) {
+            if (yearsExp >= 2 && gamesPlayed === 0 && ppg === 0 && depthOrder > 2) continue;
+            if (yearsExp >= 2 && !hasActiveRole && blendedValue.value < 3000) continue;
+            if (yearsExp >= 1 && gamesPlayed === 0 && depthOrder > 3) continue;
+          }
 
           let recScore: number;
           if (currentRound <= 5) {
@@ -11772,6 +11771,17 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             }
           }
           recScore *= leverageMultiplier;
+
+          const isRookie = yearsExp === 0;
+          if (isRookie && currentRound <= 8) {
+            recScore *= 1.1;
+          }
+          if (isRookie && currentRound > 18) {
+            recScore *= 1.2;
+          }
+          if (!isRookie && currentRound > 20 && roleProbability >= 0.40) {
+            recScore *= 1.15;
+          }
           
           const tags: string[] = [];
           if (upsideScore >= 0.8) tags.push("High Upside");
