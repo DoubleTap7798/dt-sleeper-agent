@@ -14798,6 +14798,13 @@ Respond in JSON format:
 
       availablePlayers.sort((a, b) => (b.value || 0) - (a.value || 0));
 
+      const IDP_POSITIONS = new Set(["LB", "DL", "CB", "S", "EDGE", "ILB", "OLB", "DE", "DT", "NT", "DB", "FS", "SS", "MLB", "DEF"]);
+      const userSettings = await storage.getLeagueSettings(userId, leagueId);
+      const idpEnabled = userSettings?.idpEnabled !== false;
+      if (!idpEnabled) {
+        availablePlayers = availablePlayers.filter(p => !IDP_POSITIONS.has(p.position));
+      }
+
       // === DYNASTY-AWARE STRATEGIC SUGGESTION ENGINE v2 ===
 
       // --- 1. DYNASTY WINDOW CLASSIFIER ---
