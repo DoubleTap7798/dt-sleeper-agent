@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -10,21 +11,27 @@ import { ArrowRight, Loader2 } from "lucide-react";
 
 export default function SleeperSetupPage() {
   const [username, setUsername] = useState("");
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const setupMutation = useMutation({
     mutationFn: async (sleeperUsername: string) => {
-      return await apiRequest("POST", "/api/sleeper/connect", { username: sleeperUsername });
+      const res = await apiRequest("POST", "/api/sleeper/connect", { username: sleeperUsername });
+      return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Connected!",
         description: "Your Sleeper account has been linked successfully.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
+      queryClient.setQueryData(["/api/user/profile"], (old: any) => ({
+        ...old,
+        sleeperUsername: data.sleeperUsername,
+        sleeperUserId: data.sleeperUserId,
+      }));
       queryClient.invalidateQueries({ queryKey: ["/api/sleeper/leagues"] });
-      window.location.href = "/dashboard";
+      setLocation("/dashboard");
     },
     onError: (error: Error) => {
       toast({
