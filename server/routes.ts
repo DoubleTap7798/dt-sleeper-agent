@@ -11745,6 +11745,12 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         for (const c of startupCandidates) {
           const { playerId, player, blendedValue, gamesPlayed, ppg, needFit, depthOrder, upsideScore, roleProbability, rosterNeedFit } = c;
           
+          const yearsExp = player.years_exp || 0;
+          const hasActiveRole = depthOrder <= 2 || gamesPlayed >= 8 || ppg >= 5.0;
+          if (yearsExp >= 2 && gamesPlayed === 0 && ppg === 0 && depthOrder > 2) continue;
+          if (yearsExp >= 2 && !hasActiveRole && blendedValue.value < 3000) continue;
+          if (yearsExp >= 1 && gamesPlayed === 0 && depthOrder > 3) continue;
+
           let recScore: number;
           if (currentRound <= 5) {
             recScore = blendedValue.value * 0.70 + (upsideScore * 1000) * 0.10 + (roleProbability * 1000) * 0.15 + (rosterNeedFit * 1000) * 0.05;
@@ -11859,8 +11865,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         }
       }
 
-      // Get top recommendations by category
-      const bestValue = availablePlayers.slice(0, 5);
+      // Get top recommendations by category (filter out low-role players from top picks)
+      const bestValue = availablePlayers
+        .filter(p => (p.roleProbability || 0) >= 15 || (p.upsideScore || 0) >= 60)
+        .slice(0, 5);
       const bestForNeeds = availablePlayers
         .filter(p => {
           if (needs.includes(p.position)) return true;
@@ -15081,6 +15089,11 @@ Respond in JSON format:
           if (isFreeAgent && searchRank > 500) return;
           if (isPracticeSquad && searchRank > 500) return;
           if (!isFreeAgent && searchRank > 2000) return;
+
+          const depthChart = p.depth_chart_order || 99;
+          const yearsExp = p.years_exp || 0;
+          if (yearsExp >= 2 && depthChart > 2 && searchRank > 300 && isFreeAgent) return;
+          if (yearsExp >= 1 && depthChart > 3 && searchRank > 500) return;
 
           veterans.push({ pid, ...p });
         });
