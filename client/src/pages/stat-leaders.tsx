@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { BarChart3, Search, Crosshair, Zap, Target, Flame, TrendingUp, Trophy, Gauge, Brain } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { BarChart3, Search, Crosshair, Zap, Target, Flame, TrendingUp, Trophy, Gauge, Brain, ArrowUpRight, ArrowDownRight, Minus, Filter } from "lucide-react";
 import { ExportButton } from "@/components/export-button";
 import { usePageTitle } from "@/hooks/use-page-title";
 
@@ -33,6 +36,48 @@ interface StatLeadersResponse {
     advanced: Record<string, StatLeader[]>;
   };
 }
+
+interface DynastyPlayer {
+  playerId: string;
+  name: string;
+  position: string;
+  team: string;
+  age: number;
+  dynastyValue: number;
+  threeYearAvgPPG: number;
+  projectedPPG: number;
+  riskScore: number;
+  ufasScore: number;
+  ufasTier: string;
+  positionalRank: number;
+  trajectory: string;
+}
+
+interface DynastyPlayersResponse {
+  players: DynastyPlayer[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+const TOTAL_STATS = new Set([
+  "targets", "receptions", "receiving_yards", "receiving_tds", "receiving_first_downs",
+  "carries", "rushing_yards", "rushing_tds", "rushing_first_downs",
+  "passing_yards", "passing_tds", "completions",
+  "rushing_20plus", "rushing_30plus", "rushing_40plus",
+  "receiving_20plus", "receiving_30plus", "receiving_40plus",
+  "passing_20plus", "passing_30plus", "passing_40plus",
+  "fantasy_points_ppr",
+  "rz_total_td", "rz_pass_td", "rz_rush_td", "rz_fpts", "rz_att",
+  "rz_wr_td", "rz_wr_tgt", "rz_wr_rec", "rz_wr_yds", "rz_wr_fpts",
+  "rz_rb_td", "rz_rb_att", "rz_rb_rush_yds", "rz_rb_fpts",
+  "rz_te_td", "rz_te_tgt", "rz_te_rec", "rz_te_yds", "rz_te_fpts",
+  "adv_passing_yds", "adv_air_yds", "adv_deep_20plus", "adv_deep_30plus",
+  "adv_sacks", "adv_knockdowns", "adv_hurries", "adv_poor_throws", "adv_drops", "adv_rz_att",
+  "adv_wr_yds", "adv_wr_yac", "adv_wr_air", "adv_wr_drops", "adv_wr_brktkl", "adv_wr_rz_tgt", "adv_wr_deep_20plus",
+  "adv_rb_yds", "adv_rb_yacon", "adv_rb_brktkl", "adv_rb_att", "adv_rb_rz_tgt", "adv_rb_deep_20plus", "adv_rb_lng", "adv_rb_rec",
+  "adv_te_yds", "adv_te_yac", "adv_te_drops", "adv_te_brktkl", "adv_te_rz_tgt", "adv_te_rec",
+]);
 
 const STAT_LABELS: Record<string, string> = {
   targets: "Targets", receptions: "Receptions", receiving_yards: "Receiving Yards",
@@ -116,52 +161,140 @@ function getPositionKeyFilter(categoryKey: string, position: string): (key: stri
   return () => true;
 }
 
-function LeaderboardTable({ statKey, leaders, searchQuery }: { statKey: string; leaders: StatLeader[]; searchQuery: string }) {
-  const filtered = useMemo(() => {
-    const top10 = leaders.slice(0, 10);
-    if (!searchQuery) return top10;
-    const q = searchQuery.toLowerCase();
-    return top10.filter(p => p.player_name.toLowerCase().includes(q));
-  }, [leaders, searchQuery]);
+function getDynastyImpact(dynastyValue: number, ufasScore: number, trajectory: string): { label: string; color: string; icon: typeof ArrowUpRight } {
+  if (trajectory === "ascending" || (ufasScore >= 75 && dynastyValue >= 5000)) {
+    return { label: "High", color: "text-green-500", icon: ArrowUpRight };
+  }
+  if (trajectory === "declining" || ufasScore < 40 || dynastyValue < 2000) {
+    return { label: "Low", color: "text-red-400", icon: ArrowDownRight };
+  }
+  return { label: "Mid", color: "text-yellow-500", icon: Minus };
+}
 
-  if (filtered.length === 0) return null;
+function DynastyImpactBadge({ player, dynastyMap }: { player: StatLeader; dynastyMap: Map<string, DynastyPlayer> }) {
+  const dynPlayer = dynastyMap.get(player.player_id) || findDynastyByName(player.player_name, dynastyMap);
+  if (!dynPlayer) return <span className="text-[10px] text-muted-foreground">--</span>;
+
+  const impact = getDynastyImpact(dynPlayer.dynastyValue, dynPlayer.ufasScore, dynPlayer.trajectory);
+  const ImpactIcon = impact.icon;
+
+  return (
+    <span className={`flex items-center gap-0.5 text-[10px] font-semibold ${impact.color}`} data-testid={`dynasty-impact-${player.player_id}`}>
+      <ImpactIcon className="h-3 w-3" />
+      {impact.label}
+    </span>
+  );
+}
+
+function findDynastyByName(name: string, dynastyMap: Map<string, DynastyPlayer>): DynastyPlayer | undefined {
+  const normalized = name.toLowerCase().trim();
+  const values = Array.from(dynastyMap.values());
+  for (let i = 0; i < values.length; i++) {
+    if (values[i].name.toLowerCase().trim() === normalized) return values[i];
+  }
+  return undefined;
+}
+
+function LeaderboardTable({
+  statKey,
+  leaders,
+  searchQuery,
+  perGame,
+  dynastyMap,
+  ageRange,
+}: {
+  statKey: string;
+  leaders: StatLeader[];
+  searchQuery: string;
+  perGame: boolean;
+  dynastyMap: Map<string, DynastyPlayer>;
+  ageRange: [number, number];
+}) {
+  const processed = useMemo(() => {
+    let list = leaders.slice(0, 15);
+
+    if (ageRange[0] > 18 || ageRange[1] < 45) {
+      list = list.filter(p => {
+        const dp = dynastyMap.get(p.player_id) || findDynastyByName(p.player_name, dynastyMap);
+        if (!dp) return true;
+        return dp.age >= ageRange[0] && dp.age <= ageRange[1];
+      });
+    }
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(p => p.player_name.toLowerCase().includes(q));
+    }
+
+    const isTotalStat = TOTAL_STATS.has(statKey);
+    if (perGame && isTotalStat) {
+      list = list.map(p => ({
+        ...p,
+        value: p.games_played && p.games_played > 0 ? p.value / p.games_played : p.value,
+      }));
+      list.sort((a, b) => b.value - a.value);
+    }
+
+    return list.slice(0, 10);
+  }, [leaders, searchQuery, perGame, statKey, dynastyMap, ageRange]);
+
+  if (processed.length === 0) return null;
+
+  const displayLabel = perGame && TOTAL_STATS.has(statKey)
+    ? `${STAT_LABELS[statKey] || statKey} /G`
+    : STAT_LABELS[statKey] || statKey;
 
   return (
     <Card data-testid={`leaderboard-card-${statKey}`}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {STAT_LABELS[statKey] || statKey}
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center justify-between gap-2 flex-wrap">
+          <span>{displayLabel}</span>
+          {perGame && TOTAL_STATS.has(statKey) && (
+            <Badge variant="secondary" className="text-[10px]">Per Game</Badge>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="space-y-1" data-testid={`leaderboard-${statKey}`}>
-          {filtered.map((player, idx) => {
-            const originalIdx = leaders.indexOf(player);
-            return (
-              <div
-                key={player.player_id || idx}
-                className="flex items-center gap-2 py-1.5 px-2 rounded bg-muted/30 text-xs"
-                data-testid={`leader-${statKey}-${originalIdx}`}
-              >
-                <span className="w-5 text-muted-foreground font-medium text-right">{originalIdx + 1}</span>
-                <span className={`w-8 font-medium ${POSITION_COLORS[player.position] || "text-muted-foreground"}`}>
-                  {player.position || "--"}
-                </span>
-                <span className="flex-1 truncate font-medium">{player.player_name}</span>
-                <span className="text-muted-foreground text-[11px] shrink-0">{player.team}</span>
-                <span className="font-bold text-[hsl(var(--accent))] w-16 text-right shrink-0">
-                  {formatStatValue(statKey, player.value)}
-                </span>
-              </div>
-            );
-          })}
+          {processed.map((player, idx) => (
+            <div
+              key={player.player_id || idx}
+              className="flex items-center gap-2 py-1.5 px-2 rounded bg-muted/30 text-xs"
+              data-testid={`leader-${statKey}-${idx}`}
+            >
+              <span className="w-5 text-muted-foreground font-medium text-right">{idx + 1}</span>
+              <span className={`w-8 font-medium ${POSITION_COLORS[player.position] || "text-muted-foreground"}`}>
+                {player.position || "--"}
+              </span>
+              <span className="flex-1 truncate font-medium">{player.player_name}</span>
+              <DynastyImpactBadge player={player} dynastyMap={dynastyMap} />
+              <span className="text-muted-foreground text-[11px] shrink-0">{player.team}</span>
+              <span className="font-bold text-[hsl(var(--accent))] w-16 text-right shrink-0">
+                {formatStatValue(statKey, player.value)}
+              </span>
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function PositionFilteredLeaderboards({ categoryKey, categoryData, searchQuery }: { categoryKey: string; categoryData: Record<string, StatLeader[]>; searchQuery: string }) {
+function PositionFilteredLeaderboards({
+  categoryKey,
+  categoryData,
+  searchQuery,
+  perGame,
+  dynastyMap,
+  ageRange,
+}: {
+  categoryKey: string;
+  categoryData: Record<string, StatLeader[]>;
+  searchQuery: string;
+  perGame: boolean;
+  dynastyMap: Map<string, DynastyPlayer>;
+  ageRange: [number, number];
+}) {
   const [activePosition, setActivePosition] = useState("All");
   const filterFn = getPositionKeyFilter(categoryKey, activePosition);
   const filteredKeys = Object.keys(categoryData).filter(filterFn);
@@ -185,7 +318,17 @@ function PositionFilteredLeaderboards({ categoryKey, categoryData, searchQuery }
         {filteredKeys.map(statKey => {
           const statLeaders = categoryData[statKey];
           if (!statLeaders || statLeaders.length === 0) return null;
-          return <LeaderboardTable key={statKey} statKey={statKey} leaders={statLeaders} searchQuery={searchQuery} />;
+          return (
+            <LeaderboardTable
+              key={statKey}
+              statKey={statKey}
+              leaders={statLeaders}
+              searchQuery={searchQuery}
+              perGame={perGame}
+              dynastyMap={dynastyMap}
+              ageRange={ageRange}
+            />
+          );
         })}
       </div>
     </div>
@@ -200,6 +343,9 @@ export default function StatLeadersPage() {
   const [selectedSeason, setSelectedSeason] = useState(defaultSeason);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("receiving");
+  const [perGame, setPerGame] = useState(false);
+  const [ageRange, setAgeRange] = useState<[number, number]>([18, 45]);
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data: leaders, isLoading, error } = useQuery<StatLeadersResponse>({
     queryKey: ["/api/nfl/stat-leaders", selectedSeason],
@@ -212,6 +358,31 @@ export default function StatLeadersPage() {
     retry: 1,
   });
 
+  const { data: dynastyData } = useQuery<DynastyPlayersResponse>({
+    queryKey: ["/api/engine/v3/players-dynasty", "all"],
+    queryFn: async () => {
+      const res = await fetch(`/api/engine/v3/players-dynasty?limit=500&sort=dynastyValue&order=desc`);
+      if (!res.ok) throw new Error("Failed to fetch dynasty data");
+      return res.json();
+    },
+    staleTime: 1000 * 60 * 15,
+    retry: 1,
+  });
+
+  const dynastyMap = useMemo(() => {
+    const map = new Map<string, DynastyPlayer>();
+    if (dynastyData?.players) {
+      for (const p of dynastyData.players) {
+        map.set(p.playerId, p);
+      }
+    }
+    return map;
+  }, [dynastyData]);
+
+  const handleAgeChange = useCallback((values: number[]) => {
+    setAgeRange([values[0], values[1]]);
+  }, []);
+
   const exportData = useMemo(() => {
     if (!leaders) return [];
     const categoryData = leaders.categories[activeTab as keyof typeof leaders.categories];
@@ -219,6 +390,7 @@ export default function StatLeadersPage() {
     const rows: Record<string, any>[] = [];
     Object.entries(categoryData).forEach(([statKey, playerList]) => {
       (playerList as StatLeader[]).slice(0, 10).forEach((player, idx) => {
+        const dp = dynastyMap.get(player.player_id) || findDynastyByName(player.player_name, dynastyMap);
         rows.push({
           Rank: idx + 1,
           Player: player.player_name,
@@ -226,11 +398,13 @@ export default function StatLeadersPage() {
           Team: player.team,
           Stat: STAT_LABELS[statKey] || statKey,
           Value: formatStatValue(statKey, player.value),
+          "Dynasty Value": dp?.dynastyValue ?? "N/A",
+          "Dynasty Impact": dp ? getDynastyImpact(dp.dynastyValue, dp.ufasScore, dp.trajectory).label : "N/A",
         });
       });
     });
     return rows;
-  }, [leaders, activeTab]);
+  }, [leaders, activeTab, dynastyMap]);
 
   if (isLoading) {
     return (
@@ -276,7 +450,7 @@ export default function StatLeadersPage() {
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-7xl mx-auto" data-testid="stat-leaders-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <BarChart3 className="h-6 w-6" />
           <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-page-title">NFL Stat Leaders</h1>
           <Badge variant="outline" data-testid="badge-season">{leaders.season} Season</Badge>
@@ -303,12 +477,71 @@ export default function StatLeadersPage() {
               <SelectItem value="2022" data-testid="select-season-2022">2022</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            size="icon"
+            variant={showFilters ? "default" : "outline"}
+            onClick={() => setShowFilters(!showFilters)}
+            data-testid="button-toggle-filters"
+          >
+            <Filter className="h-4 w-4" />
+          </Button>
           <ExportButton
             data={exportData}
             filename={`nfl-stat-leaders-${activeTab}-${selectedSeason}`}
           />
         </div>
       </div>
+
+      {showFilters && (
+        <Card data-testid="filter-panel">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <Label htmlFor="per-game-toggle" className="text-sm text-muted-foreground whitespace-nowrap">
+                  Per Game
+                </Label>
+                <Switch
+                  id="per-game-toggle"
+                  checked={perGame}
+                  onCheckedChange={setPerGame}
+                  data-testid="switch-per-game"
+                />
+                <span className="text-xs text-muted-foreground">
+                  {perGame ? "Per Game" : "Total"}
+                </span>
+              </div>
+
+              <div className="flex-1 min-w-[200px] max-w-xs">
+                <Label className="text-sm text-muted-foreground mb-2 block">
+                  Age Range: {ageRange[0]} - {ageRange[1]}
+                </Label>
+                <Slider
+                  min={18}
+                  max={45}
+                  step={1}
+                  value={ageRange}
+                  onValueChange={handleAgeChange}
+                  data-testid="slider-age-range"
+                />
+              </div>
+
+              {(perGame || ageRange[0] > 18 || ageRange[1] < 45) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setPerGame(false);
+                    setAgeRange([18, 45]);
+                  }}
+                  data-testid="button-reset-filters"
+                >
+                  Reset Filters
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start flex-wrap h-auto gap-1 py-1" data-testid="tabs-categories">
@@ -334,7 +567,14 @@ export default function StatLeadersPage() {
           if (hasPositionGroups) {
             return (
               <TabsContent key={cat.key} value={cat.key} className="mt-4" data-testid={`tab-content-${cat.key}`}>
-                <PositionFilteredLeaderboards categoryKey={cat.key} categoryData={categoryData} searchQuery={searchQuery} />
+                <PositionFilteredLeaderboards
+                  categoryKey={cat.key}
+                  categoryData={categoryData}
+                  searchQuery={searchQuery}
+                  perGame={perGame}
+                  dynastyMap={dynastyMap}
+                  ageRange={ageRange}
+                />
               </TabsContent>
             );
           }
@@ -346,7 +586,17 @@ export default function StatLeadersPage() {
                 {statKeys.map(statKey => {
                   const statLeaders = categoryData[statKey];
                   if (!statLeaders || statLeaders.length === 0) return null;
-                  return <LeaderboardTable key={statKey} statKey={statKey} leaders={statLeaders} searchQuery={searchQuery} />;
+                  return (
+                    <LeaderboardTable
+                      key={statKey}
+                      statKey={statKey}
+                      leaders={statLeaders}
+                      searchQuery={searchQuery}
+                      perGame={perGame}
+                      dynastyMap={dynastyMap}
+                      ageRange={ageRange}
+                    />
+                  );
                 })}
               </div>
             </TabsContent>

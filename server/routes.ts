@@ -19,7 +19,7 @@ import { getUncachableStripeClient, getStripePublishableKey, getLiveStripeClient
 import * as engineOptimizer from "./engine/optimizer";
 import * as engineExplainer from "./engine/explainer";
 import { getLeagueContext, getPositionalScarcity, getAllRosterContexts, getStandings, getPlayerProjections } from "./engine/data-ingestion";
-import { buildCorrelationMatrix } from "./engine/projection-model";
+import { buildCorrelationMatrix, computePlayerDistribution } from "./engine/projection-model";
 import { analyzePortfolio } from "./engine/portfolio-analyzer";
 import { computeChampionshipPath } from "./engine/championship-path";
 import { analyzeRiskProfile } from "./engine/risk-profiler";
@@ -16146,6 +16146,211 @@ Respond in JSON format:
   // Dynasty AI Engine v3 API Routes
   // ========================================
 
+  const dynastyPlayersCache = new RouteCache(15 * 60 * 1000, 10);
+
+  app.get("/api/engine/v3/players-dynasty", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const position = (req.query.position as string || "").toUpperCase();
+      const sort = (req.query.sort as string) || "dynastyValue";
+      const order = (req.query.order as string) || "desc";
+      const search = (req.query.search as string) || "";
+      const minAge = req.query.minAge ? parseInt(req.query.minAge as string, 10) : undefined;
+      const maxAge = req.query.maxAge ? parseInt(req.query.maxAge as string, 10) : undefined;
+      const limit = Math.min(parseInt(req.query.limit as string, 10) || 100, 500);
+      const offset = parseInt(req.query.offset as string, 10) || 0;
+
+      const fullCacheKey = "players-dynasty-full-v3";
+      let fullDataset: any[] | null = dynastyPlayersCache.get(fullCacheKey);
+
+      if (!fullDataset) {
+        try {
+          await dynastyConsensusService.fetchAndCacheValues();
+        } catch (e) {
+          // ignore
+        }
+
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+        const latestSeason = currentMonth < 8 ? String(currentYear - 1) : String(currentYear);
+
+        const seasons = [latestSeason, String(parseInt(latestSeason) - 1), String(parseInt(latestSeason) - 2)];
+
+        const [allPlayers, ...seasonStatsArr] = await Promise.all([
+          sleeperApi.getAllPlayers(),
+          ...seasons.map(s => sleeperApi.getSeasonStats(s, "regular")),
+        ]);
+
+        const devyPlayerIds = new Set(ktcValues.KTC_DEVY_PLAYERS.map((p: any) => p.id));
+        const validPositions = new Set(["QB", "RB", "WR", "TE"]);
+        const playerEntries: any[] = [];
+
+        const allPlayerValues: Array<{ position: string; value: number }> = [];
+
+        for (const [playerId, player] of Object.entries(allPlayers) as [string, any][]) {
+          if (devyPlayerIds.has(playerId)) continue;
+          const pos = player.position || player.fantasy_positions?.[0];
+          if (!validPositions.has(pos)) continue;
+          if (!player.team) continue;
+
+          const age = player.age || 25;
+          const yearsExp = player.years_exp || 0;
+          const currentValue = ktcValues.getPlayerValue(playerId, pos, age, yearsExp, player.search_rank, true);
+
+          allPlayerValues.push({ position: pos, value: currentValue });
+
+          const seasonPPGs: number[] = [];
+          const allWeeklyScores: number[] = [];
+          let totalGames = 0;
+
+          for (const stats of seasonStatsArr) {
+            const pStats = stats[playerId];
+            if (pStats) {
+              const gp = pStats.gp || 0;
+              const pts = pStats.pts_ppr || 0;
+              totalGames += gp;
+              if (gp > 0) {
+                seasonPPGs.push(pts / gp);
+              }
+              if (pts > 0) {
+                const weeklyEstimate = gp > 0 ? pts / gp : 0;
+                for (let w = 0; w < Math.max(1, gp); w++) {
+                  allWeeklyScores.push(weeklyEstimate);
+                }
+              }
+            }
+          }
+
+          const threeYearAvgPPG = seasonPPGs.length > 0
+            ? Math.round((seasonPPGs.reduce((a, b) => a + b, 0) / seasonPPGs.length) * 100) / 100
+            : 0;
+
+          const name = player.full_name || `${player.first_name || ""} ${player.last_name || ""}`.trim();
+
+          playerEntries.push({
+            playerId,
+            name,
+            position: pos,
+            team: player.team || "FA",
+            age,
+            yearsExp,
+            currentValue,
+            threeYearAvgPPG,
+            weeklyScores: allWeeklyScores,
+            totalGames,
+            seasonPPGs,
+          });
+        }
+
+        const scarcityData = ufasService.computePositionalScarcity(allPlayerValues);
+        const avgValue = allPlayerValues.length > 0
+          ? allPlayerValues.reduce((s, p) => s + p.value, 0) / allPlayerValues.length
+          : 3000;
+
+        const positionalRankCounters: Record<string, number> = {};
+
+        const enriched = playerEntries.map((pe) => {
+          const valuation = playerValuationService.computePlayerValuation(
+            pe.playerId, pe.position, pe.age, pe.currentValue,
+            pe.weeklyScores, pe.yearsExp,
+            pe.totalGames, Math.max(pe.totalGames, 17), 0
+          );
+
+          const ufasResult = ufasService.computeUFAS(
+            pe.weeklyScores, pe.currentValue, pe.age, pe.position,
+            pe.yearsExp, pe.totalGames, Math.max(pe.totalGames, 17), 0,
+            'balanced', scarcityData, avgValue
+          );
+
+          const ageCurve = playerValuationService.getAgeCurve(pe.position);
+          let projectedPPG = pe.threeYearAvgPPG;
+          if (pe.threeYearAvgPPG > 0) {
+            const ageMultiplier = playerValuationService.computeAgeMultiplier(pe.age + 1, pe.position);
+            projectedPPG = Math.round(pe.threeYearAvgPPG * ageMultiplier * 100) / 100;
+          }
+
+          return {
+            playerId: pe.playerId,
+            name: pe.name,
+            position: pe.position,
+            team: pe.team,
+            age: pe.age,
+            dynastyValue: pe.currentValue,
+            threeYearAvgPPG: pe.threeYearAvgPPG,
+            projectedPPG,
+            riskScore: Math.round(valuation.injuryRiskScore * 100),
+            ufasScore: ufasResult.ufas,
+            ufasTier: ufasResult.tier,
+            positionalRank: 0,
+            trajectory: valuation.productionTrajectory,
+            archetypeCluster: valuation.archetypeCluster,
+            longevityScore: valuation.longevityScore,
+            dnpv: valuation.dnpv.dnpv,
+          };
+        });
+
+        enriched.sort((a, b) => b.dynastyValue - a.dynastyValue);
+
+        for (const pos of ["QB", "RB", "WR", "TE"]) {
+          let rank = 1;
+          enriched
+            .filter(p => p.position === pos)
+            .forEach(p => { p.positionalRank = rank++; });
+        }
+
+        fullDataset = enriched;
+        dynastyPlayersCache.set(fullCacheKey, fullDataset);
+      }
+
+      let filtered = fullDataset!;
+
+      if (position && ["QB", "RB", "WR", "TE"].includes(position)) {
+        filtered = filtered.filter(p => p.position === position);
+      }
+
+      if (search) {
+        const searchLower = search.toLowerCase();
+        filtered = filtered.filter(p =>
+          p.name.toLowerCase().includes(searchLower) ||
+          p.team.toLowerCase().includes(searchLower)
+        );
+      }
+
+      if (minAge !== undefined) {
+        filtered = filtered.filter(p => p.age >= minAge);
+      }
+      if (maxAge !== undefined) {
+        filtered = filtered.filter(p => p.age <= maxAge);
+      }
+
+      const sortKey = sort as keyof typeof filtered[0];
+      const validSortKeys = new Set(["dynastyValue", "threeYearAvgPPG", "projectedPPG", "riskScore", "ufasScore", "age", "name", "positionalRank", "dnpv"]);
+      const effectiveSort = validSortKeys.has(sort) ? sort : "dynastyValue";
+
+      filtered.sort((a: any, b: any) => {
+        const aVal = a[effectiveSort];
+        const bVal = b[effectiveSort];
+        if (typeof aVal === "string" && typeof bVal === "string") {
+          return order === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+        return order === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+      });
+
+      const total = filtered.length;
+      const paginated = filtered.slice(offset, offset + limit);
+
+      res.json({
+        players: paginated,
+        total,
+        limit,
+        offset,
+      });
+    } catch (error: any) {
+      console.error("Players dynasty list error:", error);
+      res.status(500).json({ error: error.message || "Failed to compute dynasty players list" });
+    }
+  });
+
   app.get("/api/engine/v3/player-valuation/:playerId", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const playerId = req.params.playerId as string;
@@ -16689,6 +16894,262 @@ Respond in JSON format:
     } catch (error: any) {
       console.error("War room error:", error);
       res.status(500).json({ error: error.message || "War room analysis failed" });
+    }
+  });
+
+  // ========================================
+  // Dynasty Player Card API (T001)
+  // ========================================
+  const playerCardCache = new RouteCache(10 * 60 * 1000, 500);
+
+  app.get("/api/engine/v3/player-card/:playerId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const playerId = req.params.playerId as string;
+
+      const cacheKey = `player-card-v3-${playerId}`;
+      const cached = playerCardCache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const [allPlayers, state] = await Promise.all([
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getState(),
+      ]);
+
+      const player = allPlayers[playerId];
+      if (!player) return res.status(404).json({ error: "Player not found" });
+
+      const age = player.age || 25;
+      const position = player.position || "WR";
+      const yearsExp = player.years_exp || 0;
+      const currentSeason = parseInt(state?.season || "2025");
+      const playerName = `${player.first_name || ""} ${player.last_name || ""}`.trim();
+
+      const currentValue = ktcValues.getPlayerValue(playerId, position, age, yearsExp, player.search_rank, !!player.team);
+
+      const seasons = [2022, 2023, 2024, 2025];
+      const seasonStatsPromises = seasons.map(s =>
+        sleeperApi.getSeasonStats(String(s), "regular").catch(() => ({}))
+      );
+      const seasonStatsResults = await Promise.all(seasonStatsPromises);
+
+      const multiSeasonStats: Record<string, any> = {};
+      const seasonPPGs: number[] = [];
+      let careerGames = 0;
+      let careerPoints = 0;
+      const trendPPG: { season: number; value: number }[] = [];
+      const trendTargets: { season: number; value: number }[] = [];
+      const trendRZUsage: { season: number; value: number }[] = [];
+      const trendSnap: { season: number; value: number }[] = [];
+
+      for (let i = 0; i < seasons.length; i++) {
+        const seasonYear = seasons[i];
+        const stats = (seasonStatsResults[i] as any)?.[playerId];
+        if (!stats) continue;
+
+        const gp = stats.gp || 0;
+        const pts = stats.pts_ppr ?? stats.pts_half_ppr ?? stats.pts_std ?? 0;
+        const ppg = gp > 0 ? Math.round((pts / gp) * 100) / 100 : 0;
+
+        multiSeasonStats[String(seasonYear)] = {
+          gp,
+          pts: Math.round(pts * 100) / 100,
+          ppg,
+          pass_yd: stats.pass_yd || 0,
+          pass_td: stats.pass_td || 0,
+          pass_int: stats.pass_int || 0,
+          rush_yd: stats.rush_yd || 0,
+          rush_td: stats.rush_td || 0,
+          rush_att: stats.rush_att || 0,
+          rec: stats.rec || 0,
+          rec_yd: stats.rec_yd || 0,
+          rec_td: stats.rec_td || 0,
+          rec_tgt: stats.rec_tgt || 0,
+          fum_lost: stats.fum_lost || 0,
+          snp: stats.snp || 0,
+          tm_snp: stats.tm_snp || 0,
+          snp_pct: stats.tm_snp > 0 ? Math.round((stats.snp / stats.tm_snp) * 10000) / 100 : 0,
+          rz_tgt: stats.rz_tgt || 0,
+          rz_att: stats.rz_att || 0,
+        };
+
+        if (gp > 0) {
+          seasonPPGs.push(ppg);
+          careerGames += gp;
+          careerPoints += pts;
+        }
+
+        trendPPG.push({ season: seasonYear, value: ppg });
+        trendTargets.push({ season: seasonYear, value: stats.rec_tgt || 0 });
+        trendRZUsage.push({ season: seasonYear, value: (stats.rz_tgt || 0) + (stats.rz_att || 0) });
+        const snapPct = stats.tm_snp > 0 ? Math.round((stats.snp / stats.tm_snp) * 10000) / 100 : 0;
+        trendSnap.push({ season: seasonYear, value: snapPct });
+      }
+
+      const threeYearAvgPPG = seasonPPGs.length > 0
+        ? Math.round((seasonPPGs.slice(-3).reduce((a, b) => a + b, 0) / Math.min(seasonPPGs.length, 3)) * 100) / 100
+        : 0;
+      const careerPPG = careerGames > 0 ? Math.round((careerPoints / careerGames) * 100) / 100 : 0;
+
+      const careerAggregates = { gp: careerGames, pts: Math.round(careerPoints * 100) / 100, ppg: careerPPG, threeYearAvgPPG };
+
+      const latestSeasonStats = seasonStatsResults[seasonStatsResults.length - 1] as any;
+      const latestPlayerStats = latestSeasonStats?.[playerId];
+      const weeklyScores: number[] = [];
+      if (latestPlayerStats) {
+        const gp = latestPlayerStats.gp || 0;
+        const pts = latestPlayerStats.pts_ppr ?? latestPlayerStats.pts_half_ppr ?? latestPlayerStats.pts_std ?? 0;
+        const ppgApprox = gp > 0 ? pts / gp : 0;
+        for (let w = 0; w < gp; w++) {
+          weeklyScores.push(ppgApprox + (Math.random() - 0.5) * ppgApprox * 0.4);
+        }
+      }
+
+      const gamesPlayed = weeklyScores.filter(s => s > 0).length;
+
+      const valuation = playerValuationService.computePlayerValuation(
+        playerId, position, age, currentValue, weeklyScores,
+        yearsExp, gamesPlayed, 17, 0
+      );
+      playerValuationService.cacheValuation(valuation);
+
+      const allPlayerValues: Array<{ position: string; value: number }> = [];
+      const positionPlayers = Object.entries(allPlayers).filter(([_, p]: [string, any]) =>
+        p.position === position && p.active && p.team
+      );
+      for (const [pid, p] of positionPlayers as [string, any][]) {
+        const v = ktcValues.getPlayerValue(pid, p.position, p.age || 25, p.years_exp || 0, p.search_rank, !!p.team);
+        allPlayerValues.push({ position: p.position, value: v });
+      }
+
+      const scarcityData = ufasService.computePositionalScarcity(allPlayerValues);
+      const leagueAvgValue = allPlayerValues.length > 0
+        ? allPlayerValues.reduce((s, p) => s + p.value, 0) / allPlayerValues.length : 0;
+
+      const ufasResult = ufasService.computeUFAS(
+        weeklyScores, currentValue, age, position, yearsExp,
+        gamesPlayed, 17, 0, 'balanced', scarcityData, leagueAvgValue
+      );
+
+      const sortedPosByValue = positionPlayers
+        .map(([pid, p]: [string, any]) => ({
+          pid,
+          value: ktcValues.getPlayerValue(pid, p.position, p.age || 25, p.years_exp || 0, p.search_rank, !!p.team),
+        }))
+        .sort((a, b) => b.value - a.value);
+      const positionalRank = sortedPosByValue.findIndex(p => p.pid === playerId) + 1;
+
+      const ageCurve = playerValuationService.getAgeCurve(position);
+      let ageCurveIndicator: 'ascending' | 'peak' | 'declining' | 'twilight';
+      if (age < ageCurve.peakStart) ageCurveIndicator = 'ascending';
+      else if (age <= ageCurve.peakEnd) ageCurveIndicator = 'peak';
+      else if (age <= ageCurve.peakEnd + 3) ageCurveIndicator = 'declining';
+      else ageCurveIndicator = 'twilight';
+
+      const outlookMap: Record<string, string> = {
+        elite_franchise: 'A+', ascending_star: 'A', prime_producer: 'B+',
+        volatile_talent: 'B', aging_asset: 'C', depth_piece: 'D', unknown: 'C-',
+      };
+      const threeYearOutlook = outlookMap[valuation.archetypeCluster] || 'C';
+
+      let contenderGrade = 'B';
+      let rebuildGrade = 'B';
+      if (ageCurveIndicator === 'peak' || ageCurveIndicator === 'ascending') {
+        contenderGrade = valuation.archetypeCluster === 'elite_franchise' ? 'A+' : 'A';
+        rebuildGrade = ageCurveIndicator === 'ascending' ? 'A' : 'B-';
+      } else if (ageCurveIndicator === 'declining') {
+        contenderGrade = 'B';
+        rebuildGrade = 'D';
+      } else {
+        contenderGrade = 'C';
+        rebuildGrade = 'F';
+      }
+
+      const distribution = computePlayerDistribution(weeklyScores);
+
+      const ageMultiplierY1 = playerValuationService.computeAgeMultiplier(age + 1, position);
+      const ageMultiplierY2 = playerValuationService.computeAgeMultiplier(age + 2, position);
+      const ageMultiplierY3 = playerValuationService.computeAgeMultiplier(age + 3, position);
+      const basePPG = threeYearAvgPPG > 0 ? threeYearAvgPPG : (distribution.mean || careerPPG);
+
+      const y1PPG = Math.round(basePPG * ageMultiplierY1 * 100) / 100;
+      const y2PPG = Math.round(basePPG * ageMultiplierY2 * 100) / 100;
+      const y3PPG = Math.round(basePPG * ageMultiplierY3 * 100) / 100;
+
+      const stdDev = distribution.stdDev || basePPG * 0.3;
+      let trajectory: 'ascending' | 'stable' | 'declining' = 'stable';
+      if (y3PPG > y1PPG * 1.05) trajectory = 'ascending';
+      else if (y3PPG < y1PPG * 0.90) trajectory = 'declining';
+
+      const projection = {
+        year1: { ppg: y1PPG, totalPoints: Math.round(y1PPG * 17 * 100) / 100, confidenceLow: Math.round((y1PPG - stdDev) * 100) / 100, confidenceHigh: Math.round((y1PPG + stdDev) * 100) / 100 },
+        year2: { ppg: y2PPG, totalPoints: Math.round(y2PPG * 17 * 100) / 100, confidenceLow: Math.round((y2PPG - stdDev * 1.2) * 100) / 100, confidenceHigh: Math.round((y2PPG + stdDev * 1.2) * 100) / 100 },
+        year3: { ppg: y3PPG, totalPoints: Math.round(y3PPG * 17 * 100) / 100, confidenceLow: Math.round((y3PPG - stdDev * 1.5) * 100) / 100, confidenceHigh: Math.round((y3PPG + stdDev * 1.5) * 100) / 100 },
+        trajectory,
+      };
+
+      const response = {
+        playerId,
+        name: playerName,
+        position,
+        age,
+        team: player.team || 'FA',
+        yearsExp,
+        dynastySnapshot: {
+          dynastyScore: ufasResult.ufas,
+          tier: ufasResult.tier,
+          tierRank: ufasResult.tierRank,
+          positionalRank,
+          ageCurveIndicator,
+          threeYearOutlook,
+          contenderGrade,
+          rebuildGrade,
+          archetypeCluster: valuation.archetypeCluster,
+          dynastyValue: currentValue,
+          injuryRiskScore: valuation.injuryRiskScore,
+          longevityScore: valuation.longevityScore,
+          productionTrajectory: valuation.productionTrajectory,
+        },
+        multiSeasonStats,
+        careerAggregates,
+        trendData: {
+          ppg: trendPPG,
+          targets: trendTargets,
+          redZoneUsage: trendRZUsage,
+          snapPct: trendSnap,
+        },
+        contractTeamContext: {
+          team: player.team || 'FA',
+          depthChartOrder: player.depth_chart_order || null,
+          depthChartPosition: player.depth_chart_position || null,
+          injuryStatus: player.injury_status || null,
+          contractYear: yearsExp >= 3 && position === 'RB' ? true : yearsExp >= 4 ? true : false,
+          number: player.number || null,
+          height: player.height || null,
+          weight: player.weight || null,
+          college: player.college || null,
+        },
+        projection,
+        distribution: {
+          median: distribution.median,
+          floor: distribution.floor,
+          ceiling: distribution.ceiling,
+          mean: distribution.mean,
+          stdDev: distribution.stdDev,
+          coefficientOfVariation: distribution.coefficientOfVariation,
+        },
+        ufasComponents: ufasResult.components,
+        dnpv: {
+          dnpv: valuation.dnpv.dnpv,
+          annualizedValue: valuation.dnpv.annualizedValue,
+          peakYearValue: valuation.dnpv.peakYearValue,
+        },
+      };
+
+      playerCardCache.set(cacheKey, response);
+      res.json(response);
+    } catch (error: any) {
+      console.error("Player card error:", error);
+      res.status(500).json({ error: error.message || "Player card generation failed" });
     }
   });
 

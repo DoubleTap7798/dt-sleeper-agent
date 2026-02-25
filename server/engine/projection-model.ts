@@ -1,4 +1,193 @@
 import { PlayerProjection, CorrelationMatrix, CorrelationEntry } from './types';
+import { getAgeCurve, computeAgeMultiplier } from './player-valuation-service';
+
+export interface ThreeYearProjectionInput {
+  playerId: string;
+  age: number;
+  position: string;
+  historicalPPG: number[];
+  currentUsage?: {
+    snapPct?: number;
+    targetShare?: number;
+    redZoneShare?: number;
+    carriesPerGame?: number;
+  };
+}
+
+export interface YearProjection {
+  year: number;
+  projectedPPG: number;
+  floor: number;
+  ceiling: number;
+  confidence: number;
+}
+
+export interface ThreeYearProjectionResult {
+  year1: YearProjection;
+  year2: YearProjection;
+  year3: YearProjection;
+  trajectory: 'ascending' | 'stable' | 'declining';
+  careerPPG: number;
+  recentPPG: number;
+}
+
+const DYNASTY_AGE_MODELS: Record<string, { peakStart: number; peakEnd: number; cliffAge: number; decayRate: number; growthRate: number }> = {
+  QB: { peakStart: 24, peakEnd: 34, cliffAge: 38, decayRate: 0.03, growthRate: 0.05 },
+  RB: { peakStart: 22, peakEnd: 26, cliffAge: 27, decayRate: 0.10, growthRate: 0.08 },
+  WR: { peakStart: 25, peakEnd: 29, cliffAge: 31, decayRate: 0.06, growthRate: 0.06 },
+  TE: { peakStart: 25, peakEnd: 30, cliffAge: 32, decayRate: 0.05, growthRate: 0.04 },
+};
+
+function getDynastyAgeModel(position: string) {
+  return DYNASTY_AGE_MODELS[position.toUpperCase()] || DYNASTY_AGE_MODELS.WR;
+}
+
+function computeAgeFactor(age: number, position: string): number {
+  const model = getDynastyAgeModel(position);
+
+  if (age < model.peakStart) {
+    const yearsToGo = model.peakStart - age;
+    return Math.max(0.6, 1.0 - yearsToGo * model.growthRate);
+  }
+
+  if (age >= model.peakStart && age <= model.peakEnd) {
+    return 1.0;
+  }
+
+  if (age > model.peakEnd && age <= model.cliffAge) {
+    const yearsPostPeak = age - model.peakEnd;
+    return Math.max(0.5, 1.0 - yearsPostPeak * model.decayRate);
+  }
+
+  const yearsPostCliff = age - model.cliffAge;
+  const preCliffDecay = (model.cliffAge - model.peakEnd) * model.decayRate;
+  const cliffValue = Math.max(0.5, 1.0 - preCliffDecay);
+  return Math.max(0.15, cliffValue - yearsPostCliff * model.decayRate * 1.5);
+}
+
+function computeUsageAdjustment(usage?: ThreeYearProjectionInput['currentUsage']): number {
+  if (!usage) return 1.0;
+
+  let adjustment = 1.0;
+
+  if (usage.snapPct !== undefined) {
+    if (usage.snapPct > 0.75) adjustment += 0.03;
+    else if (usage.snapPct < 0.50) adjustment -= 0.05;
+  }
+
+  if (usage.targetShare !== undefined) {
+    if (usage.targetShare > 0.25) adjustment += 0.04;
+    else if (usage.targetShare < 0.12) adjustment -= 0.03;
+  }
+
+  if (usage.redZoneShare !== undefined) {
+    if (usage.redZoneShare > 0.20) adjustment += 0.03;
+    else if (usage.redZoneShare < 0.05) adjustment -= 0.02;
+  }
+
+  if (usage.carriesPerGame !== undefined) {
+    if (usage.carriesPerGame > 18) adjustment += 0.03;
+    else if (usage.carriesPerGame < 8) adjustment -= 0.04;
+  }
+
+  return Math.max(0.8, Math.min(1.15, adjustment));
+}
+
+function determineTrajectory(year1PPG: number, year3PPG: number): 'ascending' | 'stable' | 'declining' {
+  if (year1PPG <= 0) return 'stable';
+  const ratio = year3PPG / year1PPG;
+  if (ratio > 1.05) return 'ascending';
+  if (ratio < 0.90) return 'declining';
+  return 'stable';
+}
+
+const projectionCache = new Map<string, { result: ThreeYearProjectionResult; timestamp: number }>();
+const PROJECTION_CACHE_TTL = 15 * 60 * 1000;
+
+export function compute3YearProjection(input: ThreeYearProjectionInput): ThreeYearProjectionResult {
+  const currentSeason = new Date().getFullYear();
+  const cacheKey = `${input.playerId}:${currentSeason}`;
+
+  const cached = projectionCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < PROJECTION_CACHE_TTL) {
+    return cached.result;
+  }
+
+  const { age, position, historicalPPG, currentUsage } = input;
+  const pos = position.toUpperCase();
+
+  const validPPG = historicalPPG.filter(v => v > 0);
+  const careerPPG = validPPG.length > 0
+    ? validPPG.reduce((a, b) => a + b, 0) / validPPG.length
+    : 0;
+
+  const recentSeasons = validPPG.slice(-2);
+  const recentPPG = recentSeasons.length > 0
+    ? recentSeasons.reduce((a, b) => a + b, 0) / recentSeasons.length
+    : careerPPG;
+
+  const basePPG = recentSeasons.length >= 2
+    ? recentPPG * 0.7 + careerPPG * 0.3
+    : recentPPG * 0.5 + careerPPG * 0.5;
+
+  const usageAdj = computeUsageAdjustment(currentUsage);
+
+  const years: YearProjection[] = [];
+  for (let y = 1; y <= 3; y++) {
+    const projectedAge = age + y;
+    const currentAgeFactor = computeAgeFactor(age, pos);
+    const futureAgeFactor = computeAgeFactor(projectedAge, pos);
+    const ageRatio = currentAgeFactor > 0 ? futureAgeFactor / currentAgeFactor : futureAgeFactor;
+
+    let projectedPPG = basePPG * ageRatio * usageAdj;
+
+    if (y >= 2) {
+      const usageDecay = 1.0 - (y - 1) * 0.02;
+      projectedPPG *= usageDecay;
+    }
+
+    projectedPPG = Math.max(0, projectedPPG);
+
+    const baseConfidence = 0.85 - (y - 1) * 0.12;
+    const dataConfidence = Math.min(1, validPPG.length / 4);
+    const confidence = Math.max(0.25, Math.min(0.95, baseConfidence * dataConfidence));
+
+    const volatility = validPPG.length >= 2
+      ? Math.sqrt(validPPG.reduce((s, v) => s + (v - careerPPG) ** 2, 0) / validPPG.length) / (careerPPG || 1)
+      : 0.3;
+
+    const spreadFactor = (1 + volatility) * (1 + (y - 1) * 0.15);
+    const floor = Math.max(0, r2(projectedPPG * (1 - 0.25 * spreadFactor)));
+    const ceiling = r2(projectedPPG * (1 + 0.20 * spreadFactor));
+
+    years.push({
+      year: y,
+      projectedPPG: r2(projectedPPG),
+      floor,
+      ceiling,
+      confidence: r2(confidence),
+    });
+  }
+
+  const trajectory = determineTrajectory(years[0].projectedPPG, years[2].projectedPPG);
+
+  const result: ThreeYearProjectionResult = {
+    year1: years[0],
+    year2: years[1],
+    year3: years[2],
+    trajectory,
+    careerPPG: r2(careerPPG),
+    recentPPG: r2(recentPPG),
+  };
+
+  projectionCache.set(cacheKey, { result, timestamp: Date.now() });
+
+  return result;
+}
+
+function r2(v: number): number {
+  return Math.round(v * 100) / 100;
+}
 
 export function pearsonCorrelation(x: number[], y: number[]): number {
   const n = Math.min(x.length, y.length);

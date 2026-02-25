@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSelectedLeague } from "./league-layout";
 import { getPositionColorClass } from "@/lib/utils";
 import { PremiumGate } from "@/components/premium-gate";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import {
   TrendingUp, TrendingDown, Minus, Search, BarChart3, Activity,
   UserPlus, UserMinus, Zap, ChevronRight, Users, Globe, Filter, AlertCircle,
+  ArrowUpRight, ArrowDownRight, Target, Footprints, Clock, Shield,
 } from "lucide-react";
 import { getNFLTeamLogo } from "@/lib/team-logos";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -70,11 +71,198 @@ interface TrendingResponse {
   lastUpdated: string;
 }
 
+interface TrendDriver {
+  label: string;
+  type: "positive" | "negative" | "neutral";
+  icon: "target" | "snap" | "age" | "ppg" | "redzone" | "trajectory";
+}
+
+interface PlayerCardData {
+  dynastySnapshot: {
+    dynastyScore: number;
+    tier: string;
+    positionalRank: number;
+    ageCurveIndicator: string;
+    threeYearOutlook: string;
+    contenderGrade: string;
+    rebuildGrade: string;
+    dynastyValue: number;
+  };
+  trendData: {
+    ppg: Array<{ season: number; value: number }>;
+    targets: Array<{ season: number; value: number }>;
+    redZoneUsage: Array<{ season: number; value: number }>;
+    snapPct: Array<{ season: number; value: number }>;
+  };
+  projection: {
+    year1: { ppg: number };
+    year2: { ppg: number };
+    year3: { ppg: number };
+    trajectory: string;
+  };
+  careerAggregates: { threeYearAvgPPG: number };
+}
+
 type TabType = "added" | "dropped" | "career";
 type CareerMode = "browse" | "roster";
 
+const AGE_CURVES: Record<string, { peakStart: number; peakEnd: number; cliff: number }> = {
+  QB: { peakStart: 24, peakEnd: 34, cliff: 37 },
+  RB: { peakStart: 22, peakEnd: 26, cliff: 28 },
+  WR: { peakStart: 24, peakEnd: 29, cliff: 32 },
+  TE: { peakStart: 25, peakEnd: 30, cliff: 33 },
+};
+
 function getInitials(name: string): string {
   return name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function computeTrendDriversFromCareer(player: PlayerTrend): TrendDriver[] {
+  const drivers: TrendDriver[] = [];
+  const curve = AGE_CURVES[player.position] || AGE_CURVES.WR;
+
+  if (player.age < curve.peakStart) {
+    drivers.push({ label: "Pre-Prime", type: "positive", icon: "age" });
+  } else if (player.age >= curve.peakStart && player.age <= curve.peakEnd) {
+    drivers.push({ label: "In Prime", type: "positive", icon: "age" });
+  } else if (player.age > curve.peakEnd && player.age <= curve.cliff) {
+    drivers.push({ label: "Post-Peak", type: "negative", icon: "age" });
+  } else if (player.age > curve.cliff) {
+    drivers.push({ label: "Age Cliff", type: "negative", icon: "age" });
+  }
+
+  const activeSeries = player.miniSeries.filter(v => v > 0);
+  if (activeSeries.length >= 2) {
+    const recent = activeSeries[activeSeries.length - 1];
+    const prev = activeSeries[activeSeries.length - 2];
+    const delta = recent - prev;
+    const pctChange = prev > 0 ? Math.round((delta / prev) * 100) : 0;
+    if (Math.abs(pctChange) >= 5) {
+      drivers.push({
+        label: `PPG ${pctChange > 0 ? "+" : ""}${pctChange}%`,
+        type: pctChange > 0 ? "positive" : "negative",
+        icon: "ppg",
+      });
+    }
+  }
+
+  if (player.trend === "breakout") {
+    drivers.push({ label: "Breakout Season", type: "positive", icon: "trajectory" });
+  }
+
+  return drivers;
+}
+
+function computeTrendDriversFromCard(cardData: PlayerCardData): TrendDriver[] {
+  const drivers: TrendDriver[] = [];
+  const { trendData, dynastySnapshot, projection } = cardData;
+
+  const ppgArr = trendData.ppg.filter(d => d.value > 0);
+  if (ppgArr.length >= 2) {
+    const recent = ppgArr[ppgArr.length - 1].value;
+    const prev = ppgArr[ppgArr.length - 2].value;
+    const delta = recent - prev;
+    const pctChange = prev > 0 ? Math.round((delta / prev) * 100) : 0;
+    if (Math.abs(pctChange) >= 5) {
+      drivers.push({
+        label: `PPG ${pctChange > 0 ? "+" : ""}${delta.toFixed(1)}`,
+        type: pctChange > 0 ? "positive" : "negative",
+        icon: "ppg",
+      });
+    }
+  }
+
+  const targArr = trendData.targets.filter(d => d.value > 0);
+  if (targArr.length >= 2) {
+    const recent = targArr[targArr.length - 1].value;
+    const prev = targArr[targArr.length - 2].value;
+    const delta = recent - prev;
+    const pctChange = prev > 0 ? Math.round((delta / prev) * 100) : 0;
+    if (Math.abs(pctChange) >= 8) {
+      drivers.push({
+        label: `Targets ${pctChange > 0 ? "+" : ""}${pctChange}%`,
+        type: pctChange > 0 ? "positive" : "negative",
+        icon: "target",
+      });
+    }
+  }
+
+  const snapArr = trendData.snapPct.filter(d => d.value > 0);
+  if (snapArr.length >= 2) {
+    const recent = snapArr[snapArr.length - 1].value;
+    const prev = snapArr[snapArr.length - 2].value;
+    const delta = recent - prev;
+    if (Math.abs(delta) >= 5) {
+      drivers.push({
+        label: `Snap% ${delta > 0 ? "+" : ""}${delta.toFixed(0)}%`,
+        type: delta > 0 ? "positive" : "negative",
+        icon: "snap",
+      });
+    }
+  }
+
+  const rzArr = trendData.redZoneUsage.filter(d => d.value > 0);
+  if (rzArr.length >= 2) {
+    const recent = rzArr[rzArr.length - 1].value;
+    const prev = rzArr[rzArr.length - 2].value;
+    const delta = recent - prev;
+    const pctChange = prev > 0 ? Math.round((delta / prev) * 100) : 0;
+    if (Math.abs(pctChange) >= 10) {
+      drivers.push({
+        label: `RZ Usage ${pctChange > 0 ? "+" : ""}${pctChange}%`,
+        type: pctChange > 0 ? "positive" : "negative",
+        icon: "redzone",
+      });
+    }
+  }
+
+  const aci = dynastySnapshot.ageCurveIndicator;
+  if (aci === "ascending") {
+    drivers.push({ label: "Pre-Prime", type: "positive", icon: "age" });
+  } else if (aci === "peak") {
+    drivers.push({ label: "In Prime", type: "positive", icon: "age" });
+  } else if (aci === "declining") {
+    drivers.push({ label: "Post-Peak", type: "negative", icon: "age" });
+  } else if (aci === "twilight") {
+    drivers.push({ label: "Age Cliff", type: "negative", icon: "age" });
+  }
+
+  if (projection.trajectory === "ascending") {
+    drivers.push({ label: "Projected Growth", type: "positive", icon: "trajectory" });
+  } else if (projection.trajectory === "declining") {
+    drivers.push({ label: "Projected Decline", type: "negative", icon: "trajectory" });
+  }
+
+  return drivers;
+}
+
+function TrendDriverChip({ driver }: { driver: TrendDriver }) {
+  const colorClass = driver.type === "positive"
+    ? "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30"
+    : driver.type === "negative"
+    ? "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30"
+    : "bg-muted text-muted-foreground border-border";
+
+  const iconMap = {
+    target: Target,
+    snap: Footprints,
+    age: Clock,
+    ppg: Activity,
+    redzone: Shield,
+    trajectory: driver.type === "positive" ? ArrowUpRight : ArrowDownRight,
+  };
+  const Icon = iconMap[driver.icon];
+
+  return (
+    <Badge
+      variant="outline"
+      className={`text-[11px] ${colorClass} no-default-active-elevate`}
+      data-testid={`chip-driver-${driver.label.replace(/\s+/g, "-").toLowerCase()}`}
+    >
+      <Icon className="h-3 w-3 mr-0.5" />
+      {driver.label}
+    </Badge>
+  );
 }
 
 function MiniTrendLine({ series, seasons }: { series: number[]; seasons: number[] }) {
@@ -122,6 +310,42 @@ function MiniTrendLine({ series, seasons }: { series: number[]; seasons: number[
   );
 }
 
+function TrendDriverMiniChart({ label, data, color }: { label: string; data: Array<{ season: number; value: number }>; color: string }) {
+  const activeData = data.filter(d => d.value > 0);
+  if (activeData.length < 2) return null;
+
+  const maxVal = Math.max(...activeData.map(d => d.value), 1);
+  const width = 160;
+  const height = 50;
+  const padding = 6;
+
+  const getX = (i: number) => padding + (i / (activeData.length - 1)) * (width - padding * 2);
+  const getY = (v: number) => height - padding - (v / maxVal) * (height - padding * 2);
+
+  const pathD = activeData.map((d, i) => `${i === 0 ? "M" : "L"} ${getX(i)} ${getY(d.value)}`).join(" ");
+
+  return (
+    <div className="space-y-1" data-testid={`driver-chart-${label.toLowerCase().replace(/\s+/g, "-")}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="text-xs font-medium">
+          {activeData[activeData.length - 1].value.toFixed(1)}
+        </span>
+      </div>
+      <svg width={width} height={height} className="w-full">
+        <path d={pathD} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {activeData.map((d, i) => (
+          <circle key={i} cx={getX(i)} cy={getY(d.value)} r="3" fill={color} />
+        ))}
+      </svg>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <span>{activeData[0].season}</span>
+        <span>{activeData[activeData.length - 1].season}</span>
+      </div>
+    </div>
+  );
+}
+
 function TrendBadge({ trend }: { trend: "up" | "down" | "stable" | "breakout" }) {
   switch (trend) {
     case "breakout":
@@ -149,6 +373,169 @@ function TrendBadge({ trend }: { trend: "up" | "down" | "stable" | "breakout" })
         </Badge>
       );
   }
+}
+
+function ExpandedPlayerCardDetails({ playerId }: { playerId: string }) {
+  const { data: cardData, isLoading } = useQuery<PlayerCardData>({
+    queryKey: ["/api/engine/v3/player-card", playerId],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="mt-4 pt-3 border-t border-border space-y-3">
+        <div className="flex flex-wrap gap-1.5">
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-5 w-28" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!cardData) return null;
+
+  const detailedDrivers = computeTrendDriversFromCard(cardData);
+  const { dynastySnapshot, projection, trendData } = cardData;
+
+  return (
+    <div className="mt-4 pt-3 border-t border-border space-y-4" data-testid={`expanded-card-details-${playerId}`}>
+      <div>
+        <span className="text-xs font-medium text-muted-foreground mb-1.5 block">Trend Drivers</span>
+        <div className="flex flex-wrap gap-1.5">
+          {detailedDrivers.length > 0 ? detailedDrivers.map((d, i) => (
+            <TrendDriverChip key={i} driver={d} />
+          )) : (
+            <span className="text-xs text-muted-foreground">No significant trend drivers detected</span>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+        <div>
+          <div className="text-lg font-bold text-yellow-500" data-testid={`stat-dynasty-score-${playerId}`}>
+            {dynastySnapshot.dynastyScore}
+          </div>
+          <div className="text-[10px] text-muted-foreground">Dynasty Score</div>
+        </div>
+        <div>
+          <div className="text-lg font-bold" data-testid={`stat-pos-rank-${playerId}`}>
+            #{dynastySnapshot.positionalRank}
+          </div>
+          <div className="text-[10px] text-muted-foreground">Pos Rank</div>
+        </div>
+        <div>
+          <div className="text-lg font-bold" data-testid={`stat-outlook-${playerId}`}>
+            {dynastySnapshot.threeYearOutlook}
+          </div>
+          <div className="text-[10px] text-muted-foreground">3Y Outlook</div>
+        </div>
+        <div>
+          <div className="text-lg font-bold" data-testid={`stat-proj-ppg-${playerId}`}>
+            {projection.year1.ppg}
+          </div>
+          <div className="text-[10px] text-muted-foreground">Proj PPG</div>
+        </div>
+      </div>
+
+      <div>
+        <span className="text-xs font-medium text-muted-foreground mb-2 block">Trend Driver Breakdown</span>
+        <div className="grid grid-cols-2 gap-3">
+          <TrendDriverMiniChart
+            label="PPG"
+            data={trendData.ppg}
+            color="hsl(var(--primary))"
+          />
+          <TrendDriverMiniChart
+            label="Targets"
+            data={trendData.targets}
+            color="#3b82f6"
+          />
+          <TrendDriverMiniChart
+            label="Snap %"
+            data={trendData.snapPct}
+            color="#8b5cf6"
+          />
+          <TrendDriverMiniChart
+            label="RZ Usage"
+            data={trendData.redZoneUsage}
+            color="#f59e0b"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <Badge variant="outline" className="text-[11px]" data-testid={`badge-contender-${playerId}`}>
+          Contender: {dynastySnapshot.contenderGrade}
+        </Badge>
+        <Badge variant="outline" className="text-[11px]" data-testid={`badge-rebuild-${playerId}`}>
+          Rebuild: {dynastySnapshot.rebuildGrade}
+        </Badge>
+        <Badge
+          variant="outline"
+          className={`text-[11px] ${
+            projection.trajectory === "ascending"
+              ? "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30"
+              : projection.trajectory === "declining"
+              ? "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30"
+              : ""
+          }`}
+          data-testid={`badge-projection-trajectory-${playerId}`}
+        >
+          {projection.trajectory === "ascending" ? "Projected Growth" : projection.trajectory === "declining" ? "Projected Decline" : "Stable Projection"}
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
+function ExpandedTrendingPlayerDetails({ playerId }: { playerId: string }) {
+  const { data: cardData, isLoading } = useQuery<PlayerCardData>({
+    queryKey: ["/api/engine/v3/player-card", playerId],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="mt-3 pt-3 border-t border-border space-y-2">
+        <Skeleton className="h-5 w-32" />
+        <div className="flex gap-1.5">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-5 w-24" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!cardData) return null;
+
+  const drivers = computeTrendDriversFromCard(cardData);
+  const { dynastySnapshot, projection } = cardData;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border space-y-3" data-testid={`trending-expanded-${playerId}`}>
+      <div className="flex flex-wrap gap-1.5">
+        {drivers.map((d, i) => (
+          <TrendDriverChip key={i} driver={d} />
+        ))}
+      </div>
+      <div className="flex items-center gap-4 text-xs">
+        <span className="text-muted-foreground">
+          Dynasty: <span className="font-medium text-yellow-500">{dynastySnapshot.dynastyScore}</span>
+        </span>
+        <span className="text-muted-foreground">
+          Outlook: <span className="font-medium text-foreground">{dynastySnapshot.threeYearOutlook}</span>
+        </span>
+        <span className="text-muted-foreground">
+          Proj PPG: <span className="font-medium text-foreground">{projection.year1.ppg}</span>
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default function PlayerTrendsPage() {
@@ -239,7 +626,7 @@ export default function PlayerTrendsPage() {
         <Button
           variant={activeTab === "career" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setActiveTab("career")}
+          onClick={() => { setActiveTab("career"); setExpandedPlayer(null); }}
           className={`shrink-0 glass ${activeTab === "career" ? "glass-active" : ""}`}
           data-testid="tab-career-trends"
         >
@@ -249,7 +636,7 @@ export default function PlayerTrendsPage() {
         <Button
           variant={activeTab === "added" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setActiveTab("added")}
+          onClick={() => { setActiveTab("added"); setExpandedPlayer(null); }}
           className={`shrink-0 glass ${activeTab === "added" ? "glass-active" : ""}`}
           data-testid="tab-most-added"
         >
@@ -259,7 +646,7 @@ export default function PlayerTrendsPage() {
         <Button
           variant={activeTab === "dropped" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setActiveTab("dropped")}
+          onClick={() => { setActiveTab("dropped"); setExpandedPlayer(null); }}
           className={`shrink-0 glass ${activeTab === "dropped" ? "glass-active" : ""}`}
           data-testid="tab-most-dropped"
         >
@@ -367,7 +754,6 @@ export default function PlayerTrendsPage() {
               {sortedCareerPlayers.length} players | {careerData?.availableSeasons?.[0]}–{careerData?.availableSeasons?.[careerData.availableSeasons.length - 1]} seasons | Real PPR stats from Sleeper
             </p>
 
-            {/* Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
                 { label: "Breakouts", count: sortedCareerPlayers.filter(p => p.trend === "breakout").length, color: "text-yellow-500" },
@@ -384,10 +770,10 @@ export default function PlayerTrendsPage() {
               ))}
             </div>
 
-            {/* Player List */}
             <div className="space-y-2">
               {sortedCareerPlayers.map((player) => {
                 const isExpanded = expandedPlayer === player.playerId;
+                const basicDrivers = computeTrendDriversFromCareer(player);
                 return (
                   <Card
                     key={player.playerId}
@@ -411,7 +797,7 @@ export default function PlayerTrendsPage() {
                             <span className="text-xs text-muted-foreground" data-testid={`text-team-${player.playerId}`}>{player.team}</span>
                             <span className="text-xs text-muted-foreground">Age {player.age}</span>
                           </div>
-                          <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <TrendBadge trend={player.trend} />
                             <span className="text-xs text-muted-foreground">
                               Avg <span className="font-medium text-foreground">{player.avgPpg}</span> PPG
@@ -419,6 +805,11 @@ export default function PlayerTrendsPage() {
                             <span className="text-xs text-muted-foreground">
                               Peak <span className="font-medium text-foreground">{player.careerHigh}</span> ({player.peakSeason})
                             </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {basicDrivers.map((d, i) => (
+                              <TrendDriverChip key={i} driver={d} />
+                            ))}
                           </div>
                         </div>
 
@@ -432,71 +823,75 @@ export default function PlayerTrendsPage() {
                       </div>
 
                       {isExpanded && (
-                        <div className="mt-4 pt-3 border-t border-border space-y-3" data-testid={`expanded-details-${player.playerId}`}>
-                          <p className="text-sm text-muted-foreground" data-testid={`text-trajectory-${player.playerId}`}>
-                            {player.trajectory}
-                          </p>
+                        <div data-testid={`expanded-details-${player.playerId}`}>
+                          <div className="mt-4 pt-3 border-t border-border space-y-3">
+                            <p className="text-sm text-muted-foreground" data-testid={`text-trajectory-${player.playerId}`}>
+                              {player.trajectory}
+                            </p>
 
-                          <div className="grid grid-cols-3 gap-3 text-center">
-                            <div>
-                              <div className="text-lg font-bold" data-testid={`stat-avg-ppg-${player.playerId}`}>{player.avgPpg}</div>
-                              <div className="text-xs text-muted-foreground">Avg PPG</div>
-                            </div>
-                            <div>
-                              <div className="text-lg font-bold text-green-500" data-testid={`stat-career-high-${player.playerId}`}>{player.careerHigh}</div>
-                              <div className="text-xs text-muted-foreground">Career High</div>
-                            </div>
-                            <div>
-                              <div className="text-lg font-bold text-red-500" data-testid={`stat-career-low-${player.playerId}`}>{player.careerLow}</div>
-                              <div className="text-xs text-muted-foreground">Career Low</div>
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground px-2 pb-1">
-                              <span>Season</span>
-                              <div className="flex items-center gap-4">
-                                <span className="w-10 text-center">GP</span>
-                                <span className="w-14 text-center">Points</span>
-                                <span className="w-12 text-center">PPG</span>
-                                <span className="w-14 text-center">Pos Rank</span>
+                            <div className="grid grid-cols-3 gap-3 text-center">
+                              <div>
+                                <div className="text-lg font-bold" data-testid={`stat-avg-ppg-${player.playerId}`}>{player.avgPpg}</div>
+                                <div className="text-xs text-muted-foreground">Avg PPG</div>
+                              </div>
+                              <div>
+                                <div className="text-lg font-bold text-green-500" data-testid={`stat-career-high-${player.playerId}`}>{player.careerHigh}</div>
+                                <div className="text-xs text-muted-foreground">Career High</div>
+                              </div>
+                              <div>
+                                <div className="text-lg font-bold text-red-500" data-testid={`stat-career-low-${player.playerId}`}>{player.careerLow}</div>
+                                <div className="text-xs text-muted-foreground">Career Low</div>
                               </div>
                             </div>
-                            {player.seasons.map((season, sIdx) => {
-                              const prevSeason = sIdx > 0 ? player.seasons[sIdx - 1] : null;
-                              const ppgDelta = prevSeason ? season.ppg - prevSeason.ppg : 0;
-                              return (
-                                <div
-                                  key={season.season}
-                                  className="flex items-center justify-between text-sm px-2 py-1.5 rounded bg-muted/30"
-                                  data-testid={`season-row-${player.playerId}-${sIdx}`}
-                                >
-                                  <span className="font-medium" data-testid={`season-year-${player.playerId}-${sIdx}`}>
-                                    {season.season}
-                                  </span>
-                                  <div className="flex items-center gap-4">
-                                    <span className="w-10 text-center text-muted-foreground" data-testid={`season-games-${player.playerId}-${sIdx}`}>
-                                      {season.games}
-                                    </span>
-                                    <span className="w-14 text-center" data-testid={`season-points-${player.playerId}-${sIdx}`}>
-                                      {season.points.toFixed(0)}
-                                    </span>
-                                    <span className="w-12 text-center font-medium flex items-center justify-center gap-1" data-testid={`season-ppg-${player.playerId}-${sIdx}`}>
-                                      {season.ppg}
-                                      {sIdx > 0 && (
-                                        <span className={`text-[10px] ${ppgDelta > 0 ? "text-green-500" : ppgDelta < 0 ? "text-red-500" : "text-muted-foreground"}`}>
-                                          {ppgDelta > 0 ? "+" : ""}{ppgDelta.toFixed(1)}
-                                        </span>
-                                      )}
-                                    </span>
-                                    <Badge variant="secondary" className="w-14 justify-center text-xs" data-testid={`season-rank-${player.playerId}-${sIdx}`}>
-                                      {season.positionRank > 0 && season.positionRank < 999 ? `#${season.positionRank}` : "-"}
-                                    </Badge>
-                                  </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-xs font-medium text-muted-foreground px-2 pb-1">
+                                <span>Season</span>
+                                <div className="flex items-center gap-4">
+                                  <span className="w-10 text-center">GP</span>
+                                  <span className="w-14 text-center">Points</span>
+                                  <span className="w-12 text-center">PPG</span>
+                                  <span className="w-14 text-center">Pos Rank</span>
                                 </div>
-                              );
-                            })}
+                              </div>
+                              {player.seasons.map((season, sIdx) => {
+                                const prevSeason = sIdx > 0 ? player.seasons[sIdx - 1] : null;
+                                const ppgDelta = prevSeason ? season.ppg - prevSeason.ppg : 0;
+                                return (
+                                  <div
+                                    key={season.season}
+                                    className="flex items-center justify-between text-sm px-2 py-1.5 rounded bg-muted/30"
+                                    data-testid={`season-row-${player.playerId}-${sIdx}`}
+                                  >
+                                    <span className="font-medium" data-testid={`season-year-${player.playerId}-${sIdx}`}>
+                                      {season.season}
+                                    </span>
+                                    <div className="flex items-center gap-4">
+                                      <span className="w-10 text-center text-muted-foreground" data-testid={`season-games-${player.playerId}-${sIdx}`}>
+                                        {season.games}
+                                      </span>
+                                      <span className="w-14 text-center" data-testid={`season-points-${player.playerId}-${sIdx}`}>
+                                        {season.points.toFixed(0)}
+                                      </span>
+                                      <span className="w-12 text-center font-medium flex items-center justify-center gap-1" data-testid={`season-ppg-${player.playerId}-${sIdx}`}>
+                                        {season.ppg}
+                                        {sIdx > 0 && (
+                                          <span className={`text-[10px] ${ppgDelta > 0 ? "text-green-500" : ppgDelta < 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                                            {ppgDelta > 0 ? "+" : ""}{ppgDelta.toFixed(1)}
+                                          </span>
+                                        )}
+                                      </span>
+                                      <Badge variant="secondary" className="w-14 justify-center text-xs" data-testid={`season-rank-${player.playerId}-${sIdx}`}>
+                                        {season.positionRank > 0 && season.positionRank < 999 ? `#${season.positionRank}` : "-"}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
+
+                          <ExpandedPlayerCardDetails playerId={player.playerId} />
                         </div>
                       )}
                     </CardContent>
@@ -522,57 +917,68 @@ export default function PlayerTrendsPage() {
           </Card>
         ) : (
           <div className="space-y-2">
-            {filteredTrendingPlayers.map((player) => (
-              <Card
-                key={player.id}
-                className="hover-elevate"
-                data-testid={`trending-card-${player.id}`}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-sm font-bold">
-                      {player.rank}
+            {filteredTrendingPlayers.map((player) => {
+              const isExpanded = expandedPlayer === player.id;
+              return (
+                <Card
+                  key={player.id}
+                  className="hover-elevate cursor-pointer"
+                  onClick={() => setExpandedPlayer(isExpanded ? null : player.id)}
+                  data-testid={`trending-card-${player.id}`}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-sm font-bold">
+                        {player.rank}
+                      </div>
+
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={getNFLTeamLogo(player.team) || undefined} alt={player.team} />
+                        <AvatarFallback className="text-xs">{player.team}</AvatarFallback>
+                      </Avatar>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium truncate" data-testid={`text-player-name-${player.id}`}>
+                            {player.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Badge variant="outline" className={getPositionColorClass(player.position)}>
+                            {player.position}
+                          </Badge>
+                          <span>{player.team}</span>
+                          {player.age && <span>Age {player.age}</span>}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right">
+                          <div className="flex items-center gap-1">
+                            {activeTab === "added" ? (
+                              <TrendingUp className="h-4 w-4" />
+                            ) : (
+                              <TrendingDown className="h-4 w-4" />
+                            )}
+                            <span className="font-bold text-lg" data-testid={`count-${player.id}`}>
+                              {player.count.toLocaleString()}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {activeTab === "added" ? "adds" : "drops"}
+                          </span>
+                        </div>
+                        <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                      </div>
                     </div>
 
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={getNFLTeamLogo(player.team) || undefined} alt={player.team} />
-                      <AvatarFallback className="text-xs">{player.team}</AvatarFallback>
-                    </Avatar>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium truncate" data-testid={`text-player-name-${player.id}`}>
-                          {player.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline" className={getPositionColorClass(player.position)}>
-                          {player.position}
-                        </Badge>
-                        <span>{player.team}</span>
-                        {player.age && <span>Age {player.age}</span>}
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <div className="flex items-center gap-1">
-                        {activeTab === "added" ? (
-                          <TrendingUp className="h-4 w-4" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4" />
-                        )}
-                        <span className="font-bold text-lg" data-testid={`count-${player.id}`}>
-                          {player.count.toLocaleString()}
-                        </span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {activeTab === "added" ? "adds" : "drops"}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    {isExpanded && (
+                      <ExpandedTrendingPlayerDetails playerId={player.id} />
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )
       )}
