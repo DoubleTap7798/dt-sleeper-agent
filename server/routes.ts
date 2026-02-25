@@ -14945,7 +14945,10 @@ Respond in JSON format:
       const existingRoster = myRoster?.players || [];
       const posCount: Record<string, number> = {};
 
-      const allPlayers = await sleeperApi.getAllPlayers();
+      const [allPlayers, seasonStats] = await Promise.all([
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getSeasonStats("2025", "regular").catch(() => ({})),
+      ]);
       for (const pid of existingRoster) {
         const player = allPlayers?.[pid];
         if (player) {
@@ -15068,6 +15071,7 @@ Respond in JSON format:
       const buildVeteranPool = () => {
         const AGE_CEILING: Record<string, number> = { QB: 38, RB: 29, WR: 31, TE: 32, K: 40, DEF: 99, LB: 32, DL: 32, CB: 32, S: 32, SAF: 32, EDGE: 32 };
         const DYNASTY_VALUE_FLOOR = 1500;
+        const stats = seasonStats || {};
 
         const veterans: any[] = [];
         Object.entries(allPlayers).forEach(([pid, p]: [string, any]) => {
@@ -15083,38 +15087,38 @@ Respond in JSON format:
           if (p.status === "Inactive" && !p.team) return;
 
           const isFreeAgent = !p.team || p.team === "" || p.team === "FA";
-          const isPracticeSquad = p.practice_squad || false;
           const searchRank = p.search_rank || 9999;
 
           if (isFreeAgent && searchRank > 500) return;
-          if (isPracticeSquad && searchRank > 500) return;
           if (!isFreeAgent && searchRank > 2000) return;
 
+          const playerStats = stats[pid];
+          const gp = playerStats?.gp || playerStats?.gms_active || 0;
+          const pts = playerStats?.pts_ppr || playerStats?.pts_half_ppr || 0;
+          const ppg = gp > 0 ? pts / gp : 0;
           const depthChart = p.depth_chart_order || 99;
           const yearsExp = p.years_exp || 0;
-          if (yearsExp >= 2 && depthChart > 2 && searchRank > 300 && isFreeAgent) return;
-          if (yearsExp >= 1 && depthChart > 3 && searchRank > 500) return;
 
-          veterans.push({ pid, ...p });
+          if (yearsExp >= 2 && gp === 0 && depthChart > 2) return;
+          if (yearsExp >= 2 && ppg < 3.0 && depthChart > 2 && searchRank > 200) return;
+          if (isFreeAgent && gp < 5) return;
+
+          veterans.push({ pid, ...p, _gp: gp, _pts: pts, _ppg: ppg });
         });
 
         return veterans.map((p) => {
           let value = ktcValues.getPlayerValue(p.pid, p.position, p.age || 25, p.years_exp || 1, p.search_rank, !!p.team);
           const searchRk = p.search_rank || 9999;
           const depthOrd = p.depth_chart_order || 99;
-          const isFa = !p.team || p.team === "" || p.team === "FA";
+          const playerPpg = p._ppg || 0;
+          const playerGp = p._gp || 0;
 
-          if (depthOrd > 2 && searchRk > 150) {
-            value = Math.min(value, 2000);
-          }
-          if (depthOrd > 1 && searchRk > 300) {
-            value = Math.min(value, 1800);
-          }
-          if (isFa) {
-            value = Math.min(value, 1200);
-          }
-          if (searchRk > 400) {
-            value = Math.min(value, 1500);
+          if (playerGp === 0 || playerPpg < 2.0) {
+            value = Math.round(value * 0.3);
+          } else if (playerPpg < 5.0 && depthOrd > 2) {
+            value = Math.round(value * 0.5);
+          } else if (playerPpg < 8.0 && depthOrd > 1) {
+            value = Math.round(value * 0.7);
           }
 
           const posCeiling: Record<string, number> = { QB: 9500, RB: 8500, WR: 9000, TE: 7500, K: 800, DEF: 800 };
