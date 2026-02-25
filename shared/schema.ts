@@ -423,6 +423,7 @@ export const powerRankingSnapshots = pgTable("power_ranking_snapshots", {
   riskScore: real("risk_score").notNull(),
   snapshotWeek: integer("snapshot_week").notNull(),
   snapshotSeason: integer("snapshot_season").notNull(),
+  mode: text("mode").default("dynasty").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

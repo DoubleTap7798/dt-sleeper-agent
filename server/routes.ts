@@ -35,7 +35,10 @@ import * as draftSimulationService from "./engine/draft-simulation-service";
 import * as tradeSimulationService from "./engine/trade-simulation-service";
 import * as marketDynamicsService from "./engine/market-dynamics-service";
 import * as powerRankingsService from "./engine/power-rankings-service";
+import * as inSeasonRankingsService from "./engine/in-season-rankings-service";
 import * as aiExplanationService from "./engine/ai-explanation-service";
+
+function r2(v: number): number { return Math.round(v * 100) / 100; }
 
 // Server-side response cache for expensive API routes
 class RouteCache {
@@ -2665,11 +2668,77 @@ ${urls}
     }
   });
 
-  // Get power rankings for a league — Dynasty Dominance Score V3 Engine
+  // Get power rankings for a league — Dynasty Dominance Score V3 Engine + In-Season + Hybrid
   app.get("/api/sleeper/power-rankings/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;
+      const mode = (req.query.mode as string) || "dynasty";
       const projectionWindow = (req.query.window as string) || "3";
+
+      if (mode === "in-season" || mode === "hybrid") {
+        const inSeasonResult = await inSeasonRankingsService.computeInSeasonRankings(leagueId);
+
+        if (mode === "in-season") {
+          if (inSeasonResult.offseason) {
+            return res.json({ offseason: true, rankings: [], mode: "in-season" });
+          }
+
+          let inSeasonSnapshots: any[] = [];
+          try {
+            inSeasonSnapshots = await db.select().from(schema.powerRankingSnapshots)
+              .where(sql`${schema.powerRankingSnapshots.leagueId} = ${leagueId} AND ${schema.powerRankingSnapshots.mode} = 'in-season'`)
+              .orderBy(sql`${schema.powerRankingSnapshots.createdAt} DESC`)
+              .limit(inSeasonResult.rankings.length * 2);
+          } catch (e) {}
+
+          const lastSnapMap = new Map<number, { compositeScore: number; championshipOdds: number }>();
+          for (const snap of inSeasonSnapshots) {
+            if (!lastSnapMap.has(snap.rosterId)) {
+              lastSnapMap.set(snap.rosterId, { compositeScore: snap.compositeScore, championshipOdds: snap.championshipOdds });
+            }
+          }
+
+          for (const entry of inSeasonResult.rankings) {
+            const prev = lastSnapMap.get(entry.rosterId);
+            entry.weeklyDelta = prev ? r2(entry.inSeasonScore - prev.compositeScore) : null;
+            entry.oddsDelta = prev ? r2(entry.championshipOdds - prev.championshipOdds) : null;
+          }
+
+          try {
+            const shouldSnapshot = inSeasonSnapshots.length === 0 ||
+              (inSeasonSnapshots[0] && (Date.now() - new Date(inSeasonSnapshots[0].createdAt).getTime() > 6 * 24 * 60 * 60 * 1000));
+            if (shouldSnapshot) {
+              const stateData = await sleeperApi.getState();
+              const currentWeek = stateData?.week || 0;
+              const currentSeason = parseInt(stateData?.season || "2025");
+              for (const entry of inSeasonResult.rankings) {
+                await db.insert(schema.powerRankingSnapshots).values({
+                  leagueId,
+                  rosterId: entry.rosterId,
+                  compositeScore: entry.inSeasonScore,
+                  championshipOdds: entry.championshipOdds,
+                  rosterEV: entry.nStarterPPG,
+                  pickEV: entry.nWinPct,
+                  depthScore: entry.nAllPlayPct,
+                  liquidityScore: entry.nMomentum,
+                  riskScore: entry.nInjuryDepth,
+                  snapshotWeek: currentWeek,
+                  snapshotSeason: currentSeason,
+                  mode: "in-season",
+                });
+              }
+            }
+          } catch (e) {}
+
+          return res.json(inSeasonResult.rankings);
+        }
+
+        if (mode === "hybrid") {
+          if (inSeasonResult.offseason) {
+            return res.json({ offseason: true, rankings: [], mode: "hybrid" });
+          }
+        }
+      }
 
       const [league, rosters, leagueUsers, state, allPlayers, tradedPicks] = await Promise.all([
         sleeperApi.getLeague(leagueId),
@@ -2929,7 +2998,7 @@ ${urls}
       let previousSnapshots: any[] = [];
       try {
         const snaps = await db.select().from(schema.powerRankingSnapshots)
-          .where(sql`${schema.powerRankingSnapshots.leagueId} = ${leagueId}`)
+          .where(sql`${schema.powerRankingSnapshots.leagueId} = ${leagueId} AND ${schema.powerRankingSnapshots.mode} = 'dynasty'`)
           .orderBy(sql`${schema.powerRankingSnapshots.createdAt} DESC`)
           .limit(numTeams * 2);
         previousSnapshots = snaps;
@@ -3031,17 +3100,17 @@ ${urls}
 
       const isOffseason = teamsRaw.every((t: any) => t.record.wins === 0 && t.record.losses === 0 && t.record.ties === 0);
 
-      const result = teams.map((team: any, index: number) => ({
+      const dynastyResult = teams.map((team: any, index: number) => ({
         ...team,
         rank: index + 1,
-        mode: isOffseason ? "dynasty" : "dynasty",
+        mode: "dynasty" as const,
       }));
 
       try {
         const shouldSnapshot = previousSnapshots.length === 0 ||
           (previousSnapshots[0] && (Date.now() - new Date(previousSnapshots[0].createdAt).getTime() > 6 * 24 * 60 * 60 * 1000));
         if (shouldSnapshot) {
-          for (const team of result) {
+          for (const team of dynastyResult) {
             await db.insert(schema.powerRankingSnapshots).values({
               leagueId,
               rosterId: team.rosterId,
@@ -3054,12 +3123,73 @@ ${urls}
               riskScore: team.riskScore,
               snapshotWeek: currentWeek,
               snapshotSeason: currentSeason,
+              mode: "dynasty",
             });
           }
         }
       } catch (e) {}
 
-      res.json(result);
+      if (mode === "hybrid") {
+        const inSeasonResult = await inSeasonRankingsService.computeInSeasonRankings(leagueId);
+        if (!inSeasonResult.offseason && inSeasonResult.rankings.length > 0) {
+          const inSeasonMap = new Map(inSeasonResult.rankings.map(r => [r.rosterId, r]));
+
+          const hybridTeams = dynastyResult.map((team: any) => {
+            const inSeason = inSeasonMap.get(team.rosterId);
+            const inSeasonScore = inSeason?.inSeasonScore ?? team.dds;
+            const hybridScore = r2(inSeasonScore * 0.6 + team.dds * 0.4);
+
+            return {
+              ...team,
+              mode: "hybrid" as const,
+              hybridScore,
+              inSeasonScore: inSeason?.inSeasonScore ?? null,
+              dynastyScore: team.dds,
+              starterPPG: inSeason?.starterPPG ?? null,
+              nStarterPPG: inSeason?.nStarterPPG ?? null,
+              winPct: inSeason?.winPct ?? null,
+              nWinPct: inSeason?.nWinPct ?? null,
+              pointsAboveMedian: inSeason?.pointsAboveMedian ?? null,
+              nPointsAboveMedian: inSeason?.nPointsAboveMedian ?? null,
+              allPlayPct: inSeason?.allPlayPct ?? null,
+              nAllPlayPct: inSeason?.nAllPlayPct ?? null,
+              momentum: inSeason?.momentum ?? null,
+              nMomentum: inSeason?.nMomentum ?? null,
+              injuryDepth: inSeason?.injuryDepth ?? null,
+              nInjuryDepth: inSeason?.nInjuryDepth ?? null,
+            };
+          });
+
+          hybridTeams.sort((a: any, b: any) => b.hybridScore - a.hybridScore);
+
+          const SOFTMAX_TEMP = 25;
+          const expH = hybridTeams.map((t: any) => Math.exp(t.hybridScore / SOFTMAX_TEMP));
+          const expHSum = expH.reduce((a: number, b: number) => a + b, 0);
+
+          const hybridResult = hybridTeams.map((team: any, idx: number) => {
+            const champOdds = r2((expH[idx] / expHSum) * 100);
+            let tier: string;
+            if (team.hybridScore >= 85) tier = "Elite";
+            else if (team.hybridScore >= 70) tier = "Strong";
+            else if (team.hybridScore >= 50) tier = "Competitive";
+            else if (team.hybridScore >= 35) tier = "Retool";
+            else tier = "Rebuild";
+
+            return {
+              ...team,
+              rank: idx + 1,
+              dds: team.hybridScore,
+              championshipOdds: champOdds,
+              playoffOdds: Math.min(r2(champOdds * (numTeams / 2)), 99),
+              tier,
+            };
+          });
+
+          return res.json(hybridResult);
+        }
+      }
+
+      res.json(dynastyResult);
     } catch (error) {
       console.error("Error fetching power rankings:", error);
       res.status(500).json({ message: "Failed to fetch power rankings" });
