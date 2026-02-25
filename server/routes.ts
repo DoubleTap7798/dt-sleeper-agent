@@ -12915,7 +12915,10 @@ ${managerProfileContext}`;
         return { history: h, rosters, users, bracket, transactions };
       });
 
-      const allSeasonData = await Promise.all(seasonDataPromises);
+      const allSeasonData = (await Promise.all(seasonDataPromises)).filter(sd => {
+        const totalGames = sd.rosters.reduce((sum, r) => sum + (r.settings.wins || 0) + (r.settings.losses || 0) + (r.settings.ties || 0), 0);
+        return totalGames > 0;
+      });
 
       const seasons = allSeasonData.map((sd) => {
         const { history: h, rosters, users, bracket, transactions } = sd;
