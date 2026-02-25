@@ -51,9 +51,11 @@ export function formatStandingsForShare(standings: any[]): string {
 }
 
 export function formatPowerRankingsForShare(rankings: any[]): string {
-  const lines = ["Power Rankings", ""];
+  const lines = ["Dynasty Power Rankings", ""];
   rankings.forEach((team) => {
-    lines.push(`#${team.rank} ${team.teamName} [${team.tier}] - Score: ${Number(team.powerScore).toFixed(1)}`);
+    const score = team.compositeScore ?? team.powerScore ?? 0;
+    const odds = team.championshipOdds ? ` | ${team.championshipOdds}% champ` : "";
+    lines.push(`#${team.rank} ${team.teamName} [${team.tier}] - Score: ${Number(score).toFixed(1)}${odds}`);
   });
   return lines.join("\n");
 }

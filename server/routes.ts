@@ -2665,17 +2665,18 @@ ${urls}
     }
   });
 
-  // Get power rankings for a league
+  // Get power rankings for a league — Dynasty Composite Engine
   app.get("/api/sleeper/power-rankings/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;
 
-      const [league, rosters, leagueUsers, state, allPlayers] = await Promise.all([
+      const [league, rosters, leagueUsers, state, allPlayers, tradedPicks] = await Promise.all([
         sleeperApi.getLeague(leagueId),
         sleeperApi.getLeagueRosters(leagueId),
         sleeperApi.getLeagueUsers(leagueId),
         sleeperApi.getState(),
         sleeperApi.getAllPlayers(),
+        sleeperApi.getLeagueDraftPicks(leagueId),
       ]);
 
       if (!league) {
@@ -2684,34 +2685,190 @@ ${urls}
 
       await dynastyConsensusService.fetchAndCacheValues();
       const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
+      const currentSeason = parseInt(state?.season || "2025");
+      const numTeams = rosters.length || 12;
 
-      const userMap = new Map(leagueUsers.map((u) => [u.user_id, u]));
+      const userMap = new Map(leagueUsers.map((u: any) => [u.user_id, u]));
+      const rosterOwnerMap = new Map(rosters.map((r: any) => [r.roster_id, r.owner_id]));
 
-      const rosterValues: number[] = [];
-      const pointsArray: number[] = [];
+      const PICK_VALUE_TABLE: Record<string, number> = {};
+      for (let rd = 1; rd <= 5; rd++) {
+        for (let slot = 1; slot <= numTeams; slot++) {
+          const key = `${rd}.${String(slot).padStart(2, "0")}`;
+          const base = rd === 1 ? 100 : rd === 2 ? 55 : rd === 3 ? 30 : rd === 4 ? 15 : 8;
+          const decay = rd === 1 ? 3.5 : rd === 2 ? 2 : 1;
+          PICK_VALUE_TABLE[key] = Math.max(base - (slot - 1) * decay, 1);
+        }
+      }
 
-      const teamsRaw = rosters.map((roster) => {
+      const YEAR_DISCOUNT: Record<number, number> = { 0: 1.0, 1: 0.85, 2: 0.7 };
+
+      const AGE_CURVES: Record<string, { peak: [number, number]; decline: number }> = {
+        QB: { peak: [24, 32], decline: 0.06 },
+        RB: { peak: [22, 27], decline: 0.12 },
+        WR: { peak: [23, 30], decline: 0.08 },
+        TE: { peak: [24, 30], decline: 0.07 },
+      };
+
+      const POS_SCARCITY: Record<string, number> = { QB: isSuperflex ? 1.3 : 0.9, RB: 1.15, WR: 1.0, TE: 1.1 };
+
+      const STARTER_POSITIONS = new Set(
+        (league.roster_positions || []).filter((p: string) => p !== "BN" && p !== "IR" && p !== "TAXI")
+      );
+      const starterSlotCount = STARTER_POSITIONS.size || 9;
+
+      const pickOwnership: Map<number, Array<{ round: number; season: number; originalRosterId: number }>> = new Map();
+      for (const roster of rosters) {
+        const ownedPicks: Array<{ round: number; season: number; originalRosterId: number }> = [];
+        for (let yr = currentSeason; yr <= currentSeason + 2; yr++) {
+          for (let rd = 1; rd <= (league.settings?.draft_rounds || 4); rd++) {
+            ownedPicks.push({ round: rd, season: yr, originalRosterId: roster.roster_id });
+          }
+        }
+        pickOwnership.set(roster.roster_id, ownedPicks);
+      }
+
+      if (tradedPicks && tradedPicks.length > 0) {
+        for (const tp of tradedPicks) {
+          const season = parseInt(String(tp.season));
+          if (season < currentSeason || season > currentSeason + 2) continue;
+          const origRosterId = tp.roster_id;
+          const newOwnerRosterId = tp.owner_id;
+          if (origRosterId === newOwnerRosterId) continue;
+
+          const origOwnerPicks = pickOwnership.get(origRosterId);
+          if (origOwnerPicks) {
+            const idx = origOwnerPicks.findIndex(
+              p => p.round === tp.round && p.season === season && p.originalRosterId === origRosterId
+            );
+            if (idx !== -1) {
+              const [removed] = origOwnerPicks.splice(idx, 1);
+              const newOwnerPicks = pickOwnership.get(newOwnerRosterId);
+              if (newOwnerPicks) {
+                newOwnerPicks.push(removed);
+              }
+            }
+          }
+        }
+      }
+
+      function calculateDynastyValueScore(player: any, normalizedVal: number): number {
+        const pos = player.position || "QB";
+        const age = player.age || 25;
+        const baseTalent = normalizedVal;
+        const curve = AGE_CURVES[pos] || AGE_CURVES.WR;
+        let ageMod = 1.0;
+        if (age < curve.peak[0]) ageMod = 0.85 + (age / curve.peak[0]) * 0.15;
+        else if (age >= curve.peak[0] && age <= curve.peak[1]) ageMod = 1.0;
+        else ageMod = Math.max(0.3, 1.0 - (age - curve.peak[1]) * curve.decline);
+
+        const productionTrend = normalizedVal > 50 ? 0.8 : normalizedVal > 25 ? 0.5 : 0.3;
+        const scarcity = POS_SCARCITY[pos] || 1.0;
+
+        return (baseTalent * 0.5) + (ageMod * 20 * 0.2) + (productionTrend * 20 * 0.2) + (scarcity * 10 * 0.1);
+      }
+
+      const teamsRaw = rosters.map((roster: any) => {
         const user = userMap.get(roster.owner_id);
-        const fpts = (roster.settings.fpts || 0) + (roster.settings.fpts_decimal || 0) / 100;
-        const maxPts = (roster.settings.ppts || 0) + (roster.settings.ppts_decimal || 0) / 100;
-        const totalGames = (roster.settings.wins || 0) + (roster.settings.losses || 0) + (roster.settings.ties || 0);
-        const winPct = totalGames > 0 ? (roster.settings.wins || 0) / totalGames : 0;
+        const starters = roster.starters || [];
+        const starterSet = new Set(starters.filter((s: string) => s && s !== "0"));
+        const playerIds: string[] = roster.players || [];
 
-        let rosterValue = 0;
-        const playerIds = roster.players || [];
+        let rosterEV = 0;
+        let starterAgeSum = 0;
+        let starterCount = 0;
+        let topTierAssets = 0;
+        let midTierAssets = 0;
+        let flexLevelAssets = 0;
+        let injuryRiskCount = 0;
+        let decliningCount = 0;
+        let oldClusterCount = 0;
+        const playerAges: number[] = [];
+        const playerValues: Array<{ name: string; pos: string; age: number; value: number; isStarter: boolean }> = [];
+
         for (const pid of playerIds) {
           const player = allPlayers[pid];
           if (!player) continue;
           const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
           const position = player.position || "QB";
-          const val = dynastyConsensusService.getNormalizedValue(playerName, position, isSuperflex);
-          if (val !== null) {
-            rosterValue += val;
+          const age = player.age || 25;
+          const normalizedVal = dynastyConsensusService.getNormalizedValue(playerName, position, isSuperflex);
+          if (normalizedVal === null) continue;
+
+          const dynastyVal = calculateDynastyValueScore(player, normalizedVal);
+          rosterEV += dynastyVal;
+
+          const isStarter = starterSet.has(pid);
+          if (isStarter) {
+            starterAgeSum += age;
+            starterCount++;
           }
+          playerAges.push(age);
+          playerValues.push({ name: playerName, pos: position, age, value: dynastyVal, isStarter });
+
+          if (normalizedVal >= 70) topTierAssets++;
+          else if (normalizedVal >= 40) midTierAssets++;
+          if (normalizedVal >= 20 && (isStarter || normalizedVal >= 30)) flexLevelAssets++;
+
+          if (player.injury_status && ["Out", "IR", "PUP", "Questionable"].includes(player.injury_status)) {
+            injuryRiskCount++;
+          }
+
+          const curve = AGE_CURVES[position] || AGE_CURVES.WR;
+          if (age > curve.peak[1] + 2 && normalizedVal < 40) decliningCount++;
+          if (age >= 30) oldClusterCount++;
         }
 
-        rosterValues.push(rosterValue);
-        pointsArray.push(fpts);
+        const avgStarterAge = starterCount > 0 ? starterAgeSum / starterCount : 27;
+        let ageCurveAdj = 0;
+        if (avgStarterAge < 25) ageCurveAdj = 15;
+        else if (avgStarterAge <= 27) ageCurveAdj = 10;
+        else if (avgStarterAge <= 29) ageCurveAdj = 3;
+        else ageCurveAdj = -10;
+
+        const depthScore = starterCount * 2 + flexLevelAssets * 1;
+        const liquidityScore = topTierAssets * 3 + midTierAssets * 1;
+
+        let riskPenalty = 0;
+        if (injuryRiskCount >= 3) riskPenalty += 8;
+        else if (injuryRiskCount >= 1) riskPenalty += 3;
+        if (decliningCount >= 3) riskPenalty += 7;
+        else if (decliningCount >= 1) riskPenalty += 3;
+        const ageSpread = playerAges.length > 0 ? Math.max(...playerAges) - Math.min(...playerAges) : 10;
+        if (ageSpread < 5 && avgStarterAge >= 28) riskPenalty += 5;
+        riskPenalty = Math.min(riskPenalty, 20);
+
+        const ownedPicks = pickOwnership.get(roster.roster_id) || [];
+        let futurePickEV = 0;
+        for (const pick of ownedPicks) {
+          const yearDelta = pick.season - currentSeason;
+          const discount = YEAR_DISCOUNT[yearDelta] ?? 0.7;
+          const midSlot = Math.ceil(numTeams / 2);
+          const key = `${pick.round}.${String(midSlot).padStart(2, "0")}`;
+          const baseVal = PICK_VALUE_TABLE[key] || 10;
+          futurePickEV += baseVal * discount;
+        }
+
+        const compositeRaw = rosterEV + futurePickEV + ageCurveAdj + depthScore + liquidityScore - riskPenalty;
+
+        let ageGrade: string;
+        if (avgStarterAge < 25) ageGrade = "A";
+        else if (avgStarterAge < 27) ageGrade = "A-";
+        else if (avgStarterAge < 28) ageGrade = "B+";
+        else if (avgStarterAge < 29) ageGrade = "B";
+        else if (avgStarterAge < 30) ageGrade = "B-";
+        else ageGrade = "C";
+
+        let riskLevel: string;
+        if (riskPenalty <= 3) riskLevel = "Low";
+        else if (riskPenalty <= 8) riskLevel = "Moderate";
+        else if (riskPenalty <= 14) riskLevel = "Elevated";
+        else riskLevel = "High";
+
+        const topPlayers = playerValues
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5)
+          .map(p => ({ name: p.name, position: p.pos, value: Math.round(p.value * 10) / 10 }));
 
         return {
           rosterId: roster.roster_id,
@@ -2719,58 +2876,70 @@ ${urls}
           ownerName: user?.display_name || user?.username || "Unknown",
           avatar: sleeperApi.getAvatarUrl(user?.avatar || null),
           teamName: user?.metadata?.team_name || user?.display_name || user?.username || "Unknown",
+          compositeRaw,
+          rosterEV: Math.round(rosterEV * 10) / 10,
+          futurePickEV: Math.round(futurePickEV * 10) / 10,
+          ageCurveAdj,
+          depthScore,
+          liquidityScore,
+          riskPenalty,
+          avgStarterAge: Math.round(avgStarterAge * 10) / 10,
+          ageGrade,
+          riskLevel,
+          topPlayers,
+          starterCount,
+          totalPlayers: playerIds.length,
+          draftPickCount: ownedPicks.length,
           record: {
             wins: roster.settings.wins || 0,
             losses: roster.settings.losses || 0,
             ties: roster.settings.ties || 0,
           },
-          pointsFor: fpts,
-          rosterValue,
-          winPct,
-          maxPts,
-          efficiency: maxPts > 0 ? (fpts / maxPts) * 100 : 0,
+          pointsFor: (roster.settings.fpts || 0) + (roster.settings.fpts_decimal || 0) / 100,
         };
       });
 
-      const maxRosterValue = Math.max(...rosterValues, 1);
-      const maxPoints = Math.max(...pointsArray, 1);
+      const allRawScores = teamsRaw.map((t: any) => t.compositeRaw);
+      const minScore = Math.min(...allRawScores);
+      const maxScore = Math.max(...allRawScores);
+      const scoreRange = maxScore - minScore || 1;
 
-      const teams = teamsRaw.map((team) => {
-        const rosterStrengthScore = (team.rosterValue / maxRosterValue) * 100;
-        const performanceScore = (team.pointsFor / maxPoints) * 100;
-        const recordScore = team.winPct * 100;
-        const efficiencyScore = team.efficiency;
+      const SOFTMAX_TEMP = 25;
 
-        const powerScore =
-          rosterStrengthScore * 0.4 +
-          performanceScore * 0.3 +
-          recordScore * 0.2 +
-          efficiencyScore * 0.1;
+      const teamsWithNormalized = teamsRaw.map((team: any) => {
+        const normalizedScore = Math.round(((team.compositeRaw - minScore) / scoreRange) * 100 * 10) / 10;
+        return { ...team, compositeScore: normalizedScore };
+      });
+
+      const expScores = teamsWithNormalized.map((t: any) => Math.exp(t.compositeScore / SOFTMAX_TEMP));
+      const expSum = expScores.reduce((a: number, b: number) => a + b, 0);
+
+      const teams = teamsWithNormalized.map((team: any, idx: number) => {
+        const champOdds = Math.round((expScores[idx] / expSum) * 1000) / 10;
 
         let tier: string;
-        if (powerScore >= 80) tier = "Elite";
-        else if (powerScore >= 65) tier = "Contender";
-        else if (powerScore >= 50) tier = "Playoff";
-        else if (powerScore >= 35) tier = "Average";
+        if (team.compositeScore >= 80) tier = "Elite Contender";
+        else if (team.compositeScore >= 70) tier = "Contender";
+        else if (team.compositeScore >= 60) tier = "Competitive";
+        else if (team.compositeScore >= 45) tier = "Retool";
         else tier = "Rebuild";
 
         return {
           ...team,
-          rosterStrengthScore: Math.round(rosterStrengthScore * 10) / 10,
-          performanceScore: Math.round(performanceScore * 10) / 10,
-          recordScore: Math.round(recordScore * 10) / 10,
-          efficiencyScore: Math.round(efficiencyScore * 10) / 10,
-          powerScore: Math.round(powerScore * 10) / 10,
+          championshipOdds: champOdds,
           tier,
           previousRank: null as number | null,
         };
       });
 
-      teams.sort((a, b) => b.powerScore - a.powerScore);
+      teams.sort((a: any, b: any) => b.compositeScore - a.compositeScore);
 
-      const result = teams.map((team, index) => ({
+      const isOffseason = teamsRaw.every((t: any) => t.record.wins === 0 && t.record.losses === 0 && t.record.ties === 0);
+
+      const result = teams.map((team: any, index: number) => ({
         ...team,
         rank: index + 1,
+        mode: isOffseason ? "dynasty" : "dynasty",
       }));
 
       res.json(result);

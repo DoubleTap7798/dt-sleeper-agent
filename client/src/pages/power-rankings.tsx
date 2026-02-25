@@ -1,52 +1,101 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Zap, TrendingUp, Trophy, Target, BarChart3 } from "lucide-react";
+import {
+  Crown,
+  TrendingUp,
+  Shield,
+  Package,
+  AlertTriangle,
+  ChevronUp,
+  ChevronDown,
+  Minus,
+  Trophy,
+  Target,
+  Briefcase,
+} from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { ExportButton } from "@/components/export-button";
 import { formatPowerRankingsForShare } from "@/lib/export-utils";
 
-interface PowerRankedTeam {
+interface DynastyRankedTeam {
   rosterId: number;
   ownerId: string;
   ownerName: string;
   avatar: string | null;
   teamName: string;
-  powerScore: number;
-  rosterStrengthScore: number;
-  performanceScore: number;
-  recordScore: number;
-  efficiencyScore: number;
-  record: { wins: number; losses: number; ties: number };
-  pointsFor: number;
+  compositeScore: number;
+  rosterEV: number;
+  futurePickEV: number;
+  ageCurveAdj: number;
+  depthScore: number;
+  liquidityScore: number;
+  riskPenalty: number;
+  avgStarterAge: number;
+  ageGrade: string;
+  riskLevel: string;
+  championshipOdds: number;
   tier: string;
   rank: number;
   previousRank: number | null;
+  topPlayers: Array<{ name: string; position: string; value: number }>;
+  starterCount: number;
+  totalPlayers: number;
+  draftPickCount: number;
+  record: { wins: number; losses: number; ties: number };
+  pointsFor: number;
+  mode: string;
 }
 
-const TIER_CONFIG: Record<string, { color: string; bg: string; border: string }> = {
-  Elite: { color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/30" },
-  Contender: { color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/30" },
-  Playoff: { color: "text-green-400", bg: "bg-green-400/10", border: "border-green-400/30" },
-  Average: { color: "text-muted-foreground", bg: "bg-muted/30", border: "border-muted" },
-  Rebuild: { color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/30" },
+const TIER_CONFIG: Record<string, { color: string; bg: string; border: string; glow: string }> = {
+  "Elite Contender": {
+    color: "text-amber-400",
+    bg: "bg-amber-400/10",
+    border: "border-amber-400/40",
+    glow: "shadow-[0_0_12px_rgba(251,191,36,0.15)]",
+  },
+  Contender: {
+    color: "text-green-400",
+    bg: "bg-green-400/10",
+    border: "border-green-400/30",
+    glow: "",
+  },
+  Competitive: {
+    color: "text-sky-400",
+    bg: "bg-sky-400/10",
+    border: "border-sky-400/30",
+    glow: "",
+  },
+  Retool: {
+    color: "text-orange-400",
+    bg: "bg-orange-400/10",
+    border: "border-orange-400/30",
+    glow: "",
+  },
+  Rebuild: {
+    color: "text-red-400",
+    bg: "bg-red-400/10",
+    border: "border-red-400/30",
+    glow: "",
+  },
 };
 
-function ScoreBar({ label, value, icon: Icon, color }: { label: string; value: number; icon: any; color: string }) {
+const RISK_CONFIG: Record<string, { color: string; icon: typeof Shield }> = {
+  Low: { color: "text-green-400", icon: Shield },
+  Moderate: { color: "text-amber-400", icon: Shield },
+  Elevated: { color: "text-orange-400", icon: AlertTriangle },
+  High: { color: "text-red-400", icon: AlertTriangle },
+};
+
+function MetricPill({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <Icon className={`h-3 w-3 shrink-0 ${color}`} />
-      <span className="w-16 shrink-0 text-muted-foreground">{label}</span>
-      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${color.replace("text-", "bg-")}`}
-          style={{ width: `${Math.min(value, 100)}%` }}
-        />
-      </div>
-      <span className="w-8 text-right font-mono text-muted-foreground">{Math.round(value)}</span>
+    <div className="flex flex-col items-center px-3 py-1.5 rounded-md bg-muted/40 min-w-[70px]">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-medium">{label}</span>
+      <span className="text-sm font-bold tabular-nums text-foreground">{value}</span>
+      {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
     </div>
   );
 }
@@ -54,22 +103,24 @@ function ScoreBar({ label, value, icon: Icon, color }: { label: string; value: n
 function RankingSkeleton() {
   return (
     <div className="space-y-4">
-      <Skeleton className="h-8 w-48" />
-      <Card>
-        <CardContent className="p-4 space-y-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4">
-              <Skeleton className="h-8 w-8 rounded-full" />
-              <Skeleton className="h-10 w-10 rounded-full" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-2 w-full" />
+      <Skeleton className="h-8 w-64" />
+      <div className="space-y-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-12 w-16" />
               </div>
-              <Skeleton className="h-6 w-16" />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
@@ -78,9 +129,9 @@ export default function PowerRankingsPage() {
   const searchString = useSearch();
   const urlParams = new URLSearchParams(searchString);
   const leagueId = urlParams.get("id");
-  usePageTitle("Power Rankings");
+  usePageTitle("Dynasty Power Rankings");
 
-  const { data, isLoading, error } = useQuery<PowerRankedTeam[]>({
+  const { data, isLoading, error } = useQuery<DynastyRankedTeam[]>({
     queryKey: ["/api/sleeper/power-rankings", leagueId],
     enabled: !!leagueId,
   });
@@ -97,118 +148,145 @@ export default function PowerRankingsPage() {
     );
   }
 
-  const isOffseason = data.every(t => t.record.wins === 0 && t.record.losses === 0 && t.record.ties === 0);
+  const isOffseason = data.every(
+    (t) => t.record.wins === 0 && t.record.losses === 0 && t.record.ties === 0
+  );
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <Zap className="h-5 w-5 text-amber-400" />
+        <Crown className="h-5 w-5 text-amber-400" />
         <h2 className="text-xl font-semibold" data-testid="text-power-rankings-title">
-          Power Rankings
+          Dynasty Power Rankings
         </h2>
+        {isOffseason && (
+          <Badge
+            variant="outline"
+            className="text-[10px] uppercase tracking-wider border-amber-400/30 text-amber-400 no-default-hover-elevate no-default-active-elevate"
+            data-testid="badge-dynasty-mode"
+          >
+            Dynasty Projection Mode
+          </Badge>
+        )}
         <div className="ml-auto">
           <ExportButton
             data={data.map((team) => ({
               rank: team.rank,
               teamName: team.teamName,
-              powerScore: team.powerScore.toFixed(1),
-              rosterStrength: team.rosterStrengthScore.toFixed(1),
-              performance: team.performanceScore.toFixed(1),
-              record: `${team.record.wins}-${team.record.losses}${team.record.ties > 0 ? `-${team.record.ties}` : ""}`,
-              efficiency: team.efficiencyScore.toFixed(1),
+              compositeScore: team.compositeScore.toFixed(1),
+              championshipOdds: `${team.championshipOdds}%`,
+              rosterEV: team.rosterEV.toFixed(1),
+              futurePickEV: team.futurePickEV.toFixed(1),
+              ageGrade: team.ageGrade,
+              riskLevel: team.riskLevel,
               tier: team.tier,
-              wins: team.record.wins,
-              losses: team.record.losses,
-              pointsFor: team.pointsFor.toFixed(1),
             }))}
-            filename="power-rankings"
+            filename="dynasty-power-rankings"
             shareText={formatPowerRankingsForShare(data)}
           />
         </div>
       </div>
 
       {isOffseason && (
-        <Card className="border-amber-400/20 dark:border-amber-800/20 bg-amber-50 dark:bg-amber-950/20" data-testid="card-offseason-note">
-          <CardContent className="p-4 flex items-start gap-3">
-            <Zap className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-amber-700 dark:text-amber-200">Offseason Rankings</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                No games have been played yet this season. Power scores are based solely on roster strength right now. Points, record, and efficiency scores will update once the season begins.
-              </p>
-            </div>
+        <Card className="border-amber-400/20 bg-amber-950/10" data-testid="card-offseason-note">
+          <CardContent className="p-3 flex items-start gap-3">
+            <Briefcase className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">
+              Rankings reflect dynasty asset quality, draft capital, age curves, and roster construction.
+              No season stats required.
+            </p>
           </CardContent>
         </Card>
       )}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm text-muted-foreground font-normal flex items-center gap-2 flex-wrap">
-            Composite score based on roster strength, performance, record, and efficiency
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="divide-y divide-border">
-            {data.map((team) => {
-              const tierCfg = TIER_CONFIG[team.tier] || TIER_CONFIG.Average;
+      <div className="space-y-3">
+        {data.map((team) => {
+          const tierCfg = TIER_CONFIG[team.tier] || TIER_CONFIG.Competitive;
+          const riskCfg = RISK_CONFIG[team.riskLevel] || RISK_CONFIG.Moderate;
+          const RiskIcon = riskCfg.icon;
 
-              return (
-                <div
-                  key={team.rosterId}
-                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-4"
-                  data-testid={`card-power-ranking-${team.rosterId}`}
-                >
-                  <div className="flex items-center gap-3 sm:w-64 shrink-0">
+          return (
+            <Card
+              key={team.rosterId}
+              className={`${tierCfg.glow} ${team.rank === 1 ? "border-amber-400/30" : ""}`}
+              data-testid={`card-power-ranking-${team.rosterId}`}
+            >
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${tierCfg.bg} ${tierCfg.color}`}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${tierCfg.bg} ${tierCfg.color}`}
                       data-testid={`text-rank-${team.rosterId}`}
                     >
                       {team.rank}
                     </div>
 
-                    <Avatar className="h-9 w-9">
+                    <Avatar className="h-9 w-9 shrink-0">
                       <AvatarImage src={team.avatar || undefined} alt={team.ownerName} />
                       <AvatarFallback>{team.ownerName.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
 
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate" data-testid={`text-team-name-${team.rosterId}`}>
                         {team.teamName}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {team.record.wins}-{team.record.losses}
-                        {team.record.ties > 0 ? `-${team.record.ties}` : ""} · {team.pointsFor.toFixed(1)} pts
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-1.5 py-0 h-4 ${tierCfg.color} ${tierCfg.border} no-default-hover-elevate no-default-active-elevate`}
+                          data-testid={`badge-tier-${team.rosterId}`}
+                        >
+                          {team.tier}
+                        </Badge>
+                        {!isOffseason && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {team.record.wins}-{team.record.losses}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <p
+                        className="text-3xl font-bold tabular-nums leading-none"
+                        data-testid={`text-composite-score-${team.rosterId}`}
+                      >
+                        {team.compositeScore.toFixed(1)}
                       </p>
+                      <div className="flex items-center justify-end gap-1 mt-1">
+                        <Trophy className="h-3 w-3 text-amber-400" />
+                        <span
+                          className="text-xs font-semibold text-amber-400 tabular-nums"
+                          data-testid={`text-champ-odds-${team.rosterId}`}
+                        >
+                          {team.championshipOdds}%
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 sm:ml-auto shrink-0">
-                    <div className="text-right">
-                      <p className="text-2xl font-bold tabular-nums" data-testid={`text-power-score-${team.rosterId}`}>
-                        {team.powerScore.toFixed(1)}
-                      </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <MetricPill label="Roster EV" value={team.rosterEV.toFixed(0)} />
+                    <MetricPill label="Pick EV" value={team.futurePickEV.toFixed(0)} />
+                    <MetricPill label="Age" value={team.ageGrade} sub={`${team.avgStarterAge}y`} />
+                    <MetricPill label="Depth" value={team.depthScore} />
+                    <MetricPill label="Liquid" value={team.liquidityScore} />
+                    <div className="flex flex-col items-center px-3 py-1.5 rounded-md bg-muted/40 min-w-[70px]">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-medium">
+                        Risk
+                      </span>
+                      <span className={`text-sm font-bold ${riskCfg.color} flex items-center gap-0.5`}>
+                        <RiskIcon className="h-3 w-3" />
+                        {team.riskLevel}
+                      </span>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${tierCfg.color} ${tierCfg.border} no-default-hover-elevate no-default-active-elevate`}
-                      data-testid={`badge-tier-${team.rosterId}`}
-                    >
-                      {team.tier}
-                    </Badge>
-                  </div>
-
-                  <div className="flex-1 min-w-0 space-y-1 sm:max-w-xs">
-                    <ScoreBar label="Roster" value={team.rosterStrengthScore} icon={Trophy} color="text-yellow-400" />
-                    <ScoreBar label="Points" value={team.performanceScore} icon={TrendingUp} color="text-amber-400" />
-                    <ScoreBar label="Record" value={team.recordScore} icon={BarChart3} color="text-green-400" />
-                    <ScoreBar label="Efficiency" value={team.efficiencyScore} icon={Target} color="text-purple-400" />
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

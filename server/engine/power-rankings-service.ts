@@ -7,10 +7,18 @@ export interface PowerRankingEntry {
   rank: number;
   previousRank: number | null;
   rankDelta: number;
-  championshipProbabilityScore: number;
-  medianOutcomeProjection: number;
-  volatilityIndex: number;
   compositeScore: number;
+  championshipOdds: number;
+  rosterEV: number;
+  futurePickEV: number;
+  ageCurveAdj: number;
+  depthScore: number;
+  liquidityScore: number;
+  riskPenalty: number;
+  avgStarterAge: number;
+  ageGrade: string;
+  riskLevel: string;
+  tier: string;
   franchiseWindow: string;
   keyStrengths: string[];
   keyWeaknesses: string[];
@@ -41,21 +49,39 @@ export function computePowerRankings(
       value: number;
       weeklyScores: number[];
       isStarter: boolean;
+      injuryStatus?: string | null;
     }>;
     wins: number;
     losses: number;
     fpts: number;
     previousRank?: number;
+    draftPickCount?: number;
+    futurePickEV?: number;
   }>,
   ufasScores: Map<string, UFASResult>,
   franchiseResults: Map<number, FranchiseWindowResult>
 ): PowerRankingsResult {
+  const AGE_CURVES: Record<string, { peak: [number, number]; decline: number }> = {
+    QB: { peak: [24, 32], decline: 0.06 },
+    RB: { peak: [22, 27], decline: 0.12 },
+    WR: { peak: [23, 30], decline: 0.08 },
+    TE: { peak: [24, 30], decline: 0.07 },
+  };
+
   const entries: PowerRankingEntry[] = [];
 
   for (const roster of rosters) {
     const playerUfasScores: { name: string; ufas: number; position: string }[] = [];
     let totalUFAS = 0;
     let ufasCount = 0;
+    let rosterEV = 0;
+    let starterAgeSum = 0;
+    let starterCount = 0;
+    let topTierAssets = 0;
+    let midTierAssets = 0;
+    let flexLevelAssets = 0;
+    let injuryRiskCount = 0;
+    let decliningCount = 0;
 
     for (const p of roster.players) {
       const ufas = ufasScores.get(p.playerId);
@@ -63,7 +89,26 @@ export function computePowerRankings(
         totalUFAS += ufas.ufas;
         ufasCount++;
         playerUfasScores.push({ name: p.name, ufas: ufas.ufas, position: p.position });
+        rosterEV += ufas.ufas;
+      } else {
+        rosterEV += p.value * 0.5;
       }
+
+      if (p.isStarter) {
+        starterAgeSum += p.age;
+        starterCount++;
+      }
+
+      if (p.value >= 70) topTierAssets++;
+      else if (p.value >= 40) midTierAssets++;
+      if (p.value >= 20) flexLevelAssets++;
+
+      if (p.injuryStatus && ["Out", "IR", "PUP", "Questionable"].includes(p.injuryStatus)) {
+        injuryRiskCount++;
+      }
+
+      const curve = AGE_CURVES[p.position] || AGE_CURVES.WR;
+      if (p.age > curve.peak[1] + 2 && p.value < 40) decliningCount++;
     }
 
     const rosterUFASAvg = ufasCount > 0 ? r2(totalUFAS / ufasCount) : 0;
@@ -71,34 +116,42 @@ export function computePowerRankings(
       .sort((a, b) => b.ufas - a.ufas)
       .slice(0, 5);
 
+    const avgStarterAge = starterCount > 0 ? starterAgeSum / starterCount : 27;
+    let ageCurveAdj = 0;
+    if (avgStarterAge < 25) ageCurveAdj = 15;
+    else if (avgStarterAge <= 27) ageCurveAdj = 10;
+    else if (avgStarterAge <= 29) ageCurveAdj = 3;
+    else ageCurveAdj = -10;
+
+    const depthScore = starterCount * 2 + flexLevelAssets;
+    const liquidityScore = topTierAssets * 3 + midTierAssets;
+
+    let riskPenalty = 0;
+    if (injuryRiskCount >= 3) riskPenalty += 8;
+    else if (injuryRiskCount >= 1) riskPenalty += 3;
+    if (decliningCount >= 3) riskPenalty += 7;
+    else if (decliningCount >= 1) riskPenalty += 3;
+    riskPenalty = Math.min(riskPenalty, 20);
+
+    const futurePickEV = roster.futurePickEV || 0;
+
+    const compositeRaw = rosterEV + futurePickEV + ageCurveAdj + depthScore + liquidityScore - riskPenalty;
+
+    let ageGrade: string;
+    if (avgStarterAge < 25) ageGrade = "A";
+    else if (avgStarterAge < 27) ageGrade = "A-";
+    else if (avgStarterAge < 28) ageGrade = "B+";
+    else if (avgStarterAge < 29) ageGrade = "B";
+    else if (avgStarterAge < 30) ageGrade = "B-";
+    else ageGrade = "C";
+
+    let riskLevel: string;
+    if (riskPenalty <= 3) riskLevel = "Low";
+    else if (riskPenalty <= 8) riskLevel = "Moderate";
+    else if (riskPenalty <= 14) riskLevel = "Elevated";
+    else riskLevel = "High";
+
     const franchiseResult = franchiseResults.get(roster.rosterId);
-    const champProb = franchiseResult?.twoYearChampionshipProb || 0;
-
-    const starters = roster.players.filter(p => p.isStarter);
-    const starterScores = starters.flatMap(p => p.weeklyScores);
-    const medianProjection = starterScores.length > 0
-      ? r2(starterScores.sort((a, b) => a - b)[Math.floor(starterScores.length / 2)])
-      : 0;
-
-    const starterMeans = starters.map(p =>
-      p.weeklyScores.length > 0 ? p.weeklyScores.reduce((a, b) => a + b, 0) / p.weeklyScores.length : 0
-    );
-    const totalMean = starterMeans.reduce((a, b) => a + b, 0);
-    const totalVariance = starters.reduce((sum, p) => {
-      const mean = p.weeklyScores.length > 0 ? p.weeklyScores.reduce((a, b) => a + b, 0) / p.weeklyScores.length : 0;
-      const variance = p.weeklyScores.length > 1
-        ? p.weeklyScores.reduce((s, v) => s + (v - mean) ** 2, 0) / p.weeklyScores.length
-        : 0;
-      return sum + variance;
-    }, 0);
-    const volatilityIndex = totalMean > 0 ? r2(Math.sqrt(totalVariance) / totalMean) : 0.5;
-
-    const compositeScore = r2(
-      champProb * 35 +
-      rosterUFASAvg * 0.35 +
-      (1 - clamp(volatilityIndex)) * 15 +
-      (roster.wins / Math.max(roster.wins + roster.losses, 1)) * 15
-    );
 
     const strengths: string[] = [];
     const weaknesses: string[] = [];
@@ -106,21 +159,24 @@ export function computePowerRankings(
     if (topAssets.length > 0 && topAssets[0].ufas > 75) {
       strengths.push(`Elite asset: ${topAssets[0].name} (UFAS ${topAssets[0].ufas})`);
     }
-    if (champProb > 0.15) strengths.push('Strong championship probability');
-    if (volatilityIndex < 0.3) strengths.push('Low roster volatility');
-    if (franchiseResult && franchiseResult.depthInsulationScore > 0.6) strengths.push('Deep bench insulation');
+    if (futurePickEV > 150) strengths.push('Strong draft capital');
+    if (avgStarterAge < 26) strengths.push('Young core');
+    if (liquidityScore >= 10) strengths.push('High trade flexibility');
 
-    if (volatilityIndex > 0.5) weaknesses.push('High roster volatility');
-    if (champProb < 0.05) weaknesses.push('Low title equity');
-    if (franchiseResult && franchiseResult.depthInsulationScore < 0.3) weaknesses.push('Thin bench depth');
+    if (riskPenalty >= 10) weaknesses.push('Elevated risk profile');
+    if (avgStarterAge >= 29) weaknesses.push('Aging core');
     if (rosterUFASAvg < 35) weaknesses.push('Below-average roster quality');
+    if (futurePickEV < 50) weaknesses.push('Low draft capital');
 
-    const recentScores = roster.players.flatMap(p => p.weeklyScores.slice(-4));
-    const olderScores = roster.players.flatMap(p => p.weeklyScores.slice(0, -4));
-    const recentMean = recentScores.length > 0 ? recentScores.reduce((a, b) => a + b, 0) / recentScores.length : 0;
-    const olderMean = olderScores.length > 0 ? olderScores.reduce((a, b) => a + b, 0) / olderScores.length : 0;
-    const trendDirection: PowerRankingEntry['trendDirection'] =
-      recentMean > olderMean * 1.08 ? 'rising' : recentMean < olderMean * 0.92 ? 'falling' : 'stable';
+    const hasSeasonData = roster.players.some(p => p.weeklyScores.length > 0);
+    let trendDirection: PowerRankingEntry['trendDirection'] = 'stable';
+    if (hasSeasonData) {
+      const recentScores = roster.players.flatMap(p => p.weeklyScores.slice(-4));
+      const olderScores = roster.players.flatMap(p => p.weeklyScores.slice(0, -4));
+      const recentMean = recentScores.length > 0 ? recentScores.reduce((a, b) => a + b, 0) / recentScores.length : 0;
+      const olderMean = olderScores.length > 0 ? olderScores.reduce((a, b) => a + b, 0) / olderScores.length : 0;
+      trendDirection = recentMean > olderMean * 1.08 ? 'rising' : recentMean < olderMean * 0.92 ? 'falling' : 'stable';
+    }
 
     entries.push({
       rosterId: roster.rosterId,
@@ -128,10 +184,18 @@ export function computePowerRankings(
       rank: 0,
       previousRank: roster.previousRank || null,
       rankDelta: 0,
-      championshipProbabilityScore: r2(champProb),
-      medianOutcomeProjection: medianProjection,
-      volatilityIndex,
-      compositeScore,
+      compositeScore: compositeRaw,
+      championshipOdds: 0,
+      rosterEV: r2(rosterEV),
+      futurePickEV: r2(futurePickEV),
+      ageCurveAdj,
+      depthScore,
+      liquidityScore,
+      riskPenalty,
+      avgStarterAge: r2(avgStarterAge),
+      ageGrade,
+      riskLevel,
+      tier: '',
       franchiseWindow: franchiseResult?.label || 'Balanced',
       keyStrengths: strengths.slice(0, 3),
       keyWeaknesses: weaknesses.slice(0, 3),
@@ -140,6 +204,30 @@ export function computePowerRankings(
       trendDirection,
     });
   }
+
+  const allRaw = entries.map(e => e.compositeScore);
+  const minScore = Math.min(...allRaw);
+  const maxScore = Math.max(...allRaw);
+  const range = maxScore - minScore || 1;
+
+  const SOFTMAX_TEMP = 25;
+
+  for (const e of entries) {
+    e.compositeScore = r2(((e.compositeScore - minScore) / range) * 100);
+  }
+
+  const expScores = entries.map(e => Math.exp(e.compositeScore / SOFTMAX_TEMP));
+  const expSum = expScores.reduce((a, b) => a + b, 0);
+
+  entries.forEach((e, i) => {
+    e.championshipOdds = r2((expScores[i] / expSum) * 100);
+
+    if (e.compositeScore >= 80) e.tier = "Elite Contender";
+    else if (e.compositeScore >= 70) e.tier = "Contender";
+    else if (e.compositeScore >= 60) e.tier = "Competitive";
+    else if (e.compositeScore >= 45) e.tier = "Retool";
+    else e.tier = "Rebuild";
+  });
 
   entries.sort((a, b) => b.compositeScore - a.compositeScore);
   entries.forEach((e, i) => {
@@ -158,7 +246,7 @@ export function computePowerRankings(
   const rising = entries.filter(e => e.trendDirection === 'rising').slice(0, 2);
   const falling = entries.filter(e => e.trendDirection === 'falling').slice(0, 2);
 
-  let narrativeSummary = `${leader?.ownerName || 'Unknown'} leads the power rankings (score: ${leader?.compositeScore || 0}). `;
+  let narrativeSummary = `${leader?.ownerName || 'Unknown'} leads the dynasty rankings (score: ${leader?.compositeScore || 0}). `;
   if (rising.length > 0) {
     narrativeSummary += `Rising: ${rising.map(r => r.ownerName).join(', ')}. `;
   }
