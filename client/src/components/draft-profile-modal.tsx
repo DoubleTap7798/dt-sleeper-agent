@@ -35,7 +35,9 @@ import {
   X,
   Target,
   Newspaper,
+  ExternalLink,
 } from "lucide-react";
+import { Link } from "wouter";
 
 interface CombineData {
   fortyYard: number | null;
@@ -387,6 +389,48 @@ export function DraftProfileModal({
                   {player.riskTier}
                 </div>
                 <div className="text-[10px] text-muted-foreground">Risk</div>
+              </div>
+            </div>
+          )}
+
+          {(player.positionEliteRate !== undefined || player.historicalAvgPPG !== undefined) && (
+            <div className="mt-3 p-2.5 rounded-md bg-muted/30 border border-border/50" data-testid="pick-value-context">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-1">
+                  <Target className="h-3 w-3" />
+                  Pick Slot Context — {player.projectedPickSlot || player.projectedPickRange}
+                </span>
+                <Link href={`/league/draft-pick-values?position=${player.positionGroup}`}>
+                  <span className="text-[10px] text-primary/70 hover:text-primary flex items-center gap-0.5 cursor-pointer">
+                    View Pick Values <ExternalLink className="h-2.5 w-2.5" />
+                  </span>
+                </Link>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {player.positionEliteRate != null && (
+                  <div className="text-center p-1 bg-background/50 rounded" data-testid="stat-pos-elite-rate">
+                    <div className="text-xs font-bold text-amber-400">{player.positionEliteRate}%</div>
+                    <div className="text-[9px] text-muted-foreground">{player.positionGroup} Elite</div>
+                  </div>
+                )}
+                {player.positionStarterRate != null && (
+                  <div className="text-center p-1 bg-background/50 rounded" data-testid="stat-pos-starter-rate">
+                    <div className="text-xs font-bold text-emerald-400">{player.positionStarterRate}%</div>
+                    <div className="text-[9px] text-muted-foreground">{player.positionGroup} Starter</div>
+                  </div>
+                )}
+                {player.positionBustRate != null && (
+                  <div className="text-center p-1 bg-background/50 rounded" data-testid="stat-pos-bust-rate">
+                    <div className="text-xs font-bold text-red-400">{player.positionBustRate}%</div>
+                    <div className="text-[9px] text-muted-foreground">{player.positionGroup} Bust</div>
+                  </div>
+                )}
+                {player.historicalAvgPPG != null && player.historicalAvgPPG > 0 && (
+                  <div className="text-center p-1 bg-background/50 rounded" data-testid="stat-historical-ppg">
+                    <div className="text-xs font-bold text-foreground">{player.historicalAvgPPG}</div>
+                    <div className="text-[9px] text-muted-foreground">Avg PPG</div>
+                  </div>
+                )}
               </div>
             </div>
           )}

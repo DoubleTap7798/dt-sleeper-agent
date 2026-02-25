@@ -2665,10 +2665,11 @@ ${urls}
     }
   });
 
-  // Get power rankings for a league — Dynasty Composite Engine
+  // Get power rankings for a league — Dynasty Dominance Score V3 Engine
   app.get("/api/sleeper/power-rankings/:leagueId", isAuthenticated, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;
+      const projectionWindow = (req.query.window as string) || "3";
 
       const [league, rosters, leagueUsers, state, allPlayers, tradedPicks] = await Promise.all([
         sleeperApi.getLeague(leagueId),
@@ -2686,21 +2687,24 @@ ${urls}
       await dynastyConsensusService.fetchAndCacheValues();
       const isSuperflex = dynastyEngine.isLeagueSuperflex(league);
       const currentSeason = parseInt(state?.season || "2025");
+      const currentWeek = state?.week || 0;
       const numTeams = rosters.length || 12;
 
       const userMap = new Map(leagueUsers.map((u: any) => [u.user_id, u]));
-      const rosterOwnerMap = new Map(rosters.map((r: any) => [r.roster_id, r.owner_id]));
 
-      const PICK_VALUE_TABLE: Record<string, number> = {};
-      for (let rd = 1; rd <= 5; rd++) {
-        for (let slot = 1; slot <= numTeams; slot++) {
-          const key = `${rd}.${String(slot).padStart(2, "0")}`;
-          const base = rd === 1 ? 100 : rd === 2 ? 55 : rd === 3 ? 30 : rd === 4 ? 15 : 8;
-          const decay = rd === 1 ? 3.5 : rd === 2 ? 2 : 1;
-          PICK_VALUE_TABLE[key] = Math.max(base - (slot - 1) * decay, 1);
-        }
-      }
+      const WINDOW_WEIGHTS: Record<string, { rosterEV: number; pickEV: number; depth: number; liquidity: number; risk: number }> = {
+        "1": { rosterEV: 0.60, pickEV: 0.10, depth: 0.15, liquidity: 0.05, risk: 0.10 },
+        "3": { rosterEV: 0.45, pickEV: 0.25, depth: 0.15, liquidity: 0.05, risk: 0.10 },
+        "5": { rosterEV: 0.35, pickEV: 0.35, depth: 0.10, liquidity: 0.10, risk: 0.10 },
+      };
+      const weights = WINDOW_WEIGHTS[projectionWindow] || WINDOW_WEIGHTS["3"];
 
+      const HISTORICAL_HIT_RATE: Record<number, number> = {
+        1: 0.72, 2: 0.68, 3: 0.63, 4: 0.58, 5: 0.52, 6: 0.47,
+        7: 0.42, 8: 0.38, 9: 0.34, 10: 0.30, 11: 0.27, 12: 0.24,
+      };
+
+      const POS_SCARCITY: Record<string, number> = { QB: isSuperflex ? 1.3 : 0.9, RB: 1.15, WR: 1.0, TE: 1.1 };
       const YEAR_DISCOUNT: Record<number, number> = { 0: 1.0, 1: 0.85, 2: 0.7 };
 
       const AGE_CURVES: Record<string, { peak: [number, number]; decline: number }> = {
@@ -2709,13 +2713,6 @@ ${urls}
         WR: { peak: [23, 30], decline: 0.08 },
         TE: { peak: [24, 30], decline: 0.07 },
       };
-
-      const POS_SCARCITY: Record<string, number> = { QB: isSuperflex ? 1.3 : 0.9, RB: 1.15, WR: 1.0, TE: 1.1 };
-
-      const STARTER_POSITIONS = new Set(
-        (league.roster_positions || []).filter((p: string) => p !== "BN" && p !== "IR" && p !== "TAXI")
-      );
-      const starterSlotCount = STARTER_POSITIONS.size || 9;
 
       const pickOwnership: Map<number, Array<{ round: number; season: number; originalRosterId: number }>> = new Map();
       for (const roster of rosters) {
@@ -2735,7 +2732,6 @@ ${urls}
           const origRosterId = tp.roster_id;
           const newOwnerRosterId = tp.owner_id;
           if (origRosterId === newOwnerRosterId) continue;
-
           const origOwnerPicks = pickOwnership.get(origRosterId);
           if (origOwnerPicks) {
             const idx = origOwnerPicks.findIndex(
@@ -2744,28 +2740,23 @@ ${urls}
             if (idx !== -1) {
               const [removed] = origOwnerPicks.splice(idx, 1);
               const newOwnerPicks = pickOwnership.get(newOwnerRosterId);
-              if (newOwnerPicks) {
-                newOwnerPicks.push(removed);
-              }
+              if (newOwnerPicks) newOwnerPicks.push(removed);
             }
           }
         }
       }
 
-      function calculateDynastyValueScore(player: any, normalizedVal: number): number {
+      function calcDynastyVal(player: any, normVal: number): number {
         const pos = player.position || "QB";
         const age = player.age || 25;
-        const baseTalent = normalizedVal;
         const curve = AGE_CURVES[pos] || AGE_CURVES.WR;
         let ageMod = 1.0;
         if (age < curve.peak[0]) ageMod = 0.85 + (age / curve.peak[0]) * 0.15;
-        else if (age >= curve.peak[0] && age <= curve.peak[1]) ageMod = 1.0;
+        else if (age <= curve.peak[1]) ageMod = 1.0;
         else ageMod = Math.max(0.3, 1.0 - (age - curve.peak[1]) * curve.decline);
-
-        const productionTrend = normalizedVal > 50 ? 0.8 : normalizedVal > 25 ? 0.5 : 0.3;
+        const prodTrend = normVal > 50 ? 0.8 : normVal > 25 ? 0.5 : 0.3;
         const scarcity = POS_SCARCITY[pos] || 1.0;
-
-        return (baseTalent * 0.5) + (ageMod * 20 * 0.2) + (productionTrend * 20 * 0.2) + (scarcity * 10 * 0.1);
+        return (normVal * 0.5) + (ageMod * 20 * 0.2) + (prodTrend * 20 * 0.2) + (scarcity * 10 * 0.1);
       }
 
       const teamsRaw = rosters.map((roster: any) => {
@@ -2774,8 +2765,7 @@ ${urls}
         const starterSet = new Set(starters.filter((s: string) => s && s !== "0"));
         const playerIds: string[] = roster.players || [];
 
-        let rosterEV = 0;
-        let starterAgeSum = 0;
+        let rosterEVRaw = 0;
         let starterCount = 0;
         let topTierAssets = 0;
         let midTierAssets = 0;
@@ -2784,7 +2774,9 @@ ${urls}
         let decliningCount = 0;
         let oldClusterCount = 0;
         const playerAges: number[] = [];
-        const playerValues: Array<{ name: string; pos: string; age: number; value: number; isStarter: boolean }> = [];
+        const starterAges: number[] = [];
+        const playerValues: Array<{ name: string; pos: string; age: number; value: number; normVal: number; isStarter: boolean }> = [];
+        let future1st2ndCount = 0;
 
         for (const pid of playerIds) {
           const player = allPlayers[pid];
@@ -2792,81 +2784,100 @@ ${urls}
           const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
           const position = player.position || "QB";
           const age = player.age || 25;
-          const normalizedVal = dynastyConsensusService.getNormalizedValue(playerName, position, isSuperflex);
-          if (normalizedVal === null) continue;
+          const normVal = dynastyConsensusService.getNormalizedValue(playerName, position, isSuperflex);
+          if (normVal === null) continue;
 
-          const dynastyVal = calculateDynastyValueScore(player, normalizedVal);
-          rosterEV += dynastyVal;
+          const dynastyVal = calcDynastyVal(player, normVal);
+          rosterEVRaw += dynastyVal;
 
           const isStarter = starterSet.has(pid);
           if (isStarter) {
-            starterAgeSum += age;
             starterCount++;
+            starterAges.push(age);
           }
           playerAges.push(age);
-          playerValues.push({ name: playerName, pos: position, age, value: dynastyVal, isStarter });
+          playerValues.push({ name: playerName, pos: position, age, value: dynastyVal, normVal, isStarter });
 
-          if (normalizedVal >= 70) topTierAssets++;
-          else if (normalizedVal >= 40) midTierAssets++;
-          if (normalizedVal >= 20 && (isStarter || normalizedVal >= 30)) flexLevelAssets++;
+          if (normVal >= 70) topTierAssets++;
+          else if (normVal >= 40) midTierAssets++;
+          if (normVal >= 20 && (isStarter || normVal >= 30)) flexLevelAssets++;
 
           if (player.injury_status && ["Out", "IR", "PUP", "Questionable"].includes(player.injury_status)) {
             injuryRiskCount++;
           }
 
           const curve = AGE_CURVES[position] || AGE_CURVES.WR;
-          if (age > curve.peak[1] + 2 && normalizedVal < 40) decliningCount++;
+          if (age > curve.peak[1] + 2 && normVal < 40) decliningCount++;
           if (age >= 30) oldClusterCount++;
         }
 
-        const avgStarterAge = starterCount > 0 ? starterAgeSum / starterCount : 27;
-        let ageCurveAdj = 0;
-        if (avgStarterAge < 25) ageCurveAdj = 15;
-        else if (avgStarterAge <= 27) ageCurveAdj = 10;
-        else if (avgStarterAge <= 29) ageCurveAdj = 3;
-        else ageCurveAdj = -10;
+        const sortedByValue = [...playerValues].sort((a, b) => b.value - a.value);
+        const top6 = sortedByValue.slice(0, 6);
+        const top3 = sortedByValue.slice(0, 3);
 
-        const depthScore = starterCount * 2 + flexLevelAssets * 1;
-        const liquidityScore = topTierAssets * 3 + midTierAssets * 1;
+        const coreAgeWeighted = top6.length > 0
+          ? top6.reduce((sum, p) => sum + p.age * p.value, 0) / top6.reduce((sum, p) => sum + p.value, 0)
+          : 27;
+        const starterAgeWeighted = starterAges.length > 0
+          ? playerValues.filter(p => p.isStarter).reduce((sum, p) => sum + p.age * p.value, 0) /
+            (playerValues.filter(p => p.isStarter).reduce((sum, p) => sum + p.value, 0) || 1)
+          : 27;
+        const ageStdDev = playerAges.length > 1
+          ? Math.sqrt(playerAges.reduce((sum, a) => sum + (a - (playerAges.reduce((s, v) => s + v, 0) / playerAges.length)) ** 2, 0) / playerAges.length)
+          : 0;
+        const ageVolatility = ageStdDev > 5 ? "High" : ageStdDev > 3 ? "Medium" : "Low";
 
-        let riskPenalty = 0;
-        if (injuryRiskCount >= 3) riskPenalty += 8;
-        else if (injuryRiskCount >= 1) riskPenalty += 3;
-        if (decliningCount >= 3) riskPenalty += 7;
-        else if (decliningCount >= 1) riskPenalty += 3;
-        const ageSpread = playerAges.length > 0 ? Math.max(...playerAges) - Math.min(...playerAges) : 10;
-        if (ageSpread < 5 && avgStarterAge >= 28) riskPenalty += 5;
-        riskPenalty = Math.min(riskPenalty, 20);
+        let ageGrade: string;
+        const sustainabilityAge = (coreAgeWeighted * 0.6 + starterAgeWeighted * 0.4);
+        if (sustainabilityAge < 24.5) ageGrade = "A+";
+        else if (sustainabilityAge < 25.5) ageGrade = "A";
+        else if (sustainabilityAge < 26.5) ageGrade = "A-";
+        else if (sustainabilityAge < 27.5) ageGrade = "B+";
+        else if (sustainabilityAge < 28.5) ageGrade = "B";
+        else if (sustainabilityAge < 29.5) ageGrade = "B-";
+        else ageGrade = "C";
+
+        const top3EV = top3.reduce((sum, p) => sum + p.value, 0);
+        const concentrationRatio = rosterEVRaw > 0 ? top3EV / rosterEVRaw : 0;
+        const isTopHeavy = concentrationRatio > 0.40;
+
+        const depthRaw = starterCount * 2 + flexLevelAssets;
 
         const ownedPicks = pickOwnership.get(roster.roster_id) || [];
-        let futurePickEV = 0;
+        for (const pick of ownedPicks) {
+          if (pick.round <= 2 && pick.season <= currentSeason + 1) future1st2ndCount++;
+        }
+        const tradeablePlayers = playerValues.filter(p => p.normVal >= 30).length;
+        const liquidityRaw = (topTierAssets * 4) + (future1st2ndCount * 3) + (tradeablePlayers * 1);
+
+        let pickEVRaw = 0;
         for (const pick of ownedPicks) {
           const yearDelta = pick.season - currentSeason;
           const discount = YEAR_DISCOUNT[yearDelta] ?? 0.7;
           const midSlot = Math.ceil(numTeams / 2);
-          const key = `${pick.round}.${String(midSlot).padStart(2, "0")}`;
-          const baseVal = PICK_VALUE_TABLE[key] || 10;
-          futurePickEV += baseVal * discount;
+          const hitRate = HISTORICAL_HIT_RATE[midSlot] || 0.30;
+          const classStrength = 1.0;
+          const scarcityMult = 1.0;
+          const windowDiscount = pick.round <= 2 ? 1.0 : 0.8;
+          const baseVal = pick.round === 1 ? (100 - (midSlot - 1) * 3.5) :
+                          pick.round === 2 ? (55 - (midSlot - 1) * 2) :
+                          pick.round === 3 ? (30 - (midSlot - 1) * 1) :
+                          pick.round === 4 ? (15 - (midSlot - 1) * 0.5) : 8;
+          pickEVRaw += Math.max(baseVal, 1) * hitRate * classStrength * scarcityMult * windowDiscount * discount;
         }
 
-        const compositeRaw = rosterEV + futurePickEV + ageCurveAdj + depthScore + liquidityScore - riskPenalty;
-
-        let ageGrade: string;
-        if (avgStarterAge < 25) ageGrade = "A";
-        else if (avgStarterAge < 27) ageGrade = "A-";
-        else if (avgStarterAge < 28) ageGrade = "B+";
-        else if (avgStarterAge < 29) ageGrade = "B";
-        else if (avgStarterAge < 30) ageGrade = "B-";
-        else ageGrade = "C";
+        const injuryRisk0to100 = Math.min(injuryRiskCount * 15, 100);
+        const ageClusterRisk0to100 = Math.min(oldClusterCount * 10, 100);
+        const volatilityRisk0to100 = concentrationRatio > 0.5 ? 80 : concentrationRatio > 0.4 ? 50 : concentrationRatio > 0.3 ? 25 : 10;
+        const concentrationRisk0to100 = isTopHeavy ? 70 : 20;
+        const riskRaw = injuryRisk0to100 * 0.30 + ageClusterRisk0to100 * 0.20 + volatilityRisk0to100 * 0.25 + concentrationRisk0to100 * 0.25;
 
         let riskLevel: string;
-        if (riskPenalty <= 3) riskLevel = "Low";
-        else if (riskPenalty <= 8) riskLevel = "Moderate";
-        else if (riskPenalty <= 14) riskLevel = "Elevated";
+        if (riskRaw <= 30) riskLevel = "Low";
+        else if (riskRaw <= 60) riskLevel = "Moderate";
         else riskLevel = "High";
 
-        const topPlayers = playerValues
-          .sort((a, b) => b.value - a.value)
+        const topPlayers = sortedByValue
           .slice(0, 5)
           .map(p => ({ name: p.name, position: p.pos, value: Math.round(p.value * 10) / 10 }));
 
@@ -2876,20 +2887,23 @@ ${urls}
           ownerName: user?.display_name || user?.username || "Unknown",
           avatar: sleeperApi.getAvatarUrl(user?.avatar || null),
           teamName: user?.metadata?.team_name || user?.display_name || user?.username || "Unknown",
-          compositeRaw,
-          rosterEV: Math.round(rosterEV * 10) / 10,
-          futurePickEV: Math.round(futurePickEV * 10) / 10,
-          ageCurveAdj,
-          depthScore,
-          liquidityScore,
-          riskPenalty,
-          avgStarterAge: Math.round(avgStarterAge * 10) / 10,
+          rosterEVRaw,
+          pickEVRaw,
+          depthRaw,
+          liquidityRaw,
+          riskRaw,
+          coreAge: Math.round(coreAgeWeighted * 10) / 10,
+          starterAge: Math.round(starterAgeWeighted * 10) / 10,
+          ageVolatility,
           ageGrade,
           riskLevel,
+          concentrationRatio: Math.round(concentrationRatio * 100),
+          isTopHeavy,
           topPlayers,
           starterCount,
           totalPlayers: playerIds.length,
           draftPickCount: ownedPicks.length,
+          future1st2ndCount,
           record: {
             wins: roster.settings.wins || 0,
             losses: roster.settings.losses || 0,
@@ -2899,40 +2913,121 @@ ${urls}
         };
       });
 
-      const allRawScores = teamsRaw.map((t: any) => t.compositeRaw);
-      const minScore = Math.min(...allRawScores);
-      const maxScore = Math.max(...allRawScores);
-      const scoreRange = maxScore - minScore || 1;
+      function normalizeMetric(values: number[]): number[] {
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const range = max - min || 1;
+        return values.map(v => Math.round(((v - min) / range) * 100 * 10) / 10);
+      }
 
-      const SOFTMAX_TEMP = 25;
+      const rosterEVs = normalizeMetric(teamsRaw.map((t: any) => t.rosterEVRaw));
+      const pickEVs = normalizeMetric(teamsRaw.map((t: any) => t.pickEVRaw));
+      const depths = normalizeMetric(teamsRaw.map((t: any) => t.depthRaw));
+      const liquidities = normalizeMetric(teamsRaw.map((t: any) => t.liquidityRaw));
+      const risks = teamsRaw.map((t: any) => Math.round(t.riskRaw * 10) / 10);
 
-      const teamsWithNormalized = teamsRaw.map((team: any) => {
-        const normalizedScore = Math.round(((team.compositeRaw - minScore) / scoreRange) * 100 * 10) / 10;
-        return { ...team, compositeScore: normalizedScore };
+      let previousSnapshots: any[] = [];
+      try {
+        const snaps = await db.select().from(schema.powerRankingSnapshots)
+          .where(sql`${schema.powerRankingSnapshots.leagueId} = ${leagueId}`)
+          .orderBy(sql`${schema.powerRankingSnapshots.createdAt} DESC`)
+          .limit(numTeams * 2);
+        previousSnapshots = snaps;
+      } catch (e) {}
+
+      const lastSnapshotMap = new Map<number, { compositeScore: number; championshipOdds: number }>();
+      for (const snap of previousSnapshots) {
+        if (!lastSnapshotMap.has(snap.rosterId)) {
+          lastSnapshotMap.set(snap.rosterId, {
+            compositeScore: snap.compositeScore,
+            championshipOdds: snap.championshipOdds,
+          });
+        }
+      }
+
+      const teamsWithMetrics = teamsRaw.map((team: any, idx: number) => {
+        const nRosterEV = rosterEVs[idx];
+        const nPickEV = pickEVs[idx];
+        const nDepth = depths[idx];
+        const nLiquidity = liquidities[idx];
+        const riskInverse = Math.max(0, 100 - risks[idx]);
+
+        const dds = Math.round(
+          (nRosterEV * weights.rosterEV +
+           nPickEV * weights.pickEV +
+           nDepth * weights.depth +
+           nLiquidity * weights.liquidity +
+           riskInverse * weights.risk) * 10
+        ) / 10;
+
+        return { ...team, nRosterEV, nPickEV, nDepth, nLiquidity, riskScore: risks[idx], dds };
       });
 
-      const expScores = teamsWithNormalized.map((t: any) => Math.exp(t.compositeScore / SOFTMAX_TEMP));
+      const SOFTMAX_TEMP = 25;
+      const expScores = teamsWithMetrics.map((t: any) => Math.exp(t.dds / SOFTMAX_TEMP));
       const expSum = expScores.reduce((a: number, b: number) => a + b, 0);
 
-      const teams = teamsWithNormalized.map((team: any, idx: number) => {
+      const teams = teamsWithMetrics.map((team: any, idx: number) => {
         const champOdds = Math.round((expScores[idx] / expSum) * 1000) / 10;
+        const playoffOdds = Math.min(Math.round(champOdds * (numTeams / 2) * 10) / 10, 99);
 
         let tier: string;
-        if (team.compositeScore >= 80) tier = "Elite Contender";
-        else if (team.compositeScore >= 70) tier = "Contender";
-        else if (team.compositeScore >= 60) tier = "Competitive";
-        else if (team.compositeScore >= 45) tier = "Retool";
+        if (team.dds >= 80) tier = "Elite Contender";
+        else if (team.dds >= 70) tier = "Contender";
+        else if (team.dds >= 60) tier = "Competitive";
+        else if (team.dds >= 45) tier = "Retool";
         else tier = "Rebuild";
 
+        let strategy = "";
+        if (team.nRosterEV >= 70 && team.nPickEV <= 40 && team.coreAge <= 27) strategy = "Elite Contender";
+        else if (team.nPickEV >= 60 && team.coreAge <= 25) strategy = "Ascending Builder";
+        else if (team.isTopHeavy && team.nRosterEV >= 60) strategy = "Fragile Contender";
+        else if (team.nPickEV >= 60 && team.nLiquidity >= 60) strategy = "Liquid Rebuilder";
+        else if (team.nRosterEV >= 50 && team.nPickEV >= 40) strategy = "Balanced";
+        else if (team.nRosterEV <= 40 && team.nPickEV <= 40) strategy = "Full Rebuild";
+        else strategy = tier;
+
+        const prevSnap = lastSnapshotMap.get(team.rosterId);
+        const weeklyDelta = prevSnap ? Math.round((team.dds - prevSnap.compositeScore) * 10) / 10 : null;
+        const oddsDelta = prevSnap ? Math.round((champOdds - prevSnap.championshipOdds) * 10) / 10 : null;
+
         return {
-          ...team,
+          rosterId: team.rosterId,
+          ownerId: team.ownerId,
+          ownerName: team.ownerName,
+          avatar: team.avatar,
+          teamName: team.teamName,
+          dds: team.dds,
           championshipOdds: champOdds,
+          playoffOdds,
+          rosterEV: team.nRosterEV,
+          pickEV: team.nPickEV,
+          depth: team.nDepth,
+          liquidity: team.nLiquidity,
+          riskScore: team.riskScore,
+          riskLevel: team.riskLevel,
+          ageGrade: team.ageGrade,
+          coreAge: team.coreAge,
+          starterAge: team.starterAge,
+          ageVolatility: team.ageVolatility,
+          concentrationRatio: team.concentrationRatio,
+          isTopHeavy: team.isTopHeavy,
           tier,
-          previousRank: null as number | null,
+          strategy,
+          weeklyDelta,
+          oddsDelta,
+          topPlayers: team.topPlayers,
+          starterCount: team.starterCount,
+          totalPlayers: team.totalPlayers,
+          draftPickCount: team.draftPickCount,
+          future1st2ndCount: team.future1st2ndCount,
+          record: team.record,
+          pointsFor: team.pointsFor,
+          projectionWindow: projectionWindow,
         };
       });
 
-      teams.sort((a: any, b: any) => b.compositeScore - a.compositeScore);
+      teams.sort((a: any, b: any) => b.dds - a.dds);
 
       const isOffseason = teamsRaw.every((t: any) => t.record.wins === 0 && t.record.losses === 0 && t.record.ties === 0);
 
@@ -2941,6 +3036,28 @@ ${urls}
         rank: index + 1,
         mode: isOffseason ? "dynasty" : "dynasty",
       }));
+
+      try {
+        const shouldSnapshot = previousSnapshots.length === 0 ||
+          (previousSnapshots[0] && (Date.now() - new Date(previousSnapshots[0].createdAt).getTime() > 6 * 24 * 60 * 60 * 1000));
+        if (shouldSnapshot) {
+          for (const team of result) {
+            await db.insert(schema.powerRankingSnapshots).values({
+              leagueId,
+              rosterId: team.rosterId,
+              compositeScore: team.dds,
+              championshipOdds: team.championshipOdds,
+              rosterEV: team.rosterEV,
+              pickEV: team.pickEV,
+              depthScore: team.depth,
+              liquidityScore: team.liquidity,
+              riskScore: team.riskScore,
+              snapshotWeek: currentWeek,
+              snapshotSeason: currentSeason,
+            });
+          }
+        }
+      } catch (e) {}
 
       res.json(result);
     } catch (error) {

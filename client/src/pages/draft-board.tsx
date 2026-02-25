@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearch } from "wouter";
 import { CACHE_TIMES } from "@/lib/queryClient";
 import { getPositionColorClass } from "@/lib/utils";
 import { PremiumGate } from "@/components/premium-gate";
@@ -206,14 +207,22 @@ function TierCliffMarker({ cliff }: { cliff: TierCliff }) {
 
 export default function DraftBoardPage() {
   usePageTitle("2026 Draft Board");
+  const searchString = useSearch();
+  const urlParams = new URLSearchParams(searchString);
+  const urlSearch = urlParams.get("search");
+
   const [sideFilter, setSideFilter] = useState<string>("all");
   const [positionFilter, setPositionFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>(urlSearch || "");
   const [sortField, setSortField] = useState<SortField>("rank");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedPlayer, setSelectedPlayer] = useState<Draft2026Player | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("board");
+
+  useEffect(() => {
+    if (urlSearch) setSearchQuery(urlSearch);
+  }, [urlSearch]);
 
   const { data, isLoading, error } = useQuery<DraftData>({
     queryKey: ["/api/draft/2026"],
@@ -551,7 +560,7 @@ export default function DraftBoardPage() {
                                 </Badge>
                               </td>
                               <td className="p-3">
-                                <Link href="/league/draft-pick-values" data-testid={`link-pick-range-${player.id}`}>
+                                <Link href={`/league/draft-pick-values?position=${player.positionGroup}`} data-testid={`link-pick-range-${player.id}`}>
                                   <span className="text-xs text-primary/80 hover:text-primary underline underline-offset-2 cursor-pointer">
                                     {player.projectedPickRange}
                                   </span>
@@ -631,7 +640,7 @@ export default function DraftBoardPage() {
                               <span className="text-xs text-red-400">Bust {player.bustPct}%</span>
                               <RiskTierBadge tier={player.riskTier} />
                             </div>
-                            <Link href="/league/draft-pick-values" onClick={(e: any) => e.stopPropagation()}>
+                            <Link href={`/league/draft-pick-values?position=${player.positionGroup}`} onClick={(e: any) => e.stopPropagation()}>
                               <span className="text-xs text-primary/80 hover:text-primary underline underline-offset-2 cursor-pointer mt-0.5 inline-block">
                                 {player.projectedPickRange}
                               </span>

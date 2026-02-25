@@ -409,3 +409,27 @@ export const insertTitleEquitySnapshotSchema = createInsertSchema(titleEquitySna
 
 export type TitleEquitySnapshot = typeof titleEquitySnapshots.$inferSelect;
 export type InsertTitleEquitySnapshot = z.infer<typeof insertTitleEquitySnapshotSchema>;
+
+export const powerRankingSnapshots = pgTable("power_ranking_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leagueId: text("league_id").notNull(),
+  rosterId: integer("roster_id").notNull(),
+  compositeScore: real("composite_score").notNull(),
+  championshipOdds: real("championship_odds").notNull(),
+  rosterEV: real("roster_ev").notNull(),
+  pickEV: real("pick_ev").notNull(),
+  depthScore: real("depth_score").notNull(),
+  liquidityScore: real("liquidity_score").notNull(),
+  riskScore: real("risk_score").notNull(),
+  snapshotWeek: integer("snapshot_week").notNull(),
+  snapshotSeason: integer("snapshot_season").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPowerRankingSnapshotSchema = createInsertSchema(powerRankingSnapshots).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type PowerRankingSnapshot = typeof powerRankingSnapshots.$inferSelect;
+export type InsertPowerRankingSnapshot = z.infer<typeof insertPowerRankingSnapshotSchema>;

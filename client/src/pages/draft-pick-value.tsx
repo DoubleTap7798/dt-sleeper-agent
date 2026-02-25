@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearch } from "wouter";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -84,7 +85,7 @@ function ProspectsPanel({ prospects, slot }: { prospects: ProspectData[]; slot: 
       </div>
       {prospects.map((p) => (
         <div key={p.name} className="flex items-center gap-2 text-xs" data-testid={`prospect-${p.name}`}>
-          <Link href="/league/draft-board">
+          <Link href={`/league/draft-board?search=${encodeURIComponent(p.name)}`}>
             <span className="font-medium hover:underline cursor-pointer">{p.name}</span>
           </Link>
           <Badge variant="secondary" className="text-[10px]">{p.position}</Badge>
@@ -409,7 +410,17 @@ function LoadingSkeleton() {
 
 export default function DraftPickValuePage() {
   usePageTitle("Draft Pick Values");
-  const [positionFilter, setPositionFilter] = useState<string>("All");
+  const searchString = useSearch();
+  const urlParams = new URLSearchParams(searchString);
+  const urlPosition = urlParams.get("position");
+
+  const [positionFilter, setPositionFilter] = useState<string>(urlPosition || "All");
+
+  useEffect(() => {
+    if (urlPosition && ["QB", "RB", "WR", "TE"].includes(urlPosition)) {
+      setPositionFilter(urlPosition);
+    }
+  }, [urlPosition]);
 
   const queryPosition = positionFilter === "All" ? undefined : positionFilter;
 
