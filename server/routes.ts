@@ -11651,6 +11651,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           }
         }
         
+        // HARD RELEVANCE FILTER — dynasty-irrelevant players never enter pipeline
+        const STARTUP_AGE_CEILING: Record<string, number> = { QB: 38, RB: 29, WR: 31, TE: 32, K: 40, DEF: 99, LB: 32, DL: 32, DB: 32, EDGE: 32, CB: 32, S: 32, DE: 32, DT: 32, ILB: 32, OLB: 32, SS: 32, FS: 32 };
+        const STARTUP_VALUE_FLOOR = 1500;
+
         // First pass: collect candidate players with base data
         const startupCandidates: { playerId: string; player: any; blendedValue: any; gamesPlayed: number; ppg: number; needFit: string; depthOrder: number; upsideScore: number; roleProbability: number; rosterNeedFit: number }[] = [];
         
@@ -11665,6 +11669,15 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
           
           if (yearsExp === 0 && !hasTeam) continue;
           if (!hasTeam && playerStatus === "Inactive") continue;
+
+          const playerAge = player.age || 99;
+          const ageCeiling = STARTUP_AGE_CEILING[player.position] || 32;
+          if (playerAge > ageCeiling) continue;
+
+          const isFreeAgent = !player.team || player.team === "" || player.team === "FA";
+          const isPracticeSquad = player.practice_squad || false;
+          if (isFreeAgent && (player.search_rank || 9999) > 2000) continue;
+          if (isPracticeSquad && (player.search_rank || 9999) > 1500) continue;
           
           const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
           if (draftedStartupNames.has(playerName.toLowerCase().trim())) continue;
@@ -11691,7 +11704,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
             rosterSettings
           );
 
-          if (blendedValue.value <= 500) continue;
+          if (blendedValue.value <= STARTUP_VALUE_FLOOR) continue;
           
           const depthOrder = player.depth_chart_order || 99;
           const hasTeamVal = player.team && player.team !== "" && player.team !== "FA" ? 1 : 0;
@@ -15041,15 +15054,30 @@ Respond in JSON format:
       };
 
       // Build veteran pool (years_exp > 0, established NFL players)
+      // RELEVANCE GATING: Filter → Qualify → Score → Tier → Strategy → Recommend
       const buildVeteranPool = () => {
+        const AGE_CEILING: Record<string, number> = { QB: 38, RB: 29, WR: 31, TE: 32, K: 40, DEF: 99, LB: 32, DL: 32, CB: 32, S: 32, EDGE: 32 };
+        const DYNASTY_VALUE_FLOOR = 1500;
+
         const veterans: any[] = [];
         Object.entries(allPlayers).forEach(([pid, p]: [string, any]) => {
           if (!p || pickedPlayerIds.has(pid)) return;
           if (p.years_exp === 0 || p.years_exp === undefined) return;
           const pos = p.position;
           if (!pos || !["QB", "RB", "WR", "TE", "K", "DEF", "LB", "DL", "CB", "S", "EDGE"].includes(pos)) return;
+
+          const age = p.age || 99;
+          const ageCeiling = AGE_CEILING[pos] || 32;
+          if (age > ageCeiling) return;
+
           if (p.status === "Inactive" && !p.team) return;
           if (!p.team && p.search_rank > 9000) return;
+
+          const isPracticeSquad = p.practice_squad || false;
+          const isFreeAgent = !p.team || p.team === "" || p.team === "FA";
+          if (isFreeAgent && p.search_rank > 2000) return;
+          if (isPracticeSquad && p.search_rank > 1500) return;
+
           veterans.push({ pid, ...p });
         });
 
@@ -15070,7 +15098,7 @@ Respond in JSON format:
             nflTeam: p.team || undefined,
           };
         })
-        .filter(p => p.value >= 50);
+        .filter(p => p.value >= DYNASTY_VALUE_FLOOR);
       };
 
       if (playerPool === "rookies") {
@@ -15520,6 +15548,40 @@ Respond in JSON format:
 
         recommendations.sort((a, b) => (b.compositeScore || 0) - (a.compositeScore || 0));
         if (recommendations.length > 5) recommendations.length = 5;
+
+        const hasQualityPicks = recommendations.some(r => {
+          const tl = r.tier || "Flier";
+          return tl === "Elite" || tl === "Premium" || tl === "Solid";
+        });
+
+        if (!hasQualityPicks && recommendations.length > 0) {
+          const tradeStrategies = [
+            "Trade Down — move back and accumulate picks",
+            "Trade Future Pick — flip this pick for 2026 2nds",
+            "Package for Contender Asset — bundle picks to acquire a proven player",
+            "Accumulate 2026 2nds — stockpile future draft capital",
+          ];
+          const strategyAdvice = tradeStrategies[Math.floor(currentRound / 5) % tradeStrategies.length];
+
+          recommendations.unshift({
+            playerId: "trade-recommendation",
+            name: "No Impact Player Available",
+            position: "TRADE",
+            value: 0,
+            compositeScore: 9999,
+            reason: `Meaningful talent tier has ended. ${strategyAdvice}`,
+            tier: "Strategy",
+            badge: "Trade Capital" as any,
+            badgeColor: "amber",
+            strategicReason: `Remaining pool is replacement-level. ${strategyAdvice}`,
+            rosterImpact: "No dynasty-relevant player available at this pick",
+            dynastyFit: `Consider trading this pick rather than adding a depth piece with no upside`,
+            riskProfile: "Low",
+            alternativePath: strategyAdvice,
+          });
+
+          if (recommendations.length > 5) recommendations.length = 5;
+        }
       }
 
       // Predictions: for each remaining pick, show likely available players
