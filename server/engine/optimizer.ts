@@ -65,7 +65,7 @@ export interface FullTradeAnalysis {
 }
 
 export interface WaiverAnalysis {
-  faabResult: FAABResult;
+  faabResult: FAABResult & Record<string, any>;
   decision: DecisionMetrics;
   rosterImpact: { positionFilled: string; playerDropped: string | null; netEvGain: number };
 }

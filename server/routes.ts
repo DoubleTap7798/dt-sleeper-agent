@@ -15977,6 +15977,98 @@ Respond in JSON format:
     }
   });
 
+  app.get("/api/engine/faab-context/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user?.claims?.sub;
+      const profile = await db.select().from(schema.userProfiles).where(eq(schema.userProfiles.userId, userId)).limit(1);
+      const sleeperUserId = profile[0]?.sleeperUserId;
+      if (!sleeperUserId) return res.status(400).json({ error: "Sleeper account not linked" });
+
+      const [leagueCtx, allRosters, allPlayers, leagueUsers] = await Promise.all([
+        getLeagueContext(leagueId),
+        getAllRosterContexts(leagueId),
+        sleeperApi.getAllPlayers(),
+        sleeperApi.getLeagueUsers(leagueId),
+      ]);
+
+      const userRoster = allRosters.find(r => r.ownerId === sleeperUserId);
+      if (!userRoster) return res.status(404).json({ error: "Roster not found" });
+
+      const waiverBudget = leagueCtx.waiverBudget || 100;
+      const userMap = new Map(leagueUsers.map((u: any) => [u.user_id, u]));
+
+      const rosteredPlayerIds = new Set<string>();
+      const rostersData = await sleeperApi.getLeagueRosters(leagueId);
+      for (const r of rostersData) {
+        for (const pid of (r.players || [])) rosteredPlayerIds.add(pid);
+        for (const pid of (r.reserve || [])) rosteredPlayerIds.add(pid);
+        for (const pid of (r.taxi || [])) rosteredPlayerIds.add(pid);
+      }
+
+      const OFFENSIVE_POS = new Set(['QB', 'RB', 'WR', 'TE']);
+      const waiverPool: Array<{
+        playerId: string;
+        name: string;
+        position: string;
+        team: string | null;
+        age: number;
+        searchRank: number;
+        injuryStatus: string | null;
+      }> = [];
+
+      for (const [pid, player] of Object.entries(allPlayers) as [string, any][]) {
+        if (rosteredPlayerIds.has(pid)) continue;
+        if (!player?.position || !OFFENSIVE_POS.has(player.position)) continue;
+        if (!player.team || player.team === 'FA') continue;
+        if (player.active === false) continue;
+
+        waiverPool.push({
+          playerId: pid,
+          name: player.full_name || `${player.first_name || ''} ${player.last_name || ''}`.trim(),
+          position: player.position,
+          team: player.team,
+          age: player.age || 0,
+          searchRank: player.search_rank || 9999,
+          injuryStatus: player.injury_status || null,
+        });
+      }
+
+      waiverPool.sort((a, b) => a.searchRank - b.searchRank);
+      const topWaiverPlayers = waiverPool.slice(0, 60);
+
+      const teamBudgets = allRosters.map(r => {
+        const user = userMap.get(r.ownerId);
+        return {
+          rosterId: r.rosterId,
+          teamName: user?.metadata?.team_name || user?.display_name || user?.username || "Unknown",
+          faabRemaining: r.faabRemaining,
+          faabPct: waiverBudget > 0 ? Math.round((r.faabRemaining / waiverBudget) * 1000) / 10 : 0,
+          record: { wins: r.wins, losses: r.losses, ties: r.ties },
+          rank: r.rank,
+          isUser: r.rosterId === userRoster.rosterId,
+        };
+      }).sort((a, b) => b.faabRemaining - a.faabRemaining);
+
+      const leagueAvgBudget = allRosters.reduce((sum, r) => sum + r.faabRemaining, 0) / allRosters.length;
+
+      res.json({
+        initialBudget: waiverBudget,
+        userBudget: userRoster.faabRemaining,
+        userBudgetPct: waiverBudget > 0 ? Math.round((userRoster.faabRemaining / waiverBudget) * 1000) / 10 : 0,
+        leagueAvgBudget: Math.round(leagueAvgBudget),
+        leagueAvgPct: waiverBudget > 0 ? Math.round((leagueAvgBudget / waiverBudget) * 1000) / 10 : 0,
+        teamBudgets,
+        waiverPool: topWaiverPlayers,
+        currentWeek: leagueCtx.currentWeek,
+        remainingWeeks: Math.max(0, leagueCtx.totalRegularSeasonWeeks - leagueCtx.currentWeek + 1),
+      });
+    } catch (error: any) {
+      console.error("FAAB context error:", error);
+      res.status(500).json({ error: error.message || "Failed to load FAAB context" });
+    }
+  });
+
   app.post("/api/engine/waiver-eval/:leagueId", isAuthenticated, requireSubscription, async (req: any, res: Response) => {
     try {
       const { leagueId } = req.params;

@@ -11,6 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  ReferenceLine,
+  CartesianGrid,
+} from "recharts";
+import {
   Brain,
   Swords,
   LayoutList,
@@ -777,8 +787,26 @@ function TradeTab({ leagueId }: { leagueId: string }) {
   );
 }
 
+const POS_COLORS: Record<string, string> = {
+  QB: "text-red-400 border-red-400/30",
+  RB: "text-green-400 border-green-400/30",
+  WR: "text-sky-400 border-sky-400/30",
+  TE: "text-amber-400 border-amber-400/30",
+};
+
 function FaabTab({ leagueId }: { leagueId: string }) {
   const [targetPlayer, setTargetPlayer] = useState<SelectedPlayer | null>(null);
+  const [posFilter, setPosFilter] = useState<string>("ALL");
+
+  const faabContext = useQuery({
+    queryKey: ["/api/engine/faab-context", leagueId],
+    queryFn: async () => {
+      const res = await fetch(`/api/engine/faab-context/${leagueId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load FAAB context");
+      return res.json();
+    },
+    enabled: !!leagueId,
+  });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -788,22 +816,155 @@ function FaabTab({ leagueId }: { leagueId: string }) {
     },
   });
 
+  const ctx = faabContext.data;
   const data = mutation.data;
+  const faab = data?.faabResult;
+
+  const filteredWaiverPool = ctx?.waiverPool?.filter((p: any) =>
+    posFilter === "ALL" || p.position === posFilter
+  ) || [];
 
   return (
     <div className="space-y-4">
-      <PlayerSearchInput
-        label="Target Player"
-        selectedPlayers={targetPlayer ? [targetPlayer] : []}
-        onAdd={(p) => setTargetPlayer(p)}
-        onRemove={() => setTargetPlayer(null)}
-        labelColor="text-amber-400"
-        testIdPrefix="input-faab"
-      />
+      {faabContext.isLoading && (
+        <Card className="border-amber-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading league FAAB context...
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {ctx && (
+        <Card className="border-amber-500/20" data-testid="card-faab-context">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
+              <DollarSign className="h-4 w-4" /> Budget Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-3">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Your FAAB Remaining</span>
+                <span className="font-bold text-amber-400" data-testid="text-user-faab">${ctx.userBudget} / ${ctx.initialBudget} ({ctx.userBudgetPct}%)</span>
+              </div>
+              <Progress value={ctx.userBudgetPct} className="h-2" data-testid="progress-user-faab" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div className="p-2 rounded-md bg-zinc-900 border border-zinc-800">
+                <p className="text-muted-foreground/70 uppercase text-[9px]">Initial Budget</p>
+                <p className="font-semibold" data-testid="text-initial-budget">${ctx.initialBudget}</p>
+              </div>
+              <div className="p-2 rounded-md bg-zinc-900 border border-zinc-800">
+                <p className="text-muted-foreground/70 uppercase text-[9px]">League Avg</p>
+                <p className="font-semibold" data-testid="text-league-avg">${ctx.leagueAvgBudget} ({ctx.leagueAvgPct}%)</p>
+              </div>
+              <div className="p-2 rounded-md bg-zinc-900 border border-zinc-800">
+                <p className="text-muted-foreground/70 uppercase text-[9px]">Week</p>
+                <p className="font-semibold">{ctx.currentWeek}</p>
+              </div>
+              <div className="p-2 rounded-md bg-zinc-900 border border-zinc-800">
+                <p className="text-muted-foreground/70 uppercase text-[9px]">Weeks Left</p>
+                <p className="font-semibold">{ctx.remainingWeeks}</p>
+              </div>
+            </div>
+
+            {ctx.teamBudgets && ctx.teamBudgets.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">League FAAB Budgets</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                  {ctx.teamBudgets.map((t: any) => (
+                    <div
+                      key={t.rosterId}
+                      className={`flex items-center justify-between p-1.5 rounded text-xs ${t.isUser ? "bg-amber-500/10 border border-amber-500/20" : "bg-zinc-900 border border-zinc-800"}`}
+                      data-testid={`card-team-budget-${t.rosterId}`}
+                    >
+                      <span className={`truncate mr-1 ${t.isUser ? "text-amber-400 font-semibold" : ""}`}>{t.teamName}</span>
+                      <span className={`font-mono shrink-0 ${t.faabPct < 25 ? "text-red-400" : t.faabPct < 50 ? "text-orange-400" : "text-foreground"}`}>
+                        ${t.faabRemaining}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {ctx && ctx.waiverPool && ctx.waiverPool.length > 0 && (
+        <Card className="border-amber-500/20" data-testid="card-waiver-pool">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
+                <Activity className="h-4 w-4" /> Waiver Pool
+              </CardTitle>
+              <div className="flex items-center gap-1">
+                {["ALL", "QB", "RB", "WR", "TE"].map(pos => (
+                  <Button
+                    key={pos}
+                    variant={posFilter === pos ? "default" : "ghost"}
+                    size="sm"
+                    className={`h-6 px-2 text-[10px] rounded-sm ${posFilter === pos ? "bg-amber-400/20 text-amber-400" : ""}`}
+                    onClick={() => setPosFilter(pos)}
+                    data-testid={`button-pos-filter-${pos}`}
+                  >
+                    {pos}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="max-h-48 overflow-y-auto space-y-1">
+              {filteredWaiverPool.slice(0, 30).map((p: any) => (
+                <button
+                  key={p.playerId}
+                  className={`w-full flex items-center justify-between p-2 rounded text-xs border transition-colors ${
+                    targetPlayer?.id === p.playerId
+                      ? "bg-amber-500/10 border-amber-500/30"
+                      : "bg-zinc-900 border-zinc-800 hover:border-zinc-600"
+                  }`}
+                  onClick={() => setTargetPlayer({ id: p.playerId, name: p.name, position: p.position, team: p.team || "" })}
+                  data-testid={`button-waiver-player-${p.playerId}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 ${POS_COLORS[p.position] || "text-muted-foreground border-border"} no-default-hover-elevate no-default-active-elevate`}>
+                      {p.position}
+                    </Badge>
+                    <span className="font-medium">{p.name}</span>
+                    <span className="text-muted-foreground">{p.team}</span>
+                  </div>
+                  {p.injuryStatus && (
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 text-red-400 border-red-400/30 no-default-hover-elevate no-default-active-elevate">
+                      {p.injuryStatus}
+                    </Badge>
+                  )}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-2">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Or search any player</p>
+        <PlayerSearchInput
+          label="Target Player"
+          selectedPlayers={targetPlayer ? [targetPlayer] : []}
+          onAdd={(p) => setTargetPlayer(p)}
+          onRemove={() => setTargetPlayer(null)}
+          labelColor="text-amber-400"
+          testIdPrefix="input-faab"
+        />
+      </div>
+
       <RunButton
         onClick={() => mutation.mutate()}
         isPending={mutation.isPending}
-        label="Optimize FAAB Bid"
+        label="Run FAAB Simulation (5,000 iterations)"
       />
       <ErrorCard error={mutation.error as Error | null} />
 
@@ -811,33 +972,137 @@ function FaabTab({ leagueId }: { leagueId: string }) {
         <>
           {data.decision && <DecisionCard decision={data.decision} />}
 
-          <Card className="border-amber-500/20">
+          <Card className="border-amber-500/20" data-testid="card-faab-result">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-amber-400">FAAB Recommendation</CardTitle>
+              <CardTitle className="text-sm text-amber-400">Bid Recommendations</CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-3 rounded-md bg-zinc-900 border border-amber-500/20">
-                  <p className="text-[10px] text-muted-foreground uppercase">Optimal Bid</p>
-                  <p className="text-2xl font-bold text-amber-400" data-testid="text-optimal-bid">${data.faabResult?.optimalBid || 0}</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-3 rounded-md bg-zinc-900 border border-zinc-800">
+                  <p className="text-[10px] text-muted-foreground uppercase">Min Viable</p>
+                  <p className="text-[9px] text-muted-foreground/60 mb-1">50% win</p>
+                  <p className="text-2xl font-bold text-muted-foreground" data-testid="text-min-bid">${faab?.minimumViableBid || 0}</p>
+                </div>
+                <div className="text-center p-3 rounded-md bg-zinc-900 border border-amber-500/30">
+                  <p className="text-[10px] text-amber-400 uppercase font-semibold">Optimal Bid</p>
+                  <p className="text-[9px] text-muted-foreground/60 mb-1">{pctStr(faab?.probabilityToWin || 0)} win</p>
+                  <p className="text-3xl font-bold text-amber-400" data-testid="text-optimal-bid">${faab?.optimalBid || 0}</p>
                 </div>
                 <div className="text-center p-3 rounded-md bg-zinc-900 border border-zinc-800">
-                  <p className="text-[10px] text-muted-foreground uppercase">Min Viable Bid</p>
-                  <p className="text-2xl font-bold text-muted-foreground" data-testid="text-min-bid">${data.faabResult?.minimumViableBid || 0}</p>
-                </div>
-                <div className="text-center p-3 rounded-md bg-zinc-900 border border-zinc-800">
-                  <p className="text-[10px] text-muted-foreground uppercase">Win Probability</p>
-                  <p className="text-2xl font-bold text-emerald-400" data-testid="text-win-prob">{pctStr(data.faabResult?.probabilityToWin || 0)}</p>
-                </div>
-                <div className="text-center p-3 rounded-md bg-zinc-900 border border-zinc-800">
-                  <p className="text-[10px] text-muted-foreground uppercase">Value Gain</p>
-                  <p className={`text-2xl font-bold ${colorForValue(data.faabResult?.expectedSeasonalValueGain || 0)}`} data-testid="text-value-gain">
-                    +{(data.faabResult?.expectedSeasonalValueGain || 0).toFixed(1)}
-                  </p>
+                  <p className="text-[10px] text-muted-foreground uppercase">Aggressive</p>
+                  <p className="text-[9px] text-muted-foreground/60 mb-1">75% win</p>
+                  <p className="text-2xl font-bold text-green-400" data-testid="text-aggressive-bid">${faab?.aggressiveBid || 0}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          {faab?.competingBidRange && (
+            <Card className="border-amber-500/20" data-testid="card-competing-bids">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-amber-400 flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" /> Competing Bid Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="text-center p-2 rounded-md bg-zinc-900 border border-zinc-800">
+                    <p className="text-[9px] text-muted-foreground uppercase">25th %ile</p>
+                    <p className="text-lg font-bold" data-testid="text-comp-p25">${faab.competingBidRange.p25}</p>
+                  </div>
+                  <div className="text-center p-2 rounded-md bg-zinc-900 border border-zinc-800">
+                    <p className="text-[9px] text-muted-foreground uppercase">Median</p>
+                    <p className="text-lg font-bold text-amber-400" data-testid="text-comp-p50">${faab.competingBidRange.p50}</p>
+                  </div>
+                  <div className="text-center p-2 rounded-md bg-zinc-900 border border-zinc-800">
+                    <p className="text-[9px] text-muted-foreground uppercase">75th %ile</p>
+                    <p className="text-lg font-bold" data-testid="text-comp-p75">${faab.competingBidRange.p75}</p>
+                  </div>
+                  <div className="text-center p-2 rounded-md bg-zinc-900 border border-zinc-800">
+                    <p className="text-[9px] text-muted-foreground uppercase">Mean</p>
+                    <p className="text-lg font-bold" data-testid="text-comp-mean">${faab.competingBidRange.mean}</p>
+                  </div>
+                </div>
+                {faab.positionScarcity > 0 && (
+                  <div className="mt-3 flex items-center gap-2 text-xs">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="text-muted-foreground">Position scarcity index: </span>
+                    <span className={`font-bold ${faab.positionScarcity > 0.5 ? "text-red-400" : faab.positionScarcity > 0.25 ? "text-amber-400" : "text-green-400"}`}>
+                      {(faab.positionScarcity * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {faab?.winProbCurve && faab.winProbCurve.length > 2 && (
+            <Card className="border-amber-500/20" data-testid="card-win-prob-curve">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-amber-400">Win Probability Curve</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <FaabWinProbChart
+                  data={faab.winProbCurve}
+                  optimalBid={faab.optimalBid}
+                  minViableBid={faab.minimumViableBid}
+                  aggressiveBid={faab.aggressiveBid}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {faab?.budgetImpact && (
+            <Card className="border-amber-500/20" data-testid="card-budget-impact">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-amber-400">Budget Impact</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                  <div className="p-2 rounded-md bg-zinc-900 border border-zinc-800">
+                    <p className="text-[9px] text-muted-foreground uppercase">Before</p>
+                    <p className="font-bold">${faab.budgetImpact.currentBudget} ({faab.budgetImpact.budgetPctRemaining}%)</p>
+                  </div>
+                  <div className="p-2 rounded-md bg-zinc-900 border border-amber-500/20">
+                    <p className="text-[9px] text-amber-400 uppercase">After Optimal</p>
+                    <p className="font-bold text-amber-400">${faab.budgetImpact.budgetAfterOptimal} ({faab.budgetImpact.budgetPctAfterOptimal}%)</p>
+                  </div>
+                  <div className="p-2 rounded-md bg-zinc-900 border border-zinc-800">
+                    <p className="text-[9px] text-muted-foreground uppercase">League Avg</p>
+                    <p className="font-bold">${faab.budgetImpact.leagueAvgBudget} ({faab.budgetImpact.leagueAvgPct}%)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Opportunity cost:</span>
+                  <span className="font-semibold text-foreground">{faab.opportunityCost.toFixed(1)} pts</span>
+                  <span className="text-border">|</span>
+                  <span>Remaining weeks:</span>
+                  <span className="font-semibold text-foreground">{faab.remainingWeeks}</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="text-center p-3 rounded-md bg-zinc-900 border border-zinc-800">
+              <p className="text-[10px] text-muted-foreground uppercase">EV Gain</p>
+              <p className={`text-xl font-bold ${colorForValue(faab?.expectedSeasonalValueGain || 0)}`} data-testid="text-value-gain">
+                +{(faab?.expectedSeasonalValueGain || 0).toFixed(1)}
+              </p>
+            </div>
+            <div className="text-center p-3 rounded-md bg-zinc-900 border border-zinc-800">
+              <p className="text-[10px] text-muted-foreground uppercase">Team Need</p>
+              <p className="text-xl font-bold" data-testid="text-team-need">{pctStr(faab?.teamNeedScore || 0)}</p>
+            </div>
+            <div className="text-center p-3 rounded-md bg-zinc-900 border border-zinc-800">
+              <p className="text-[10px] text-muted-foreground uppercase">Aggression</p>
+              <p className="text-xl font-bold" data-testid="text-aggression">{pctStr(faab?.aggressionScore || 0)}</p>
+            </div>
+            <div className="text-center p-3 rounded-md bg-zinc-900 border border-zinc-800">
+              <p className="text-[10px] text-muted-foreground uppercase">Contender</p>
+              <p className="text-xl font-bold" data-testid="text-contender">{pctStr(faab?.contenderScore || 0)}</p>
+            </div>
+          </div>
 
           {data.rosterImpact && (
             <Card className="border-amber-500/20">
@@ -865,6 +1130,38 @@ function FaabTab({ leagueId }: { leagueId: string }) {
           <AiAnalysisCard explanation={data.explanation} />
         </>
       )}
+    </div>
+  );
+}
+
+function FaabWinProbChart({ data, optimalBid, minViableBid, aggressiveBid }: {
+  data: Array<{ bid: number; winProb: number; netEV: number }>;
+  optimalBid: number;
+  minViableBid: number;
+  aggressiveBid: number;
+}) {
+  return (
+    <div className="h-48">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <XAxis dataKey="bid" tick={{ fill: '#888', fontSize: 10 }} tickFormatter={(v: number) => `$${v}`} />
+          <YAxis tick={{ fill: '#888', fontSize: 10 }} tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`} domain={[0, 1]} />
+          <RechartsTooltip
+            contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 6, fontSize: 11 }}
+            formatter={(value: number, name: string) => [
+              name === 'winProb' ? `${(value * 100).toFixed(1)}%` : `${value.toFixed(1)} pts`,
+              name === 'winProb' ? 'Win Prob' : 'Net EV'
+            ]}
+            labelFormatter={(label: number) => `Bid: $${label}`}
+          />
+          <Line type="monotone" dataKey="winProb" stroke="#f59e0b" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="netEV" stroke="#22c55e" strokeWidth={1} dot={false} strokeDasharray="4 2" />
+          {optimalBid > 0 && <ReferenceLine x={optimalBid} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: `$${optimalBid}`, fill: '#f59e0b', fontSize: 10, position: 'top' }} />}
+          {minViableBid > 0 && minViableBid !== optimalBid && <ReferenceLine x={minViableBid} stroke="#888" strokeDasharray="3 3" />}
+          {aggressiveBid > 0 && aggressiveBid !== optimalBid && <ReferenceLine x={aggressiveBid} stroke="#22c55e" strokeDasharray="3 3" />}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
