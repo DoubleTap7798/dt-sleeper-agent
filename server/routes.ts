@@ -11636,7 +11636,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         const rosterSettings = dynastyEngine.parseLeagueRosterSettings(league);
         
         const OFFENSIVE_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
-        const IDP_POSITIONS_SET = new Set(["DL", "LB", "DB", "EDGE", "CB", "S", "DE", "DT", "ILB", "OLB", "SS", "FS"]);
+        const IDP_POSITIONS_SET = new Set(["DL", "LB", "DB", "EDGE", "CB", "S", "SAF", "DE", "DT", "ILB", "OLB", "SS", "FS"]);
         const allowedPositions = new Set(OFFENSIVE_POSITIONS);
         if (hasIDPSlots) {
           Array.from(IDP_POSITIONS_SET).forEach(pos => allowedPositions.add(pos));
@@ -11652,7 +11652,7 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
         }
         
         // HARD RELEVANCE FILTER — dynasty-irrelevant players never enter pipeline
-        const STARTUP_AGE_CEILING: Record<string, number> = { QB: 38, RB: 29, WR: 31, TE: 32, K: 40, DEF: 99, LB: 32, DL: 32, DB: 32, EDGE: 32, CB: 32, S: 32, DE: 32, DT: 32, ILB: 32, OLB: 32, SS: 32, FS: 32 };
+        const STARTUP_AGE_CEILING: Record<string, number> = { QB: 38, RB: 29, WR: 31, TE: 32, K: 40, DEF: 99, LB: 32, DL: 32, DB: 32, EDGE: 32, CB: 32, S: 32, SAF: 32, DE: 32, DT: 32, ILB: 32, OLB: 32, SS: 32, FS: 32 };
         const STARTUP_VALUE_FLOOR = 1500;
 
         // First pass: collect candidate players with base data
@@ -11676,8 +11676,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
 
           const isFreeAgent = !player.team || player.team === "" || player.team === "FA";
           const isPracticeSquad = player.practice_squad || false;
-          if (isFreeAgent && (player.search_rank || 9999) > 2000) continue;
-          if (isPracticeSquad && (player.search_rank || 9999) > 1500) continue;
+          const searchRank = player.search_rank || 9999;
+          if (isFreeAgent && searchRank > 500) continue;
+          if (isPracticeSquad && searchRank > 500) continue;
+          if (!isFreeAgent && searchRank > 2000) continue;
           
           const playerName = player.full_name || `${player.first_name} ${player.last_name}`;
           if (draftedStartupNames.has(playerName.toLowerCase().trim())) continue;
@@ -15056,7 +15058,7 @@ Respond in JSON format:
       // Build veteran pool (years_exp > 0, established NFL players)
       // RELEVANCE GATING: Filter → Qualify → Score → Tier → Strategy → Recommend
       const buildVeteranPool = () => {
-        const AGE_CEILING: Record<string, number> = { QB: 38, RB: 29, WR: 31, TE: 32, K: 40, DEF: 99, LB: 32, DL: 32, CB: 32, S: 32, EDGE: 32 };
+        const AGE_CEILING: Record<string, number> = { QB: 38, RB: 29, WR: 31, TE: 32, K: 40, DEF: 99, LB: 32, DL: 32, CB: 32, S: 32, SAF: 32, EDGE: 32 };
         const DYNASTY_VALUE_FLOOR = 1500;
 
         const veterans: any[] = [];
@@ -15064,19 +15066,21 @@ Respond in JSON format:
           if (!p || pickedPlayerIds.has(pid)) return;
           if (p.years_exp === 0 || p.years_exp === undefined) return;
           const pos = p.position;
-          if (!pos || !["QB", "RB", "WR", "TE", "K", "DEF", "LB", "DL", "CB", "S", "EDGE"].includes(pos)) return;
+          if (!pos || !["QB", "RB", "WR", "TE", "K", "DEF", "LB", "DL", "CB", "S", "SAF", "EDGE"].includes(pos)) return;
 
           const age = p.age || 99;
           const ageCeiling = AGE_CEILING[pos] || 32;
           if (age > ageCeiling) return;
 
           if (p.status === "Inactive" && !p.team) return;
-          if (!p.team && p.search_rank > 9000) return;
 
-          const isPracticeSquad = p.practice_squad || false;
           const isFreeAgent = !p.team || p.team === "" || p.team === "FA";
-          if (isFreeAgent && p.search_rank > 2000) return;
-          if (isPracticeSquad && p.search_rank > 1500) return;
+          const isPracticeSquad = p.practice_squad || false;
+          const searchRank = p.search_rank || 9999;
+
+          if (isFreeAgent && searchRank > 500) return;
+          if (isPracticeSquad && searchRank > 500) return;
+          if (!isFreeAgent && searchRank > 2000) return;
 
           veterans.push({ pid, ...p });
         });
@@ -15112,7 +15116,7 @@ Respond in JSON format:
 
       availablePlayers.sort((a, b) => (b.value || 0) - (a.value || 0));
 
-      const IDP_POSITIONS = new Set(["LB", "DL", "CB", "S", "EDGE", "ILB", "OLB", "DE", "DT", "NT", "DB", "FS", "SS", "MLB", "DEF"]);
+      const IDP_POSITIONS = new Set(["LB", "DL", "CB", "S", "SAF", "EDGE", "ILB", "OLB", "DE", "DT", "NT", "DB", "FS", "SS", "MLB", "DEF"]);
       const userSettings = await storage.getLeagueSettings(userId, leagueId);
       const idpEnabled = userSettings?.idpEnabled !== false;
       if (!idpEnabled) {
