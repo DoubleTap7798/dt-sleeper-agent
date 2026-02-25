@@ -7399,11 +7399,12 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
       );
 
       const leagueHistory = await sleeperApi.getLeagueHistory(leagueId);
+      const completedSeasons = leagueHistory.filter(h => h.status === "complete" || h.status === "in_season");
 
       res.json({
         seasonTrades,
         teamStats: Array.from(teamStats.values()),
-        leagueHistory: leagueHistory.map(h => h.season),
+        leagueHistory: completedSeasons.map(h => h.season),
         currentSeason: league?.season || "2025",
         bestTrades: bestTradesWithAnalysis,
         totalTrades: allTrades.length,
@@ -7429,8 +7430,8 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
         return res.status(404).json({ message: "League not found" });
       }
 
-      // Get playoff brackets for all seasons to find champions
-      const bracketPromises = leagueHistory.map(async (h) => {
+      const completedHistory = leagueHistory.filter(h => h.status === "complete" || h.status === "in_season");
+      const bracketPromises = completedHistory.map(async (h) => {
         const bracket = await sleeperApi.getPlayoffBracket(h.leagueId);
         return { season: h.season, leagueId: h.leagueId, bracket };
       });
@@ -7656,7 +7657,8 @@ Provide a brief 2-3 sentence analysis explaining who wins and why, being specifi
         return res.status(404).json({ message: "League not found" });
       }
 
-      const leagueHistory = await sleeperApi.getLeagueHistory(leagueId);
+      const allLeagueHistory = await sleeperApi.getLeagueHistory(leagueId);
+      const leagueHistory = allLeagueHistory.filter(h => h.status === "complete" || h.status === "in_season");
       
       interface MatchupResult {
         season: string;
@@ -12069,9 +12071,10 @@ Return JSON: {"projections": [{playerId, name, position, team, opponent, isHome,
       const takeoverSeason = takeover?.takeoverSeason || null;
 
       const leagueHistory = await sleeperApi.getLeagueHistory(leagueId);
+      const completedHistory = leagueHistory.filter(h => h.status === "complete" || h.status === "in_season");
       const filteredHistory = takeoverSeason
-        ? leagueHistory.filter(h => parseInt(h.season) >= takeoverSeason)
-        : leagueHistory;
+        ? completedHistory.filter(h => parseInt(h.season) >= takeoverSeason)
+        : completedHistory;
       const allTransactions: any[] = [];
       const maxSeasons = 3;
       const seasonsToAnalyze = filteredHistory.slice(0, maxSeasons);
@@ -12896,7 +12899,13 @@ ${managerProfileContext}`;
 
       const leagueName = leagueHistory[0].name;
 
-      const seasonDataPromises = leagueHistory.map(async (h) => {
+      const completedHistory = leagueHistory.filter(h => h.status === "complete" || h.status === "in_season");
+
+      if (completedHistory.length === 0) {
+        return res.json({ leagueName, seasons: [] });
+      }
+
+      const seasonDataPromises = completedHistory.map(async (h) => {
         const [rosters, users, bracket, transactions] = await Promise.all([
           sleeperApi.getLeagueRosters(h.leagueId),
           sleeperApi.getLeagueUsers(h.leagueId),

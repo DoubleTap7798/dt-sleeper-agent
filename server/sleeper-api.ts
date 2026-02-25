@@ -227,6 +227,7 @@ export interface LeagueHistory {
   leagueId: string;
   season: string;
   name: string;
+  status: string;
 }
 
 export async function getLeagueHistory(leagueId: string): Promise<LeagueHistory[]> {
@@ -241,6 +242,7 @@ export async function getLeagueHistory(leagueId: string): Promise<LeagueHistory[
       leagueId: league.league_id,
       season: league.season,
       name: league.name,
+      status: league.status,
     });
     
     currentLeagueId = league.previous_league_id;
