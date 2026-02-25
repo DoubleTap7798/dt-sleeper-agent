@@ -15099,7 +15099,24 @@ Respond in JSON format:
         });
 
         return veterans.map((p) => {
-          const value = ktcValues.getPlayerValue(p.pid, p.position, p.age || 25, p.years_exp || 1, p.search_rank, !!p.team);
+          let value = ktcValues.getPlayerValue(p.pid, p.position, p.age || 25, p.years_exp || 1, p.search_rank, !!p.team);
+          const searchRk = p.search_rank || 9999;
+          const depthOrd = p.depth_chart_order || 99;
+          const isFa = !p.team || p.team === "" || p.team === "FA";
+
+          if (depthOrd > 2 && searchRk > 150) {
+            value = Math.min(value, 2000);
+          }
+          if (depthOrd > 1 && searchRk > 300) {
+            value = Math.min(value, 1800);
+          }
+          if (isFa) {
+            value = Math.min(value, 1200);
+          }
+          if (searchRk > 400) {
+            value = Math.min(value, 1500);
+          }
+
           const posCeiling: Record<string, number> = { QB: 9500, RB: 8500, WR: 9000, TE: 7500, K: 800, DEF: 800 };
           const ceil = posCeiling[p.position] || 3000;
           const pct = ceil > 0 ? value / ceil : 0;
@@ -15111,7 +15128,7 @@ Respond in JSON format:
             value,
             college: p.college || "",
             tier,
-            searchRank: p.search_rank || 9999,
+            searchRank: searchRk,
             nflTeam: p.team || undefined,
           };
         })
