@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CACHE_TIMES, apiRequest, queryClient } from "@/lib/queryClient";
+import { CACHE_TIMES } from "@/lib/queryClient";
 import { abbreviateName, getPositionColorClass } from "@/lib/utils";
 import { PremiumGate } from "@/components/premium-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,161 +8,99 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight, Sparkles, Target, Zap, AlertTriangle, Database, RefreshCw, CheckCircle, AlertCircle, Bookmark, Flame, Layers } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+  GraduationCap,
+  TrendingUp,
+  TrendingDown,
+  ChevronRight,
+  Sparkles,
+  Target,
+  AlertTriangle,
+  Shield,
+  BarChart3,
+  Briefcase,
+} from "lucide-react";
 import { DevyProfileModal } from "@/components/devy-profile-modal";
-import { useMutation } from "@tanstack/react-query";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { InfoTooltip } from "@/components/metric-tooltip";
-import { ExportButton } from "@/components/export-button";
-import { formatDevyForShare } from "@/lib/export-utils";
-
-interface DataSourceStatus {
-  sourceId: string;
-  sourceName: string;
-  lastUpdated: string;
-  playerCount: number;
-  status: 'active' | 'stale' | 'error';
-}
-
-interface DevyComp {
-  name: string;
-  matchPct: number;
-  wasSuccess: boolean;
-}
-
-interface DevyPlayer {
-  playerId: string;
-  name: string;
-  position: string;
-  positionRank: number;
-  college: string;
-  draftEligibleYear: number;
-  tier: number;
-  trend7Day: number;
-  trend30Day: number;
-  seasonChange: number;
-  value: number;
-  rank: number;
-  dtRank: number;
-  fantasyProsRank: number | null;
-  // Breakout/Bust probability
-  starterPct: number;
-  elitePct: number;
-  bustPct: number;
-  // Draft capital confidence
-  top10Pct: number;
-  round1Pct: number;
-  round2PlusPct: number;
-  // Trade value equivalent
-  pickEquivalent: string;
-  pickMultiplier: number;
-  // Market share metrics
-  dominatorRating: number;
-  yardShare: number;
-  tdShare: number;
-  breakoutAge: number | null;
-  // Historical comps
-  comps: DevyComp[];
-  // Path to production
-  depthRole: string;
-  pathContext: string;
-  // Age vs Class indicator
-  ageClass: "young-breakout" | "normal" | "old-producer";
-}
-
-interface DevyData {
-  players: DevyPlayer[];
-  positions: string[];
-  years: number[];
-  totalCount: number;
-  source: string;
-}
-
-type SortField = "rank" | "name" | "position" | "year" | "college" | "value" | "tier" | "dvi";
-type SortDirection = "asc" | "desc";
-
-function calculateDVI(player: DevyPlayer): number {
-  let score = 0;
-  const rankScore = Math.max(0, 40 - (player.rank - 1) * 0.5);
-  score += rankScore;
-  
-  score += (player.round1Pct / 100) * 15;
-  score += (player.top10Pct / 100) * 5;
-  
-  score += (player.elitePct / 100) * 15;
-  score -= (player.bustPct / 100) * 5;
-  
-  const trendBonus = Math.min(10, Math.max(-5, player.trend30Day * 0.5));
-  score += 5 + trendBonus;
-  
-  if (player.ageClass === "young-breakout") score += 10;
-  else if (player.ageClass === "normal") score += 6;
-  else score += 3;
-  
-  return Math.round(Math.min(100, Math.max(0, score)));
-}
+import { Link } from "wouter";
+import type { DevyPlayer, DevyData } from "@/pages/devy-rankings";
+import { calculateDVI } from "@/pages/devy-rankings";
 
 export default function DevyPage() {
   usePageTitle("Devy Command Center");
-  const [positionFilter, setPositionFilter] = useState<string>("all");
-  const [yearFilter, setYearFilter] = useState<string>("all");
-  const [sortField, setSortField] = useState<SortField>("rank");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedPlayer, setSelectedPlayer] = useState<DevyPlayer | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [showSources, setShowSources] = useState(false);
-  const [viewMode, setViewMode] = useState<"all" | "mydevy">("all");
-  const [groupByTier, setGroupByTier] = useState<boolean>(false);
 
   const { data, isLoading, error } = useQuery<DevyData>({
     queryKey: ["/api/sleeper/devy"],
     ...CACHE_TIMES.STABLE,
   });
 
-  const { data: sourcesData } = useQuery<{ sources: DataSourceStatus[] }>({
-    queryKey: ["/api/sleeper/devy/sources"],
-    ...CACHE_TIMES.STABLE,
-  });
-
-  const { data: myDevyData } = useQuery<{ ownedDevy: Array<{ devyPlayerId: string; devyName: string; devyPosition: string; devySchool: string; leagueId: string; leagueName: string; matched: boolean }>; leagues: Array<{ id: string; name: string }> }>({
+  const { data: myDevyData } = useQuery<{
+    ownedDevy: Array<{
+      devyPlayerId: string;
+      devyName: string;
+      devyPosition: string;
+      devySchool: string;
+      leagueId: string;
+      leagueName: string;
+      matched: boolean;
+    }>;
+    leagues: Array<{ id: string; name: string }>;
+  }>({
     queryKey: ["/api/sleeper/devy/my-players"],
     ...CACHE_TIMES.STABLE,
   });
 
-  const { data: watchlistData } = useQuery<{ watchlist: Array<{ playerId: string }> }>({
-    queryKey: ["/api/watchlist"],
-  });
-
-  const refreshMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("POST", "/api/sleeper/devy/refresh-sources");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/sleeper/devy"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/sleeper/devy/sources"] });
-    },
-  });
-
   if (isLoading) {
-    return <DevySkeleton />;
+    return <DashboardSkeleton />;
   }
 
   if (error || !data) {
     return (
       <div className="flex items-center justify-center h-64" data-testid="status-error-devy">
-        <p className="text-muted-foreground" data-testid="text-error-devy">Failed to load devy players</p>
+        <p className="text-muted-foreground" data-testid="text-error-devy">Failed to load devy data</p>
       </div>
     );
   }
 
-  const { players, positions, years } = data;
+  const { players } = data;
+
+  const handlePlayerClick = (player: DevyPlayer) => {
+    setSelectedPlayer(player);
+    setModalOpen(true);
+  };
+
+  const playersWithDVI = players.map(p => ({ ...p, dvi: calculateDVI(p) }));
+
+  const risingEV = [...playersWithDVI]
+    .sort((a, b) => b.trend7Day - a.trend7Day)
+    .filter(p => p.trend7Day > 0)
+    .slice(0, 5);
+
+  const undervalued = [...playersWithDVI]
+    .map(p => ({ ...p, delta: (p.marketRank || p.rank) - (p.modelRank || p.rank) }))
+    .filter(p => p.delta > 0)
+    .sort((a, b) => b.delta - a.delta)
+    .slice(0, 5);
+
+  const bustRisk = [...playersWithDVI]
+    .filter(p => p.bustPct > 20)
+    .sort((a, b) => b.bustPct - a.bustPct)
+    .slice(0, 5);
+
+  const projectedFirstRounders = [...playersWithDVI]
+    .filter(p => p.round1Pct > 50)
+    .sort((a, b) => b.round1Pct - a.round1Pct);
+
+  const draftYears = [2026, 2027, 2028, 2029];
+  const classStrength = draftYears.map(year => {
+    const classPlayers = playersWithDVI.filter(p => p.draftEligibleYear === year);
+    const avgDVI = classPlayers.length > 0
+      ? Math.round(classPlayers.reduce((sum, p) => sum + p.dvi, 0) / classPlayers.length)
+      : 0;
+    return { year, avgDVI, count: classPlayers.length };
+  });
+  const maxClassDVI = Math.max(...classStrength.map(c => c.avgDVI), 1);
 
   const fuzzyNameMatch = (name1: string, name2: string): boolean => {
     const a = name1.toLowerCase().trim();
@@ -181,977 +119,347 @@ export default function DevyPage() {
     return false;
   };
 
-  const filteredPlayers = players.filter((player) => {
-    if (positionFilter !== "all" && player.position !== positionFilter) return false;
-    if (yearFilter !== "all" && player.draftEligibleYear !== parseInt(yearFilter)) return false;
-    if (viewMode === "mydevy") {
-      const ownedIds = new Set(myDevyData?.ownedDevy?.map(d => d.devyPlayerId) || []);
-      const watchlistIds = new Set(watchlistData?.watchlist?.map(w => w.playerId) || []);
-      const isOwned = ownedIds.has(player.playerId) || watchlistIds.has(player.playerId) ||
-        (myDevyData?.ownedDevy || []).some(d => fuzzyNameMatch(d.devyName, player.name));
-      if (!isOwned) return false;
-    }
-    return true;
-  });
-
-  const unmatchedDevy = viewMode === "mydevy" ? (myDevyData?.ownedDevy || []).filter(d => {
-    if (d.matched) return false;
-    return !players.some(p => p.playerId === d.devyPlayerId || fuzzyNameMatch(d.devyName, p.name));
-  }) : [];
-
-  const getOwnedLeagues = (playerId: string, playerName: string): string[] => {
-    if (!myDevyData?.ownedDevy) return [];
-    return myDevyData.ownedDevy
-      .filter(d => d.devyPlayerId === playerId || fuzzyNameMatch(d.devyName, playerName))
-      .map(d => d.leagueName);
-  };
-
-  const sortedPlayers = [...filteredPlayers].sort((a, b) => {
-    let comparison = 0;
-    switch (sortField) {
-      case "rank":
-        comparison = a.rank - b.rank;
-        break;
-      case "name":
-        comparison = a.name.localeCompare(b.name);
-        break;
-      case "position":
-        comparison = a.position.localeCompare(b.position);
-        break;
-      case "year":
-        comparison = a.draftEligibleYear - b.draftEligibleYear;
-        break;
-      case "college":
-        comparison = a.college.localeCompare(b.college);
-        break;
-      case "value":
-        comparison = a.value - b.value;
-        break;
-      case "tier":
-        comparison = a.tier - b.tier;
-        break;
-      case "dvi":
-        comparison = calculateDVI(a) - calculateDVI(b);
-        break;
-    }
-    return sortDirection === "asc" ? comparison : -comparison;
-  });
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-  };
-
-  const handlePlayerClick = (player: DevyPlayer) => {
-    setSelectedPlayer(player);
-    setModalOpen(true);
-  };
-
-  const SortButton = ({ field, label }: { field: SortField; label: string }) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={() => handleSort(field)}
-      className="h-auto p-1 font-medium"
-      data-testid={`button-sort-${field}`}
-    >
-      {label}
-      <ArrowUpDown className="ml-1 h-3 w-3" />
-    </Button>
-  );
+  const ownedDevyPlayers = myDevyData?.ownedDevy
+    ? playersWithDVI.filter(p =>
+        myDevyData.ownedDevy.some(d =>
+          d.devyPlayerId === p.playerId || fuzzyNameMatch(d.devyName, p.name)
+        )
+      )
+    : [];
+  const totalPortfolioEV = ownedDevyPlayers.reduce((sum, p) => sum + p.value, 0);
+  const hasPortfolio = ownedDevyPlayers.length > 0;
 
   return (
-    <PremiumGate featureName="Devy Rankings">
-    <div className="space-y-6 min-w-0 overflow-x-hidden" data-testid="devy-page">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <GraduationCap className="h-8 w-8" />
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-devy-title">
-              Devy Command Center
-            </h1>
-            <p className="text-sm text-muted-foreground" data-testid="text-devy-subtitle">
-              Dynasty prospect intelligence hub
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <ExportButton
-            data={sortedPlayers.map((p) => ({
-              Rank: p.rank,
-              Name: p.name,
-              Position: p.position,
-              School: p.college,
-              Class: p.draftEligibleYear,
-              Value: p.value,
-            }))}
-            filename="devy-rankings"
-            shareText={formatDevyForShare(sortedPlayers)}
-          />
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap" data-testid="devy-filters">
-          <div className="flex items-center gap-1 border rounded-md p-0.5">
-            <Button 
-              variant={viewMode === "all" ? "default" : "ghost"} 
-              size="sm"
-              onClick={() => setViewMode("all")}
-              data-testid="button-view-all"
-            >
-              All Rankings
-            </Button>
-            <Button 
-              variant={viewMode === "mydevy" ? "default" : "ghost"}
-              size="sm" 
-              onClick={() => setViewMode("mydevy")}
-              className="gap-1"
-              data-testid="button-view-mydevy"
-            >
-              <Bookmark className="h-3.5 w-3.5" />
-              My Devy
-              {myDevyData?.ownedDevy && myDevyData.ownedDevy.length > 0 && (
-                <Badge variant="secondary" className="ml-1 text-[10px]">{myDevyData.ownedDevy.length}</Badge>
-              )}
-            </Button>
-          </div>
-
-          <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-          
-          <Select value={positionFilter} onValueChange={setPositionFilter}>
-            <SelectTrigger className="w-[100px]" data-testid="select-position-filter">
-              <SelectValue placeholder="Position" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" data-testid="option-position-all">All Positions</SelectItem>
-              {positions.map((pos) => (
-                <SelectItem key={pos} value={pos} data-testid={`option-position-${pos}`}>
-                  {pos}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={yearFilter} onValueChange={setYearFilter}>
-            <SelectTrigger className="w-[110px]" data-testid="select-year-filter">
-              <SelectValue placeholder="Draft Year" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" data-testid="option-year-all">All Years</SelectItem>
-              {years.map((year) => (
-                <SelectItem key={year} value={year.toString()} data-testid={`option-year-${year}`}>
-                  {year} Draft
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button
-            variant={groupByTier ? "default" : "outline"}
-            size="sm"
-            onClick={() => setGroupByTier(!groupByTier)}
-            className="gap-1.5 toggle-elevate"
-            data-testid="button-toggle-tiers"
-          >
-            <Layers className="h-3.5 w-3.5" />
-            Tiers
-          </Button>
-        </div>
-      </div>
-
-      {viewMode === "all" && (() => {
-        const tierCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-        filteredPlayers.forEach(p => {
-          if (p.tier >= 1 && p.tier <= 5) tierCounts[p.tier]++;
-        });
-        const total = filteredPlayers.length || 1;
-        const tierConfig = [
-          { tier: 1, label: "Elite", color: "rgb(34, 197, 94)", bgClass: "bg-green-500" },
-          { tier: 2, label: "Blue Chip", color: "rgb(59, 130, 246)", bgClass: "bg-blue-500" },
-          { tier: 3, label: "Solid", color: "rgb(234, 179, 8)", bgClass: "bg-yellow-500" },
-          { tier: 4, label: "Developmental", color: "rgb(249, 115, 22)", bgClass: "bg-orange-500" },
-          { tier: 5, label: "Lottery", color: "rgb(239, 68, 68)", bgClass: "bg-red-500" },
-        ];
-        return (
-          <Card data-testid="card-tier-distribution">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Layers className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Tier Distribution</span>
+    <PremiumGate featureName="Devy Command Center">
+      <div className="space-y-6 min-w-0 overflow-x-hidden" data-testid="devy-page">
+        <div className="relative overflow-hidden rounded-xl border border-amber-800/30 bg-gradient-to-br from-amber-950/40 via-stone-950/80 to-stone-950/60 p-6">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-700/10 via-transparent to-transparent" />
+          <div className="relative flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-amber-700/20 border border-amber-700/30 flex items-center justify-center">
+                <GraduationCap className="h-6 w-6 text-amber-500" />
               </div>
-              <div className="flex h-3 rounded-full overflow-hidden" data-testid="bar-tier-distribution">
-                {tierConfig.map(tc => (
-                  <div
-                    key={tc.tier}
-                    className={tc.bgClass}
-                    style={{ width: `${(tierCounts[tc.tier] / total) * 100}%` }}
-                    data-testid={`bar-segment-tier-${tc.tier}`}
-                  />
-                ))}
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-amber-100" data-testid="text-devy-title">
+                  Devy Command Center
+                </h1>
+                <p className="text-sm text-amber-200/60" data-testid="text-devy-subtitle">
+                  Prospect intelligence dashboard &middot; {players.length} prospects tracked
+                </p>
               </div>
-              <div className="flex items-center justify-between mt-2 flex-wrap gap-1">
-                {tierConfig.map(tc => (
-                  <div key={tc.tier} className="flex items-center gap-1 text-xs" data-testid={`label-tier-${tc.tier}`}>
-                    <div className={`h-2.5 w-2.5 rounded-full ${tc.bgClass}`} />
-                    <span className="text-muted-foreground">{tc.label}</span>
-                    <span className="font-medium">{tierCounts[tc.tier]}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
-
-      {data && (() => {
-        const risers = players.filter(p => p.trend30Day >= 5).sort((a, b) => b.trend30Day - a.trend30Day).slice(0, 5);
-        const fallers = players.filter(p => p.trend30Day <= -5).sort((a, b) => a.trend30Day - b.trend30Day).slice(0, 5);
-        const breakouts = players.filter(p => p.ageClass === "young-breakout" && p.trend30Day > 0).slice(0, 3);
-        const buyLow = players.filter(p => p.trend30Day <= -5 && p.elitePct >= 20 && p.tier <= 3).sort((a, b) => a.trend30Day - b.trend30Day).slice(0, 3);
-        const sellHigh = players.filter(p => p.trend30Day >= 5 && p.bustPct >= 30).sort((a, b) => b.trend30Day - a.trend30Day).slice(0, 3);
-        const valuePlays = players.filter(p => p.elitePct >= 25 && p.pickMultiplier <= 1.2 && p.tier <= 3).slice(0, 3);
-        
-        if (risers.length === 0 && fallers.length === 0 && breakouts.length === 0) return null;
-        
-        return (
-          <Card data-testid="card-market-intelligence">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <div className="flex items-center gap-2">
-                  <Flame className="h-5 w-5 text-primary" />
-                  <h3 className="font-semibold">Market Intelligence</h3>
-                  <Badge variant="outline" className="text-[10px]">30-Day Window</Badge>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {risers.length > 0 && (
-                  <div className="p-3 rounded-lg border border-green-500/20 bg-green-500/5" data-testid="panel-momentum-rising">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <TrendingUp className="h-4 w-4 text-green-500" />
-                      <span className="text-sm font-semibold text-green-500">Rising Momentum</span>
-                      <Badge variant="secondary" className="text-[10px] ml-auto">{risers.length}</Badge>
-                    </div>
-                    <div className="space-y-1.5">
-                      {risers.map(p => (
-                        <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1.5 rounded" onClick={() => handlePlayerClick(p)} data-testid={`alert-riser-${p.playerId}`}>
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
-                            <span className="font-medium">{abbreviateName(p.name)}</span>
-                          </div>
-                          <span className="text-green-500 font-medium">+{p.trend30Day}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {fallers.length > 0 && (
-                  <div className="p-3 rounded-lg border border-red-500/20 bg-red-500/5" data-testid="panel-momentum-falling">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <TrendingDown className="h-4 w-4 text-red-500" />
-                      <span className="text-sm font-semibold text-red-500">Falling Value</span>
-                      <Badge variant="secondary" className="text-[10px] ml-auto">{fallers.length}</Badge>
-                    </div>
-                    <div className="space-y-1.5">
-                      {fallers.map(p => (
-                        <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1.5 rounded" onClick={() => handlePlayerClick(p)} data-testid={`alert-faller-${p.playerId}`}>
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
-                            <span className="font-medium">{abbreviateName(p.name)}</span>
-                          </div>
-                          <span className="text-red-500 font-medium">{p.trend30Day}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {breakouts.length > 0 && (
-                  <div className="p-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5" data-testid="panel-breakout-alerts">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Zap className="h-4 w-4 text-yellow-500" />
-                      <span className="text-sm font-semibold text-yellow-500">Breakout Alerts</span>
-                      <Badge variant="secondary" className="text-[10px] ml-auto">{breakouts.length}</Badge>
-                    </div>
-                    <div className="space-y-1.5">
-                      {breakouts.map(p => (
-                        <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1.5 rounded" onClick={() => handlePlayerClick(p)} data-testid={`alert-breakout-${p.playerId}`}>
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
-                            <span className="font-medium">{abbreviateName(p.name)}</span>
-                          </div>
-                          <span className="text-yellow-500 font-medium">DVI {calculateDVI(p)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {(buyLow.length > 0 || sellHigh.length > 0 || valuePlays.length > 0) && (
-                <div className="mt-4 pt-4 border-t" data-testid="panel-trade-signals">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Target className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-semibold">Trade Signals</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {buyLow.length > 0 && (
-                      <div data-testid="panel-buy-low">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <div className="h-2 w-2 rounded-full bg-green-500" />
-                          <span className="text-xs font-medium">Buy Low Targets</span>
-                        </div>
-                        <div className="space-y-1">
-                          {buyLow.map(p => (
-                            <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1 rounded" onClick={() => handlePlayerClick(p)} data-testid={`signal-buy-${p.playerId}`}>
-                              <div className="flex items-center gap-1">
-                                <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
-                                <span>{abbreviateName(p.name)}</span>
-                              </div>
-                              <span className="text-green-500 text-[10px]">{p.elitePct}% elite</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {sellHigh.length > 0 && (
-                      <div data-testid="panel-sell-high">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <div className="h-2 w-2 rounded-full bg-red-500" />
-                          <span className="text-xs font-medium">Sell High Candidates</span>
-                        </div>
-                        <div className="space-y-1">
-                          {sellHigh.map(p => (
-                            <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1 rounded" onClick={() => handlePlayerClick(p)} data-testid={`signal-sell-${p.playerId}`}>
-                              <div className="flex items-center gap-1">
-                                <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
-                                <span>{abbreviateName(p.name)}</span>
-                              </div>
-                              <span className="text-red-500 text-[10px]">{p.bustPct}% bust</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {valuePlays.length > 0 && (
-                      <div data-testid="panel-value-plays">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <div className="h-2 w-2 rounded-full bg-blue-500" />
-                          <span className="text-xs font-medium">Value Plays</span>
-                        </div>
-                        <div className="space-y-1">
-                          {valuePlays.map(p => (
-                            <div key={p.playerId} className="flex items-center justify-between gap-2 text-xs cursor-pointer hover-elevate p-1 rounded" onClick={() => handlePlayerClick(p)} data-testid={`signal-value-${p.playerId}`}>
-                              <div className="flex items-center gap-1">
-                                <Badge variant="outline" className={`text-[10px] ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
-                                <span>{abbreviateName(p.name)}</span>
-                              </div>
-                              <span className="text-blue-500 text-[10px]">T{p.tier} underpriced</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })()}
-
-      {viewMode === "mydevy" && filteredPlayers.length > 0 && (() => {
-        const totalValue = filteredPlayers.reduce((sum, p) => sum + p.value, 0);
-        const avgDvi = Math.round(filteredPlayers.reduce((sum, p) => sum + calculateDVI(p), 0) / filteredPlayers.length);
-        const posCounts: Record<string, number> = {};
-        filteredPlayers.forEach(p => { posCounts[p.position] = (posCounts[p.position] || 0) + 1; });
-        const avgElite = filteredPlayers.reduce((sum, p) => sum + p.elitePct, 0) / filteredPlayers.length;
-        const avgBust = filteredPlayers.reduce((sum, p) => sum + p.bustPct, 0) / filteredPlayers.length;
-        const portfolioHealth = Math.round(Math.min(100, Math.max(0, avgElite - avgBust)));
-        return (
-          <Card data-testid="card-portfolio-overview">
-            <CardContent className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div data-testid="stat-total-value">
-                  <p className="text-xs text-muted-foreground">Total Portfolio Value</p>
-                  <p className="text-xl font-bold">{totalValue.toLocaleString()}</p>
-                </div>
-                <div data-testid="stat-avg-dvi">
-                  <p className="text-xs text-muted-foreground">Avg DVI Score</p>
-                  <p className={`text-xl font-bold ${avgDvi >= 70 ? "text-green-500" : avgDvi >= 50 ? "text-yellow-500" : "text-red-500"}`}>{avgDvi}</p>
-                </div>
-                <div data-testid="stat-position-balance">
-                  <p className="text-xs text-muted-foreground mb-1">Position Balance</p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {["QB", "RB", "WR", "TE"].map(pos => (
-                      <Badge key={pos} variant="outline" className={`text-[10px] ${getPositionColorClass(pos)}`} data-testid={`badge-pos-count-${pos}`}>
-                        {pos} {posCounts[pos] || 0}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div data-testid="stat-portfolio-health">
-                  <p className="text-xs text-muted-foreground">Portfolio Health</p>
-                  <p className={`text-xl font-bold ${portfolioHealth >= 50 ? "text-green-500" : portfolioHealth >= 25 ? "text-yellow-500" : "text-red-500"}`}>{portfolioHealth}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
-
-      <Card data-testid="card-devy-table">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <CardTitle className="text-lg" data-testid="text-showing-count">
-              Showing {sortedPlayers.length + unmatchedDevy.length} of {viewMode === "mydevy" ? `${(myDevyData?.ownedDevy?.length || 0)} owned` : `${players.length} players`}
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Click a player for details</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => setShowSources(!showSources)}
-                    data-testid="button-toggle-sources"
-                  >
-                    <Database className="h-3.5 w-3.5" />
-                    <span>{sourcesData?.sources?.length || 1} Sources</span>
-                    {sourcesData?.sources?.every(s => s.status === 'active') ? (
-                      <CheckCircle className="h-3 w-3 text-green-500" />
-                    ) : (
-                      <AlertCircle className="h-3 w-3 text-yellow-500" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Click to view data sources</p>
-                </TooltipContent>
-              </Tooltip>
             </div>
-          </div>
-        </CardHeader>
-        
-        {showSources && sourcesData?.sources && (
-          <div className="border-b px-6 py-4 bg-muted/30" data-testid="panel-data-sources">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Database className="h-4 w-4" />
-                Data Sources
-              </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refreshMutation.mutate()}
-                disabled={refreshMutation.isPending}
-                className="gap-1.5"
-                data-testid="button-refresh-sources"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
-                Refresh
+            <Link href="/league/devy/rankings">
+              <Button variant="outline" className="gap-1.5" data-testid="link-full-rankings">
+                View Full Rankings
+                <ChevronRight className="h-4 w-4" />
               </Button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {sourcesData.sources.map((source) => (
-                <div
-                  key={source.sourceId}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-background"
-                  data-testid={`source-${source.sourceId}`}
-                >
-                  <div className="flex items-center gap-2">
-                    {source.status === 'active' ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    ) : source.status === 'stale' ? (
-                      <AlertCircle className="h-4 w-4 text-yellow-500" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-red-500" />
-                    )}
-                    <div>
-                      <p className="font-medium text-sm">{source.sourceName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {source.playerCount} players • Updated {source.lastUpdated}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant={source.status === 'active' ? 'default' : 'secondary'} className="capitalize">
-                    {source.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Devy rankings are curated by DT Dynasty with values, tiers, draft projections, and player comparisons.
-              FantasyPros provides expert consensus devy rankings (top 100) for cross-reference.
-              Dynasty Process provides NFL player values and ECR for the trade calculator. 
-              nflverse powers advanced analytics (target share, WOPR, air yards) in player profiles.
-            </p>
+            </Link>
           </div>
-        )}
+        </div>
 
-        <CardContent className="p-0">
-          {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full" data-testid="table-devy">
-              <thead className="border-b">
-                <tr className="text-left text-sm text-muted-foreground">
-                  <th className="p-3 w-12">
-                    <SortButton field="rank" label="#" />
-                  </th>
-                  <th className="p-3 w-14 text-center">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="font-medium text-sm cursor-help">DT</span>
-                      </TooltipTrigger>
-                      <TooltipContent>DT Dynasty Rank</TooltipContent>
-                    </Tooltip>
-                  </th>
-                  <th className="p-3 w-14 text-center">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="font-medium text-sm cursor-help">FP</span>
-                      </TooltipTrigger>
-                      <TooltipContent>FantasyPros Devy Rank</TooltipContent>
-                    </Tooltip>
-                  </th>
-                  <th className="p-3">
-                    <SortButton field="name" label="Player" />
-                  </th>
-                  <th className="p-3 w-20">
-                    <SortButton field="position" label="Pos" />
-                  </th>
-                  <th className="p-3">
-                    <SortButton field="college" label="College" />
-                  </th>
-                  <th className="p-3 w-20">
-                    <SortButton field="year" label="Draft" />
-                  </th>
-                  <th className="p-3 w-28 text-center">
-                    <span className="font-medium flex items-center justify-center gap-1">
-                      DVI
-                      <InfoTooltip title="Devy Value Index" description="Composite score (0-100) factoring production trend, class year, NFL draft projection, positional scarcity, hit rates, and depth chart opportunities. Higher = more valuable prospect." />
-                    </span>
-                  </th>
-                  <th className="p-3 w-32 text-center">
-                    <span className="font-medium flex items-center justify-center gap-1">
-                      Hit Rate
-                      <InfoTooltip title="Hit Rate" description="Elite % shows chances of becoming a fantasy star. Bust % shows risk of being a non-contributor. Based on historical data for similar prospects." />
-                    </span>
-                  </th>
-                  <th className="p-3 w-28 text-center">
-                    <span className="font-medium flex items-center justify-center gap-1">
-                      Draft Capital
-                      <InfoTooltip title="Draft Capital" description="Projected NFL draft position. Shows probability of being a top-10 pick, 1st rounder, or later. Higher draft capital usually means more opportunity." />
-                    </span>
-                  </th>
-                  <th className="p-3 w-20 text-center">
-                    <span className="font-medium flex items-center justify-center gap-1">
-                      Trend
-                      <InfoTooltip title="Value Trend" description="How this prospect's dynasty value has changed recently. Green arrow = rising stock, Red arrow = falling stock." />
-                    </span>
-                  </th>
-                  <th className="p-3 w-16 text-center">
-                    <span className="font-medium">Age</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedPlayers.length === 0 ? (
-                  <tr>
-                    <td colSpan={12} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
-                      No players match the selected filters
-                    </td>
-                  </tr>
-                ) : (
-                  (() => {
-                    const tierNames: Record<number, string> = { 1: "Elite Prospects", 2: "Blue Chip", 3: "Solid Contributors", 4: "Developmental", 5: "Lottery Tickets" };
-                    const tierColors: Record<number, string> = { 1: "border-l-green-500 bg-green-500/5", 2: "border-l-blue-500 bg-blue-500/5", 3: "border-l-yellow-500 bg-yellow-500/5", 4: "border-l-orange-500 bg-orange-500/5", 5: "border-l-red-500 bg-red-500/5" };
-                    const tierArchetypes: Record<number, string> = { 1: "Elite", 2: "Blue Chip", 3: "Solid", 4: "Developmental", 5: "Lottery" };
-                    const showTierHeaders = groupByTier && sortField === "rank";
-                    let lastTier = 0;
-                    const rows: JSX.Element[] = [];
-                    sortedPlayers.forEach((player, index) => {
-                      if (showTierHeaders && player.tier !== lastTier) {
-                        const tierCount = sortedPlayers.filter(p => p.tier === player.tier).length;
-                        rows.push(
-                          <tr key={`tier-header-${player.tier}`} data-testid={`row-tier-header-${player.tier}`}>
-                            <td colSpan={12} className={`p-3 border-l-4 ${tierColors[player.tier] || "bg-muted/30"}`}>
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-sm">{tierNames[player.tier] || `Tier ${player.tier}`}</span>
-                                <Badge variant="secondary" className="text-[10px]">{tierArchetypes[player.tier] || "Other"}</Badge>
-                                <span className="text-xs text-muted-foreground">{tierCount} players</span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                        lastTier = player.tier;
-                      }
-                      rows.push(
-                        <tr
-                          key={player.playerId}
-                          className={`cursor-pointer hover-elevate ${index % 2 === 0 ? "bg-muted/30" : ""}`}
-                          onClick={() => handlePlayerClick(player)}
-                          data-testid={`row-player-${player.playerId}`}
-                        >
-                      <td className="p-3 font-medium" data-testid={`text-rank-${player.playerId}`}>
-                        {player.rank}
-                      </td>
-                      <td className="p-3 text-center" data-testid={`text-dt-rank-${player.playerId}`}>
-                        <span className="text-xs text-muted-foreground">{player.dtRank}</span>
-                      </td>
-                      <td className="p-3 text-center" data-testid={`text-fp-rank-${player.playerId}`}>
-                        {player.fantasyProsRank ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className={`text-xs font-medium ${
-                                player.fantasyProsRank < player.dtRank ? "text-green-500" :
-                                player.fantasyProsRank > player.dtRank ? "text-red-500" :
-                                "text-muted-foreground"
-                              }`}>
-                                {player.fantasyProsRank}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">
-                                FantasyPros: #{player.fantasyProsRank}
-                                {player.fantasyProsRank !== player.dtRank && (
-                                  <span className={player.fantasyProsRank < player.dtRank ? " text-green-400" : " text-red-400"}>
-                                    {" "}({player.fantasyProsRank < player.dtRank ? "+" : ""}{player.dtRank - player.fantasyProsRank} vs DT)
-                                  </span>
-                                )}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex flex-col">
-                          <span className="font-medium" data-testid={`text-name-${player.playerId}`}>
-                            <span className="sm:hidden">{abbreviateName(player.name)}</span>
-                            <span className="hidden sm:inline">{player.name}</span>
-                          </span>
-                          {player.comps && player.comps.length > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              Comp: {player.comps[0].name} ({player.comps[0].matchPct}%)
-                            </span>
-                          )}
-                          {viewMode === "mydevy" && (() => {
-                            const leagues = getOwnedLeagues(player.playerId, player.name);
-                            if (leagues.length === 0) return null;
-                            return (
-                              <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                                {leagues.map((league, i) => (
-                                  <Badge key={i} variant="secondary" className="text-[10px]">{league}</Badge>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <Badge variant="outline" className={getPositionColorClass(player.position)} data-testid={`badge-position-${player.playerId}`}>
-                          {player.position}{player.positionRank}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-muted-foreground text-sm" data-testid={`text-college-${player.playerId}`}>
-                        <div className="flex flex-col">
-                          <span>{player.college}</span>
-                          <span className="text-xs">{player.depthRole}</span>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <Badge variant="outline" data-testid={`badge-year-${player.playerId}`}>
-                          {player.draftEligibleYear}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-center">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="text-xs">
-                              <span className={`text-lg font-bold ${
-                                calculateDVI(player) >= 80 ? "text-green-500" :
-                                calculateDVI(player) >= 60 ? "text-primary" :
-                                calculateDVI(player) >= 40 ? "text-yellow-500" :
-                                "text-red-500"
-                              }`}>
-                                {calculateDVI(player)}
-                              </span>
-                              <div className="text-muted-foreground text-[10px]">
-                                {player.trend30Day > 0 ? "+" : ""}{player.trend30Day} last 30d
-                              </div>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <div className="space-y-1 text-xs">
-                              <p className="font-medium">Devy Value Index: {calculateDVI(player)}/100</p>
-                              <p>Pick Value: {player.pickMultiplier.toFixed(1)}x ({player.pickEquivalent})</p>
-                              <p>Elite: {player.elitePct}% | Bust: {player.bustPct}%</p>
-                              <p>Round 1: {player.round1Pct}% | Top 10: {player.top10Pct}%</p>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </td>
-                      <td className="p-3">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1 justify-center text-xs">
-                              <Sparkles className="h-3 w-3 text-yellow-500" />
-                              <span className="text-green-500 font-medium">{player.elitePct}%</span>
-                              <span className="text-muted-foreground">/</span>
-                              <span className="text-red-500">{player.bustPct}%</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <div className="space-y-1 text-xs">
-                              <p>Fantasy Starter: {player.starterPct}%</p>
-                              <p className="text-green-400">Elite Producer: {player.elitePct}%</p>
-                              <p className="text-red-400">Bust Risk: {player.bustPct}%</p>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </td>
-                      <td className="p-3">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex flex-col items-center text-xs">
-                              <span className="font-medium">Rd1: {player.round1Pct}%</span>
-                              <span className="text-muted-foreground">Top 10: {player.top10Pct}%</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <div className="space-y-1 text-xs">
-                              <p>Top 10 Pick: {player.top10Pct}%</p>
-                              <p>Round 1: {player.round1Pct}%</p>
-                              <p>Round 2+: {player.round2PlusPct}%</p>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </td>
-                      <td className="p-3">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex flex-col items-center gap-0.5" data-testid={`trend-${player.playerId}`}>
-                              <div className="flex items-center gap-1">
-                                {player.trend30Day > 0 ? (
-                                  <TrendingUp className="h-3 w-3 text-green-500" />
-                                ) : player.trend30Day < 0 ? (
-                                  <TrendingDown className="h-3 w-3 text-red-500" />
-                                ) : null}
-                                <span className={`text-xs font-medium ${player.trend30Day > 0 ? "text-green-500" : player.trend30Day < 0 ? "text-red-500" : "text-muted-foreground"}`}>
-                                  {player.trend30Day > 0 ? `+${player.trend30Day}` : player.trend30Day || "-"}
-                                </span>
-                              </div>
-                              <span className={`text-[10px] ${player.seasonChange > 10 ? "text-green-500" : player.seasonChange < -10 ? "text-red-500" : "text-muted-foreground"}`}>
-                                Szn: {player.seasonChange > 0 ? "+" : ""}{player.seasonChange}
-                              </span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <div className="space-y-1 text-xs">
-                              <p>7-Day: {player.trend7Day > 0 ? "+" : ""}{player.trend7Day}</p>
-                              <p>30-Day: {player.trend30Day > 0 ? "+" : ""}{player.trend30Day}</p>
-                              <p>Season: {player.seasonChange > 0 ? "+" : ""}{player.seasonChange}</p>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </td>
-                      <td className="p-3 text-center">
-                        {player.ageClass === "young-breakout" ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50 text-xs">
-                                <Zap className="h-3 w-3 mr-0.5" />
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent>Young Breakout - Elite age curve</TooltipContent>
-                          </Tooltip>
-                        ) : player.ageClass === "old-producer" ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Badge variant="outline" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/50 text-xs">
-                                <AlertTriangle className="h-3 w-3" />
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent>Older Producer - Age curve concern</TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </td>
-                    </tr>
-                      );
-                    });
-                    return rows;
-                  })()
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="dashboard-cards-grid">
 
-          {/* Mobile Card View */}
-          <div className="md:hidden p-3 space-y-2" data-testid="mobile-devy-list">
-            {sortedPlayers.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground" data-testid="text-no-players-mobile">
-                No players match the selected filters
-              </div>
-            ) : (
-              sortedPlayers.map((player) => (
-                <div
-                  key={player.playerId}
-                  className="p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer"
-                  onClick={() => handlePlayerClick(player)}
-                  data-testid={`card-player-${player.playerId}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-rising-ev">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-100">
+                <TrendingUp className="h-4 w-4 text-green-500" />
+                Rising EV Prospects
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {risingEV.length === 0 ? (
+                <p className="text-xs text-muted-foreground" data-testid="text-no-risers">No rising prospects this week</p>
+              ) : (
+                risingEV.map(p => (
+                  <div
+                    key={p.playerId}
+                    className="flex items-center justify-between gap-2 p-2 rounded-md hover-elevate cursor-pointer"
+                    onClick={() => handlePlayerClick(p)}
+                    data-testid={`row-rising-${p.playerId}`}
+                  >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-lg font-bold shrink-0 w-8">#{player.rank}</span>
-                      <div className="min-w-0">
-                        <div className="font-semibold truncate flex items-center gap-1">
-                          <span className="sm:hidden">{abbreviateName(player.name)}</span>
-                          <span className="hidden sm:inline">{player.name}</span>
-                          {player.ageClass === "young-breakout" && (
-                            <Zap className="h-3 w-3 text-green-500" />
-                          )}
-                          {player.ageClass === "old-producer" && (
-                            <AlertTriangle className="h-3 w-3 text-yellow-500" />
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 flex-wrap mt-1">
-                          <Badge variant="outline" className={`text-xs ${getPositionColorClass(player.position)}`}>
-                            {player.position}{player.positionRank}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">{player.college}</span>
-                          <span className="text-xs text-muted-foreground">• {player.draftEligibleYear}</span>
-                          <span className="text-xs text-muted-foreground">• DT #{player.dtRank}</span>
-                          {player.fantasyProsRank && (
-                            <span className={`text-xs font-medium ${
-                              player.fantasyProsRank < player.dtRank ? "text-green-500" :
-                              player.fantasyProsRank > player.dtRank ? "text-red-500" :
-                              "text-muted-foreground"
-                            }`}>
-                              • FP #{player.fantasyProsRank}
-                            </span>
-                          )}
-                        </div>
-                        {player.comps && player.comps.length > 0 && (
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            Comp: {player.comps[0].name}
-                          </div>
-                        )}
-                      </div>
+                      <Badge variant="outline" className={`text-[10px] shrink-0 ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                      <span className="text-sm font-medium truncate">{abbreviateName(p.name)}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right">
-                        <div className="font-medium text-sm">
-                          <span className={`${
-                            calculateDVI(player) >= 80 ? "text-green-500" :
-                            calculateDVI(player) >= 60 ? "text-primary" :
-                            calculateDVI(player) >= 40 ? "text-yellow-500" :
-                            "text-red-500"
-                          }`}>{calculateDVI(player)}</span>
-                          <span className="text-[10px] text-muted-foreground ml-1">DVI</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          <span className="text-green-500">{player.elitePct}%</span>
-                          <span className="mx-0.5">/</span>
-                          <span className="text-red-500">{player.bustPct}%</span>
-                        </div>
-                        <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                          {player.trend30Day > 0 ? (
-                            <>
-                              <TrendingUp className="h-3 w-3 text-green-500" />
-                              <span className="text-green-500">+{player.trend30Day}</span>
-                            </>
-                          ) : player.trend30Day < 0 ? (
-                            <>
-                              <TrendingDown className="h-3 w-3 text-red-500" />
-                              <span className="text-red-500">{player.trend30Day}</span>
-                            </>
-                          ) : (
-                            "-"
-                          )}
-                        </div>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">DVI {p.dvi}</span>
+                      <span className="text-xs font-medium text-green-500">+{p.trend7Day}</span>
                     </div>
+                  </div>
+                ))
+              )}
+              <Link href="/league/devy/rankings">
+                <Button variant="ghost" size="sm" className="w-full mt-1 gap-1 text-xs" data-testid="link-rising-more">
+                  View Rankings <ChevronRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-undervalued">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-100">
+                <Target className="h-4 w-4 text-blue-500" />
+                Most Undervalued
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {undervalued.length === 0 ? (
+                <p className="text-xs text-muted-foreground" data-testid="text-no-undervalued">No mispriced prospects found</p>
+              ) : (
+                undervalued.map(p => (
+                  <div
+                    key={p.playerId}
+                    className="flex items-center justify-between gap-2 p-2 rounded-md hover-elevate cursor-pointer"
+                    onClick={() => handlePlayerClick(p)}
+                    data-testid={`row-undervalued-${p.playerId}`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className={`text-[10px] shrink-0 ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                      <span className="text-sm font-medium truncate">{abbreviateName(p.name)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-muted-foreground">Mkt #{p.marketRank || p.rank}</span>
+                      <Badge variant="secondary" className="text-[10px] text-green-500">+{p.delta} spots</Badge>
+                    </div>
+                  </div>
+                ))
+              )}
+              <Link href="/league/devy/market">
+                <Button variant="ghost" size="sm" className="w-full mt-1 gap-1 text-xs" data-testid="link-undervalued-more">
+                  Market Intelligence <ChevronRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-bust-risk">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-100">
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+                Bust Risk Watchlist
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {bustRisk.length === 0 ? (
+                <p className="text-xs text-muted-foreground" data-testid="text-no-bust-risk">No high bust-risk prospects</p>
+              ) : (
+                bustRisk.map(p => (
+                  <div
+                    key={p.playerId}
+                    className="flex items-center justify-between gap-2 p-2 rounded-md hover-elevate cursor-pointer"
+                    onClick={() => handlePlayerClick(p)}
+                    data-testid={`row-bust-${p.playerId}`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className={`text-[10px] shrink-0 ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                      <span className="text-sm font-medium truncate">{abbreviateName(p.name)}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-red-500"
+                          style={{ width: `${Math.min(100, p.bustPct)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-medium text-red-500">{p.bustPct}%</span>
+                    </div>
+                  </div>
+                ))
+              )}
+              <Link href="/league/devy/rankings">
+                <Button variant="ghost" size="sm" className="w-full mt-1 gap-1 text-xs" data-testid="link-bust-more">
+                  Full Rankings <ChevronRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-projected-first-rounders">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-100">
+                <Sparkles className="h-4 w-4 text-amber-500" />
+                Projected 1st Rounders
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {projectedFirstRounders.length === 0 ? (
+                <p className="text-xs text-muted-foreground" data-testid="text-no-first-rounders">No strong Round 1 candidates</p>
+              ) : (
+                projectedFirstRounders.slice(0, 6).map(p => (
+                  <div
+                    key={p.playerId}
+                    className="flex items-center justify-between gap-2 p-2 rounded-md hover-elevate cursor-pointer"
+                    onClick={() => handlePlayerClick(p)}
+                    data-testid={`row-r1-${p.playerId}`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className={`text-[10px] shrink-0 ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                      <span className="text-sm font-medium truncate">{abbreviateName(p.name)}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <div className="w-20 h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-amber-500"
+                          style={{ width: `${Math.min(100, p.round1Pct)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-medium text-amber-500">{p.round1Pct}%</span>
+                    </div>
+                  </div>
+                ))
+              )}
+              {projectedFirstRounders.length > 6 && (
+                <p className="text-xs text-muted-foreground text-center" data-testid="text-more-first-rounders">
+                  +{projectedFirstRounders.length - 6} more
+                </p>
+              )}
+              <Link href="/league/devy/rankings">
+                <Button variant="ghost" size="sm" className="w-full mt-1 gap-1 text-xs" data-testid="link-r1-more">
+                  Full Rankings <ChevronRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-class-strength">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-100">
+                <BarChart3 className="h-4 w-4 text-purple-500" />
+                Draft Class Strength
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {classStrength.map(cs => (
+                <div key={cs.year} className="space-y-1" data-testid={`row-class-${cs.year}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{cs.year}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{cs.count} prospects</span>
+                      <span className="text-xs font-semibold text-amber-200">{cs.avgDVI}</span>
+                    </div>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-purple-500 transition-all"
+                      style={{ width: `${(cs.avgDVI / maxClassDVI) * 100}%` }}
+                    />
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+              <Link href="/league/devy/rankings">
+                <Button variant="ghost" size="sm" className="w-full mt-1 gap-1 text-xs" data-testid="link-class-more">
+                  View by Class <ChevronRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
 
-          {unmatchedDevy.length > 0 && (
-            <div className="border-t p-4">
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                Additional Owned Devy ({unmatchedDevy.length} not in rankings)
-              </h3>
-              <div className="space-y-2">
-                {unmatchedDevy.map((d, i) => (
-                  <div key={`unmatched-${i}`} className="flex items-center justify-between gap-2 p-3 rounded-lg bg-muted/30" data-testid={`card-unmatched-devy-${i}`}>
+          {hasPortfolio ? (
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-portfolio-snapshot">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-100">
+                  <Briefcase className="h-4 w-4 text-emerald-500" />
+                  Devy Portfolio Snapshot
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex items-center justify-between gap-2 p-2 rounded-md bg-emerald-500/5 border border-emerald-500/20">
+                  <span className="text-xs text-muted-foreground">Total Portfolio EV</span>
+                  <span className="text-lg font-bold text-emerald-500" data-testid="text-portfolio-ev">{totalPortfolioEV.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 p-2">
+                  <span className="text-xs text-muted-foreground">Prospects Owned</span>
+                  <span className="text-sm font-medium" data-testid="text-portfolio-count">{ownedDevyPlayers.length}</span>
+                </div>
+                {ownedDevyPlayers.slice(0, 3).map(p => (
+                  <div
+                    key={p.playerId}
+                    className="flex items-center justify-between gap-2 p-2 rounded-md hover-elevate cursor-pointer"
+                    onClick={() => handlePlayerClick(p)}
+                    data-testid={`row-portfolio-${p.playerId}`}
+                  >
                     <div className="flex items-center gap-2 min-w-0">
-                      <Badge variant="outline" className={`text-xs shrink-0 ${getPositionColorClass(d.devyPosition)}`}>
-                        {d.devyPosition}
-                      </Badge>
-                      <div className="min-w-0">
-                        <span className="font-medium text-sm truncate block">{d.devyName}</span>
-                        <span className="text-xs text-muted-foreground">{d.devySchool}</span>
-                      </div>
+                      <Badge variant="outline" className={`text-[10px] shrink-0 ${getPositionColorClass(p.position)}`}>{p.position}</Badge>
+                      <span className="text-sm font-medium truncate">{abbreviateName(p.name)}</span>
                     </div>
-                    <Badge variant="secondary" className="text-[10px] shrink-0">{d.leagueName}</Badge>
+                    <span className="text-xs text-muted-foreground shrink-0">DVI {p.dvi}</span>
                   </div>
                 ))}
-              </div>
-            </div>
+                {ownedDevyPlayers.length > 3 && (
+                  <p className="text-xs text-muted-foreground text-center" data-testid="text-portfolio-more">
+                    +{ownedDevyPlayers.length - 3} more
+                  </p>
+                )}
+                <Link href="/league/devy/portfolio">
+                  <Button variant="ghost" size="sm" className="w-full mt-1 gap-1 text-xs" data-testid="link-portfolio-more">
+                    Full Portfolio <ChevronRight className="h-3 w-3" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-portfolio-empty">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-100">
+                  <Briefcase className="h-4 w-4 text-emerald-500" />
+                  Devy Portfolio
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center justify-center py-6 gap-3">
+                <Shield className="h-8 w-8 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground text-center" data-testid="text-no-portfolio">
+                  No devy players owned yet. Connect your Sleeper leagues to see your portfolio.
+                </p>
+                <Link href="/league/devy/portfolio">
+                  <Button variant="outline" size="sm" className="gap-1" data-testid="link-setup-portfolio">
+                    Set Up Portfolio <ChevronRight className="h-3 w-3" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </div>
 
-      <DevyProfileModal
-        open={modalOpen}
-        onOpenChange={(open) => {
-          setModalOpen(open);
-          if (!open) setSelectedPlayer(null);
-        }}
-        player={selectedPlayer}
-      />
-    </div>
+        <DevyProfileModal
+          open={modalOpen}
+          onOpenChange={(open) => {
+            setModalOpen(open);
+            if (!open) setSelectedPlayer(null);
+          }}
+          player={selectedPlayer}
+        />
+      </div>
     </PremiumGate>
   );
 }
 
-function DevySkeleton() {
+function DashboardSkeleton() {
   return (
     <div className="space-y-6" data-testid="devy-skeleton">
-      <div className="flex items-center justify-between gap-4">
+      <div className="rounded-xl border p-6">
         <div className="flex items-center gap-3">
-          <Skeleton className="h-8 w-8" />
+          <Skeleton className="h-12 w-12 rounded-xl" />
           <div>
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-4 w-64 mt-1" />
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-4 w-72 mt-1" />
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-10 w-[120px]" />
-          <Skeleton className="h-10 w-[130px]" />
         </div>
       </div>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <Skeleton className="h-6 w-48" />
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="p-4 space-y-3">
-            {[...Array(10)].map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[...Array(6)].map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-5 w-40" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {[...Array(4)].map((_, j) => (
+                <Skeleton key={j} className="h-8 w-full" />
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }

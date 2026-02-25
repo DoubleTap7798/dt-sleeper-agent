@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CACHE_TIMES } from "@/lib/queryClient";
 import { PremiumGate } from "@/components/premium-gate";
@@ -13,9 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GraduationCap, Filter, Trophy } from "lucide-react";
+import { GraduationCap, Filter, Trophy, ArrowUpDown, Target, Shield } from "lucide-react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { ExportButton } from "@/components/export-button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface CollegeStatLeader {
   player: string;
@@ -33,6 +34,21 @@ interface CollegeStatsData {
 
 type StatCategory = "passing" | "rushing" | "receiving";
 
+const CONFERENCE_WEIGHTS: Record<string, number> = {
+  "SEC": 1.15,
+  "Big Ten": 1.12,
+  "Big 12": 1.08,
+  "ACC": 1.06,
+  "Pac-12": 1.05,
+  "American": 0.95,
+  "Mountain West": 0.92,
+  "Sun Belt": 0.88,
+  "Conference USA": 0.85,
+  "MAC": 0.82,
+};
+
+type SortMode = "raw" | "ageAdjusted" | "nflSuccess";
+
 function getMostRecentCFBSeason(): number {
   const now = new Date();
   const year = now.getFullYear();
@@ -41,12 +57,80 @@ function getMostRecentCFBSeason(): number {
   return year - 1;
 }
 
+function computeNFLSuccessScore(leader: CollegeStatLeader, category: StatCategory): number {
+  let score = 0;
+  const confWeight = CONFERENCE_WEIGHTS[leader.conference] || 0.90;
+
+  if (category === "passing") {
+    const yds = leader.stats["YDS"] || 0;
+    const td = leader.stats["TD"] || 0;
+    const int = leader.stats["INT"] || 0;
+    const att = leader.stats["ATT"] || 0;
+    const cmp = leader.stats["COMPLETIONS"] || 0;
+    const pct = att > 0 ? cmp / att : 0;
+    score += Math.min(30, (yds / 5000) * 30);
+    score += Math.min(20, (td / 40) * 20);
+    score -= Math.min(10, (int / 15) * 10);
+    score += Math.min(15, pct * 15);
+    score += Math.min(10, (att > 300 ? 10 : (att / 300) * 10));
+  } else if (category === "rushing") {
+    const yds = leader.stats["YDS"] || 0;
+    const td = leader.stats["TD"] || 0;
+    const car = leader.stats["CAR"] || 0;
+    const avg = car > 0 ? yds / car : 0;
+    score += Math.min(30, (yds / 1800) * 30);
+    score += Math.min(20, (td / 20) * 20);
+    score += Math.min(15, (avg / 7) * 15);
+    score += Math.min(10, (car > 200 ? 10 : (car / 200) * 10));
+  } else {
+    const yds = leader.stats["YDS"] || 0;
+    const td = leader.stats["TD"] || 0;
+    const rec = leader.stats["REC"] || 0;
+    const avg = rec > 0 ? yds / rec : 0;
+    score += Math.min(30, (yds / 1500) * 30);
+    score += Math.min(20, (td / 15) * 20);
+    score += Math.min(15, (avg / 18) * 15);
+    score += Math.min(10, (rec > 80 ? 10 : (rec / 80) * 10));
+  }
+
+  score *= confWeight;
+  return Math.round(Math.min(100, Math.max(0, score)));
+}
+
+function computeAgeAdjustedValue(leader: CollegeStatLeader, category: StatCategory): number {
+  const base = computeNFLSuccessScore(leader, category);
+  return Math.round(base * 1.05);
+}
+
+function computeEfficiencyScore(leader: CollegeStatLeader, category: StatCategory): number {
+  if (category === "passing") {
+    const att = leader.stats["ATT"] || 0;
+    const cmp = leader.stats["COMPLETIONS"] || 0;
+    const td = leader.stats["TD"] || 0;
+    const int = leader.stats["INT"] || 0;
+    if (att < 100) return 0;
+    return Math.round(((cmp / att) * 40 + (td / att) * 400 - (int / att) * 200) * 10) / 10;
+  } else if (category === "rushing") {
+    const car = leader.stats["CAR"] || 0;
+    const yds = leader.stats["YDS"] || 0;
+    if (car < 50) return 0;
+    return Math.round((yds / car) * 10) / 10;
+  } else {
+    const rec = leader.stats["REC"] || 0;
+    const yds = leader.stats["YDS"] || 0;
+    if (rec < 20) return 0;
+    return Math.round((yds / rec) * 10) / 10;
+  }
+}
+
 export default function CollegeStatsPage() {
   usePageTitle("College Stat Leaders");
   const currentSeason = getMostRecentCFBSeason();
   const [year, setYear] = useState<string>(String(currentSeason));
   const [conference, setConference] = useState<string>("all");
   const [category, setCategory] = useState<StatCategory>("passing");
+  const [sortMode, setSortMode] = useState<SortMode>("raw");
+  const [minSnap, setMinSnap] = useState<string>("all");
 
   const queryParams = new URLSearchParams();
   queryParams.set("year", year);
@@ -60,7 +144,28 @@ export default function CollegeStatsPage() {
   const conferences = ["SEC", "Big Ten", "Big 12", "ACC", "Pac-12", "American", "Mountain West", "Sun Belt", "Conference USA", "MAC"];
   const years = [currentSeason, currentSeason - 1, currentSeason - 2];
 
-  const leaders = data?.[category] || [];
+  const rawLeaders = data?.[category] || [];
+
+  const leaders = useMemo(() => {
+    let filtered = [...rawLeaders];
+
+    if (minSnap !== "all") {
+      const threshold = parseInt(minSnap);
+      filtered = filtered.filter(l => {
+        if (category === "passing") return (l.stats["ATT"] || 0) >= threshold;
+        if (category === "rushing") return (l.stats["CAR"] || 0) >= threshold;
+        return (l.stats["REC"] || 0) >= threshold;
+      });
+    }
+
+    if (sortMode === "nflSuccess") {
+      filtered.sort((a, b) => computeNFLSuccessScore(b, category) - computeNFLSuccessScore(a, category));
+    } else if (sortMode === "ageAdjusted") {
+      filtered.sort((a, b) => computeAgeAdjustedValue(b, category) - computeAgeAdjustedValue(a, category));
+    }
+
+    return filtered;
+  }, [rawLeaders, sortMode, category, minSnap]);
 
   const categoryColumns: Record<StatCategory, { key: string; label: string; computed?: (s: Record<string, number>) => string }[]> = {
     passing: [
@@ -89,6 +194,27 @@ export default function CollegeStatsPage() {
 
   const columns = categoryColumns[category];
 
+  const minSnapOptions: Record<StatCategory, { value: string; label: string }[]> = {
+    passing: [
+      { value: "all", label: "No Min" },
+      { value: "100", label: "100+ ATT" },
+      { value: "200", label: "200+ ATT" },
+      { value: "300", label: "300+ ATT" },
+    ],
+    rushing: [
+      { value: "all", label: "No Min" },
+      { value: "50", label: "50+ CAR" },
+      { value: "100", label: "100+ CAR" },
+      { value: "150", label: "150+ CAR" },
+    ],
+    receiving: [
+      { value: "all", label: "No Min" },
+      { value: "20", label: "20+ REC" },
+      { value: "40", label: "40+ REC" },
+      { value: "60", label: "60+ REC" },
+    ],
+  };
+
   return (
     <PremiumGate featureName="College Stats">
       <div className="space-y-6 min-w-0 overflow-x-hidden" data-testid="college-stats-page">
@@ -114,6 +240,9 @@ export default function CollegeStatsPage() {
                 Player: l.player,
                 Team: l.team,
                 Conference: l.conference,
+                "Conf Weight": CONFERENCE_WEIGHTS[l.conference]?.toFixed(2) || "0.90",
+                "NFL Success": computeNFLSuccessScore(l, category),
+                "Efficiency": computeEfficiencyScore(l, category),
                 ...Object.fromEntries(columns.map(c => [c.label, c.computed ? c.computed(l.stats) : (l.stats[c.key] || 0)])),
               }))}
               filename={`college-${category}-leaders-${year}`}
@@ -145,21 +274,81 @@ export default function CollegeStatsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={minSnap} onValueChange={setMinSnap}>
+            <SelectTrigger className="w-[120px]" data-testid="select-min-snap">
+              <SelectValue placeholder="Min Volume" />
+            </SelectTrigger>
+            <SelectContent>
+              {minSnapOptions[category].map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="flex gap-1 p-1 rounded-lg bg-stone-900/60 border border-amber-800/20 w-fit" data-testid="category-tabs">
-          {(["passing", "rushing", "receiving"] as StatCategory[]).map((cat) => (
-            <Button
-              key={cat}
-              variant={category === cat ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setCategory(cat)}
-              className="capitalize"
-              data-testid={`tab-${cat}`}
-            >
-              {cat}
-            </Button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex gap-1 p-1 rounded-lg bg-stone-900/60 border border-amber-800/20 w-fit" data-testid="category-tabs">
+            {(["passing", "rushing", "receiving"] as StatCategory[]).map((cat) => (
+              <Button
+                key={cat}
+                variant={category === cat ? "default" : "ghost"}
+                size="sm"
+                onClick={() => { setCategory(cat); setMinSnap("all"); }}
+                className="capitalize"
+                data-testid={`tab-${cat}`}
+              >
+                {cat}
+              </Button>
+            ))}
+          </div>
+
+          <div className="flex gap-1 p-1 rounded-lg bg-stone-900/60 border border-amber-800/20 w-fit ml-auto" data-testid="sort-mode-tabs">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={sortMode === "raw" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setSortMode("raw")}
+                  className="gap-1.5"
+                  data-testid="tab-sort-raw"
+                >
+                  <Trophy className="h-3.5 w-3.5" />
+                  Raw
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Sort by raw production (yards)</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={sortMode === "ageAdjusted" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setSortMode("ageAdjusted")}
+                  className="gap-1.5"
+                  data-testid="tab-sort-age-adjusted"
+                >
+                  <Shield className="h-3.5 w-3.5" />
+                  Age-Adj
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Age-adjusted leaderboard with conference weighting</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={sortMode === "nflSuccess" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setSortMode("nflSuccess")}
+                  className="gap-1.5"
+                  data-testid="tab-sort-nfl-success"
+                >
+                  <Target className="h-3.5 w-3.5" />
+                  NFL Success
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Sort by "Most likely NFL success" composite score</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
 
         <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-stat-leaders">
@@ -168,6 +357,9 @@ export default function CollegeStatsPage() {
               <Trophy className="h-5 w-5 text-amber-500" />
               {category} Leaders
               {leaders.length > 0 && <Badge variant="secondary">{leaders.length}</Badge>}
+              {sortMode !== "raw" && (
+                <Badge variant="outline" className="text-[10px] capitalize">{sortMode === "nflSuccess" ? "NFL Success" : "Age-Adjusted"}</Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -196,60 +388,123 @@ export default function CollegeStatsPage() {
                         {columns.map((col) => (
                           <th key={col.key} className="p-3 w-20 text-right">{col.label}</th>
                         ))}
+                        <th className="p-3 w-16 text-right">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help">Eff</span>
+                            </TooltipTrigger>
+                            <TooltipContent>Efficiency Score (per-attempt/reception metrics)</TooltipContent>
+                          </Tooltip>
+                        </th>
+                        <th className="p-3 w-16 text-right">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help">Conf Wt</span>
+                            </TooltipTrigger>
+                            <TooltipContent>Conference Strength Weighting</TooltipContent>
+                          </Tooltip>
+                        </th>
+                        <th className="p-3 w-20 text-right">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help font-medium">NFL</span>
+                            </TooltipTrigger>
+                            <TooltipContent>NFL Projection Correlation Score (0-100)</TooltipContent>
+                          </Tooltip>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {leaders.map((leader, i) => (
-                        <tr
-                          key={`${leader.player}-${leader.team}`}
-                          className={`${i % 2 === 0 ? "bg-amber-900/5" : ""}`}
-                          data-testid={`row-leader-${i}`}
-                        >
-                          <td className="p-3 font-medium text-muted-foreground">{i + 1}</td>
-                          <td className="p-3 font-medium">{leader.player}</td>
-                          <td className="p-3 text-sm text-muted-foreground">{leader.team}</td>
-                          <td className="p-3">
-                            <Badge variant="outline" className="text-xs">{leader.conference || "-"}</Badge>
-                          </td>
-                          {columns.map((col) => (
-                            <td key={col.key} className="p-3 text-right font-mono text-sm">
-                              {col.computed ? col.computed(leader.stats) : (leader.stats[col.key]?.toLocaleString() ?? "-")}
+                      {leaders.map((leader, i) => {
+                        const nflScore = computeNFLSuccessScore(leader, category);
+                        const effScore = computeEfficiencyScore(leader, category);
+                        const confWeight = CONFERENCE_WEIGHTS[leader.conference] || 0.90;
+                        return (
+                          <tr
+                            key={`${leader.player}-${leader.team}`}
+                            className={`${i % 2 === 0 ? "bg-amber-900/5" : ""}`}
+                            data-testid={`row-leader-${i}`}
+                          >
+                            <td className="p-3 font-medium text-muted-foreground">{i + 1}</td>
+                            <td className="p-3 font-medium">{leader.player}</td>
+                            <td className="p-3 text-sm text-muted-foreground">{leader.team}</td>
+                            <td className="p-3">
+                              <Badge variant="outline" className="text-xs">{leader.conference || "-"}</Badge>
                             </td>
-                          ))}
-                        </tr>
-                      ))}
+                            {columns.map((col) => (
+                              <td key={col.key} className="p-3 text-right font-mono text-sm">
+                                {col.computed ? col.computed(leader.stats) : (leader.stats[col.key]?.toLocaleString() ?? "-")}
+                              </td>
+                            ))}
+                            <td className="p-3 text-right font-mono text-sm">
+                              <span className={`${effScore > 0 ? "text-foreground" : "text-muted-foreground"}`}>
+                                {effScore || "-"}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right font-mono text-sm">
+                              <span className={`${confWeight >= 1.05 ? "text-green-400" : confWeight >= 0.95 ? "text-amber-400" : "text-red-400"}`}>
+                                {confWeight.toFixed(2)}x
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <span className={`text-sm font-bold ${nflScore >= 70 ? "text-green-400" : nflScore >= 45 ? "text-amber-400" : "text-muted-foreground"}`}>
+                                {nflScore}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
 
                 <div className="md:hidden p-3 space-y-2" data-testid="mobile-stat-leaders">
-                  {leaders.slice(0, 25).map((leader, i) => (
-                    <div
-                      key={`${leader.player}-${leader.team}`}
-                      className="p-3 rounded-lg bg-amber-900/10 border border-amber-800/15"
-                      data-testid={`card-leader-${i}`}
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-base font-bold shrink-0 w-8 text-right text-muted-foreground">#{i + 1}</span>
-                          <div className="min-w-0">
-                            <span className="font-semibold truncate block">{leader.player}</span>
-                            <span className="text-xs text-muted-foreground">{leader.team} - {leader.conference || "N/A"}</span>
+                  {leaders.slice(0, 25).map((leader, i) => {
+                    const nflScore = computeNFLSuccessScore(leader, category);
+                    const confWeight = CONFERENCE_WEIGHTS[leader.conference] || 0.90;
+                    return (
+                      <div
+                        key={`${leader.player}-${leader.team}`}
+                        className="p-3 rounded-lg bg-amber-900/10 border border-amber-800/15"
+                        data-testid={`card-leader-${i}`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-base font-bold shrink-0 w-8 text-right text-muted-foreground">#{i + 1}</span>
+                            <div className="min-w-0">
+                              <span className="font-semibold truncate block">{leader.player}</span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs text-muted-foreground">{leader.team} - {leader.conference || "N/A"}</span>
+                                <span className={`text-[10px] ${confWeight >= 1.05 ? "text-green-400" : confWeight >= 0.95 ? "text-amber-400" : "text-red-400"}`}>
+                                  {confWeight.toFixed(2)}x
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-lg font-bold text-amber-400">
+                              {leader.stats["YDS"]?.toLocaleString() ?? "-"}
+                            </span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`text-sm font-bold ${nflScore >= 70 ? "text-green-400" : nflScore >= 45 ? "text-amber-400" : "text-muted-foreground"}`}>
+                                  {nflScore}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>NFL Success Score</TooltipContent>
+                            </Tooltip>
                           </div>
                         </div>
-                        <span className="text-lg font-bold text-amber-400 shrink-0">
-                          {leader.stats["YDS"]?.toLocaleString() ?? "-"}
-                        </span>
+                        <div className="flex gap-3 text-xs text-muted-foreground flex-wrap">
+                          {columns.filter(c => c.key !== "YDS").map(col => (
+                            <span key={col.key}>
+                              {col.label}: <span className="font-medium text-foreground">{col.computed ? col.computed(leader.stats) : (leader.stats[col.key] ?? "-")}</span>
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex gap-3 text-xs text-muted-foreground flex-wrap">
-                        {columns.filter(c => c.key !== "YDS").map(col => (
-                          <span key={col.key}>
-                            {col.label}: <span className="font-medium text-foreground">{col.computed ? col.computed(leader.stats) : (leader.stats[col.key] ?? "-")}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CACHE_TIMES, apiRequest, queryClient } from "@/lib/queryClient";
 import { abbreviateName, getPositionColorClass } from "@/lib/utils";
@@ -27,7 +27,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Briefcase, Plus, ChevronRight, TrendingUp, TrendingDown, Sparkles, Zap, AlertTriangle, Trash2, UserPlus, Pencil } from "lucide-react";
+import { Briefcase, Plus, ChevronRight, TrendingUp, TrendingDown, Sparkles, Zap, AlertTriangle, Trash2, UserPlus, Pencil, Target, Shield, BarChart3 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -35,6 +35,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useSelectedLeague } from "./league-layout";
 import { calculateDVI } from "./devy-rankings";
 import type { DevyPlayer, DevyData, DevyComp } from "./devy-rankings";
+import {
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell,
+} from "recharts";
 
 interface ManualEntry {
   id: string;
@@ -181,6 +185,80 @@ export default function DevyPortfolioPage() {
 
   const totalCount = matchedPlayers.length + unmatchedDevy.length;
 
+  const totalDevyEV = useMemo(() => {
+    return matchedPlayers.reduce((sum, p) => {
+      const ev = (p.elitePct / 100) * p.value * 1.5 + (p.starterPct / 100) * p.value + (p.bustPct / 100) * p.value * 0.2;
+      return sum + ev;
+    }, 0);
+  }, [matchedPlayers]);
+
+  const posExposureData = useMemo(() => {
+    const positions = ["QB", "RB", "WR", "TE"];
+    return positions.map(pos => ({
+      position: pos,
+      count: posCounts[pos] || 0,
+      pct: totalCount > 0 ? Math.round(((posCounts[pos] || 0) / totalCount) * 100) : 0,
+    }));
+  }, [posCounts, totalCount]);
+
+  const yearExposureData = useMemo(() => {
+    const yearCounts: Record<number, number> = {};
+    matchedPlayers.forEach(p => { yearCounts[p.draftEligibleYear] = (yearCounts[p.draftEligibleYear] || 0) + 1; });
+    return Object.entries(yearCounts)
+      .map(([yr, count]) => ({ year: yr, count, pct: totalCount > 0 ? Math.round((count / totalCount) * 100) : 0 }))
+      .sort((a, b) => Number(a.year) - Number(b.year));
+  }, [matchedPlayers, totalCount]);
+
+  const avgDraftCapital = useMemo(() => {
+    if (matchedPlayers.length === 0) return "N/A";
+    const avgR1 = matchedPlayers.reduce((s, p) => s + (p.roundProbabilities?.r1 || p.round1Pct || 0), 0) / matchedPlayers.length;
+    if (avgR1 >= 50) return "Round 1";
+    const avgDay2 = matchedPlayers.reduce((s, p) => s + (p.roundProbabilities?.r2 || 0) + (p.roundProbabilities?.r3 || 0), 0) / matchedPlayers.length;
+    if (avgR1 + avgDay2 >= 50) return "Day 2";
+    return "Day 3";
+  }, [matchedPlayers]);
+
+  const bustExposure = useMemo(() => {
+    if (matchedPlayers.length === 0) return 0;
+    return Math.round(matchedPlayers.reduce((s, p) => s + p.bustPct, 0) / matchedPlayers.length);
+  }, [matchedPlayers]);
+
+  const volatilityScore = useMemo(() => {
+    if (matchedPlayers.length === 0) return 0;
+    const dviValues = matchedPlayers.map(p => calculateDVI(p));
+    const mean = dviValues.reduce((s, v) => s + v, 0) / dviValues.length;
+    const variance = dviValues.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / dviValues.length;
+    return Math.round(Math.min(100, Math.sqrt(variance) * 3));
+  }, [matchedPlayers]);
+
+  const radarData = useMemo(() => {
+    if (matchedPlayers.length === 0) return [];
+    const posBalance = (() => {
+      const counts = posExposureData.map(p => p.count);
+      const max = Math.max(...counts, 1);
+      const min = Math.min(...counts);
+      const ideal = totalCount / 4;
+      const deviation = counts.reduce((s, c) => s + Math.abs(c - ideal), 0) / (4 * ideal);
+      return Math.round(Math.max(0, Math.min(100, (1 - deviation) * 100)));
+    })();
+    const draftCapitalScore = Math.round(matchedPlayers.reduce((s, p) => s + (p.roundProbabilities?.r1 || p.round1Pct || 0), 0) / matchedPlayers.length);
+    const breakoutScore = Math.round(matchedPlayers.reduce((s, p) => s + (p.breakoutProbability || p.elitePct || 0), 0) / matchedPlayers.length);
+    const riskScore = Math.round(100 - bustExposure);
+    const classDiv = (() => {
+      const uniqueYears = new Set(matchedPlayers.map(p => p.draftEligibleYear)).size;
+      return Math.round(Math.min(100, uniqueYears * 30));
+    })();
+    return [
+      { axis: "Position Balance", value: posBalance },
+      { axis: "Draft Capital", value: draftCapitalScore },
+      { axis: "Breakout Potential", value: breakoutScore },
+      { axis: "Risk Mgmt", value: riskScore },
+      { axis: "Class Diversity", value: classDiv },
+    ];
+  }, [matchedPlayers, posExposureData, totalCount, bustExposure]);
+
+  const posBarColors = { QB: "#ef4444", RB: "#3b82f6", WR: "#22c55e", TE: "#f59e0b" };
+
   const handlePlayerClick = (player: DevyPlayer) => {
     setSelectedPlayer(player);
     setModalOpen(true);
@@ -318,46 +396,127 @@ export default function DevyPortfolioPage() {
       </div>
 
       {totalCount > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-total-value">
-            <CardContent className="p-4">
-              <p className="text-xs text-amber-200/50 mb-1">Total Portfolio Value</p>
-              <p className="text-2xl font-bold text-amber-100">{totalValue.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-avg-dvi">
-            <CardContent className="p-4">
-              <p className="text-xs text-amber-200/50 mb-1">Avg DVI Score</p>
-              <p className={`text-2xl font-bold ${avgDvi >= 70 ? "text-green-400" : avgDvi >= 50 ? "text-amber-400" : "text-red-400"}`}>{avgDvi}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-position-balance">
-            <CardContent className="p-4">
-              <p className="text-xs text-amber-200/50 mb-1">Position Balance</p>
-              <div className="flex items-center gap-1 flex-wrap mt-1">
-                {["QB", "RB", "WR", "TE"].map(pos => (
-                  <Badge key={pos} variant="outline" className={`text-[10px] ${getPositionColorClass(pos)}`} data-testid={`badge-pos-count-${pos}`}>
-                    {pos} {posCounts[pos] || 0}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-portfolio-health">
-            <CardContent className="p-4">
-              <p className="text-xs text-amber-200/50 mb-1">Portfolio Health</p>
-              <div className="flex items-center gap-2">
-                <p className={`text-2xl font-bold ${portfolioHealth >= 50 ? "text-green-400" : portfolioHealth >= 25 ? "text-amber-400" : "text-red-400"}`}>{portfolioHealth}</p>
-                <div className="flex-1 h-2 rounded-full bg-amber-900/30 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${portfolioHealth >= 50 ? "bg-green-500" : portfolioHealth >= 25 ? "bg-amber-500" : "bg-red-500"}`}
-                    style={{ width: `${portfolioHealth}%` }}
-                  />
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-total-ev">
+              <CardContent className="p-4">
+                <p className="text-xs text-amber-200/50 mb-1">Total Devy EV</p>
+                <p className="text-2xl font-bold text-amber-100">{Math.round(totalDevyEV).toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-avg-dvi">
+              <CardContent className="p-4">
+                <p className="text-xs text-amber-200/50 mb-1">Avg DVI Score</p>
+                <p className={`text-2xl font-bold ${avgDvi >= 70 ? "text-green-400" : avgDvi >= 50 ? "text-amber-400" : "text-red-400"}`}>{avgDvi}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-avg-draft-capital">
+              <CardContent className="p-4">
+                <p className="text-xs text-amber-200/50 mb-1">Avg Draft Capital</p>
+                <p className="text-lg font-bold text-amber-100">{avgDraftCapital}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-bust-exposure">
+              <CardContent className="p-4">
+                <p className="text-xs text-amber-200/50 mb-1">Bust Exposure</p>
+                <p className={`text-2xl font-bold ${bustExposure <= 15 ? "text-green-400" : bustExposure <= 30 ? "text-amber-400" : "text-red-400"}`}>{bustExposure}%</p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-volatility">
+              <CardContent className="p-4">
+                <p className="text-xs text-amber-200/50 mb-1">Volatility Score</p>
+                <p className={`text-2xl font-bold ${volatilityScore <= 30 ? "text-green-400" : volatilityScore <= 60 ? "text-amber-400" : "text-red-400"}`}>{volatilityScore}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="stat-portfolio-health">
+              <CardContent className="p-4">
+                <p className="text-xs text-amber-200/50 mb-1">Portfolio Health</p>
+                <div className="flex items-center gap-2">
+                  <p className={`text-2xl font-bold ${portfolioHealth >= 50 ? "text-green-400" : portfolioHealth >= 25 ? "text-amber-400" : "text-red-400"}`}>{portfolioHealth}</p>
+                  <div className="flex-1 h-2 rounded-full bg-amber-900/30 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${portfolioHealth >= 50 ? "bg-green-500" : portfolioHealth >= 25 ? "bg-amber-500" : "bg-red-500"}`}
+                      style={{ width: `${portfolioHealth}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-pos-exposure">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart3 className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-medium text-amber-100">Position Exposure</span>
+                </div>
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart data={posExposureData} barSize={32}>
+                    <XAxis dataKey="position" tick={{ fontSize: 12, fill: "#d4a574" }} axisLine={false} tickLine={false} />
+                    <YAxis hide />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                      {posExposureData.map((entry) => (
+                        <Cell key={entry.position} fill={(posBarColors as any)[entry.position] || "#6b7280"} fillOpacity={0.8} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="flex items-center justify-between mt-1 flex-wrap gap-1">
+                  {posExposureData.map(p => (
+                    <span key={p.position} className="text-xs text-amber-200/50">{p.position}: {p.pct}%</span>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-year-exposure">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-medium text-amber-100">Draft Year Exposure</span>
+                </div>
+                {yearExposureData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={yearExposureData} barSize={28}>
+                      <XAxis dataKey="year" tick={{ fontSize: 12, fill: "#d4a574" }} axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Bar dataKey="count" fill="#f59e0b" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[160px] text-sm text-muted-foreground">No data</div>
+                )}
+                <div className="flex items-center justify-between mt-1 flex-wrap gap-1">
+                  {yearExposureData.map(y => (
+                    <span key={y.year} className="text-xs text-amber-200/50">{y.year}: {y.pct}%</span>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-radar-chart">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-medium text-amber-100">Portfolio Profile</span>
+                </div>
+                {radarData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <RadarChart data={radarData} outerRadius="70%">
+                      <PolarGrid stroke="#78350f" strokeOpacity={0.3} />
+                      <PolarAngleAxis dataKey="axis" tick={{ fontSize: 10, fill: "#d4a574" }} />
+                      <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+                      <Radar dataKey="value" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.25} strokeWidth={2} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[200px] text-sm text-muted-foreground">No data</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
 
       {matchedPlayers.length > 0 && (
@@ -589,8 +748,8 @@ function PortfolioSkeleton() {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {[...Array(6)].map((_, i) => (
           <Card key={i}><CardContent className="p-4"><Skeleton className="h-12 w-full" /></CardContent></Card>
         ))}
       </div>

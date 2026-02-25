@@ -4447,76 +4447,71 @@ ${urls}
 
       const totalDevyCount = trueDevyPlayers.length;
 
+      function calculateDVIServer(p: any): number {
+        let score = 0;
+        score += Math.max(0, 40 - ((p.rank || p.dtRank || 1) - 1) * 0.5);
+        score += (p.round1Pct / 100) * 15;
+        score += (p.top10Pct / 100) * 5;
+        score += (p.elitePct / 100) * 15;
+        score -= (p.bustPct / 100) * 5;
+        const trendBonus = Math.min(10, Math.max(-5, (p.trend30Day || 0) * 0.5));
+        score += 5 + trendBonus;
+        if (p.ageClass === "young-breakout") score += 10;
+        else if (p.ageClass === "normal") score += 6;
+        else score += 3;
+        return Math.round(Math.min(100, Math.max(0, score)));
+      }
+
       const playersWithConsensus = trueDevyPlayers.map((player, index) => {
-        const dynastyValue = player.value > 0 
-          ? player.value 
-          : dynastyEngine.calculateDevyValue(
-              player.tier,
-              player.draftEligibleYear,
-              1,
-              currentYear
-            );
-        
+        const dynastyValue = player.value > 0
+          ? player.value
+          : dynastyEngine.calculateDevyValue(player.tier, player.draftEligibleYear, 1, currentYear);
+
         const dtRank = index + 1;
         const fpRank = getFantasyProsRankByName(player.name, player.position);
-        
+
         let consensusRank: number;
         if (fpRank !== null) {
-          const dtWeight = 0.6;
-          const fpWeight = 0.4;
           const scaledFpRank = Math.round(fpRank * (totalDevyCount / 100));
-          consensusRank = Math.round(dtRank * dtWeight + scaledFpRank * fpWeight);
+          consensusRank = Math.round(dtRank * 0.6 + scaledFpRank * 0.4);
         } else {
           consensusRank = dtRank;
         }
-        
+
+        const enriched = ktcValues.computeEnrichedFields(player, trueDevyPlayers);
+
         return {
-          playerId: player.id,
-          name: player.name,
-          position: player.position,
-          positionRank: player.positionRank,
-          college: player.college,
-          draftEligibleYear: player.draftEligibleYear,
-          tier: player.tier,
-          trend7Day: player.trend7Day,
-          trend30Day: player.trend30Day,
-          seasonChange: player.seasonChange,
+          ...enriched,
           value: dynastyValue,
           dtRank,
           fantasyProsRank: fpRank,
           consensusRank,
           rank: 0,
-          starterPct: player.starterPct,
-          elitePct: player.elitePct,
-          bustPct: player.bustPct,
-          top10Pct: player.top10Pct,
-          round1Pct: player.round1Pct,
-          round2PlusPct: player.round2PlusPct,
-          pickEquivalent: player.pickEquivalent,
-          pickMultiplier: player.pickMultiplier,
-          dominatorRating: player.dominatorRating,
-          yardShare: player.yardShare,
-          tdShare: player.tdShare,
-          breakoutAge: player.breakoutAge,
-          comps: player.comps,
-          depthRole: player.depthRole,
-          pathContext: player.pathContext,
-          ageClass: player.ageClass,
+          marketRank: dtRank,
+          modelRank: 0,
+          rankDelta: 0,
+          dviScore: 0,
         };
       });
 
       playersWithConsensus.sort((a, b) => a.consensusRank - b.consensusRank);
       const positionCounters: Record<string, number> = {};
-      const rankedPlayers = playersWithConsensus.map((player, index) => {
+      const withRanks = playersWithConsensus.map((player, index) => {
         positionCounters[player.position] = (positionCounters[player.position] || 0) + 1;
-        return {
-          ...player,
-          rank: index + 1,
-          positionRank: positionCounters[player.position],
-        };
+        const rank = index + 1;
+        const marketRank = rank;
+        return { ...player, rank, positionRank: positionCounters[player.position], marketRank };
       });
 
-      // Get unique positions and years for filters
+      const withDvi = withRanks.map(p => ({ ...p, dviScore: calculateDVIServer(p) }));
+      const dviSorted = [...withDvi].sort((a, b) => b.dviScore - a.dviScore);
+      const dviRankMap = new Map(dviSorted.map((p, i) => [p.playerId, i + 1]));
+
+      const rankedPlayers = withDvi.map(p => {
+        const modelRank = dviRankMap.get(p.playerId) || p.rank;
+        return { ...p, modelRank, rankDelta: p.marketRank - modelRank };
+      });
+
       const positions = Array.from(new Set(rankedPlayers.map(p => p.position))).sort();
       const years = Array.from(new Set(rankedPlayers.map(p => p.draftEligibleYear))).sort((a, b) => a - b);
 

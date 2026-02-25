@@ -34,7 +34,26 @@ import {
   Gauge,
   ArrowUpRight,
   ArrowDownRight,
+  Layers,
+  AlertTriangle,
+  DollarSign,
+  Brain,
 } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from "recharts";
+
+interface DevyComp {
+  name: string;
+  matchPct: number;
+  wasSuccess: boolean;
+}
 
 interface DevyPlayer {
   id: string;
@@ -49,6 +68,39 @@ interface DevyPlayer {
   rank: number;
   headshot?: string | null;
   teamLogo?: string | null;
+  starterPct?: number;
+  elitePct?: number;
+  bustPct?: number;
+  top10Pct?: number;
+  round1Pct?: number;
+  round2PlusPct?: number;
+  pickEquivalent?: string;
+  pickMultiplier?: number;
+  dominatorRating?: number;
+  yardShare?: number;
+  tdShare?: number;
+  breakoutAge?: number | null;
+  comps?: DevyComp[];
+  depthRole?: string;
+  pathContext?: string;
+  ageClass?: "young-breakout" | "normal" | "old-producer";
+  injuryRisk?: number;
+  transferRisk?: number;
+  competitionRisk?: number;
+  conferenceAdjustment?: number;
+  nflCompConfidence?: number;
+  breakoutProbability?: number;
+  ageAdjustedDominator?: number;
+  devyPickEquivalent?: string;
+  rookiePickEquivalent?: string;
+  modelRank?: number;
+  marketRank?: number;
+  dviScore?: number;
+  rankDelta?: number;
+  roundProbabilities?: {
+    r1: number; r2: number; r3: number; r4: number;
+    r5: number; r6: number; r7: number; udfa: number;
+  };
 }
 
 interface Bio {
@@ -150,12 +202,6 @@ interface DevyProfileData {
   generatedAt: string;
 }
 
-interface DevyComp {
-  name: string;
-  matchPct: number;
-  wasSuccess: boolean;
-}
-
 interface DevyProfileModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -189,6 +235,23 @@ interface DevyProfileModalProps {
     pathContext?: string;
     ageClass?: "young-breakout" | "normal" | "old-producer";
     isUnmatched?: boolean;
+    injuryRisk?: number;
+    transferRisk?: number;
+    competitionRisk?: number;
+    conferenceAdjustment?: number;
+    nflCompConfidence?: number;
+    breakoutProbability?: number;
+    ageAdjustedDominator?: number;
+    devyPickEquivalent?: string;
+    rookiePickEquivalent?: string;
+    modelRank?: number;
+    marketRank?: number;
+    dviScore?: number;
+    rankDelta?: number;
+    roundProbabilities?: {
+      r1: number; r2: number; r3: number; r4: number;
+      r5: number; r6: number; r7: number; udfa: number;
+    };
   } | null;
   unmatchedPlayer?: { name: string; position: string; school: string } | null;
 }
@@ -295,7 +358,9 @@ export function DevyProfileModal({ open, onOpenChange, player, unmatchedPlayer }
     draftEligibleYear: apiPlayer?.draftEligibleYear ?? 2026,
     tier: apiPlayer?.tier ?? 0,
     value: apiPlayer?.value ?? 0,
+    trend7Day: (apiPlayer as any)?.trend7Day ?? 0,
     trend30Day: apiPlayer?.trend30Day ?? 0,
+    seasonChange: (apiPlayer as any)?.seasonChange ?? 0,
     rank: apiPlayer?.rank ?? 0,
     headshot: apiPlayer?.headshot ?? null,
     teamLogo: apiPlayer?.teamLogo ?? null,
@@ -315,6 +380,20 @@ export function DevyProfileModal({ open, onOpenChange, player, unmatchedPlayer }
     depthRole: apiPlayer?.depthRole,
     pathContext: apiPlayer?.pathContext,
     ageClass: apiPlayer?.ageClass,
+    injuryRisk: apiPlayer?.injuryRisk,
+    transferRisk: apiPlayer?.transferRisk,
+    competitionRisk: apiPlayer?.competitionRisk,
+    conferenceAdjustment: apiPlayer?.conferenceAdjustment,
+    nflCompConfidence: apiPlayer?.nflCompConfidence,
+    breakoutProbability: apiPlayer?.breakoutProbability,
+    ageAdjustedDominator: apiPlayer?.ageAdjustedDominator,
+    devyPickEquivalent: apiPlayer?.devyPickEquivalent,
+    rookiePickEquivalent: apiPlayer?.rookiePickEquivalent,
+    modelRank: apiPlayer?.modelRank,
+    marketRank: apiPlayer?.marketRank,
+    dviScore: apiPlayer?.dviScore,
+    rankDelta: apiPlayer?.rankDelta,
+    roundProbabilities: apiPlayer?.roundProbabilities,
   };
 
   return (
@@ -497,6 +576,26 @@ export function DevyProfileModal({ open, onOpenChange, player, unmatchedPlayer }
             <TabsTrigger value="tradevalue" className="text-xs sm:text-sm" data-testid="tab-tradevalue">
               <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
               Trade Value
+            </TabsTrigger>
+            <TabsTrigger value="draftcapital" className="text-xs sm:text-sm" data-testid="tab-draftcapital">
+              <Layers className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Draft Capital
+            </TabsTrigger>
+            <TabsTrigger value="trajectory" className="text-xs sm:text-sm" data-testid="tab-trajectory">
+              <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Trajectory
+            </TabsTrigger>
+            <TabsTrigger value="valuation" className="text-xs sm:text-sm" data-testid="tab-valuation">
+              <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Valuation
+            </TabsTrigger>
+            <TabsTrigger value="riskbreakdown" className="text-xs sm:text-sm" data-testid="tab-riskbreakdown">
+              <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Risk
+            </TabsTrigger>
+            <TabsTrigger value="longterm" className="text-xs sm:text-sm" data-testid="tab-longterm">
+              <Brain className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Outlook AI
             </TabsTrigger>
           </TabsList>
 
@@ -1371,6 +1470,438 @@ export function DevyProfileModal({ open, onOpenChange, player, unmatchedPlayer }
                                 Stable value, moderate upside. Fair trade target at current price.
                               </div>
                             )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="draftcapital" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-draftcapital">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
+                      <Card data-testid="card-draft-capital-simulation">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <Layers className="h-4 w-4 text-amber-500" />
+                            Draft Capital Simulation
+                          </h3>
+                          <div className="grid grid-cols-3 gap-3 mb-4">
+                            <div className="text-center p-3 bg-green-500/10 border border-green-500/20 rounded" data-testid="metric-top10-prob">
+                              <div className="text-xl font-bold text-green-500">{p.top10Pct ?? 0}%</div>
+                              <div className="text-xs text-muted-foreground">Top 10</div>
+                            </div>
+                            <div className="text-center p-3 bg-blue-500/10 border border-blue-500/20 rounded" data-testid="metric-day2-prob">
+                              <div className="text-xl font-bold text-blue-500">
+                                {Math.min(100, (p.roundProbabilities?.r2 ?? 0) + (p.roundProbabilities?.r3 ?? 0))}%
+                              </div>
+                              <div className="text-xs text-muted-foreground">Day 2 (Rd 2-3)</div>
+                            </div>
+                            <div className="text-center p-3 bg-red-500/10 border border-red-500/20 rounded" data-testid="metric-udfa-prob">
+                              <div className="text-xl font-bold text-red-500">{p.roundProbabilities?.udfa ?? 0}%</div>
+                              <div className="text-xs text-muted-foreground">Undrafted</div>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            {[
+                              { label: "Round 1", value: p.roundProbabilities?.r1 ?? p.round1Pct ?? 0, color: "bg-green-500" },
+                              { label: "Round 2", value: p.roundProbabilities?.r2 ?? 0, color: "bg-emerald-500" },
+                              { label: "Round 3", value: p.roundProbabilities?.r3 ?? 0, color: "bg-blue-500" },
+                              { label: "Round 4", value: p.roundProbabilities?.r4 ?? 0, color: "bg-sky-500" },
+                              { label: "Round 5", value: p.roundProbabilities?.r5 ?? 0, color: "bg-yellow-500" },
+                              { label: "Round 6", value: p.roundProbabilities?.r6 ?? 0, color: "bg-orange-500" },
+                              { label: "Round 7", value: p.roundProbabilities?.r7 ?? 0, color: "bg-red-400" },
+                              { label: "UDFA", value: p.roundProbabilities?.udfa ?? 0, color: "bg-red-600" },
+                            ].map((round) => (
+                              <div key={round.label} data-testid={`bar-round-${round.label.replace(/\s/g, "-").toLowerCase()}`}>
+                                <div className="flex items-center justify-between text-sm mb-1">
+                                  <span className="text-muted-foreground">{round.label}</span>
+                                  <span className="font-medium">{round.value}%</span>
+                                </div>
+                                <div className="w-full bg-muted rounded-full h-2.5">
+                                  <div
+                                    className={`${round.color} h-2.5 rounded-full transition-all`}
+                                    style={{ width: `${Math.min(100, round.value)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      {(() => {
+                        const rp = p.roundProbabilities;
+                        if (!rp) return null;
+                        const expectedRound =
+                          (rp.r1 * 1 + rp.r2 * 2 + rp.r3 * 3 + rp.r4 * 4 + rp.r5 * 5 + rp.r6 * 6 + rp.r7 * 7 + rp.udfa * 8) / 100;
+                        const roundLabel = expectedRound <= 1.5 ? "Early Round 1" : expectedRound <= 2.5 ? "Late Round 1 / Early Round 2" : expectedRound <= 3.5 ? "Day 2 (Rounds 2-3)" : expectedRound <= 5 ? "Mid Rounds (4-5)" : expectedRound <= 7 ? "Late Rounds (6-7)" : "Likely Undrafted";
+                        return (
+                          <Card data-testid="card-expected-draft-position">
+                            <CardContent className="p-4">
+                              <h3 className="font-semibold mb-2">Expected Draft Position</h3>
+                              <div className="flex items-center gap-3">
+                                <div className="text-2xl font-bold text-primary" data-testid="text-expected-round">
+                                  {expectedRound.toFixed(1)}
+                                </div>
+                                <div>
+                                  <div className="text-sm font-medium">{roundLabel}</div>
+                                  <div className="text-xs text-muted-foreground">Weighted average round</div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })()}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="trajectory" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-trajectory">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
+                      <Card data-testid="card-production-trajectory">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <BarChart3 className="h-4 w-4 text-blue-500" />
+                            Production Trajectory
+                          </h3>
+                          {(() => {
+                            const baseDom = p.dominatorRating ?? 15;
+                            const isYoung = p.ageClass === "young-breakout";
+                            const isOld = p.ageClass === "old-producer";
+                            const growthRate = isYoung ? 1.35 : isOld ? 1.05 : 1.2;
+                            const peakRate = isYoung ? 1.15 : isOld ? 0.95 : 1.05;
+                            const trajectoryData = [
+                              { year: "Year 1", dominator: Math.round(baseDom * 0.7), label: "Freshman" },
+                              { year: "Year 2", dominator: Math.round(baseDom * growthRate * 0.85), label: "Sophomore" },
+                              { year: "Year 3", dominator: Math.round(Math.min(baseDom * growthRate * peakRate, 55)), label: "Junior" },
+                            ];
+                            const breakoutPercentile = p.breakoutAge
+                              ? p.breakoutAge <= 18 ? 99 : p.breakoutAge <= 19 ? 90 : p.breakoutAge <= 20 ? 70 : p.breakoutAge <= 21 ? 40 : 20
+                              : null;
+                            return (
+                              <div>
+                                <div className="h-48 w-full">
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={trajectoryData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                                      <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                                      <YAxis tick={{ fontSize: 12 }} domain={[0, 60]} />
+                                      <RechartsTooltip
+                                        contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "6px" }}
+                                        labelStyle={{ color: "hsl(var(--foreground))" }}
+                                        formatter={(value: number) => [`${value}%`, "Dominator"]}
+                                      />
+                                      <Line type="monotone" dataKey="dominator" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                </div>
+                                {breakoutPercentile !== null && (
+                                  <div className="mt-3 p-3 bg-muted/30 rounded border" data-testid="panel-breakout-percentile">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm text-muted-foreground">Breakout Age Percentile</span>
+                                      <Badge variant={breakoutPercentile >= 80 ? "default" : "secondary"} data-testid="badge-breakout-percentile">
+                                        {breakoutPercentile}th percentile
+                                      </Badge>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Breakout at age {p.breakoutAge} {breakoutPercentile >= 80 ? "- Elite early breakout" : breakoutPercentile >= 50 ? "- Above average timeline" : "- Standard development"}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </CardContent>
+                      </Card>
+                      <Card data-testid="card-dominator-context">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3">Dominator Context</h3>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="text-center p-3 bg-muted/50 rounded">
+                              <div className="text-xl font-bold">{p.dominatorRating ?? 0}%</div>
+                              <div className="text-xs text-muted-foreground">Raw Dominator</div>
+                            </div>
+                            <div className="text-center p-3 bg-muted/50 rounded" data-testid="metric-age-adj-dominator">
+                              <div className="text-xl font-bold text-primary">{p.ageAdjustedDominator ?? 0}%</div>
+                              <div className="text-xs text-muted-foreground">Age-Adjusted</div>
+                            </div>
+                            <div className="text-center p-3 bg-muted/50 rounded">
+                              <div className="text-xl font-bold">{p.breakoutAge ?? "N/A"}</div>
+                              <div className="text-xs text-muted-foreground">Breakout Age</div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="valuation" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-valuation">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
+                      <Card data-testid="card-market-valuation">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-green-500" />
+                            Market Valuation
+                          </h3>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="p-3 bg-primary/10 border border-primary/20 rounded" data-testid="metric-devy-pick-eq">
+                              <div className="text-xs text-muted-foreground mb-1">Devy Pick Equivalent</div>
+                              <div className="text-lg font-bold text-primary">{p.devyPickEquivalent || p.pickEquivalent || "N/A"}</div>
+                            </div>
+                            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded" data-testid="metric-rookie-pick-eq">
+                              <div className="text-xs text-muted-foreground mb-1">Rookie Pick Equivalent</div>
+                              <div className="text-lg font-bold text-blue-500">{p.rookiePickEquivalent || "N/A"}</div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div className="p-3 bg-muted/50 rounded" data-testid="metric-30day-change">
+                              <div className="text-xs text-muted-foreground mb-1">30-Day Value Change</div>
+                              <div className={`text-lg font-bold flex items-center gap-1 ${(p.trend30Day ?? 0) > 0 ? "text-green-500" : (p.trend30Day ?? 0) < 0 ? "text-red-500" : ""}`}>
+                                {(p.trend30Day ?? 0) > 0 ? <TrendingUp className="h-4 w-4" /> : (p.trend30Day ?? 0) < 0 ? <TrendingDown className="h-4 w-4" /> : null}
+                                {(p.trend30Day ?? 0) > 0 ? "+" : ""}{p.trend30Day ?? 0}
+                              </div>
+                            </div>
+                            <div className="p-3 bg-muted/50 rounded" data-testid="metric-season-change">
+                              <div className="text-xs text-muted-foreground mb-1">Season Value Change</div>
+                              <div className={`text-lg font-bold flex items-center gap-1 ${(p.seasonChange ?? 0) > 0 ? "text-green-500" : (p.seasonChange ?? 0) < 0 ? "text-red-500" : ""}`}>
+                                {(p.seasonChange ?? 0) > 0 ? <TrendingUp className="h-4 w-4" /> : (p.seasonChange ?? 0) < 0 ? <TrendingDown className="h-4 w-4" /> : null}
+                                {(p.seasonChange ?? 0) > 0 ? "+" : ""}{p.seasonChange ?? 0}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card data-testid="card-rank-comparison">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3">Rank Comparison</h3>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="text-center p-3 bg-muted/50 rounded" data-testid="metric-market-rank">
+                              <div className="text-xl font-bold">#{p.marketRank ?? p.rank ?? "-"}</div>
+                              <div className="text-xs text-muted-foreground">Market Rank</div>
+                            </div>
+                            <div className="text-center p-3 bg-muted/50 rounded" data-testid="metric-model-rank">
+                              <div className="text-xl font-bold text-primary">#{p.modelRank ?? "-"}</div>
+                              <div className="text-xs text-muted-foreground">Model Rank</div>
+                            </div>
+                            <div className="text-center p-3 rounded" data-testid="metric-rank-delta"
+                              style={{ backgroundColor: (p.rankDelta ?? 0) > 0 ? "rgba(34,197,94,0.1)" : (p.rankDelta ?? 0) < 0 ? "rgba(239,68,68,0.1)" : "rgba(128,128,128,0.1)" }}
+                            >
+                              <div className={`text-xl font-bold ${(p.rankDelta ?? 0) > 0 ? "text-green-500" : (p.rankDelta ?? 0) < 0 ? "text-red-500" : ""}`}>
+                                {(p.rankDelta ?? 0) > 0 ? "+" : ""}{p.rankDelta ?? 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {(p.rankDelta ?? 0) > 3 ? "Undervalued" : (p.rankDelta ?? 0) < -3 ? "Overvalued" : "Fair Value"}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="riskbreakdown" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-riskbreakdown">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
+                      <Card data-testid="card-risk-breakdown">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                            Risk Breakdown
+                          </h3>
+                          {(() => {
+                            const risks = [
+                              { label: "Bust Risk", value: p.bustPct ?? 0, color: "bg-red-500" },
+                              { label: "Transfer Risk", value: p.transferRisk ?? 0, color: "bg-orange-500" },
+                              { label: "Competition Risk", value: p.competitionRisk ?? 0, color: "bg-yellow-500" },
+                              { label: "Injury Risk", value: p.injuryRisk ?? 0, color: "bg-purple-500" },
+                              { label: "Conference Adj.", value: 100 - (p.conferenceAdjustment ?? 80), color: "bg-blue-500" },
+                            ];
+                            const totalRisk = risks.reduce((sum, r) => sum + r.value, 0);
+                            return (
+                              <div className="space-y-4">
+                                <div className="flex h-6 rounded-full overflow-hidden" data-testid="bar-risk-stacked">
+                                  {risks.map((risk) => {
+                                    const pct = totalRisk > 0 ? (risk.value / totalRisk) * 100 : 20;
+                                    return pct > 0 ? (
+                                      <div
+                                        key={risk.label}
+                                        className={`${risk.color} transition-all relative group`}
+                                        style={{ width: `${pct}%` }}
+                                        title={`${risk.label}: ${risk.value}%`}
+                                      />
+                                    ) : null;
+                                  })}
+                                </div>
+                                <div className="space-y-2">
+                                  {risks.map((risk) => (
+                                    <div key={risk.label} className="flex items-center justify-between" data-testid={`risk-item-${risk.label.replace(/\s/g, "-").toLowerCase()}`}>
+                                      <div className="flex items-center gap-2">
+                                        <div className={`h-3 w-3 rounded-full ${risk.color}`} />
+                                        <span className="text-sm">{risk.label}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-24 bg-muted rounded-full h-2">
+                                          <div className={`${risk.color} h-2 rounded-full`} style={{ width: `${Math.min(100, risk.value)}%` }} />
+                                        </div>
+                                        <span className="text-sm font-medium w-10 text-right">{risk.value}%</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </CardContent>
+                      </Card>
+                      <Card data-testid="card-comp-confidence">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3">NFL Comp Confidence</h3>
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between text-sm mb-1">
+                                <span className="text-muted-foreground">Comparison Confidence</span>
+                                <span className="font-medium">{p.nflCompConfidence ?? 0}/100</span>
+                              </div>
+                              <div className="w-full bg-muted rounded-full h-2.5">
+                                <div
+                                  className={`h-2.5 rounded-full ${(p.nflCompConfidence ?? 0) >= 70 ? "bg-green-500" : (p.nflCompConfidence ?? 0) >= 40 ? "bg-yellow-500" : "bg-red-500"}`}
+                                  style={{ width: `${p.nflCompConfidence ?? 0}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-2">
+                            {(p.nflCompConfidence ?? 0) >= 70
+                              ? "Strong historical match to NFL comparison. Profile is well-defined."
+                              : (p.nflCompConfidence ?? 0) >= 40
+                              ? "Moderate match confidence. Some uncertainty in projection path."
+                              : "Low comparison confidence. Prospect profile is unique or underdeveloped."}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="longterm" className="m-0 h-full data-[state=active]:flex flex-col" data-testid="content-longterm">
+                  <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-4">
+                      <Card data-testid="card-long-term-outlook">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <Brain className="h-4 w-4 text-purple-500" />
+                            Long-Term Outlook
+                          </h3>
+                          <div className="grid grid-cols-3 gap-3 mb-4">
+                            <div className="text-center p-3 bg-green-500/10 border border-green-500/20 rounded" data-testid="outcome-ceiling">
+                              <div className="text-xs text-muted-foreground mb-1">Ceiling</div>
+                              <div className="text-2xl font-bold text-green-500">{p.elitePct ?? 0}%</div>
+                              <div className="text-xs text-green-400">Elite Producer</div>
+                            </div>
+                            <div className="text-center p-3 bg-blue-500/10 border border-blue-500/20 rounded" data-testid="outcome-median">
+                              <div className="text-xs text-muted-foreground mb-1">Median</div>
+                              <div className="text-2xl font-bold text-blue-500">{p.starterPct ?? 0}%</div>
+                              <div className="text-xs text-blue-400">Starter</div>
+                            </div>
+                            <div className="text-center p-3 bg-red-500/10 border border-red-500/20 rounded" data-testid="outcome-floor">
+                              <div className="text-xs text-muted-foreground mb-1">Floor</div>
+                              <div className="text-2xl font-bold text-red-500">{p.bustPct ?? 0}%</div>
+                              <div className="text-xs text-red-400">Bust</div>
+                            </div>
+                          </div>
+                          {(() => {
+                            const elitePct = p.elitePct ?? 0;
+                            const starterPct = p.starterPct ?? 0;
+                            const bustPct = p.bustPct ?? 0;
+                            let projectedTier = "Role Player";
+                            let tierColor = "text-muted-foreground";
+                            let tierBg = "bg-muted/50";
+                            if (elitePct >= 30 && bustPct < 25) {
+                              projectedTier = "Elite";
+                              tierColor = "text-green-500";
+                              tierBg = "bg-green-500/10 border border-green-500/20";
+                            } else if (starterPct >= 60 && bustPct < 30) {
+                              projectedTier = "Starter";
+                              tierColor = "text-blue-500";
+                              tierBg = "bg-blue-500/10 border border-blue-500/20";
+                            } else if (bustPct >= 40) {
+                              projectedTier = "Bust Risk";
+                              tierColor = "text-red-500";
+                              tierBg = "bg-red-500/10 border border-red-500/20";
+                            } else if (starterPct >= 40) {
+                              projectedTier = "Starter";
+                              tierColor = "text-blue-500";
+                              tierBg = "bg-blue-500/10 border border-blue-500/20";
+                            }
+                            return (
+                              <div className={`p-4 rounded ${tierBg}`} data-testid="panel-projected-tier">
+                                <div className="text-xs text-muted-foreground mb-1">Projected NFL Tier</div>
+                                <div className={`text-2xl font-bold ${tierColor}`} data-testid="text-projected-tier">
+                                  {projectedTier}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {projectedTier === "Elite" && "Top-tier fantasy asset. Projected to be a league winner at the position."}
+                                  {projectedTier === "Starter" && "Consistent fantasy contributor. Projects as a reliable weekly starter."}
+                                  {projectedTier === "Role Player" && "Likely a depth piece or streaming option. Limited standalone fantasy value."}
+                                  {projectedTier === "Bust Risk" && "High probability of failing to produce meaningful fantasy value."}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </CardContent>
+                      </Card>
+                      <Card data-testid="card-breakout-probability">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3 flex items-center gap-2">
+                            <Zap className="h-4 w-4 text-yellow-500" />
+                            Breakout Probability
+                          </h3>
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="text-3xl font-bold text-primary" data-testid="text-breakout-prob">
+                              {p.breakoutProbability ?? 0}%
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Chance of exceeding expectations based on age, production, and draft capital trajectory
+                            </div>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-3">
+                            <div
+                              className={`h-3 rounded-full transition-all ${
+                                (p.breakoutProbability ?? 0) >= 60 ? "bg-green-500" :
+                                (p.breakoutProbability ?? 0) >= 35 ? "bg-yellow-500" : "bg-red-500"
+                              }`}
+                              style={{ width: `${p.breakoutProbability ?? 0}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                            <span>Low</span>
+                            <span>High</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card data-testid="card-dvi-score">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold mb-3">Devy Value Index</h3>
+                          <div className="flex items-center gap-3">
+                            <div className="text-3xl font-bold text-primary" data-testid="text-dvi-score">
+                              {p.dviScore ?? 0}
+                            </div>
+                            <div className="flex-1">
+                              <div className="w-full bg-muted rounded-full h-3">
+                                <div
+                                  className="bg-primary h-3 rounded-full transition-all"
+                                  style={{ width: `${p.dviScore ?? 0}%` }}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                                <span>0</span>
+                                <span>100</span>
+                              </div>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>

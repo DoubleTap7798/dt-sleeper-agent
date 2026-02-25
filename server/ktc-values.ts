@@ -27,29 +27,200 @@ export interface KTCDevyPlayer {
   seasonChange: number;
   value: number;
   draftEligibleYear: number;
-  // Breakout/Bust probability
   starterPct: number;
   elitePct: number;
   bustPct: number;
-  // Draft capital confidence
   top10Pct: number;
   round1Pct: number;
   round2PlusPct: number;
-  // Trade value equivalent
   pickEquivalent: string;
   pickMultiplier: number;
-  // Market share metrics
   dominatorRating: number;
   yardShare: number;
   tdShare: number;
   breakoutAge: number | null;
-  // Historical comps
   comps: DevyComp[];
-  // Path to production
   depthRole: "Starter" | "WR1" | "WR2" | "WR3" | "RB1" | "RB2" | "RB3" | "TE1" | "Backup" | "Buried";
   pathContext: string;
-  // Age vs Class indicator
   ageClass: "young-breakout" | "normal" | "old-producer";
+}
+
+export interface EnrichedDevyPlayer {
+  playerId: string;
+  name: string;
+  position: string;
+  positionRank: number;
+  college: string;
+  draftEligibleYear: number;
+  tier: number;
+  trend7Day: number;
+  trend30Day: number;
+  seasonChange: number;
+  value: number;
+  rank: number;
+  dtRank: number;
+  fantasyProsRank: number | null;
+  consensusRank: number;
+  marketRank: number;
+  modelRank: number;
+  rankDelta: number;
+  dviScore: number;
+  starterPct: number;
+  elitePct: number;
+  bustPct: number;
+  top10Pct: number;
+  round1Pct: number;
+  round2PlusPct: number;
+  pickEquivalent: string;
+  pickMultiplier: number;
+  dominatorRating: number;
+  yardShare: number;
+  tdShare: number;
+  breakoutAge: number | null;
+  comps: DevyComp[];
+  depthRole: string;
+  pathContext: string;
+  ageClass: string;
+  injuryRisk: number;
+  transferRisk: number;
+  competitionRisk: number;
+  conferenceAdjustment: number;
+  nflCompConfidence: number;
+  breakoutProbability: number;
+  ageAdjustedDominator: number;
+  devyPickEquivalent: string;
+  rookiePickEquivalent: string;
+  roundProbabilities: {
+    r1: number; r2: number; r3: number; r4: number;
+    r5: number; r6: number; r7: number; udfa: number;
+  };
+}
+
+const CONF_STRENGTH: Record<string, number> = {
+  "SEC": 95, "Big Ten": 92, "ACC": 82, "Big 12": 80, "Pac-12": 78,
+  "AAC": 55, "Mountain West": 50, "Sun Belt": 45, "MAC": 40,
+  "Conference USA": 38, "Independent": 60,
+};
+
+function getConferenceForCollege(college: string): string {
+  const SEC = ["Alabama", "Georgia", "LSU", "Tennessee", "Texas A&M", "Auburn", "Ole Miss", "Missouri", "South Carolina", "Florida", "Arkansas", "Kentucky", "Vanderbilt", "Mississippi State", "Texas", "Oklahoma"];
+  const BIG_TEN = ["Ohio State", "Michigan", "Penn State", "Wisconsin", "Iowa", "Minnesota", "Nebraska", "Indiana", "Purdue", "Northwestern", "Illinois", "Maryland", "Rutgers", "Michigan State", "Oregon", "UCLA", "USC", "Washington"];
+  const ACC = ["Clemson", "Florida State", "Miami", "Louisville", "Virginia", "Virginia Tech", "North Carolina", "NC State", "Duke", "Wake Forest", "Syracuse", "Boston College", "Georgia Tech", "Pittsburgh", "SMU", "Stanford", "California"];
+  const BIG12 = ["Kansas State", "Oklahoma State", "Texas Tech", "Kansas", "Iowa State", "TCU", "Baylor", "West Virginia", "Cincinnati", "Houston", "UCF", "BYU", "Colorado", "Arizona", "Arizona State", "Utah"];
+  if (SEC.includes(college)) return "SEC";
+  if (BIG_TEN.includes(college)) return "Big Ten";
+  if (ACC.includes(college)) return "ACC";
+  if (BIG12.includes(college)) return "Big 12";
+  if (college === "Notre Dame") return "Independent";
+  if (college === "Boise State") return "Mountain West";
+  return "AAC";
+}
+
+export function computeEnrichedFields(player: KTCDevyPlayer, allPlayers: KTCDevyPlayer[]): Omit<EnrichedDevyPlayer, 'rank' | 'dtRank' | 'fantasyProsRank' | 'consensusRank' | 'marketRank' | 'modelRank' | 'rankDelta' | 'value'> {
+  const conf = getConferenceForCollege(player.college);
+  const confStrength = CONF_STRENGTH[conf] || 50;
+  const conferenceAdjustment = confStrength;
+
+  const depthRisk: Record<string, number> = {
+    "WR1": 10, "RB1": 12, "Starter": 15, "WR2": 30, "RB2": 35,
+    "TE1": 15, "WR3": 50, "RB3": 55, "Backup": 60, "Buried": 75,
+  };
+  const competitionRisk = depthRisk[player.depthRole] || 30;
+
+  const injuryBase: Record<string, number> = { "QB": 20, "RB": 35, "WR": 18, "TE": 22 };
+  let injuryRisk = injuryBase[player.position] || 20;
+  if (player.pathContext.toLowerCase().includes("injury")) injuryRisk += 25;
+  if (player.ageClass === "old-producer") injuryRisk += 10;
+  injuryRisk = Math.min(100, Math.max(0, injuryRisk));
+
+  let transferRisk = 15;
+  if (player.pathContext.toLowerCase().includes("transfer")) transferRisk += 30;
+  if (player.pathContext.toLowerCase().includes("journeyman")) transferRisk += 20;
+  if (player.depthRole === "Backup" || player.depthRole === "Buried") transferRisk += 15;
+  transferRisk = Math.min(100, Math.max(0, transferRisk));
+
+  const avgCompMatch = player.comps.length > 0
+    ? player.comps.reduce((s, c) => s + c.matchPct, 0) / player.comps.length
+    : 40;
+  const successRate = player.comps.length > 0
+    ? player.comps.filter(c => c.wasSuccess).length / player.comps.length
+    : 0.3;
+  const nflCompConfidence = Math.round(avgCompMatch * 0.6 + successRate * 100 * 0.4);
+
+  const breakoutProbability = Math.round(
+    player.elitePct * 0.4 + player.starterPct * 0.3 +
+    (player.breakoutAge !== null && player.breakoutAge < 20 ? 20 : 0) +
+    (player.ageClass === "young-breakout" ? 10 : 0)
+  );
+
+  const samePosDoms = allPlayers.filter(p => p.position === player.position).map(p => p.dominatorRating);
+  samePosDoms.sort((a, b) => a - b);
+  const domIdx = samePosDoms.indexOf(player.dominatorRating);
+  const ageAdjustedDominator = samePosDoms.length > 1
+    ? Math.round((domIdx / (samePosDoms.length - 1)) * 100)
+    : 50;
+
+  const r1 = player.round1Pct;
+  const remaining = 100 - r1;
+  const r2 = Math.round(remaining * 0.30);
+  const r3 = Math.round(remaining * 0.22);
+  const r4 = Math.round(remaining * 0.15);
+  const r5 = Math.round(remaining * 0.10);
+  const r6 = Math.round(remaining * 0.08);
+  const r7 = Math.round(remaining * 0.05);
+  const udfa = Math.max(0, 100 - r1 - r2 - r3 - r4 - r5 - r6 - r7);
+  const roundProbabilities = { r1, r2, r3, r4, r5, r6, r7, udfa };
+
+  const devyPickEquivalent = player.pickEquivalent;
+  const rookieMultiplier = player.pickMultiplier;
+  let rookiePickEquivalent = "Late 3rd+";
+  if (rookieMultiplier >= 1.5) rookiePickEquivalent = "Early 1st";
+  else if (rookieMultiplier >= 1.2) rookiePickEquivalent = "Mid 1st";
+  else if (rookieMultiplier >= 1.0) rookiePickEquivalent = "Late 1st";
+  else if (rookieMultiplier >= 0.8) rookiePickEquivalent = "Early 2nd";
+  else if (rookieMultiplier >= 0.5) rookiePickEquivalent = "Mid 2nd";
+  else if (rookieMultiplier >= 0.3) rookiePickEquivalent = "Late 2nd";
+  else if (rookieMultiplier >= 0.15) rookiePickEquivalent = "Early 3rd";
+
+  return {
+    playerId: player.id,
+    name: player.name,
+    position: player.position,
+    positionRank: player.positionRank,
+    college: player.college,
+    draftEligibleYear: player.draftEligibleYear,
+    tier: player.tier,
+    trend7Day: player.trend7Day,
+    trend30Day: player.trend30Day,
+    seasonChange: player.seasonChange,
+    dviScore: 0,
+    starterPct: player.starterPct,
+    elitePct: player.elitePct,
+    bustPct: player.bustPct,
+    top10Pct: player.top10Pct,
+    round1Pct: player.round1Pct,
+    round2PlusPct: player.round2PlusPct,
+    pickEquivalent: player.pickEquivalent,
+    pickMultiplier: player.pickMultiplier,
+    dominatorRating: player.dominatorRating,
+    yardShare: player.yardShare,
+    tdShare: player.tdShare,
+    breakoutAge: player.breakoutAge,
+    comps: player.comps,
+    depthRole: player.depthRole,
+    pathContext: player.pathContext,
+    ageClass: player.ageClass,
+    injuryRisk,
+    transferRisk,
+    competitionRisk,
+    conferenceAdjustment,
+    nflCompConfidence,
+    breakoutProbability: Math.min(100, Math.max(0, breakoutProbability)),
+    ageAdjustedDominator,
+    devyPickEquivalent,
+    rookiePickEquivalent,
+    roundProbabilities,
+  };
 }
 
 // KTC Devy Rankings - Updated January 2026

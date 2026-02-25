@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GraduationCap, Filter, ArrowUpDown, TrendingUp, TrendingDown, ChevronRight, Sparkles, Zap, AlertTriangle, Database, RefreshCw, CheckCircle, AlertCircle, Layers } from "lucide-react";
+import { GraduationCap, Filter, ArrowUpDown, ChevronRight, Database, RefreshCw, CheckCircle, AlertCircle, Layers, BarChart3, Brain, Target } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DevyProfileModal } from "@/components/devy-profile-modal";
 import { useMutation } from "@tanstack/react-query";
@@ -53,6 +53,11 @@ interface DevyPlayer {
   rank: number;
   dtRank: number;
   fantasyProsRank: number | null;
+  consensusRank: number;
+  marketRank: number;
+  modelRank: number;
+  rankDelta: number;
+  dviScore: number;
   starterPct: number;
   elitePct: number;
   bustPct: number;
@@ -69,6 +74,19 @@ interface DevyPlayer {
   depthRole: string;
   pathContext: string;
   ageClass: "young-breakout" | "normal" | "old-producer";
+  injuryRisk: number;
+  transferRisk: number;
+  competitionRisk: number;
+  conferenceAdjustment: number;
+  nflCompConfidence: number;
+  breakoutProbability: number;
+  ageAdjustedDominator: number;
+  devyPickEquivalent: string;
+  rookiePickEquivalent: string;
+  roundProbabilities: {
+    r1: number; r2: number; r3: number; r4: number;
+    r5: number; r6: number; r7: number; udfa: number;
+  };
 }
 
 interface DevyData {
@@ -79,8 +97,22 @@ interface DevyData {
   source: string;
 }
 
-type SortField = "rank" | "name" | "position" | "year" | "college" | "value" | "tier" | "dvi";
+type SortField = "rank" | "name" | "position" | "year" | "college" | "value" | "tier" | "dvi" | "expectedRound" | "round1Pct" | "day2Pct" | "bustPct" | "breakoutProbability" | "ageAdjustedDominator" | "nflCompConfidence" | "transferRisk" | "injuryRisk";
 type SortDirection = "asc" | "desc";
+type RankingMode = "market" | "model" | "delta";
+
+function getExpectedRound(rp: DevyPlayer["roundProbabilities"]): number {
+  return (rp.r1 * 1 + rp.r2 * 2 + rp.r3 * 3 + rp.r4 * 4 + rp.r5 * 5 + rp.r6 * 6 + rp.r7 * 7 + rp.udfa * 8) / 100;
+}
+
+function formatExpectedRound(val: number): string {
+  if (val <= 1.5) return "Rd 1";
+  if (val <= 2.5) return "Rd 2";
+  if (val <= 3.5) return "Rd 3";
+  if (val <= 4.5) return "Day 3";
+  if (val <= 6.5) return "Late";
+  return "UDFA";
+}
 
 function calculateDVI(player: DevyPlayer): number {
   let score = 0;
@@ -112,6 +144,7 @@ export default function DevyRankingsPage() {
   const [showSources, setShowSources] = useState(false);
   const [groupByTier, setGroupByTier] = useState<boolean>(false);
   const [tierFilter, setTierFilter] = useState<number | null>(null);
+  const [rankingMode, setRankingMode] = useState<RankingMode>("market");
 
   const { data, isLoading, error } = useQuery<DevyData>({
     queryKey: ["/api/sleeper/devy"],
@@ -154,10 +187,16 @@ export default function DevyRankingsPage() {
     return true;
   });
 
+  const getRankValue = (p: DevyPlayer) => {
+    if (rankingMode === "market") return p.marketRank;
+    if (rankingMode === "model") return p.modelRank;
+    return p.rankDelta;
+  };
+
   const sortedPlayers = [...filteredPlayers].sort((a, b) => {
     let comparison = 0;
     switch (sortField) {
-      case "rank": comparison = a.rank - b.rank; break;
+      case "rank": comparison = getRankValue(a) - getRankValue(b); break;
       case "name": comparison = a.name.localeCompare(b.name); break;
       case "position": comparison = a.position.localeCompare(b.position); break;
       case "year": comparison = a.draftEligibleYear - b.draftEligibleYear; break;
@@ -165,6 +204,15 @@ export default function DevyRankingsPage() {
       case "value": comparison = a.value - b.value; break;
       case "tier": comparison = a.tier - b.tier; break;
       case "dvi": comparison = calculateDVI(a) - calculateDVI(b); break;
+      case "expectedRound": comparison = getExpectedRound(a.roundProbabilities) - getExpectedRound(b.roundProbabilities); break;
+      case "round1Pct": comparison = a.round1Pct - b.round1Pct; break;
+      case "day2Pct": comparison = (a.roundProbabilities.r2 + a.roundProbabilities.r3) - (b.roundProbabilities.r2 + b.roundProbabilities.r3); break;
+      case "bustPct": comparison = a.bustPct - b.bustPct; break;
+      case "breakoutProbability": comparison = a.breakoutProbability - b.breakoutProbability; break;
+      case "ageAdjustedDominator": comparison = a.ageAdjustedDominator - b.ageAdjustedDominator; break;
+      case "nflCompConfidence": comparison = a.nflCompConfidence - b.nflCompConfidence; break;
+      case "transferRisk": comparison = a.transferRisk - b.transferRisk; break;
+      case "injuryRisk": comparison = a.injuryRisk - b.injuryRisk; break;
     }
     return sortDirection === "asc" ? comparison : -comparison;
   });
@@ -284,6 +332,39 @@ export default function DevyRankingsPage() {
           <Layers className="h-3.5 w-3.5" />
           Tiers
         </Button>
+
+        <div className="flex items-center gap-1 ml-auto border rounded-md p-0.5" data-testid="ranking-toggle">
+          <Button
+            variant={rankingMode === "market" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setRankingMode("market")}
+            className="gap-1"
+            data-testid="button-rank-market"
+          >
+            <BarChart3 className="h-3.5 w-3.5" />
+            Market
+          </Button>
+          <Button
+            variant={rankingMode === "model" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setRankingMode("model")}
+            className="gap-1"
+            data-testid="button-rank-model"
+          >
+            <Brain className="h-3.5 w-3.5" />
+            Model
+          </Button>
+          <Button
+            variant={rankingMode === "delta" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setRankingMode("delta")}
+            className="gap-1"
+            data-testid="button-rank-delta"
+          >
+            <Target className="h-3.5 w-3.5" />
+            Delta
+          </Button>
+        </div>
       </div>
 
       <Card className="border-amber-800/20 bg-stone-950/60" data-testid="card-tier-distribution">
@@ -441,48 +522,48 @@ export default function DevyRankingsPage() {
             <table className="w-full" data-testid="table-devy">
               <thead className="border-b border-amber-800/20">
                 <tr className="text-left text-sm text-amber-200/50">
-                  <th className="p-3 w-12"><SortButton field="rank" label="#" /></th>
-                  <th className="p-3 w-14 text-center">
-                    <Tooltip><TooltipTrigger asChild><span className="font-medium text-sm cursor-help">DT</span></TooltipTrigger><TooltipContent>DT Dynasty Rank</TooltipContent></Tooltip>
-                  </th>
-                  <th className="p-3 w-14 text-center">
-                    <Tooltip><TooltipTrigger asChild><span className="font-medium text-sm cursor-help">FP</span></TooltipTrigger><TooltipContent>FantasyPros Devy Rank</TooltipContent></Tooltip>
+                  <th className="p-3 w-12">
+                    <SortButton field="rank" label={rankingMode === "delta" ? "Δ" : "#"} />
                   </th>
                   <th className="p-3"><SortButton field="name" label="Player" /></th>
-                  <th className="p-3 w-20"><SortButton field="position" label="Pos" /></th>
-                  <th className="p-3"><SortButton field="college" label="College" /></th>
+                  <th className="p-3 w-16"><SortButton field="position" label="Pos" /></th>
                   <th className="p-3 w-20"><SortButton field="year" label="Draft" /></th>
-                  <th className="p-3 w-28 text-center">
-                    <span className="font-medium flex items-center justify-center gap-1">
-                      DVI
-                      <InfoTooltip title="Devy Value Index" description="Composite score (0-100) factoring production trend, class year, NFL draft projection, positional scarcity, hit rates, and depth chart opportunities." />
-                    </span>
-                  </th>
-                  <th className="p-3 w-32 text-center">
-                    <span className="font-medium flex items-center justify-center gap-1">
-                      Hit Rate
-                      <InfoTooltip title="Hit Rate" description="Elite % shows chances of becoming a fantasy star. Bust % shows risk of being a non-contributor." />
-                    </span>
-                  </th>
-                  <th className="p-3 w-28 text-center">
-                    <span className="font-medium flex items-center justify-center gap-1">
-                      Draft Capital
-                      <InfoTooltip title="Draft Capital" description="Projected NFL draft position probability." />
-                    </span>
+                  <th className="p-3 w-20 text-center">
+                    <SortButton field="dvi" label="DVI" />
                   </th>
                   <th className="p-3 w-20 text-center">
-                    <span className="font-medium flex items-center justify-center gap-1">
-                      Trend
-                      <InfoTooltip title="Value Trend" description="Recent dynasty value changes." />
-                    </span>
+                    <SortButton field="expectedRound" label="Exp Rd" />
                   </th>
-                  <th className="p-3 w-16 text-center"><span className="font-medium">Age</span></th>
+                  <th className="p-3 w-16 text-center">
+                    <SortButton field="round1Pct" label="R1%" />
+                  </th>
+                  <th className="p-3 w-16 text-center">
+                    <Tooltip><TooltipTrigger asChild><div><SortButton field="day2Pct" label="D2%" /></div></TooltipTrigger><TooltipContent>Day 2 Probability (Rounds 2-3)</TooltipContent></Tooltip>
+                  </th>
+                  <th className="p-3 w-16 text-center">
+                    <SortButton field="bustPct" label="Bust%" />
+                  </th>
+                  <th className="p-3 w-20 text-center">
+                    <Tooltip><TooltipTrigger asChild><div><SortButton field="breakoutProbability" label="Brk%" /></div></TooltipTrigger><TooltipContent>Breakout Probability</TooltipContent></Tooltip>
+                  </th>
+                  <th className="p-3 w-16 text-center">
+                    <Tooltip><TooltipTrigger asChild><div><SortButton field="ageAdjustedDominator" label="aDOM" /></div></TooltipTrigger><TooltipContent>Age-Adjusted Dominator Percentile</TooltipContent></Tooltip>
+                  </th>
+                  <th className="p-3 w-16 text-center">
+                    <Tooltip><TooltipTrigger asChild><div><SortButton field="nflCompConfidence" label="Comp" /></div></TooltipTrigger><TooltipContent>NFL Comp Confidence Score (0-100)</TooltipContent></Tooltip>
+                  </th>
+                  <th className="p-3 w-16 text-center">
+                    <Tooltip><TooltipTrigger asChild><div><SortButton field="transferRisk" label="Xfer" /></div></TooltipTrigger><TooltipContent>NIL/Transfer Risk Score (0-100)</TooltipContent></Tooltip>
+                  </th>
+                  <th className="p-3 w-16 text-center">
+                    <Tooltip><TooltipTrigger asChild><div><SortButton field="injuryRisk" label="Inj" /></div></TooltipTrigger><TooltipContent>Injury Risk Score (0-100)</TooltipContent></Tooltip>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {sortedPlayers.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
+                    <td colSpan={14} className="p-8 text-center text-muted-foreground" data-testid="text-no-players">
                       No players match the selected filters
                     </td>
                   </tr>
@@ -499,7 +580,7 @@ export default function DevyRankingsPage() {
                         const tierCount = sortedPlayers.filter(p => p.tier === player.tier).length;
                         rows.push(
                           <tr key={`tier-header-${player.tier}`} data-testid={`row-tier-header-${player.tier}`}>
-                            <td colSpan={12} className={`p-3 border-l-4 ${tierColors[player.tier] || "bg-muted/30"}`}>
+                            <td colSpan={14} className={`p-3 border-l-4 ${tierColors[player.tier] || "bg-muted/30"}`}>
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-sm">{tierNames[player.tier] || `Tier ${player.tier}`}</span>
                                 <Badge variant="secondary" className="text-[10px]">{tierArchetypes[player.tier] || "Other"}</Badge>
@@ -510,6 +591,9 @@ export default function DevyRankingsPage() {
                         );
                         lastTier = player.tier;
                       }
+                      const expRd = getExpectedRound(player.roundProbabilities);
+                      const day2Pct = player.roundProbabilities.r2 + player.roundProbabilities.r3;
+                      const displayRank = rankingMode === "market" ? player.marketRank : rankingMode === "model" ? player.modelRank : player.rankDelta;
                       rows.push(
                         <tr
                           key={player.playerId}
@@ -517,31 +601,13 @@ export default function DevyRankingsPage() {
                           onClick={() => handlePlayerClick(player)}
                           data-testid={`row-player-${player.playerId}`}
                         >
-                          <td className="p-3 font-medium">{player.rank}</td>
-                          <td className="p-3 text-center"><span className="text-xs text-muted-foreground">{player.dtRank}</span></td>
-                          <td className="p-3 text-center">
-                            {player.fantasyProsRank ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className={`text-xs font-medium ${
-                                    player.fantasyProsRank < player.dtRank ? "text-green-500" :
-                                    player.fantasyProsRank > player.dtRank ? "text-red-500" :
-                                    "text-muted-foreground"
-                                  }`}>{player.fantasyProsRank}</span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p className="text-xs">
-                                    FantasyPros: #{player.fantasyProsRank}
-                                    {player.fantasyProsRank !== player.dtRank && (
-                                      <span className={player.fantasyProsRank < player.dtRank ? " text-green-400" : " text-red-400"}>
-                                        {" "}({player.fantasyProsRank < player.dtRank ? "+" : ""}{player.dtRank - player.fantasyProsRank} vs DT)
-                                      </span>
-                                    )}
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
+                          <td className="p-3 font-medium">
+                            {rankingMode === "delta" ? (
+                              <span className={`text-sm font-bold ${displayRank > 0 ? "text-green-500" : displayRank < 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                                {displayRank > 0 ? `+${displayRank}` : displayRank}
+                              </span>
                             ) : (
-                              <span className="text-xs text-muted-foreground">-</span>
+                              <span>{displayRank}</span>
                             )}
                           </td>
                           <td className="p-3">
@@ -550,11 +616,7 @@ export default function DevyRankingsPage() {
                                 <span className="sm:hidden">{abbreviateName(player.name)}</span>
                                 <span className="hidden sm:inline">{player.name}</span>
                               </span>
-                              {player.comps && player.comps.length > 0 && (
-                                <span className="text-xs text-muted-foreground">
-                                  Comp: {player.comps[0].name} ({player.comps[0].matchPct}%)
-                                </span>
-                              )}
+                              <span className="text-xs text-muted-foreground">{player.college}</span>
                             </div>
                           </td>
                           <td className="p-3">
@@ -562,111 +624,69 @@ export default function DevyRankingsPage() {
                               {player.position}{player.positionRank}
                             </Badge>
                           </td>
-                          <td className="p-3 text-muted-foreground text-sm">
-                            <div className="flex flex-col">
-                              <span>{player.college}</span>
-                              <span className="text-xs">{player.depthRole}</span>
-                            </div>
-                          </td>
                           <td className="p-3">
                             <Badge variant="outline">{player.draftEligibleYear}</Badge>
                           </td>
                           <td className="p-3 text-center">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="text-xs">
-                                  <span className={`text-lg font-bold ${
-                                    calculateDVI(player) >= 80 ? "text-green-500" :
-                                    calculateDVI(player) >= 60 ? "text-amber-400" :
-                                    calculateDVI(player) >= 40 ? "text-yellow-500" :
-                                    "text-red-500"
-                                  }`}>{calculateDVI(player)}</span>
-                                  <div className="text-amber-200/50 text-[10px]">
-                                    {player.trend30Day > 0 ? "+" : ""}{player.trend30Day} last 30d
-                                  </div>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <div className="space-y-1 text-xs">
-                                  <p className="font-medium">DVI: {calculateDVI(player)}/100</p>
-                                  <p>Pick Value: {player.pickMultiplier.toFixed(1)}x ({player.pickEquivalent})</p>
-                                  <p>Elite: {player.elitePct}% | Bust: {player.bustPct}%</p>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </td>
-                          <td className="p-3">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex items-center gap-1 justify-center text-xs">
-                                  <Sparkles className="h-3 w-3 text-yellow-500" />
-                                  <span className="text-green-500 font-medium">{player.elitePct}%</span>
-                                  <span className="text-muted-foreground">/</span>
-                                  <span className="text-red-500">{player.bustPct}%</span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <div className="space-y-1 text-xs">
-                                  <p>Fantasy Starter: {player.starterPct}%</p>
-                                  <p className="text-green-400">Elite: {player.elitePct}%</p>
-                                  <p className="text-red-400">Bust: {player.bustPct}%</p>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </td>
-                          <td className="p-3">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex flex-col items-center text-xs">
-                                  <span className="font-medium">Rd1: {player.round1Pct}%</span>
-                                  <span className="text-muted-foreground">Top 10: {player.top10Pct}%</span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <div className="space-y-1 text-xs">
-                                  <p>Top 10: {player.top10Pct}%</p>
-                                  <p>Round 1: {player.round1Pct}%</p>
-                                  <p>Round 2+: {player.round2PlusPct}%</p>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex flex-col items-center gap-0.5">
-                              <div className="flex items-center gap-1">
-                                {player.trend30Day > 0 ? (
-                                  <TrendingUp className="h-3 w-3 text-green-500" />
-                                ) : player.trend30Day < 0 ? (
-                                  <TrendingDown className="h-3 w-3 text-red-500" />
-                                ) : null}
-                                <span className={`text-xs font-medium ${player.trend30Day > 0 ? "text-green-500" : player.trend30Day < 0 ? "text-red-500" : "text-muted-foreground"}`}>
-                                  {player.trend30Day > 0 ? `+${player.trend30Day}` : player.trend30Day || "-"}
-                                </span>
-                              </div>
-                            </div>
+                            <span className={`text-base font-bold ${
+                              calculateDVI(player) >= 80 ? "text-green-500" :
+                              calculateDVI(player) >= 60 ? "text-amber-400" :
+                              calculateDVI(player) >= 40 ? "text-yellow-500" :
+                              "text-red-500"
+                            }`} data-testid={`text-dvi-${player.playerId}`}>{calculateDVI(player)}</span>
                           </td>
                           <td className="p-3 text-center">
-                            {player.ageClass === "young-breakout" ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50 text-xs">
-                                    <Zap className="h-3 w-3 mr-0.5" />
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>Young Breakout</TooltipContent>
-                              </Tooltip>
-                            ) : player.ageClass === "old-producer" ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant="outline" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/50 text-xs">
-                                    <AlertTriangle className="h-3 w-3" />
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>Older Producer</TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-xs font-medium" data-testid={`text-exprd-${player.playerId}`}>{formatExpectedRound(expRd)}</span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="space-y-0.5 text-xs">
+                                  <p>Expected Round: {expRd.toFixed(1)}</p>
+                                  <p>R1: {player.roundProbabilities.r1}% | R2: {player.roundProbabilities.r2}% | R3: {player.roundProbabilities.r3}%</p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`text-xs font-medium ${player.round1Pct >= 50 ? "text-green-500" : player.round1Pct >= 25 ? "text-amber-400" : "text-muted-foreground"}`} data-testid={`text-r1pct-${player.playerId}`}>
+                              {player.round1Pct}%
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="text-xs font-medium text-muted-foreground" data-testid={`text-d2pct-${player.playerId}`}>
+                              {day2Pct}%
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`text-xs font-medium ${player.bustPct >= 30 ? "text-red-500" : player.bustPct >= 15 ? "text-amber-400" : "text-green-500"}`} data-testid={`text-bust-${player.playerId}`}>
+                              {player.bustPct}%
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`text-xs font-medium ${player.breakoutProbability >= 50 ? "text-green-500" : player.breakoutProbability >= 25 ? "text-amber-400" : "text-muted-foreground"}`} data-testid={`text-brk-${player.playerId}`}>
+                              {player.breakoutProbability}%
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`text-xs font-medium ${player.ageAdjustedDominator >= 80 ? "text-green-500" : player.ageAdjustedDominator >= 50 ? "text-amber-400" : "text-muted-foreground"}`} data-testid={`text-adom-${player.playerId}`}>
+                              {player.ageAdjustedDominator}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="text-xs font-medium text-muted-foreground" data-testid={`text-comp-${player.playerId}`}>
+                              {player.nflCompConfidence}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`text-xs font-medium ${player.transferRisk >= 50 ? "text-red-500" : player.transferRisk >= 25 ? "text-amber-400" : "text-green-500"}`} data-testid={`text-xfer-${player.playerId}`}>
+                              {player.transferRisk}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`text-xs font-medium ${player.injuryRisk >= 50 ? "text-red-500" : player.injuryRisk >= 25 ? "text-amber-400" : "text-green-500"}`} data-testid={`text-inj-${player.playerId}`}>
+                              {player.injuryRisk}
+                            </span>
                           </td>
                         </tr>
                       );
@@ -691,55 +711,36 @@ export default function DevyRankingsPage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="text-base font-bold shrink-0 w-10 text-right text-muted-foreground">#{player.rank}</span>
                       <div className="min-w-0">
-                        <div className="font-semibold truncate flex items-center gap-1">
-                          <span className="sm:hidden">{abbreviateName(player.name)}</span>
-                          <span className="hidden sm:inline">{player.name}</span>
-                          {player.ageClass === "young-breakout" && <Zap className="h-3 w-3 text-green-500" />}
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <div className="font-semibold truncate flex items-center gap-1.5">
+                          {abbreviateName(player.name)}
                           <Badge variant="outline" className={`text-xs ${getPositionColorClass(player.position)}`}>
-                            {player.position}{player.positionRank}
+                            {player.position}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">{player.college}</span>
-                          <span className="text-xs text-muted-foreground">{player.draftEligibleYear}</span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right">
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-center">
                         <span className={`text-lg font-bold ${
                           calculateDVI(player) >= 80 ? "text-green-500" :
                           calculateDVI(player) >= 60 ? "text-amber-400" :
                           calculateDVI(player) >= 40 ? "text-yellow-500" :
                           "text-red-500"
                         }`}>{calculateDVI(player)}</span>
-                        <div className="text-xs text-amber-200/50">
-                          <span className="text-green-500">{player.starterPct}%</span>
-                          <span className="mx-0.5">/</span>
-                          <span className="text-red-500">{player.bustPct}%</span>
-                        </div>
+                        <div className="text-[10px] text-amber-200/50">DVI</div>
+                      </div>
+                      <div className="text-center">
+                        <span className={`text-sm font-bold ${player.round1Pct >= 50 ? "text-green-500" : player.round1Pct >= 25 ? "text-amber-400" : "text-muted-foreground"}`}>{player.round1Pct}%</span>
+                        <div className="text-[10px] text-amber-200/50">R1</div>
+                      </div>
+                      <div className="text-center">
+                        <span className={`text-sm font-bold ${player.bustPct >= 30 ? "text-red-500" : player.bustPct >= 15 ? "text-amber-400" : "text-green-500"}`}>{player.bustPct}%</span>
+                        <div className="text-[10px] text-amber-200/50">Bust</div>
                       </div>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
-                  {(player.dominatorRating > 0 || player.yardShare > 0 || player.tdShare > 0) && (
-                    <div className="flex gap-3 mt-2 pt-2 border-t border-amber-800/10 text-xs text-muted-foreground" data-testid={`production-${player.playerId}`}>
-                      {player.dominatorRating > 0 && (
-                        <span>DOM: <span className={`font-medium ${player.dominatorRating >= 30 ? "text-green-500" : player.dominatorRating >= 20 ? "text-amber-400" : "text-foreground"}`}>{player.dominatorRating.toFixed(1)}%</span></span>
-                      )}
-                      {player.yardShare > 0 && (
-                        <span>YD%: <span className="font-medium text-foreground">{player.yardShare.toFixed(1)}%</span></span>
-                      )}
-                      {player.tdShare > 0 && (
-                        <span>TD%: <span className="font-medium text-foreground">{player.tdShare.toFixed(1)}%</span></span>
-                      )}
-                      {player.depthRole && (
-                        <span className="ml-auto text-amber-200/40">{player.depthRole}</span>
-                      )}
-                    </div>
-                  )}
                 </div>
               ))
             )}

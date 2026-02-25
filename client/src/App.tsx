@@ -22,6 +22,7 @@ import DevyPage from "@/pages/devy";
 import DevyRankingsPage from "@/pages/devy-rankings";
 import DevyPortfolioPage from "@/pages/devy-portfolio";
 import DevyMarketPage from "@/pages/devy-market";
+import DevyDraftLabPage from "@/pages/devy-draft-lab";
 import PlayoffBracketPage from "@/pages/playoff-bracket";
 import PlayersPage from "@/pages/players";
 import NewsFeedPage from "@/pages/news-feed";
@@ -237,6 +238,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <CollegeStatsPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/devy/draft-lab">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <DevyDraftLabPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

@@ -14,10 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeftRight, Filter, ArrowRight, Star, Search, GraduationCap } from "lucide-react";
+import { ArrowLeftRight, Filter, ArrowRight, Star, Search, GraduationCap, TrendingUp, TrendingDown, Zap, ShieldAlert } from "lucide-react";
 import { getPositionColorClass } from "@/lib/utils";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { ExportButton } from "@/components/export-button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TransferPortalEntry {
   season: number;
@@ -39,6 +40,9 @@ interface TransferData {
 
 const FANTASY_POSITIONS = ["QB", "RB", "WR", "TE", "ATH"];
 
+const POWER_CONFERENCES = ["SEC", "Big Ten", "Big 12", "ACC"];
+const MID_CONFERENCES = ["Pac-12", "American", "Mountain West"];
+
 function getMostRecentCFBSeason(): number {
   const now = new Date();
   const year = now.getFullYear();
@@ -56,6 +60,70 @@ function normalizePosition(pos: string): string {
   return upper;
 }
 
+function getSchoolTier(school: string | null): number {
+  if (!school) return 0;
+  const s = school.toLowerCase();
+  const tier1 = ["alabama", "georgia", "ohio state", "michigan", "texas", "usc", "clemson", "lsu", "oklahoma", "oregon", "penn state", "florida", "notre dame", "tennessee"];
+  const tier2 = ["auburn", "wisconsin", "iowa", "miami", "florida state", "washington", "utah", "ole miss", "south carolina", "arkansas", "michigan state", "arizona", "baylor", "kansas state", "colorado"];
+  if (tier1.some(t => s.includes(t))) return 3;
+  if (tier2.some(t => s.includes(t))) return 2;
+  return 1;
+}
+
+function computeTransferImpactScore(t: TransferPortalEntry): number {
+  const destTier = getSchoolTier(t.destination);
+  const originTier = getSchoolTier(t.origin);
+  let score = 50;
+  score += (destTier - originTier) * 15;
+  if (t.stars) score += (t.stars - 3) * 8;
+  if (t.rating) score += (t.rating - 0.85) * 100;
+  const normPos = normalizePosition(t.position);
+  if (normPos === "QB" || normPos === "WR") score += 5;
+  return Math.round(Math.min(100, Math.max(0, score)));
+}
+
+function computeOffensiveEnvScore(t: TransferPortalEntry): { score: number; label: string } {
+  const destTier = getSchoolTier(t.destination);
+  const originTier = getSchoolTier(t.origin);
+  const diff = destTier - originTier;
+  if (diff > 0) return { score: Math.min(100, 60 + diff * 15), label: "Upgrade" };
+  if (diff < 0) return { score: Math.max(0, 40 + diff * 15), label: "Downgrade" };
+  return { score: 50, label: "Lateral" };
+}
+
+function computeBreakoutProb(t: TransferPortalEntry): number {
+  let prob = 20;
+  if (t.stars && t.stars >= 4) prob += 25;
+  else if (t.stars && t.stars >= 3) prob += 10;
+  if (t.rating && t.rating >= 0.9) prob += 20;
+  else if (t.rating && t.rating >= 0.85) prob += 10;
+  const destTier = getSchoolTier(t.destination);
+  prob += destTier * 8;
+  return Math.min(95, Math.max(5, prob));
+}
+
+function computeDraftCapitalProjection(t: TransferPortalEntry): string {
+  let score = 0;
+  if (t.stars) score += t.stars * 15;
+  if (t.rating) score += (t.rating - 0.8) * 200;
+  const destTier = getSchoolTier(t.destination);
+  score += destTier * 10;
+  if (score >= 80) return "R1-R2";
+  if (score >= 60) return "R2-R3";
+  if (score >= 40) return "R3-R5";
+  return "Day 3+";
+}
+
+function computeDVIReactionDelta(t: TransferPortalEntry): number {
+  const destTier = getSchoolTier(t.destination);
+  const originTier = getSchoolTier(t.origin);
+  let delta = (destTier - originTier) * 5;
+  if (t.stars && t.stars >= 4) delta += 3;
+  return delta;
+}
+
+type SortField = "default" | "impact" | "breakout" | "draftCapital";
+
 export default function TransferPortalPage() {
   usePageTitle("Transfer Portal");
   const currentSeason = getMostRecentCFBSeason();
@@ -63,6 +131,7 @@ export default function TransferPortalPage() {
   const [posFilter, setPosFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [fantasyOnly, setFantasyOnly] = useState<boolean>(false);
+  const [sortBy, setSortBy] = useState<SortField>("default");
 
   const { data, isLoading, error } = useQuery<TransferData>({
     queryKey: [`/api/college/transfer-portal?year=${year}`],
@@ -73,7 +142,7 @@ export default function TransferPortalPage() {
 
   const transfers = useMemo(() => {
     if (!data?.transfers) return [];
-    return data.transfers.filter((t) => {
+    let filtered = data.transfers.filter((t) => {
       const normPos = normalizePosition(t.position);
       if (posFilter !== "all" && normPos !== posFilter) return false;
       if (fantasyOnly && !FANTASY_POSITIONS.includes(normPos)) return false;
@@ -86,7 +155,20 @@ export default function TransferPortalPage() {
       }
       return true;
     });
-  }, [data?.transfers, posFilter, fantasyOnly, searchTerm]);
+
+    if (sortBy === "impact") {
+      filtered = [...filtered].sort((a, b) => computeTransferImpactScore(b) - computeTransferImpactScore(a));
+    } else if (sortBy === "breakout") {
+      filtered = [...filtered].sort((a, b) => computeBreakoutProb(b) - computeBreakoutProb(a));
+    } else if (sortBy === "draftCapital") {
+      filtered = [...filtered].sort((a, b) => {
+        const order: Record<string, number> = { "R1-R2": 1, "R2-R3": 2, "R3-R5": 3, "Day 3+": 4 };
+        return (order[computeDraftCapitalProjection(a)] || 5) - (order[computeDraftCapitalProjection(b)] || 5);
+      });
+    }
+
+    return filtered;
+  }, [data?.transfers, posFilter, fantasyOnly, searchTerm, sortBy]);
 
   const topDestinations = useMemo(() => {
     if (!transfers.length) return [];
@@ -125,6 +207,9 @@ export default function TransferPortalPage() {
                 To: t.destination || "Undecided",
                 Stars: t.stars || "-",
                 Rating: t.rating || "-",
+                "Impact Score": computeTransferImpactScore(t),
+                "Breakout %": computeBreakoutProb(t),
+                "Draft Capital": computeDraftCapitalProjection(t),
                 Date: t.transferDate ? new Date(t.transferDate).toLocaleDateString() : "-",
               }))}
               filename={`transfer-portal-${year}`}
@@ -167,6 +252,17 @@ export default function TransferPortalPage() {
             <GraduationCap className="h-3.5 w-3.5" />
             Fantasy Only
           </Button>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortField)}>
+            <SelectTrigger className="w-[140px]" data-testid="select-sort-by">
+              <SelectValue placeholder="Sort By" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default</SelectItem>
+              <SelectItem value="impact">Impact Score</SelectItem>
+              <SelectItem value="breakout">Breakout Prob</SelectItem>
+              <SelectItem value="draftCapital">Draft Capital</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="relative ml-auto">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -224,13 +320,22 @@ export default function TransferPortalPage() {
                         <th className="p-3 w-8"></th>
                         <th className="p-3">To</th>
                         <th className="p-3 w-16 text-center">Stars</th>
-                        <th className="p-3 w-24">Date</th>
+                        <th className="p-3 w-20 text-center">Impact</th>
+                        <th className="p-3 w-16 text-center">Env</th>
+                        <th className="p-3 w-20 text-center">Breakout</th>
+                        <th className="p-3 w-20 text-center">Draft</th>
+                        <th className="p-3 w-16 text-center">DVI</th>
                       </tr>
                     </thead>
                     <tbody>
                       {transfers.slice(0, 100).map((t, i) => {
                         const normPos = normalizePosition(t.position);
                         const isFantasyRelevant = FANTASY_POSITIONS.includes(normPos);
+                        const impactScore = computeTransferImpactScore(t);
+                        const envScore = computeOffensiveEnvScore(t);
+                        const breakoutProb = computeBreakoutProb(t);
+                        const draftCap = computeDraftCapitalProjection(t);
+                        const dviDelta = computeDVIReactionDelta(t);
                         return (
                           <tr
                             key={`${t.firstName}-${t.lastName}-${t.origin}-${i}`}
@@ -256,8 +361,42 @@ export default function TransferPortalPage() {
                                 </div>
                               ) : <span className="text-xs text-muted-foreground">-</span>}
                             </td>
-                            <td className="p-3 text-xs text-muted-foreground">
-                              {t.transferDate ? new Date(t.transferDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : "-"}
+                            <td className="p-3 text-center">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className={`text-sm font-bold ${impactScore >= 70 ? "text-green-400" : impactScore >= 45 ? "text-amber-400" : "text-red-400"}`}>
+                                    {impactScore}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>Transfer Impact Score (0-100)</TooltipContent>
+                              </Tooltip>
+                            </td>
+                            <td className="p-3 text-center">
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${envScore.label === "Upgrade" ? "text-green-400 border-green-600/30" : envScore.label === "Downgrade" ? "text-red-400 border-red-600/30" : "text-amber-400 border-amber-600/30"}`}
+                              >
+                                {envScore.label === "Upgrade" && <TrendingUp className="h-2.5 w-2.5 mr-0.5" />}
+                                {envScore.label === "Downgrade" && <TrendingDown className="h-2.5 w-2.5 mr-0.5" />}
+                                {envScore.label}
+                              </Badge>
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className={`text-sm font-medium ${breakoutProb >= 50 ? "text-green-400" : breakoutProb >= 30 ? "text-amber-400" : "text-muted-foreground"}`}>
+                                {breakoutProb}%
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              <Badge variant="secondary" className="text-[10px]">{draftCap}</Badge>
+                            </td>
+                            <td className="p-3 text-center">
+                              {dviDelta !== 0 ? (
+                                <span className={`text-sm font-medium ${dviDelta > 0 ? "text-green-400" : "text-red-400"}`}>
+                                  {dviDelta > 0 ? "+" : ""}{dviDelta}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -270,6 +409,11 @@ export default function TransferPortalPage() {
                   {transfers.slice(0, 50).map((t, i) => {
                     const normPos = normalizePosition(t.position);
                     const isFantasyRelevant = FANTASY_POSITIONS.includes(normPos);
+                    const impactScore = computeTransferImpactScore(t);
+                    const envScore = computeOffensiveEnvScore(t);
+                    const breakoutProb = computeBreakoutProb(t);
+                    const draftCap = computeDraftCapitalProjection(t);
+                    const dviDelta = computeDVIReactionDelta(t);
                     return (
                       <div
                         key={`${t.firstName}-${t.lastName}-${t.origin}-${i}`}
@@ -283,6 +427,16 @@ export default function TransferPortalPage() {
                             </Badge>
                             <span className="font-semibold truncate">{t.firstName} {t.lastName}</span>
                           </div>
+                          <span className={`text-sm font-bold shrink-0 ${impactScore >= 70 ? "text-green-400" : impactScore >= 45 ? "text-amber-400" : "text-red-400"}`}>
+                            {impactScore}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-sm mb-1.5">
+                          <span className="text-muted-foreground">{t.origin}</span>
+                          <ArrowRight className="h-3 w-3 text-amber-500 shrink-0" />
+                          <span className="font-medium">{t.destination || <span className="text-muted-foreground italic">TBD</span>}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
                           {t.stars && (
                             <div className="flex items-center gap-0.5 shrink-0">
                               {Array.from({ length: t.stars }).map((_, si) => (
@@ -290,11 +444,19 @@ export default function TransferPortalPage() {
                               ))}
                             </div>
                           )}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <span className="text-muted-foreground">{t.origin}</span>
-                          <ArrowRight className="h-3 w-3 text-amber-500 shrink-0" />
-                          <span className="font-medium">{t.destination || <span className="text-muted-foreground italic">TBD</span>}</span>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${envScore.label === "Upgrade" ? "text-green-400 border-green-600/30" : envScore.label === "Downgrade" ? "text-red-400 border-red-600/30" : "text-amber-400 border-amber-600/30"}`}
+                          >
+                            {envScore.label}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">Breakout: <span className="font-medium text-foreground">{breakoutProb}%</span></span>
+                          <Badge variant="secondary" className="text-[10px]">{draftCap}</Badge>
+                          {dviDelta !== 0 && (
+                            <span className={`text-xs font-medium ${dviDelta > 0 ? "text-green-400" : "text-red-400"}`}>
+                              DVI {dviDelta > 0 ? "+" : ""}{dviDelta}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
