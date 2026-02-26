@@ -51,6 +51,7 @@ import {
   Radio,
   Award,
   Cpu,
+  Crosshair,
 } from "lucide-react";
 import {
   Sidebar,
@@ -200,6 +201,7 @@ const draftGroup: NavGroup = {
   title: "Draft Central",
   icon: Target,
   items: [
+    { title: "Draft Intelligence", url: "/league/draft-intelligence", icon: Crosshair, premium: true, description: "ADP, pick values & draft pricing" },
     { title: "2026 Draft Board", url: "/league/draft-board", icon: Target, premium: true },
     { title: "Draft Command Center", url: "/league/live-draft", icon: Radio, requiresLeague: true, premium: true },
     { title: "Draft Recap", url: "/league/draft-recap", icon: Award, requiresLeague: true, premium: true },
