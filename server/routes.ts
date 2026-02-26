@@ -17482,5 +17482,145 @@ Respond in JSON format:
     }
   });
 
+  app.get("/api/market-terminal/overview", isAuthenticated, async (_req: any, res: Response) => {
+    try {
+      const cache = await storage.getMarketIndexCache();
+      if (!cache) {
+        return res.json({
+          dynastyMarketIndex: 0,
+          dynastyVolatilityIndex: 0,
+          avgHypePremium: 0,
+          leagueTradeVolume7d: 0,
+          leagueAvgVolatility: 0,
+          lastUpdated: null,
+        });
+      }
+      res.json({
+        dynastyMarketIndex: cache.dynastyMarketIndex,
+        dynastyVolatilityIndex: cache.dynastyVolatilityIndex,
+        avgHypePremium: cache.avgHypePremium,
+        leagueTradeVolume7d: cache.leagueTradeVolume7d,
+        leagueAvgVolatility: cache.leagueAvgVolatility,
+        lastUpdated: cache.lastUpdated,
+      });
+    } catch (error: any) {
+      console.error("Market terminal overview error:", error);
+      res.status(500).json({ error: "Failed to fetch market overview" });
+    }
+  });
+
+  app.get("/api/market-terminal/arbitrage", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const allMetrics = await storage.getAllPlayerMarketMetrics(5000, 0);
+      const withGap = allMetrics
+        .filter(m => m.gapScore !== 0 && m.gapScore !== null)
+        .sort((a, b) => Math.abs(b.gapScore) - Math.abs(a.gapScore))
+        .slice(0, limit)
+        .map(m => ({
+          playerId: m.playerId,
+          playerName: m.playerName,
+          position: m.position,
+          team: m.team,
+          gapScore: m.gapScore,
+          signal: m.gapScore > 0 ? "BUY" : "SELL",
+          fundamentalRank: m.fundamentalRank,
+          marketRank: m.marketRank,
+          baseDynastyValue: m.baseDynastyValue,
+          adjustedMarketValue: m.adjustedMarketValue,
+          hypePremiumPct: m.hypePremiumPct,
+          marketLabel: m.marketLabel,
+          volatility14d: m.volatility14d,
+          betaScore: m.betaScore,
+        }));
+      res.json({ arbitrage: withGap });
+    } catch (error: any) {
+      console.error("Market terminal arbitrage error:", error);
+      res.status(500).json({ error: "Failed to fetch arbitrage data" });
+    }
+  });
+
+  app.get("/api/market-terminal/portfolio-exposure/:leagueId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { leagueId } = req.params;
+      const userId = req.user?.id || req.session?.userId;
+      if (!leagueId) {
+        return res.status(400).json({ error: "League ID required" });
+      }
+
+      const rosters = await sleeperApi.getLeagueRosters(leagueId);
+      const users = await sleeperApi.getLeagueUsers(leagueId);
+
+      let userRoster = rosters.find((r: any) => {
+        const matchedUser = users.find((u: any) => u.user_id === userId);
+        return matchedUser && r.owner_id === matchedUser.user_id;
+      });
+
+      if (!userRoster && rosters.length > 0) {
+        userRoster = rosters[0];
+      }
+
+      if (!userRoster || !userRoster.players || userRoster.players.length === 0) {
+        return res.json({
+          overexposedPct: 0,
+          underexposedPct: 0,
+          portfolioBeta: 1,
+          classification: "Balanced",
+          playerBreakdown: [],
+        });
+      }
+
+      const playerIds = userRoster.players;
+      const metrics = await storage.getPlayerMarketMetricsBatch(playerIds);
+
+      const totalValue = metrics.reduce((s, m) => s + Math.abs(m.adjustedMarketValue || 0), 0);
+
+      let overexposedValue = 0;
+      let underexposedValue = 0;
+      let weightedBetaSum = 0;
+
+      const playerBreakdown = metrics.map(m => {
+        const value = Math.abs(m.adjustedMarketValue || 0);
+        const weight = totalValue > 0 ? value / totalValue : 0;
+
+        if (m.hypePremiumPct > 15) overexposedValue += value;
+        if (m.hypePremiumPct < -10) underexposedValue += value;
+        weightedBetaSum += (m.betaScore || 1) * weight;
+
+        return {
+          playerId: m.playerId,
+          playerName: m.playerName,
+          position: m.position,
+          team: m.team,
+          adjustedMarketValue: m.adjustedMarketValue,
+          hypePremiumPct: m.hypePremiumPct,
+          betaScore: m.betaScore,
+          marketLabel: m.marketLabel,
+          volatility14d: m.volatility14d,
+          weight: Math.round(weight * 1000) / 10,
+        };
+      }).sort((a, b) => (b.adjustedMarketValue || 0) - (a.adjustedMarketValue || 0));
+
+      const overexposedPct = totalValue > 0 ? Math.round((overexposedValue / totalValue) * 1000) / 10 : 0;
+      const underexposedPct = totalValue > 0 ? Math.round((underexposedValue / totalValue) * 1000) / 10 : 0;
+      const portfolioBeta = Math.round(weightedBetaSum * 100) / 100;
+
+      let classification = "Balanced";
+      if (portfolioBeta > 1.3 || overexposedPct > 40) classification = "Aggressive";
+      else if (portfolioBeta < 0.8 && overexposedPct < 15) classification = "Defensive";
+
+      res.json({
+        overexposedPct,
+        underexposedPct,
+        portfolioBeta,
+        classification,
+        playerBreakdown,
+      });
+    } catch (error: any) {
+      console.error("Portfolio exposure error:", error);
+      res.status(500).json({ error: "Failed to compute portfolio exposure" });
+    }
+  });
+
   return httpServer;
 }

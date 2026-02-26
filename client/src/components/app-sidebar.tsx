@@ -151,7 +151,7 @@ const navigationGroups: NavGroup[] = [
     items: [
       { title: "Trade Lab", url: "/league/trade-lab", icon: ArrowLeftRight, requiresLeague: true, premium: true, subgroup: "Trade Lab", description: "Value check, impact sim & AI strategy" },
       { title: "Trade History", url: "/league/history", icon: History, requiresLeague: true, premium: true, subgroup: "Trade Lab" },
-      { title: "Market Psychology", url: "/league/market-psychology", icon: Brain, premium: true, subgroup: "Market Intel", description: "Sentiment, hype & supply/demand" },
+      { title: "Market Terminal", url: "/league/market-psychology", icon: Brain, premium: true, subgroup: "Market Intel", description: "Volatility, arbitrage & market structure" },
       { title: "Player Trends", url: "/league/trends", icon: Activity, premium: true, subgroup: "Market Intel" },
       { title: "ROS Projections", url: "/league/projections", icon: TrendingUp, requiresLeague: true, premium: true, subgroup: "Market Intel" },
       { title: "Depth Charts", url: "/league/depth-chart", icon: Layers, subgroup: "Market Intel" },

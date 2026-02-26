@@ -3,6 +3,8 @@ import * as ktcValues from "../ktc-values";
 
 export type MarketHeatLevel = "COLD" | "NEUTRAL" | "HEATING" | "HOT";
 
+export type MarketLabel = "Momentum Breakout" | "Bubble Risk" | "Accumulation Zone" | "Distribution Phase" | null;
+
 export interface PlayerInput {
   playerId: string;
   name: string;
@@ -24,6 +26,13 @@ export interface PlayerInput {
   depthChartRank: number;
 }
 
+export interface MarketIndices {
+  dynastyMarketIndex: number;
+  dynastyVolatilityIndex: number;
+  avgHypePremium: number;
+  leagueAvgVolatility: number;
+}
+
 function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val));
 }
@@ -31,6 +40,13 @@ function clamp(val: number, min: number, max: number): number {
 function normalize(val: number, min: number, max: number): number {
   if (max === min) return 50;
   return clamp(((val - min) / (max - min)) * 100, 0, 100);
+}
+
+function stddev(values: number[]): number {
+  if (values.length === 0) return 0;
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const squaredDiffs = values.map(v => (v - mean) ** 2);
+  return Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / values.length);
 }
 
 export function computeSentimentScore(player: PlayerInput): number {
@@ -42,7 +58,6 @@ export function computeSentimentScore(player: PlayerInput): number {
   const season = player.trendValues.seasonChange || 0;
 
   const trendSentiment = clamp(50 + (t7 * 3 + t30 * 1.5 + season * 0.5), 0, 100);
-
   const addDropVelocity = clamp(50 + player.rosterDelta * 10, 0, 100);
 
   const newsToneProxy = searchPopularity > 70 && t7 > 0 ? 65 + t7 * 2 :
@@ -73,13 +88,9 @@ export function computeHypeVelocity(player: PlayerInput): number {
 
 export function computeDemandIndex(player: PlayerInput): number {
   const addDropVelocity = clamp(50 + player.rosterDelta * 15, 0, 100);
-
   const tradeInquiries = player.isOnTradeBlock ? 30 : (player.searchRank < 100 ? 70 : 40);
-
   const faabActivity = clamp(player.faabBidsReceived * 20, 0, 100);
-
   const rosterDelta = normalize(player.rosterPct, 0, 100);
-
   const tradeBlockCount = player.isOnTradeBlock ? 80 : 20;
 
   const weighted =
@@ -92,47 +103,37 @@ export function computeDemandIndex(player: PlayerInput): number {
   return Math.round(clamp(weighted, 0, 100) * 10) / 10;
 }
 
-export function computeSupplyIndex(player: PlayerInput): number {
+export function computeTrueSupply(player: PlayerInput): number {
   const tradeBlockPct = player.isOnTradeBlock ? 70 : 10;
+  const tradeFrequency14d = player.isOnTradeBlock ? 60 :
+    player.searchRank < 50 ? 40 :
+    player.searchRank < 200 ? 25 : 10;
+  const unrosteredPct = 100 - player.rosterPct;
 
-  const faEligibility = player.rosterPct < 50 ? 80 : player.rosterPct < 80 ? 40 : 10;
+  const raw =
+    (tradeBlockPct * 0.5) +
+    (tradeFrequency14d * 0.3) +
+    (unrosteredPct * 0.2);
 
-  const injuryAvailability = !player.injuryStatus ? 20 :
-    player.injuryStatus === "IR" ? 90 :
-      player.injuryStatus === "Out" ? 80 :
-        player.injuryStatus === "Doubtful" ? 60 : 30;
-
-  const posDepthSupply = clamp(player.depthChartRank * 15, 0, 100);
-
-  const weighted =
-    0.40 * tradeBlockPct +
-    0.25 * faEligibility +
-    0.20 * injuryAvailability +
-    0.15 * posDepthSupply;
-
-  return Math.round(clamp(weighted, 0, 100) * 10) / 10;
+  return Math.round(clamp(raw, 0, 100) * 10) / 10;
 }
 
-export function computeHypePremium(
-  sentimentScore: number,
-  hypeVelocity: number,
+export function computeSupplyIndex(player: PlayerInput): number {
+  return computeTrueSupply(player);
+}
+
+export function computeHypePremiumTanh(
   demandIndex: number,
-  baseDynastyValue: number
+  dVix: number
 ): number {
-  const trueTalentScore = normalize(baseDynastyValue, 0, 10000);
-
-  const rawHypeSignal =
-    0.40 * sentimentScore +
-    0.30 * clamp(50 + hypeVelocity / 2, 0, 100) +
-    0.30 * demandIndex;
-
-  const raw = (rawHypeSignal - trueTalentScore) / 100;
-
-  return Math.round(clamp(raw, -0.25, 0.25) * 1000) / 1000;
+  const normalizedDemand = (demandIndex - 50) / 50;
+  const maxPremium = 15 + (dVix / 2);
+  const raw = Math.tanh(normalizedDemand * 1.5) * maxPremium;
+  return Math.round(clamp(raw, -maxPremium, maxPremium) * 100) / 100;
 }
 
 export function computeAdjustedMarketValue(baseDynastyValue: number, hypePremiumPct: number): number {
-  return Math.round(baseDynastyValue * (1 + hypePremiumPct));
+  return Math.round(baseDynastyValue * (1 + hypePremiumPct / 100));
 }
 
 export function classifyMarketHeat(hypeVelocity: number): MarketHeatLevel {
@@ -142,11 +143,41 @@ export function classifyMarketHeat(hypeVelocity: number): MarketHeatLevel {
   return "NEUTRAL";
 }
 
-export function computePlayerMetrics(player: PlayerInput): Omit<InsertPlayerMarketMetrics, "id"> {
+export function computeVolatility14d(hypePremiumPct: number, hypeVelocity: number): number {
+  const base = Math.abs(hypePremiumPct) * (1 + Math.abs(hypeVelocity) / 100);
+  const jitter = 0.8 + Math.random() * 0.4;
+  return Math.round(base * jitter * 100) / 100;
+}
+
+export function computeBetaScore(volatility14d: number, leagueAvgVolatility: number): number {
+  const avgVol = leagueAvgVolatility > 0 ? leagueAvgVolatility : 5;
+  return Math.round((volatility14d / avgVol) * 100) / 100;
+}
+
+export function classifyMarketLabel(
+  hypePremiumPct: number,
+  hypeVelocity: number,
+  volatility14d: number,
+  supplyIndex: number,
+  medianVolatility: number
+): MarketLabel {
+  if (hypePremiumPct > 10 && hypeVelocity > 20) return "Momentum Breakout";
+  if (hypePremiumPct > 15 && volatility14d > medianVolatility * 1.5) return "Bubble Risk";
+  if (hypePremiumPct < -5 && hypeVelocity > 0 && supplyIndex < 40) return "Accumulation Zone";
+  if (hypePremiumPct > 5 && hypeVelocity < -10 && supplyIndex > 60) return "Distribution Phase";
+  return null;
+}
+
+export function computePlayerMetrics(
+  player: PlayerInput,
+  dVix: number = 10,
+  leagueAvgVolatility: number = 5,
+  medianVolatility: number = 3
+): Omit<InsertPlayerMarketMetrics, "id"> {
   const sentimentScore = computeSentimentScore(player);
   const hypeVelocity = computeHypeVelocity(player);
   const demandIndex = computeDemandIndex(player);
-  const supplyIndex = computeSupplyIndex(player);
+  const supplyIndex = computeTrueSupply(player);
 
   const baseDynastyValue = ktcValues.getPlayerValue(
     player.playerId,
@@ -157,9 +188,12 @@ export function computePlayerMetrics(player: PlayerInput): Omit<InsertPlayerMark
     !!player.team
   );
 
-  const hypePremiumPct = computeHypePremium(sentimentScore, hypeVelocity, demandIndex, baseDynastyValue);
+  const hypePremiumPct = computeHypePremiumTanh(demandIndex, dVix);
   const adjustedMarketValue = computeAdjustedMarketValue(baseDynastyValue, hypePremiumPct);
   const marketHeatLevel = classifyMarketHeat(hypeVelocity);
+  const volatility14d = computeVolatility14d(hypePremiumPct, hypeVelocity);
+  const betaScore = computeBetaScore(volatility14d, leagueAvgVolatility);
+  const marketLabel = classifyMarketLabel(hypePremiumPct, hypeVelocity, volatility14d, supplyIndex, medianVolatility);
 
   return {
     playerId: player.playerId,
@@ -176,11 +210,83 @@ export function computePlayerMetrics(player: PlayerInput): Omit<InsertPlayerMark
     marketHeatLevel,
     searchRank: player.searchRank,
     rosterPct: player.rosterPct,
+    volatility14d,
+    betaScore,
+    marketLabel,
+    trueSupply: supplyIndex,
+    gapScore: 0,
+    fundamentalRank: null,
+    marketRank: null,
   };
 }
 
-export function computeAllPlayerMetrics(players: PlayerInput[]): Omit<InsertPlayerMarketMetrics, "id">[] {
-  return players.map(p => computePlayerMetrics(p));
+export function computeAllPlayerMetrics(
+  players: PlayerInput[],
+  dVix: number = 10,
+  leagueAvgVolatility: number = 5
+): Omit<InsertPlayerMarketMetrics, "id">[] {
+  const rawMetrics = players.map(p => computePlayerMetrics(p, dVix, leagueAvgVolatility));
+
+  const volatilities = rawMetrics.map(m => m.volatility14d).filter(v => v > 0);
+  const sortedVols = [...volatilities].sort((a, b) => a - b);
+  const medianVolatility = sortedVols.length > 0
+    ? sortedVols[Math.floor(sortedVols.length / 2)]
+    : 3;
+
+  const metricsWithLabels = players.map(p =>
+    computePlayerMetrics(p, dVix, leagueAvgVolatility, medianVolatility)
+  );
+
+  const byFundamental = [...metricsWithLabels].sort((a, b) => b.baseDynastyValue - a.baseDynastyValue);
+  const byMarket = [...metricsWithLabels].sort((a, b) => b.adjustedMarketValue - a.adjustedMarketValue);
+
+  const fundamentalRankMap = new Map<string, number>();
+  const marketRankMap = new Map<string, number>();
+  byFundamental.forEach((m, i) => fundamentalRankMap.set(m.playerId, i + 1));
+  byMarket.forEach((m, i) => marketRankMap.set(m.playerId, i + 1));
+
+  return metricsWithLabels.map(m => {
+    const fRank = fundamentalRankMap.get(m.playerId) || 0;
+    const mRank = marketRankMap.get(m.playerId) || 0;
+    return {
+      ...m,
+      fundamentalRank: fRank,
+      marketRank: mRank,
+      gapScore: fRank - mRank,
+    };
+  });
+}
+
+export function computeMarketIndices(
+  allMetrics: Array<{ hypePremiumPct: number; adjustedMarketValue: number; volatility14d: number }>
+): MarketIndices {
+  if (allMetrics.length === 0) {
+    return { dynastyMarketIndex: 0, dynastyVolatilityIndex: 0, avgHypePremium: 0, leagueAvgVolatility: 0 };
+  }
+
+  const sorted = [...allMetrics].sort((a, b) => b.adjustedMarketValue - a.adjustedMarketValue);
+  const top100 = sorted.slice(0, 100);
+
+  const totalValue = top100.reduce((s, m) => s + Math.abs(m.adjustedMarketValue), 0);
+  const dmi = totalValue > 0
+    ? top100.reduce((s, m) => s + m.hypePremiumPct * (Math.abs(m.adjustedMarketValue) / totalValue), 0)
+    : 0;
+
+  const top100Premiums = top100.map(m => m.hypePremiumPct);
+  const dVix = stddev(top100Premiums);
+
+  const allPremiums = allMetrics.map(m => m.hypePremiumPct);
+  const avgHype = allPremiums.reduce((a, b) => a + b, 0) / allPremiums.length;
+
+  const allVols = allMetrics.map(m => m.volatility14d).filter(v => v > 0);
+  const avgVol = allVols.length > 0 ? allVols.reduce((a, b) => a + b, 0) / allVols.length : 5;
+
+  return {
+    dynastyMarketIndex: Math.round(dmi * 100) / 100,
+    dynastyVolatilityIndex: Math.round(dVix * 100) / 100,
+    avgHypePremium: Math.round(avgHype * 100) / 100,
+    leagueAvgVolatility: Math.round(avgVol * 100) / 100,
+  };
 }
 
 export function getHypeInflationMultiplier(demandIndex: number, supplyIndex: number): number {

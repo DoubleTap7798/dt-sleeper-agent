@@ -451,6 +451,13 @@ export const playerMarketMetrics = pgTable("player_market_metrics", {
   marketHeatLevel: text("market_heat_level").notNull().default("NEUTRAL"),
   searchRank: integer("search_rank"),
   rosterPct: real("roster_pct"),
+  volatility14d: real("volatility_14d").notNull().default(0),
+  betaScore: real("beta_score").notNull().default(1),
+  marketLabel: text("market_label"),
+  trueSupply: real("true_supply").notNull().default(50),
+  gapScore: real("gap_score").notNull().default(0),
+  fundamentalRank: integer("fundamental_rank"),
+  marketRank: integer("market_rank"),
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
@@ -461,3 +468,22 @@ export const insertPlayerMarketMetricsSchema = createInsertSchema(playerMarketMe
 
 export type PlayerMarketMetrics = typeof playerMarketMetrics.$inferSelect;
 export type InsertPlayerMarketMetrics = z.infer<typeof insertPlayerMarketMetricsSchema>;
+
+export const marketIndexCache = pgTable("market_index_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leagueId: varchar("league_id"),
+  dynastyMarketIndex: real("dynasty_market_index").notNull().default(0),
+  dynastyVolatilityIndex: real("dynasty_volatility_index").notNull().default(0),
+  avgHypePremium: real("avg_hype_premium").notNull().default(0),
+  leagueTradeVolume7d: integer("league_trade_volume_7d").notNull().default(0),
+  leagueAvgVolatility: real("league_avg_volatility").notNull().default(0),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export const insertMarketIndexCacheSchema = createInsertSchema(marketIndexCache).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export type MarketIndexCache = typeof marketIndexCache.$inferSelect;
+export type InsertMarketIndexCache = z.infer<typeof insertMarketIndexCacheSchema>;

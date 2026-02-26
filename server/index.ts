@@ -8,7 +8,7 @@ import { WebhookHandlers } from './webhookHandlers';
 import { db } from "./db";
 import * as schema from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
-import { refreshMarketPsychologyData } from "./engine/market-psychology-refresh";
+import { refreshMarketPsychologyData, refreshMarketIndices } from "./engine/market-psychology-refresh";
 
 async function syncSubscriptionToProfile(customerId: string) {
   console.log(`[syncSub] Starting sync for Stripe customer: ${customerId}`);
@@ -334,6 +334,12 @@ app.use((req, res, next) => {
           console.error("[MarketPsychology] Scheduled refresh failed:", err.message)
         );
       }, 24 * 60 * 60 * 1000);
+
+      setInterval(() => {
+        refreshMarketIndices().catch(err =>
+          console.error("[MarketPsychology] Index cache refresh failed:", err.message)
+        );
+      }, 5 * 60 * 1000);
     },
   );
 })();

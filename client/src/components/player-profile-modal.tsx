@@ -1012,14 +1012,14 @@ function MarketPsychologyTab({ playerId }: { playerId: string }) {
   const heatCfg = HEAT_CONFIG[metrics.marketHeatLevel] || HEAT_CONFIG.NEUTRAL;
   const HeatIcon = heatCfg.icon;
 
-  const premiumLabel = metrics.hypePremiumPct > 0.15
+  const premiumLabel = metrics.hypePremiumPct > 15
     ? "Overhyped"
-    : metrics.hypePremiumPct < -0.10
+    : metrics.hypePremiumPct < -10
       ? "Discount"
       : "Fair";
-  const premiumColor = metrics.hypePremiumPct > 0.15
+  const premiumColor = metrics.hypePremiumPct > 15
     ? "text-red-500 dark:text-red-400"
-    : metrics.hypePremiumPct < -0.10
+    : metrics.hypePremiumPct < -10
       ? "text-green-500 dark:text-green-400"
       : "text-muted-foreground";
 
@@ -1044,7 +1044,7 @@ function MarketPsychologyTab({ playerId }: { playerId: string }) {
           </div>
           <div className="text-center" data-testid="market-hype-premium">
             <div className={`text-2xl font-bold ${premiumColor}`}>
-              {metrics.hypePremiumPct >= 0 ? "+" : ""}{(metrics.hypePremiumPct * 100).toFixed(1)}%
+              {metrics.hypePremiumPct >= 0 ? "+" : ""}{metrics.hypePremiumPct.toFixed(1)}%
             </div>
             <div className="text-[10px] text-muted-foreground">
               Hype Premium

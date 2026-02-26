@@ -1,12 +1,16 @@
 import * as sleeperApi from "../sleeper-api";
-import { computeAllPlayerMetrics, type PlayerInput } from "./market-psychology-service";
+import { computeAllPlayerMetrics, computeMarketIndices, type PlayerInput } from "./market-psychology-service";
 import { storage } from "../storage";
 
 export async function refreshMarketPsychologyData(): Promise<number> {
   const startTime = Date.now();
-  console.log("[MarketPsychology] Starting market metrics refresh...");
+  console.log("[MarketPsychology] Starting full market metrics refresh...");
 
   try {
+    const existingCache = await storage.getMarketIndexCache();
+    const dVix = existingCache?.dynastyVolatilityIndex || 10;
+    const leagueAvgVol = existingCache?.leagueAvgVolatility || 5;
+
     const allPlayers = await sleeperApi.getAllPlayers();
     if (!allPlayers || Object.keys(allPlayers).length === 0) {
       console.warn("[MarketPsychology] No players returned from Sleeper API");
@@ -57,20 +61,47 @@ export async function refreshMarketPsychologyData(): Promise<number> {
       });
     }
 
-    const metrics = computeAllPlayerMetrics(playerInputs);
+    const metrics = computeAllPlayerMetrics(playerInputs, dVix, leagueAvgVol);
 
-    const insertMetrics = metrics.map(m => ({
-      ...m,
-      playerId: m.playerId,
-    }));
+    const count = await storage.upsertPlayerMarketMetricsBatch(metrics as any[]);
 
-    const count = await storage.upsertPlayerMarketMetricsBatch(insertMetrics);
+    const indices = computeMarketIndices(metrics);
+    await storage.upsertMarketIndexCache({
+      leagueId: null,
+      dynastyMarketIndex: indices.dynastyMarketIndex,
+      dynastyVolatilityIndex: indices.dynastyVolatilityIndex,
+      avgHypePremium: indices.avgHypePremium,
+      leagueTradeVolume7d: 0,
+      leagueAvgVolatility: indices.leagueAvgVolatility,
+    });
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[MarketPsychology] Refresh complete: ${count} players processed in ${elapsed}s`);
+    console.log(`[MarketPsychology] Full refresh complete: ${count} players processed in ${elapsed}s`);
+    console.log(`[MarketPsychology] DMI=${indices.dynastyMarketIndex}, D-VIX=${indices.dynastyVolatilityIndex}, AvgHype=${indices.avgHypePremium}`);
     return count;
   } catch (error: any) {
-    console.error("[MarketPsychology] Refresh error:", error.message || error);
+    console.error("[MarketPsychology] Full refresh error:", error.message || error);
     throw error;
+  }
+}
+
+export async function refreshMarketIndices(): Promise<void> {
+  try {
+    const allMetrics = await storage.getAllPlayerMarketMetrics(10000, 0);
+    if (allMetrics.length === 0) return;
+
+    const indices = computeMarketIndices(allMetrics);
+    await storage.upsertMarketIndexCache({
+      leagueId: null,
+      dynastyMarketIndex: indices.dynastyMarketIndex,
+      dynastyVolatilityIndex: indices.dynastyVolatilityIndex,
+      avgHypePremium: indices.avgHypePremium,
+      leagueTradeVolume7d: 0,
+      leagueAvgVolatility: indices.leagueAvgVolatility,
+    });
+
+    console.log(`[MarketPsychology] Index cache refreshed: DMI=${indices.dynastyMarketIndex}, D-VIX=${indices.dynastyVolatilityIndex}`);
+  } catch (error: any) {
+    console.error("[MarketPsychology] Index cache refresh error:", error.message || error);
   }
 }

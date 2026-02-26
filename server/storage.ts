@@ -17,7 +17,10 @@ import {
   type LeagueSettings,
   type ManagerProfile,
   type PlayerMarketMetrics,
-  type InsertPlayerMarketMetrics
+  type InsertPlayerMarketMetrics,
+  marketIndexCache,
+  type MarketIndexCache,
+  type InsertMarketIndexCache
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, notInArray, inArray, sql } from "drizzle-orm";
@@ -58,6 +61,10 @@ export interface IStorage {
   getPlayerMarketMetrics(playerId: string): Promise<PlayerMarketMetrics | undefined>;
   getAllPlayerMarketMetrics(limit?: number, offset?: number, heatLevel?: string): Promise<PlayerMarketMetrics[]>;
   getPlayerMarketMetricsBatch(playerIds: string[]): Promise<PlayerMarketMetrics[]>;
+
+  // Market Index Cache
+  upsertMarketIndexCache(data: InsertMarketIndexCache): Promise<MarketIndexCache>;
+  getMarketIndexCache(leagueId?: string): Promise<MarketIndexCache | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -344,6 +351,35 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(playerMarketMetrics)
       .where(inArray(playerMarketMetrics.playerId, playerIds));
+  }
+
+  async upsertMarketIndexCache(data: InsertMarketIndexCache): Promise<MarketIndexCache> {
+    const leagueKey = data.leagueId || null;
+    const existing = await this.getMarketIndexCache(leagueKey ?? undefined);
+    if (existing) {
+      const [updated] = await db
+        .update(marketIndexCache)
+        .set({ ...data, lastUpdated: new Date() })
+        .where(eq(marketIndexCache.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(marketIndexCache)
+      .values(data)
+      .returning();
+    return created;
+  }
+
+  async getMarketIndexCache(leagueId?: string): Promise<MarketIndexCache | undefined> {
+    const condition = leagueId
+      ? eq(marketIndexCache.leagueId, leagueId)
+      : sql`${marketIndexCache.leagueId} IS NULL`;
+    const [result] = await db
+      .select()
+      .from(marketIndexCache)
+      .where(condition);
+    return result || undefined;
   }
 }
 
