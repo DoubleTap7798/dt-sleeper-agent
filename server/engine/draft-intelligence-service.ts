@@ -516,6 +516,8 @@ let adpCache: { data: any; timestamp: number } | null = null;
 let curveCache: { data: any; timestamp: number } | null = null;
 const CACHE_TTL = 5 * 60 * 1000;
 
+const OFFENSE_POSITIONS = ['QB', 'RB', 'WR', 'TE'];
+
 export async function getCachedADP(options?: {
   format?: string;
   position?: string;
@@ -523,6 +525,7 @@ export async function getCachedADP(options?: {
   page?: number;
   limit?: number;
   sort?: string;
+  category?: string;
 }): Promise<{ players: any[]; total: number }> {
   const format = options?.format || "all";
   const position = options?.position;
@@ -531,20 +534,37 @@ export async function getCachedADP(options?: {
   const limit = options?.limit || 50;
   const offset = (page - 1) * limit;
   const sort = options?.sort || "consensus";
+  const category = options?.category || "offense";
 
-  let orderCol = "consensus_rank";
+  const ALLOWED_ORDER_COLS: Record<string, string> = {
+    "consensus_rank": "consensus_rank",
+    "adp_overall": "adp_overall",
+    "adp_1qb": "adp_1qb",
+    "adp_sf": "adp_sf",
+    "adp_tep": "adp_tep",
+    "ecr_1qb": "ecr_1qb",
+    "ecr_sf": "ecr_sf",
+  };
+
+  let orderKey = "consensus_rank";
   if (sort === "sleeper") {
-    orderCol = "adp_overall";
-    if (format === "1QB") orderCol = "adp_1qb";
-    else if (format === "SF") orderCol = "adp_sf";
-    else if (format === "TEP") orderCol = "adp_tep";
+    if (format === "1QB") orderKey = "adp_1qb";
+    else if (format === "SF") orderKey = "adp_sf";
+    else if (format === "TEP") orderKey = "adp_tep";
+    else orderKey = "adp_overall";
   } else if (sort === "ecr") {
-    orderCol = format === "SF" ? "ecr_sf" : "ecr_1qb";
+    orderKey = format === "SF" ? "ecr_sf" : "ecr_1qb";
   }
+
+  const orderCol = ALLOWED_ORDER_COLS[orderKey] || "consensus_rank";
 
   let whereClause = sql`1=1`;
 
-  if (position) {
+  if (category === "offense") {
+    whereClause = sql`${whereClause} AND position IN ('QB', 'RB', 'WR', 'TE')`;
+  }
+
+  if (position && position !== "ALL") {
     whereClause = sql`${whereClause} AND position = ${position}`;
   }
   if (search) {
@@ -562,25 +582,40 @@ export async function getCachedADP(options?: {
   }
 
   const countResult = await db.execute(sql`
-    SELECT COUNT(*)::int AS total FROM draft_adp WHERE ${whereClause}
+    SELECT COUNT(*)::int AS total FROM draft_adp da WHERE ${whereClause}
   `);
   const total = (countResult.rows[0] as any)?.total || 0;
 
   const dataResult = await db.execute(sql`
-    SELECT * FROM draft_adp 
+    SELECT da.*, 
+      pmm.market_heat_level,
+      pmm.market_label,
+      pmm.hype_velocity
+    FROM draft_adp da
+    LEFT JOIN player_market_metrics pmm ON da.player_id = pmm.player_id
     WHERE ${whereClause}
-    ORDER BY ${sql.raw(orderCol)} ASC NULLS LAST
+    ORDER BY ${sql.raw('da.' + orderCol)} ASC NULLS LAST
     LIMIT ${limit} OFFSET ${offset}
   `);
 
   return { players: dataResult.rows as any[], total };
 }
 
-export async function getSleeperPlayerCount(): Promise<number> {
-  const result = await db.execute(sql`
-    SELECT COUNT(*)::int AS cnt FROM draft_adp WHERE data_sources LIKE '%sleeper%'
+export async function getSleeperStats(): Promise<{ playerCount: number; draftCount: number; pickCount: number }> {
+  const playerResult = await db.execute(sql`
+    SELECT COUNT(*)::int AS cnt FROM draft_adp WHERE data_sources LIKE '%sleeper%' AND position IN ('QB', 'RB', 'WR', 'TE')
   `);
-  return (result.rows[0] as any)?.cnt || 0;
+  const draftResult = await db.execute(sql`
+    SELECT COUNT(*)::int AS cnt FROM drafts
+  `);
+  const pickResult = await db.execute(sql`
+    SELECT COUNT(*)::int AS cnt FROM draft_picks
+  `);
+  return {
+    playerCount: (playerResult.rows[0] as any)?.cnt || 0,
+    draftCount: (draftResult.rows[0] as any)?.cnt || 0,
+    pickCount: (pickResult.rows[0] as any)?.cnt || 0,
+  };
 }
 
 export async function getPlayerADP(playerId: string): Promise<any | null> {
@@ -614,4 +649,44 @@ export async function getCachedPickValueCurve(draftType?: string): Promise<any[]
   }
 
   return sorted;
+}
+
+export async function getEnhancedPickValueCurve(draftType: string): Promise<any[]> {
+  const curveRows = await db.select()
+    .from(pickValueCurve)
+    .where(eq(pickValueCurve.draftType, draftType));
+  
+  const sorted = curveRows.sort((a, b) => a.pickNumber - b.pickNumber);
+  
+  const topPlayerResult = await db.execute(sql`
+    SELECT dp.pick_no, dp.player_name, dp.position, COUNT(*)::int AS times_picked
+    FROM draft_picks dp
+    JOIN drafts d ON dp.draft_id = d.draft_id
+    WHERE d.type = ${draftType}
+      AND dp.position IN ('QB', 'RB', 'WR', 'TE')
+    GROUP BY dp.pick_no, dp.player_name, dp.position
+    ORDER BY dp.pick_no ASC, times_picked DESC
+  `);
+  
+  const topPlayerByPick: Record<number, { name: string; position: string; count: number }> = {};
+  for (const row of topPlayerResult.rows as any[]) {
+    const pickNo = row.pick_no;
+    if (!topPlayerByPick[pickNo]) {
+      topPlayerByPick[pickNo] = { name: row.player_name, position: row.position, count: row.times_picked };
+    }
+  }
+  
+  const maxValue = sorted.length > 0 ? Math.max(...sorted.map(s => s.avgDynastyValue)) : 1;
+  
+  return sorted.map((entry) => {
+    const topPlayer = topPlayerByPick[entry.pickNumber];
+    const valuePct = maxValue > 0 ? Math.round((entry.avgDynastyValue / maxValue) * 100) : 0;
+    return {
+      ...entry,
+      topPlayerName: topPlayer?.name || null,
+      topPlayerPosition: topPlayer?.position || null,
+      topPlayerCount: topPlayer?.count || 0,
+      valuePctOfTop: valuePct,
+    };
+  });
 }

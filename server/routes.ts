@@ -17633,8 +17633,9 @@ Respond in JSON format:
       const page = parseInt(req.query.page as string) || 1;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
       const sort = (req.query.sort as string) || "consensus";
+      const category = (req.query.category as string) || "offense";
 
-      const result = await draftIntelService.getCachedADP({ format, position, search, page, limit, sort });
+      const result = await draftIntelService.getCachedADP({ format, position, search, page, limit, sort, category });
       res.json(result);
     } catch (error: any) {
       console.error("Draft ADP error:", error);
@@ -17645,11 +17646,13 @@ Respond in JSON format:
   app.get("/api/draft-intelligence/sources", isAuthenticated, async (_req: any, res: Response) => {
     try {
       const sources = await getExternalRankingsSummary();
-      const sleeperCount = await draftIntelService.getSleeperPlayerCount();
+      const sleeperStats = await draftIntelService.getSleeperStats();
       sources.unshift({
         source: "sleeper",
-        playerCount: sleeperCount,
-        matchedCount: sleeperCount,
+        playerCount: sleeperStats.playerCount,
+        matchedCount: sleeperStats.playerCount,
+        draftCount: sleeperStats.draftCount,
+        pickCount: sleeperStats.pickCount,
         lastUpdated: new Date().toISOString(),
         description: "Community ADP from real Sleeper league drafts across all registered users. Grows as more users connect their accounts.",
       });
@@ -17675,9 +17678,16 @@ Respond in JSON format:
 
   app.get("/api/draft-intelligence/pick-value-curve", isAuthenticated, async (req: any, res: Response) => {
     try {
-      const draftType = req.query.type as string | undefined;
-      const curve = await draftIntelService.getCachedPickValueCurve(draftType);
-      res.json(curve);
+      const rawType = (req.query.type as string) || "rookie";
+      const draftType = rawType === "startup" ? "startup" : "rookie";
+      const enhanced = req.query.enhanced === "true";
+      if (enhanced) {
+        const curve = await draftIntelService.getEnhancedPickValueCurve(draftType);
+        res.json(curve);
+      } else {
+        const curve = await draftIntelService.getCachedPickValueCurve(draftType);
+        res.json(curve);
+      }
     } catch (error: any) {
       console.error("Pick value curve error:", error);
       res.status(500).json({ error: "Failed to fetch pick value curve" });

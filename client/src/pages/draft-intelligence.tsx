@@ -28,6 +28,9 @@ import {
   Database,
   Globe,
   CircleDot,
+  Flame,
+  Snowflake,
+  Info,
 } from "lucide-react";
 import { PremiumGate } from "@/components/premium-gate";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -53,6 +56,9 @@ interface ADPPlayer {
   ecr_sf: number | null;
   consensus_rank: number | null;
   data_sources: string | null;
+  market_heat_level: string | null;
+  market_label: string | null;
+  hype_velocity: number | null;
 }
 
 interface ADPResponse {
@@ -66,6 +72,10 @@ interface PickCurveEntry {
   draftType: string;
   avgDynastyValue: number;
   sampleSize: number;
+  topPlayerName?: string | null;
+  topPlayerPosition?: string | null;
+  topPlayerCount?: number;
+  valuePctOfTop?: number;
 }
 
 interface DataSource {
@@ -74,6 +84,8 @@ interface DataSource {
   matchedCount: number;
   lastUpdated: string | null;
   description: string;
+  draftCount?: number;
+  pickCount?: number;
 }
 
 type TabKey = "adp" | "curve" | "overview";
@@ -139,6 +151,36 @@ function SourceDots({ sources }: { sources: string | null }) {
   );
 }
 
+function MarketHeatIcon({ level, label }: { level: string | null; label: string | null }) {
+  if (!level || level === "NEUTRAL") return null;
+  const title = label || level;
+  switch (level) {
+    case "HOT":
+      return <Flame className="h-3.5 w-3.5 text-red-500 dark:text-red-400 shrink-0" title={title} />;
+    case "HEATING":
+      return <TrendingUp className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 shrink-0" title={title} />;
+    case "COOLING":
+      return <TrendingDown className="h-3.5 w-3.5 text-blue-400 dark:text-blue-300 shrink-0" title={title} />;
+    case "COLD":
+      return <Snowflake className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 shrink-0" title={title} />;
+    default:
+      return null;
+  }
+}
+
+function formatSourceLabel(s: DataSource): string {
+  const config = SOURCE_COLORS[s.source];
+  const label = config?.label || s.source;
+  if (s.source === "sleeper") {
+    if (s.draftCount && s.draftCount > 0) {
+      return `${label} (${s.draftCount} drafts)`;
+    }
+    if (s.playerCount > 0) return `${label} (${s.playerCount.toLocaleString()})`;
+    return `${label} (Processing...)`;
+  }
+  return `${label} (${s.playerCount.toLocaleString()})`;
+}
+
 function DataSourcesBanner() {
   const { data: sources } = useQuery<DataSource[]>({
     queryKey: ["/api/draft-intelligence/sources"],
@@ -152,11 +194,14 @@ function DataSourcesBanner() {
 
   if (!sources || sources.length === 0) return null;
 
+  const activeSources = sources.filter(s => s.playerCount > 0 || (s.source === "sleeper" && (s.draftCount || 0) > 0));
+  if (activeSources.length === 0) return null;
+
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs" data-testid="data-sources-banner">
       <Database className="h-3.5 w-3.5 text-muted-foreground" />
       <span className="text-muted-foreground">Sources:</span>
-      {sources.map((s) => {
+      {activeSources.map((s) => {
         const config = SOURCE_COLORS[s.source] || { dot: "bg-gray-500", bg: "bg-gray-500/10 border-gray-500/30", label: s.source };
         return (
           <Badge
@@ -166,7 +211,7 @@ function DataSourcesBanner() {
             data-testid={`badge-source-${s.source}`}
           >
             <span className={`inline-block w-1.5 h-1.5 rounded-full ${config.dot} mr-1.5`} />
-            {config.label} ({s.playerCount.toLocaleString()})
+            {formatSourceLabel(s)}
           </Badge>
         );
       })}
@@ -352,6 +397,7 @@ function ADPTable({
                           <span className="font-medium text-sm truncate" data-testid={`text-name-${player.player_id}`}>
                             {player.player_name || "Unknown"}
                           </span>
+                          <MarketHeatIcon level={player.market_heat_level} label={player.market_label} />
                         </div>
                       </td>
                       <td className="p-3 text-center">
@@ -435,9 +481,9 @@ function PickValueCurvePanel() {
   const [curveType, setCurveType] = useState<string>("rookie");
 
   const { data: curveData, isLoading } = useQuery<PickCurveEntry[]>({
-    queryKey: ["/api/draft-intelligence/pick-value-curve", { type: curveType }],
+    queryKey: ["/api/draft-intelligence/pick-value-curve", { type: curveType, enhanced: "true" }],
     queryFn: async () => {
-      const res = await fetch(`/api/draft-intelligence/pick-value-curve?type=${curveType}`, { credentials: "include" });
+      const res = await fetch(`/api/draft-intelligence/pick-value-curve?type=${curveType}&enhanced=true`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch curve");
       return res.json();
     },
@@ -455,16 +501,39 @@ function PickValueCurvePanel() {
 
   return (
     <div className="space-y-4">
+      <Card className="p-4 border-amber-500/20 bg-amber-500/5" data-testid="card-curve-explainer">
+        <div className="flex items-start gap-3">
+          <Info className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">What is the Pick Value Curve?</p>
+            <p className="text-xs text-muted-foreground">
+              This shows the average dynasty trade value of players selected at each draft pick across all completed drafts.
+              Higher values mean that pick slot historically lands more valuable players. Use it to evaluate whether a pick
+              you're trading for or away is being over- or under-valued relative to what it typically produces.
+            </p>
+          </div>
+        </div>
+      </Card>
+
       <div className="flex items-center gap-3">
-        <Select value={curveType} onValueChange={setCurveType}>
-          <SelectTrigger className="w-[160px]" data-testid="select-curve-type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="rookie" data-testid="option-curve-rookie">Rookie Drafts</SelectItem>
-            <SelectItem value="startup" data-testid="option-curve-startup">Startup Drafts</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-1">
+          <Button
+            variant={curveType === "rookie" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setCurveType("rookie")}
+            data-testid="button-curve-rookie"
+          >
+            Rookie Drafts
+          </Button>
+          <Button
+            variant={curveType === "startup" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setCurveType("startup")}
+            data-testid="button-curve-startup"
+          >
+            Startup Drafts
+          </Button>
+        </div>
         <span className="text-xs text-muted-foreground" data-testid="text-curve-count">
           {filteredData.length} pick slots
         </span>
@@ -478,42 +547,69 @@ function PickValueCurvePanel() {
         </div>
       ) : filteredData.length === 0 ? (
         <Card className="p-8 text-center">
-          <p className="text-muted-foreground" data-testid="text-curve-empty">No pick value curve data available for {curveType} drafts.</p>
+          <p className="text-muted-foreground" data-testid="text-curve-empty">No pick value curve data available for {curveType} drafts yet.</p>
         </Card>
       ) : (
         <div className="rounded-lg border border-border overflow-x-auto">
-          <table className="w-full min-w-[480px]">
+          <table className="w-full min-w-[580px]">
             <thead>
               <tr className="bg-muted/50 text-xs text-muted-foreground">
                 <th className="text-left p-3 w-16">Pick</th>
-                <th className="text-left p-3 w-20">Label</th>
+                <th className="text-left p-3">Most Common Selection</th>
                 <th className="text-right p-3 w-24">Value</th>
-                <th className="p-3">Dynasty Value Distribution</th>
-                <th className="text-right p-3 w-20 hidden sm:table-cell">Samples</th>
+                <th className="text-right p-3 w-16 hidden sm:table-cell">% of Top</th>
+                <th className="p-3 w-32 hidden sm:table-cell">Relative Value</th>
+                <th className="text-right p-3 w-16 hidden md:table-cell">Drafts</th>
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((entry) => (
-                <tr key={entry.id} className="border-t border-border" data-testid={`row-curve-${entry.pickNumber}`}>
-                  <td className="p-3 font-mono text-sm text-muted-foreground">{entry.pickNumber}</td>
-                  <td className="p-3">
-                    <span className="font-mono text-sm font-semibold text-amber-500 dark:text-amber-400">
-                      {formatPickLabel(entry.pickNumber)}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <span className="font-mono text-sm font-bold" data-testid={`text-value-${entry.pickNumber}`}>
-                      {Math.round(entry.avgDynastyValue).toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <ValueBar value={entry.avgDynastyValue} max={maxValue} />
-                  </td>
-                  <td className="p-3 text-right hidden sm:table-cell">
-                    <span className="text-xs text-muted-foreground">{entry.sampleSize}</span>
-                  </td>
-                </tr>
-              ))}
+              {filteredData.map((entry) => {
+                const valuePct = entry.valuePctOfTop ?? Math.round((entry.avgDynastyValue / maxValue) * 100);
+                const pctColor = valuePct >= 90 ? "text-green-500 dark:text-green-400"
+                  : valuePct >= 70 ? "text-emerald-500 dark:text-emerald-400"
+                  : valuePct >= 50 ? "text-amber-500 dark:text-amber-400"
+                  : "text-red-500 dark:text-red-400";
+                return (
+                  <tr key={entry.id} className="border-t border-border" data-testid={`row-curve-${entry.pickNumber}`}>
+                    <td className="p-3">
+                      <span className="font-mono text-sm font-semibold text-amber-500 dark:text-amber-400">
+                        {formatPickLabel(entry.pickNumber)}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      {entry.topPlayerName ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={`text-[10px] px-1.5 ${getPositionColor(entry.topPlayerPosition || "")}`}>
+                            {entry.topPlayerPosition || "—"}
+                          </Badge>
+                          <span className="text-sm truncate">{entry.topPlayerName}</span>
+                          {(entry.topPlayerCount || 0) > 1 && (
+                            <span className="text-[10px] text-muted-foreground">({entry.topPlayerCount}x)</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">No data</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-right">
+                      <span className="font-mono text-sm font-bold" data-testid={`text-value-${entry.pickNumber}`}>
+                        {Math.round(entry.avgDynastyValue).toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right hidden sm:table-cell">
+                      <span className={`font-mono text-xs font-semibold ${pctColor}`}>
+                        {valuePct}%
+                      </span>
+                    </td>
+                    <td className="p-3 hidden sm:table-cell">
+                      <ValueBar value={entry.avgDynastyValue} max={maxValue} />
+                    </td>
+                    <td className="p-3 text-right hidden md:table-cell">
+                      <span className="text-xs text-muted-foreground">{entry.sampleSize}</span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -524,9 +620,9 @@ function PickValueCurvePanel() {
 
 function OverviewPanel() {
   const { data: adpData, isLoading: adpLoading } = useQuery<ADPResponse>({
-    queryKey: ["/api/draft-intelligence/adp", { format: "all", page: 1, limit: 5 }],
+    queryKey: ["/api/draft-intelligence/adp", { format: "all", page: 1, limit: 5, category: "offense" }],
     queryFn: async () => {
-      const res = await fetch("/api/draft-intelligence/adp?format=all&page=1&limit=5", { credentials: "include" });
+      const res = await fetch("/api/draft-intelligence/adp?format=all&page=1&limit=5&category=offense", { credentials: "include" });
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
@@ -560,6 +656,8 @@ function OverviewPanel() {
   const avgCurveSamples = curveEntries.length > 0
     ? Math.round(curveEntries.reduce((s, c) => s + c.sampleSize, 0) / curveEntries.length)
     : 0;
+  const activeSources = (sources || []).filter(s => s.playerCount > 0 || (s.source === "sleeper" && (s.draftCount || 0) > 0));
+  const sleeperSource = sources?.find(s => s.source === "sleeper");
 
   if (isLoading) {
     return (
@@ -571,11 +669,15 @@ function OverviewPanel() {
     );
   }
 
+  const sleeperDraftLabel = sleeperSource?.draftCount && sleeperSource.draftCount > 0
+    ? `${sleeperSource.draftCount} Drafts`
+    : "Processing...";
+
   const statsCards = [
-    { label: "Players Tracked", value: totalPlayers.toLocaleString(), icon: Users, color: "text-amber-500 dark:text-amber-400" },
+    { label: "Offensive Players", value: totalPlayers.toLocaleString(), icon: Users, color: "text-amber-500 dark:text-amber-400" },
+    { label: "Sleeper Drafts", value: sleeperDraftLabel, icon: Layers, color: "text-blue-500 dark:text-blue-400" },
     { label: "Rookie Curve Slots", value: curveEntries.length.toString(), icon: TrendingDown, color: "text-green-500 dark:text-green-400" },
-    { label: "Avg Samples / Pick", value: avgCurveSamples.toString(), icon: Layers, color: "text-blue-500 dark:text-blue-400" },
-    { label: "Data Sources", value: (sources?.length || 0).toString(), icon: Globe, color: "text-purple-500 dark:text-purple-400" },
+    { label: "Active Sources", value: activeSources.length.toString(), icon: Globe, color: "text-purple-500 dark:text-purple-400" },
   ];
 
   return (
@@ -592,14 +694,14 @@ function OverviewPanel() {
         ))}
       </div>
 
-      {sources && sources.length > 0 && (
+      {activeSources.length > 0 && (
         <Card className="p-4 border-border" data-testid="card-data-sources">
           <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
             <Database className="h-4 w-4 text-amber-500" />
             Data Sources
           </h3>
           <div className="space-y-3">
-            {sources.map((s) => {
+            {activeSources.map((s) => {
               const config = SOURCE_COLORS[s.source] || { dot: "bg-gray-500", bg: "bg-gray-500/10 border-gray-500/30", label: s.source };
               return (
                 <div key={s.source} className={`rounded-lg border p-3 ${config.bg}`} data-testid={`source-detail-${s.source}`}>
@@ -609,10 +711,15 @@ function OverviewPanel() {
                       <span className="text-sm font-semibold">{config.label}</span>
                     </div>
                     <Badge variant="outline" className="text-[10px]">
-                      {s.playerCount.toLocaleString()} players
+                      {formatSourceLabel(s)}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{s.description}</p>
+                  {s.source === "sleeper" && s.pickCount && s.pickCount > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {s.pickCount.toLocaleString()} total picks analyzed
+                    </p>
+                  )}
                   {s.lastUpdated && (
                     <p className="text-[10px] text-muted-foreground mt-1">
                       Last updated: {new Date(s.lastUpdated).toLocaleDateString()}
@@ -625,34 +732,37 @@ function OverviewPanel() {
         </Card>
       )}
 
-      <Card className="p-4 border-border">
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <Target className="h-4 w-4 text-amber-500" />
-          Top 5 by Consensus Rank
-        </h3>
-        <div className="space-y-2">
-          {topPlayers.map((p, i) => (
-            <div key={p.id} className="flex items-center gap-3 text-sm" data-testid={`row-top-${i}`}>
-              <span className="font-mono text-muted-foreground w-6 text-right">{i + 1}.</span>
-              <Badge variant="outline" className={`text-[10px] px-1.5 ${getPositionColor(p.position)}`}>
-                {p.position}
-              </Badge>
-              <span className="font-medium flex-1 truncate">{p.player_name}</span>
-              <SourceDots sources={p.data_sources} />
-              {p.adp_overall != null && (
-                <span className="font-mono text-xs text-amber-500 dark:text-amber-400">
-                  ADP {formatADP(p.adp_overall)}
-                </span>
-              )}
-              {p.ecr_1qb != null && (
-                <span className="font-mono text-xs text-emerald-500 dark:text-emerald-400 hidden sm:inline">
-                  ECR {formatECR(p.ecr_1qb)}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </Card>
+      {topPlayers.length > 0 && (
+        <Card className="p-4 border-border">
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <Target className="h-4 w-4 text-amber-500" />
+            Top 5 by Consensus Rank
+          </h3>
+          <div className="space-y-2">
+            {topPlayers.map((p, i) => (
+              <div key={p.id} className="flex items-center gap-3 text-sm" data-testid={`row-top-${i}`}>
+                <span className="font-mono text-muted-foreground w-6 text-right">{i + 1}.</span>
+                <Badge variant="outline" className={`text-[10px] px-1.5 ${getPositionColor(p.position)}`}>
+                  {p.position}
+                </Badge>
+                <span className="font-medium flex-1 truncate">{p.player_name}</span>
+                <MarketHeatIcon level={p.market_heat_level} label={p.market_label} />
+                <SourceDots sources={p.data_sources} />
+                {p.adp_overall != null && (
+                  <span className="font-mono text-xs text-amber-500 dark:text-amber-400">
+                    ADP {formatADP(p.adp_overall)}
+                  </span>
+                )}
+                {p.ecr_1qb != null && (
+                  <span className="font-mono text-xs text-emerald-500 dark:text-emerald-400 hidden sm:inline">
+                    ECR {formatECR(p.ecr_1qb)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card className="p-4 border-border">
         <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
