@@ -17676,6 +17676,18 @@ Respond in JSON format:
     }
   });
 
+  app.get("/api/draft-intelligence/pick-distribution/:playerName", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const playerName = decodeURIComponent(req.params.playerName);
+      const draftType = (req.query.type as string) || "rookie";
+      const data = await draftIntelService.getPlayerPickDistribution(playerName, draftType);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Pick distribution error:", error);
+      res.status(500).json({ error: "Failed to fetch pick distribution" });
+    }
+  });
+
   app.get("/api/draft-intelligence/pick-value-curve", isAuthenticated, async (req: any, res: Response) => {
     try {
       const rawType = (req.query.type as string) || "rookie";

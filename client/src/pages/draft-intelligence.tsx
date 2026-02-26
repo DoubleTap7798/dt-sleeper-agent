@@ -477,8 +477,108 @@ function ADPTable({
   );
 }
 
+interface PickDistribution {
+  playerName: string;
+  position: string | null;
+  totalPicked: number;
+  draftType: string;
+  distribution: { pickNo: number; pickLabel: string; count: number }[];
+}
+
+function PlayerPickDistributionModal({
+  playerName,
+  draftType,
+  onClose,
+}: {
+  playerName: string;
+  draftType: string;
+  onClose: () => void;
+}) {
+  const { data, isLoading } = useQuery<PickDistribution>({
+    queryKey: ["/api/draft-intelligence/pick-distribution", playerName, draftType],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/draft-intelligence/pick-distribution/${encodeURIComponent(playerName)}?type=${draftType}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const maxCount = data?.distribution ? Math.max(...data.distribution.map(d => d.count)) : 1;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60" />
+      <Card
+        className="relative z-10 w-full max-w-sm border-amber-500/30 bg-background p-0 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        data-testid="modal-pick-distribution"
+      >
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {data?.position && (
+                <Badge variant="outline" className={`text-[10px] px-1.5 ${getPositionColor(data.position)}`}>
+                  {data.position}
+                </Badge>
+              )}
+              <span className="font-semibold text-sm">{playerName}</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onClose} data-testid="button-close-distribution">
+              <span className="sr-only">Close</span>
+              &times;
+            </Button>
+          </div>
+          {data && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Selected {data.totalPicked} times across {draftType} drafts
+            </p>
+          )}
+        </div>
+        <div className="p-4 max-h-72 overflow-y-auto">
+          {isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-6 w-full" />
+              ))}
+            </div>
+          ) : !data?.distribution?.length ? (
+            <p className="text-xs text-muted-foreground text-center py-4">No pick data found</p>
+          ) : (
+            <div className="space-y-1.5">
+              {data.distribution.map((d) => {
+                const pct = maxCount > 0 ? (d.count / maxCount) * 100 : 0;
+                return (
+                  <div key={d.pickNo} className="flex items-center gap-3" data-testid={`dist-pick-${d.pickNo}`}>
+                    <span className="font-mono text-xs font-semibold text-amber-500 dark:text-amber-400 w-10 shrink-0">
+                      {d.pickLabel}
+                    </span>
+                    <div className="flex-1 h-5 bg-muted/50 rounded overflow-hidden relative">
+                      <div
+                        className="h-full bg-amber-500/30 rounded transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                      <span className="absolute inset-0 flex items-center px-2 text-[10px] font-medium">
+                        {d.count}x
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function PickValueCurvePanel() {
   const [curveType, setCurveType] = useState<string>("rookie");
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
 
   const { data: curveData, isLoading } = useQuery<PickCurveEntry[]>({
     queryKey: ["/api/draft-intelligence/pick-value-curve", { type: curveType, enhanced: "true" }],
@@ -507,20 +607,23 @@ function PickValueCurvePanel() {
           <div className="space-y-1">
             <p className="text-sm font-medium">What is the Pick Value Curve?</p>
             <p className="text-xs text-muted-foreground">
-              This shows the average dynasty trade value of players selected at each draft pick across all completed drafts.
-              Higher values mean that pick slot historically lands more valuable players. Use it to evaluate whether a pick
-              you're trading for or away is being over- or under-valued relative to what it typically produces.
+              Shows the most commonly selected player at each draft pick across all completed drafts.
+              {curveType === "rookie"
+                ? " Rookie drafts cover incoming draft class players (2026 NFL Draft eligible)."
+                : " Startup drafts include all players — current NFL veterans and incoming rookies."
+              }
+              {" "}Tap a player to see their full pick distribution.
             </p>
           </div>
         </div>
       </Card>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
         <div className="flex gap-1">
           <Button
             variant={curveType === "rookie" ? "default" : "outline"}
             size="sm"
-            onClick={() => setCurveType("rookie")}
+            onClick={() => { setCurveType("rookie"); setSelectedPlayer(null); }}
             data-testid="button-curve-rookie"
           >
             Rookie Drafts
@@ -528,14 +631,14 @@ function PickValueCurvePanel() {
           <Button
             variant={curveType === "startup" ? "default" : "outline"}
             size="sm"
-            onClick={() => setCurveType("startup")}
+            onClick={() => { setCurveType("startup"); setSelectedPlayer(null); }}
             data-testid="button-curve-startup"
           >
             Startup Drafts
           </Button>
         </div>
         <span className="text-xs text-muted-foreground" data-testid="text-curve-count">
-          {filteredData.length} pick slots
+          {filteredData.length} pick slots &middot; {curveType === "rookie" ? "2026 draft class" : "All players"}
         </span>
       </div>
 
@@ -551,15 +654,14 @@ function PickValueCurvePanel() {
         </Card>
       ) : (
         <div className="rounded-lg border border-border overflow-x-auto">
-          <table className="w-full min-w-[580px]">
+          <table className="w-full min-w-[480px]">
             <thead>
               <tr className="bg-muted/50 text-xs text-muted-foreground">
                 <th className="text-left p-3 w-16">Pick</th>
                 <th className="text-left p-3">Most Common Selection</th>
-                <th className="text-right p-3 w-24">Value</th>
+                <th className="text-right p-3 w-24 hidden sm:table-cell">Value</th>
                 <th className="text-right p-3 w-16 hidden sm:table-cell">% of Top</th>
-                <th className="p-3 w-32 hidden sm:table-cell">Relative Value</th>
-                <th className="text-right p-3 w-16 hidden md:table-cell">Drafts</th>
+                <th className="p-3 w-32 hidden md:table-cell">Relative Value</th>
               </tr>
             </thead>
             <tbody>
@@ -570,7 +672,12 @@ function PickValueCurvePanel() {
                   : valuePct >= 50 ? "text-amber-500 dark:text-amber-400"
                   : "text-red-500 dark:text-red-400";
                 return (
-                  <tr key={entry.id} className="border-t border-border" data-testid={`row-curve-${entry.pickNumber}`}>
+                  <tr
+                    key={entry.id}
+                    className={`border-t border-border transition-colors ${entry.topPlayerName ? "hover:bg-muted/30 cursor-pointer" : ""}`}
+                    onClick={() => entry.topPlayerName && setSelectedPlayer(entry.topPlayerName)}
+                    data-testid={`row-curve-${entry.pickNumber}`}
+                  >
                     <td className="p-3">
                       <span className="font-mono text-sm font-semibold text-amber-500 dark:text-amber-400">
                         {formatPickLabel(entry.pickNumber)}
@@ -591,7 +698,7 @@ function PickValueCurvePanel() {
                         <span className="text-xs text-muted-foreground italic">No data</span>
                       )}
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-3 text-right hidden sm:table-cell">
                       <span className="font-mono text-sm font-bold" data-testid={`text-value-${entry.pickNumber}`}>
                         {Math.round(entry.avgDynastyValue).toLocaleString()}
                       </span>
@@ -601,11 +708,8 @@ function PickValueCurvePanel() {
                         {valuePct}%
                       </span>
                     </td>
-                    <td className="p-3 hidden sm:table-cell">
+                    <td className="p-3 hidden md:table-cell">
                       <ValueBar value={entry.avgDynastyValue} max={maxValue} />
-                    </td>
-                    <td className="p-3 text-right hidden md:table-cell">
-                      <span className="text-xs text-muted-foreground">{entry.sampleSize}</span>
                     </td>
                   </tr>
                 );
@@ -613,6 +717,14 @@ function PickValueCurvePanel() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {selectedPlayer && (
+        <PlayerPickDistributionModal
+          playerName={selectedPlayer}
+          draftType={curveType}
+          onClose={() => setSelectedPlayer(null)}
+        />
       )}
     </div>
   );

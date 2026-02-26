@@ -561,22 +561,22 @@ export async function getCachedADP(options?: {
   let whereClause = sql`1=1`;
 
   if (category === "offense") {
-    whereClause = sql`${whereClause} AND position IN ('QB', 'RB', 'WR', 'TE')`;
+    whereClause = sql`${whereClause} AND da.position IN ('QB', 'RB', 'WR', 'TE')`;
   }
 
   if (position && position !== "ALL") {
-    whereClause = sql`${whereClause} AND position = ${position}`;
+    whereClause = sql`${whereClause} AND da.position = ${position}`;
   }
   if (search) {
-    whereClause = sql`${whereClause} AND LOWER(player_name) LIKE ${`%${search.toLowerCase()}%`}`;
+    whereClause = sql`${whereClause} AND LOWER(da.player_name) LIKE ${`%${search.toLowerCase()}%`}`;
   }
   if (format !== "all") {
     if (sort === "ecr") {
-      const ecrCol = format === "SF" ? "ecr_sf" : "ecr_1qb";
+      const ecrCol = format === "SF" ? "da.ecr_sf" : "da.ecr_1qb";
       whereClause = sql`${whereClause} AND ${sql.raw(ecrCol)} IS NOT NULL`;
     } else {
-      const adpCol = format === "1QB" ? "adp_1qb" : format === "SF" ? "adp_sf" : "adp_tep";
-      const ecrCol = format === "SF" ? "ecr_sf" : "ecr_1qb";
+      const adpCol = format === "1QB" ? "da.adp_1qb" : format === "SF" ? "da.adp_sf" : "da.adp_tep";
+      const ecrCol = format === "SF" ? "da.ecr_sf" : "da.ecr_1qb";
       whereClause = sql`${whereClause} AND (${sql.raw(adpCol)} IS NOT NULL OR ${sql.raw(ecrCol)} IS NOT NULL)`;
     }
   }
@@ -689,4 +689,47 @@ export async function getEnhancedPickValueCurve(draftType: string): Promise<any[
       valuePctOfTop: valuePct,
     };
   });
+}
+
+export async function getPlayerPickDistribution(playerName: string, draftType: string): Promise<{
+  playerName: string;
+  position: string | null;
+  totalPicked: number;
+  draftType: string;
+  distribution: { pickNo: number; pickLabel: string; count: number }[];
+}> {
+  const validType = draftType === "startup" ? "startup" : "rookie";
+
+  const result = await db.execute(sql`
+    SELECT dp.player_name, dp.position, dp.pick_no, COUNT(*)::int AS times_picked
+    FROM draft_picks dp
+    JOIN drafts d ON dp.draft_id = d.draft_id
+    WHERE d.type = ${validType}
+      AND dp.player_name = ${playerName}
+      AND dp.position IN ('QB', 'RB', 'WR', 'TE')
+    GROUP BY dp.player_name, dp.position, dp.pick_no
+    ORDER BY dp.pick_no ASC
+  `);
+
+  const rows = result.rows as any[];
+  const position = rows.length > 0 ? rows[0].position : null;
+  const totalPicked = rows.reduce((sum, r) => sum + r.times_picked, 0);
+
+  const formatPickLabel = (pickNum: number) => {
+    const round = Math.ceil(pickNum / 12);
+    const pick = ((pickNum - 1) % 12) + 1;
+    return `${round}.${pick.toString().padStart(2, "0")}`;
+  };
+
+  return {
+    playerName,
+    position,
+    totalPicked,
+    draftType: validType,
+    distribution: rows.map((r) => ({
+      pickNo: r.pick_no,
+      pickLabel: formatPickLabel(r.pick_no),
+      count: r.times_picked,
+    })),
+  };
 }
