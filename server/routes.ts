@@ -17473,7 +17473,7 @@ Respond in JSON format:
 
   app.post("/api/market-psychology/refresh", isAuthenticated, requireAdmin, async (req: any, res: Response) => {
     try {
-      const { refreshMarketPsychologyData } = await import("./index");
+      const { refreshMarketPsychologyData } = await import("./engine/market-psychology-refresh");
       const count = await refreshMarketPsychologyData();
       res.json({ success: true, playersProcessed: count });
     } catch (error: any) {
