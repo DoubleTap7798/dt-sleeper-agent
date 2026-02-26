@@ -425,8 +425,8 @@ export function DevyProfileModal({ open, onOpenChange, player, unmatchedPlayer }
                       {p.college}
                     </Badge>
                     {p.draftEligibleYear && (
-                      <Badge variant="outline" data-testid="badge-draft-year">
-                        {p.draftEligibleYear} Draft
+                      <Badge variant="outline" className={Number(p.draftEligibleYear) === new Date().getFullYear() ? "border-blue-500/40 text-blue-400" : "border-purple-500/40 text-purple-400"} data-testid="badge-draft-year">
+                        {Number(p.draftEligibleYear) === new Date().getFullYear() ? `${p.draftEligibleYear} Draft` : `${p.draftEligibleYear} Devy`}
                       </Badge>
                     )}
                   </div>

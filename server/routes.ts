@@ -4429,7 +4429,7 @@ ${urls}
       const currentDraftYear = currentYear;
       
       const trueDevyPlayers = devyPlayers.filter(player => {
-        if (player.draftEligibleYear <= currentDraftYear) {
+        if (player.draftEligibleYear < currentDraftYear) {
           return false;
         }
         
@@ -4492,6 +4492,7 @@ ${urls}
           modelRank: 0,
           rankDelta: 0,
           dviScore: 0,
+          playerClass: player.draftEligibleYear === currentDraftYear ? "draft" as const : "devy" as const,
         };
       });
 

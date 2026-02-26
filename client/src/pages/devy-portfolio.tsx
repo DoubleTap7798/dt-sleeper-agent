@@ -174,20 +174,21 @@ export default function DevyPortfolioPage() {
     ? allManualEntries
     : allManualEntries.filter(e => e.leagueId === activeLeagueId);
 
-  const totalValue = matchedPlayers.reduce((sum, p) => sum + p.value, 0);
-  const avgDvi = matchedPlayers.length > 0 ? Math.round(matchedPlayers.reduce((sum, p) => sum + calculateDVI(p), 0) / matchedPlayers.length) : 0;
+  const totalValue = matchedPlayers.reduce((sum, p) => sum + (p.value || 0), 0);
+  const avgDvi = matchedPlayers.length > 0 ? Math.round(matchedPlayers.reduce((sum, p) => sum + (calculateDVI(p) || 0), 0) / matchedPlayers.length) : 0;
   const posCounts: Record<string, number> = {};
   matchedPlayers.forEach(p => { posCounts[p.position] = (posCounts[p.position] || 0) + 1; });
   unmatchedDevy.forEach(d => { posCounts[d.devyPosition] = (posCounts[d.devyPosition] || 0) + 1; });
-  const avgElite = matchedPlayers.length > 0 ? matchedPlayers.reduce((sum, p) => sum + p.elitePct, 0) / matchedPlayers.length : 0;
-  const avgBust = matchedPlayers.length > 0 ? matchedPlayers.reduce((sum, p) => sum + p.bustPct, 0) / matchedPlayers.length : 0;
+  const avgElite = matchedPlayers.length > 0 ? matchedPlayers.reduce((sum, p) => sum + (p.elitePct || 0), 0) / matchedPlayers.length : 0;
+  const avgBust = matchedPlayers.length > 0 ? matchedPlayers.reduce((sum, p) => sum + (p.bustPct || 0), 0) / matchedPlayers.length : 0;
   const portfolioHealth = Math.round(Math.min(100, Math.max(0, avgElite - avgBust)));
 
   const totalCount = matchedPlayers.length + unmatchedDevy.length;
 
   const totalDevyEV = useMemo(() => {
     return matchedPlayers.reduce((sum, p) => {
-      const ev = (p.elitePct / 100) * p.value * 1.5 + (p.starterPct / 100) * p.value + (p.bustPct / 100) * p.value * 0.2;
+      const val = p.value || 0;
+      const ev = ((p.elitePct || 0) / 100) * val * 1.5 + ((p.starterPct || 0) / 100) * val + ((p.bustPct || 0) / 100) * val * 0.2;
       return sum + ev;
     }, 0);
   }, [matchedPlayers]);
@@ -201,12 +202,17 @@ export default function DevyPortfolioPage() {
     }));
   }, [posCounts, totalCount]);
 
+  const currentYear = new Date().getFullYear();
   const yearExposureData = useMemo(() => {
     const yearCounts: Record<number, number> = {};
     matchedPlayers.forEach(p => { yearCounts[p.draftEligibleYear] = (yearCounts[p.draftEligibleYear] || 0) + 1; });
     return Object.entries(yearCounts)
-      .map(([yr, count]) => ({ year: yr, count, pct: totalCount > 0 ? Math.round((count / totalCount) * 100) : 0 }))
-      .sort((a, b) => Number(a.year) - Number(b.year));
+      .map(([yr, count]) => ({
+        year: Number(yr) === currentYear ? `${yr} Draft` : `${yr} Devy`,
+        count,
+        pct: totalCount > 0 ? Math.round((count / totalCount) * 100) : 0,
+      }))
+      .sort((a, b) => Number(a.year.slice(0, 4)) - Number(b.year.slice(0, 4)));
   }, [matchedPlayers, totalCount]);
 
   const avgDraftCapital = useMemo(() => {
@@ -225,25 +231,26 @@ export default function DevyPortfolioPage() {
 
   const volatilityScore = useMemo(() => {
     if (matchedPlayers.length === 0) return 0;
-    const dviValues = matchedPlayers.map(p => calculateDVI(p));
+    const dviValues = matchedPlayers.map(p => calculateDVI(p) || 0);
     const mean = dviValues.reduce((s, v) => s + v, 0) / dviValues.length;
     const variance = dviValues.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / dviValues.length;
-    return Math.round(Math.min(100, Math.sqrt(variance) * 3));
+    const result = Math.round(Math.min(100, Math.sqrt(variance) * 3));
+    return isNaN(result) ? 0 : result;
   }, [matchedPlayers]);
 
   const radarData = useMemo(() => {
     if (matchedPlayers.length === 0) return [];
     const posBalance = (() => {
       const counts = posExposureData.map(p => p.count);
-      const max = Math.max(...counts, 1);
-      const min = Math.min(...counts);
       const ideal = totalCount / 4;
+      if (ideal <= 0) return 50;
       const deviation = counts.reduce((s, c) => s + Math.abs(c - ideal), 0) / (4 * ideal);
-      return Math.round(Math.max(0, Math.min(100, (1 - deviation) * 100)));
+      const result = Math.round(Math.max(0, Math.min(100, (1 - deviation) * 100)));
+      return isNaN(result) ? 50 : result;
     })();
-    const draftCapitalScore = Math.round(matchedPlayers.reduce((s, p) => s + (p.roundProbabilities?.r1 || p.round1Pct || 0), 0) / matchedPlayers.length);
-    const breakoutScore = Math.round(matchedPlayers.reduce((s, p) => s + (p.breakoutProbability || p.elitePct || 0), 0) / matchedPlayers.length);
-    const riskScore = Math.round(100 - bustExposure);
+    const draftCapitalScore = Math.round(matchedPlayers.reduce((s, p) => s + (p.roundProbabilities?.r1 || p.round1Pct || 0), 0) / matchedPlayers.length) || 0;
+    const breakoutScore = Math.round(matchedPlayers.reduce((s, p) => s + (p.breakoutProbability || p.elitePct || 0), 0) / matchedPlayers.length) || 0;
+    const riskScore = Math.round(100 - bustExposure) || 0;
     const classDiv = (() => {
       const uniqueYears = new Set(matchedPlayers.map(p => p.draftEligibleYear)).size;
       return Math.round(Math.min(100, uniqueYears * 30));
@@ -551,7 +558,9 @@ export default function DevyPortfolioPage() {
                         </div>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <span className="text-xs text-muted-foreground">{player.college}</span>
-                          <span className="text-xs text-muted-foreground">{player.draftEligibleYear}</span>
+                          <Badge variant="outline" className={`text-[10px] ${player.playerClass === "draft" ? "border-blue-500/40 text-blue-400" : "border-purple-500/40 text-purple-400"}`}>
+                            {player.playerClass === "draft" ? `${player.draftEligibleYear} Draft` : `${player.draftEligibleYear} Devy`}
+                          </Badge>
                           {leagues.map((name, i) => (
                             <Badge key={i} variant="secondary" className="text-[10px]">
                               {name}

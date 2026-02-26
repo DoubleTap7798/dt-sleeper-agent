@@ -92,13 +92,15 @@ export default function DevyPage() {
     .filter(p => p.round1Pct > 50)
     .sort((a, b) => b.round1Pct - a.round1Pct);
 
-  const draftYears = [2026, 2027, 2028, 2029];
+  const devyCurrentYear = new Date().getFullYear();
+  const draftYears = [devyCurrentYear, devyCurrentYear + 1, devyCurrentYear + 2, devyCurrentYear + 3];
   const classStrength = draftYears.map(year => {
     const classPlayers = playersWithDVI.filter(p => p.draftEligibleYear === year);
     const avgDVI = classPlayers.length > 0
       ? Math.round(classPlayers.reduce((sum, p) => sum + p.dvi, 0) / classPlayers.length)
       : 0;
-    return { year, avgDVI, count: classPlayers.length };
+    const label = year === devyCurrentYear ? `${year} Draft` : `${year} Devy`;
+    return { year, label, avgDVI, count: classPlayers.length };
   });
   const maxClassDVI = Math.max(...classStrength.map(c => c.avgDVI), 1);
 
@@ -333,7 +335,7 @@ export default function DevyPage() {
               {classStrength.map(cs => (
                 <div key={cs.year} className="space-y-1" data-testid={`row-class-${cs.year}`}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{cs.year}</span>
+                    <span className="text-sm font-medium">{cs.label}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{cs.count} prospects</span>
                       <span className="text-xs font-semibold text-amber-200">{cs.avgDVI}</span>

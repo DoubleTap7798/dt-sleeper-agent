@@ -87,6 +87,7 @@ interface DevyPlayer {
     r1: number; r2: number; r3: number; r4: number;
     r5: number; r6: number; r7: number; udfa: number;
   };
+  playerClass?: "draft" | "devy";
 }
 
 interface DevyData {
@@ -116,18 +117,19 @@ function formatExpectedRound(val: number): string {
 
 function calculateDVI(player: DevyPlayer): number {
   let score = 0;
-  const rankScore = Math.max(0, 40 - (player.rank - 1) * 0.5);
+  const rankScore = Math.max(0, 40 - ((player.rank || 1) - 1) * 0.5);
   score += rankScore;
-  score += (player.round1Pct / 100) * 15;
-  score += (player.top10Pct / 100) * 5;
-  score += (player.elitePct / 100) * 15;
-  score -= (player.bustPct / 100) * 5;
-  const trendBonus = Math.min(10, Math.max(-5, player.trend30Day * 0.5));
+  score += ((player.round1Pct || 0) / 100) * 15;
+  score += ((player.top10Pct || 0) / 100) * 5;
+  score += ((player.elitePct || 0) / 100) * 15;
+  score -= ((player.bustPct || 0) / 100) * 5;
+  const trendBonus = Math.min(10, Math.max(-5, (player.trend30Day || 0) * 0.5));
   score += 5 + trendBonus;
   if (player.ageClass === "young-breakout") score += 10;
   else if (player.ageClass === "normal") score += 6;
   else score += 3;
-  return Math.round(Math.min(100, Math.max(0, score)));
+  const result = Math.round(Math.min(100, Math.max(0, score)));
+  return isNaN(result) ? 0 : result;
 }
 
 export { calculateDVI };
@@ -318,7 +320,7 @@ export default function DevyRankingsPage() {
           <SelectContent>
             <SelectItem value="all" data-testid="option-year-all">All Years</SelectItem>
             {years.map((year) => (
-              <SelectItem key={year} value={year.toString()} data-testid={`option-year-${year}`}>{year} Draft</SelectItem>
+              <SelectItem key={year} value={year.toString()} data-testid={`option-year-${year}`}>{year === new Date().getFullYear() ? `${year} Draft` : `${year} Devy`}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -625,7 +627,9 @@ export default function DevyRankingsPage() {
                             </Badge>
                           </td>
                           <td className="p-3">
-                            <Badge variant="outline">{player.draftEligibleYear}</Badge>
+                            <Badge variant="outline" className={player.playerClass === "draft" ? "border-blue-500/40 text-blue-400" : "border-purple-500/40 text-purple-400"}>
+                              {player.playerClass === "draft" ? `${player.draftEligibleYear} Draft` : `${player.draftEligibleYear} Devy`}
+                            </Badge>
                           </td>
                           <td className="p-3 text-center">
                             <span className={`text-base font-bold ${
