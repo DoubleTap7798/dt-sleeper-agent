@@ -487,3 +487,84 @@ export const insertMarketIndexCacheSchema = createInsertSchema(marketIndexCache)
 
 export type MarketIndexCache = typeof marketIndexCache.$inferSelect;
 export type InsertMarketIndexCache = z.infer<typeof insertMarketIndexCacheSchema>;
+
+export const drafts = pgTable("drafts", {
+  draftId: varchar("draft_id").primaryKey(),
+  leagueId: varchar("league_id").notNull(),
+  type: text("type").notNull(),
+  format: text("format").notNull(),
+  status: text("status").notNull(),
+  rounds: integer("rounds").notNull().default(0),
+  teams: integer("teams").notNull().default(0),
+  season: text("season"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDraftSchema = createInsertSchema(drafts).omit({
+  createdAt: true,
+});
+
+export type Draft = typeof drafts.$inferSelect;
+export type InsertDraft = z.infer<typeof insertDraftSchema>;
+
+export const draftPicks = pgTable("draft_picks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  draftId: varchar("draft_id").notNull(),
+  round: integer("round").notNull(),
+  pickNo: integer("pick_no").notNull(),
+  playerId: varchar("player_id").notNull(),
+  playerName: text("player_name"),
+  position: text("position"),
+  pickedBy: varchar("picked_by"),
+  pickedAt: timestamp("picked_at"),
+});
+
+export const insertDraftPickSchema = createInsertSchema(draftPicks).omit({
+  id: true,
+});
+
+export type DraftPick = typeof draftPicks.$inferSelect;
+export type InsertDraftPick = z.infer<typeof insertDraftPickSchema>;
+
+export const draftAdp = pgTable("draft_adp", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  playerId: varchar("player_id").notNull(),
+  playerName: text("player_name"),
+  position: text("position"),
+  adpOverall: real("adp_overall"),
+  adp1qb: real("adp_1qb"),
+  adpSf: real("adp_sf"),
+  adpTep: real("adp_tep"),
+  sampleSize: integer("sample_size").notNull().default(0),
+  sample1qb: integer("sample_1qb").notNull().default(0),
+  sampleSf: integer("sample_sf").notNull().default(0),
+  sampleTep: integer("sample_tep").notNull().default(0),
+  rookiePickEq: text("rookie_pick_eq"),
+  startupPickEq: text("startup_pick_eq"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export const insertDraftAdpSchema = createInsertSchema(draftAdp).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export type DraftAdp = typeof draftAdp.$inferSelect;
+export type InsertDraftAdp = z.infer<typeof insertDraftAdpSchema>;
+
+export const pickValueCurve = pgTable("pick_value_curve", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pickNumber: integer("pick_number").notNull(),
+  draftType: text("draft_type").notNull(),
+  avgDynastyValue: real("avg_dynasty_value").notNull().default(0),
+  sampleSize: integer("sample_size").notNull().default(0),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export const insertPickValueCurveSchema = createInsertSchema(pickValueCurve).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export type PickValueCurve = typeof pickValueCurve.$inferSelect;
+export type InsertPickValueCurve = z.infer<typeof insertPickValueCurveSchema>;

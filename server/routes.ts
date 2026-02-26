@@ -27,6 +27,7 @@ import { scanForExploits } from "./engine/exploit-scanner";
 import { detectRegressionAlerts } from "./engine/regression-detector";
 import { buildEliteProfile } from "./engine/player-profile-engine";
 import type { PlayerProjection } from "./engine/types";
+import * as draftIntelService from "./engine/draft-intelligence-service";
 import * as playerValuationService from "./engine/player-valuation-service";
 import * as devyProjectionService from "./engine/devy-projection-service";
 import * as franchiseModelingService from "./engine/franchise-modeling-service";
@@ -17620,6 +17621,58 @@ Respond in JSON format:
     } catch (error: any) {
       console.error("Portfolio exposure error:", error);
       res.status(500).json({ error: "Failed to compute portfolio exposure" });
+    }
+  });
+
+  app.get("/api/draft-intelligence/adp", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const format = (req.query.format as string) || "all";
+      const position = req.query.position as string | undefined;
+      const search = req.query.search as string | undefined;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+
+      const result = await draftIntelService.getCachedADP({ format, position, search, page, limit });
+      res.json(result);
+    } catch (error: any) {
+      console.error("Draft ADP error:", error);
+      res.status(500).json({ error: "Failed to fetch ADP data" });
+    }
+  });
+
+  app.get("/api/draft-intelligence/adp/:playerId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const adp = await draftIntelService.getPlayerADP(req.params.playerId);
+      if (!adp) {
+        return res.status(404).json({ error: "Player ADP not found" });
+      }
+      res.json(adp);
+    } catch (error: any) {
+      console.error("Player ADP error:", error);
+      res.status(500).json({ error: "Failed to fetch player ADP" });
+    }
+  });
+
+  app.get("/api/draft-intelligence/pick-value-curve", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const draftType = req.query.type as string | undefined;
+      const curve = await draftIntelService.getCachedPickValueCurve(draftType);
+      res.json(curve);
+    } catch (error: any) {
+      console.error("Pick value curve error:", error);
+      res.status(500).json({ error: "Failed to fetch pick value curve" });
+    }
+  });
+
+  app.post("/api/draft-intelligence/refresh", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      res.json({ message: "Draft intelligence refresh started" });
+      draftIntelService.runFullDraftIntelPipeline().catch(err => {
+        console.error("[DraftIntel] Background refresh error:", err);
+      });
+    } catch (error: any) {
+      console.error("Draft intel refresh error:", error);
+      res.status(500).json({ error: "Failed to start refresh" });
     }
   });
 
