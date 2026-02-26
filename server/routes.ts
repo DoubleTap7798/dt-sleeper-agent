@@ -37,6 +37,7 @@ import * as marketDynamicsService from "./engine/market-dynamics-service";
 import * as powerRankingsService from "./engine/power-rankings-service";
 import * as inSeasonRankingsService from "./engine/in-season-rankings-service";
 import * as aiExplanationService from "./engine/ai-explanation-service";
+import * as marketPsychologyService from "./engine/market-psychology-service";
 
 function r2(v: number): number { return Math.round(v * 100) / 100; }
 
@@ -17379,6 +17380,105 @@ Respond in JSON format:
     } catch (error: any) {
       console.error("Player card error:", error);
       res.status(500).json({ error: error.message || "Player card generation failed" });
+    }
+  });
+
+  app.get("/api/market-psychology/categories", isAuthenticated, async (_req: any, res: Response) => {
+    try {
+      const all = await storage.getAllPlayerMarketMetrics(500, 0);
+
+      const mostOverhyped = [...all]
+        .filter(p => p.hypePremiumPct > 0)
+        .sort((a, b) => b.hypePremiumPct - a.hypePremiumPct)
+        .slice(0, 10);
+
+      const undervalued = [...all]
+        .filter(p => p.hypePremiumPct < 0)
+        .sort((a, b) => a.hypePremiumPct - b.hypePremiumPct)
+        .slice(0, 10);
+
+      const risingFast = [...all]
+        .filter(p => p.hypeVelocity > 0)
+        .sort((a, b) => b.hypeVelocity - a.hypeVelocity)
+        .slice(0, 10);
+
+      const panicSells = [...all]
+        .filter(p => p.hypeVelocity < 0 && p.demandIndex < 40)
+        .sort((a, b) => a.hypeVelocity - b.hypeVelocity)
+        .slice(0, 10);
+
+      const artificialScarcity = [...all]
+        .filter(p => p.supplyIndex < 40 && p.demandIndex > 60)
+        .sort((a, b) => (b.demandIndex - b.supplyIndex) - (a.demandIndex - a.supplyIndex))
+        .slice(0, 10);
+
+      const lastUpdated = all.length > 0 ? all.reduce((latest, m) => {
+        const t = m.lastUpdated ? new Date(m.lastUpdated).getTime() : 0;
+        return t > latest ? t : latest;
+      }, 0) : null;
+
+      res.json({
+        overhyped: mostOverhyped,
+        undervalued,
+        risingFast,
+        panicSells,
+        artificialScarcity,
+        lastUpdated: lastUpdated ? new Date(lastUpdated).toISOString() : null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch market categories" });
+    }
+  });
+
+  app.get("/api/market-psychology/:playerId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const metrics = await storage.getPlayerMarketMetrics(req.params.playerId);
+      if (!metrics) {
+        return res.status(404).json({ error: "No market metrics found for this player" });
+      }
+      res.json(metrics);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch player market metrics" });
+    }
+  });
+
+  app.get("/api/market-psychology", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const heatLevel = req.query.heatLevel as string | undefined;
+      const sortBy = (req.query.sortBy as string) || "sentimentScore";
+      const sortOrder = (req.query.sortOrder as string) || "desc";
+
+      let metrics = await storage.getAllPlayerMarketMetrics(limit, offset, heatLevel);
+
+      const validSortFields = [
+        "sentimentScore", "hypeVelocity", "demandIndex", "supplyIndex",
+        "hypePremiumPct", "adjustedMarketValue", "baseDynastyValue"
+      ];
+
+      if (validSortFields.includes(sortBy)) {
+        metrics = metrics.sort((a: any, b: any) => {
+          const aVal = a[sortBy] ?? 0;
+          const bVal = b[sortBy] ?? 0;
+          return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+        });
+      }
+
+      res.json({ metrics, limit, offset, count: metrics.length });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch market metrics" });
+    }
+  });
+
+  app.post("/api/market-psychology/refresh", isAuthenticated, requireAdmin, async (req: any, res: Response) => {
+    try {
+      const { refreshMarketPsychologyData } = await import("./index");
+      const count = await refreshMarketPsychologyData();
+      res.json({ success: true, playersProcessed: count });
+    } catch (error: any) {
+      console.error("Market psychology refresh error:", error);
+      res.status(500).json({ error: error.message || "Failed to refresh market data" });
     }
   });
 

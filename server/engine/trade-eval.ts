@@ -8,6 +8,8 @@ import {
   PositionalScarcity,
 } from './types';
 import { simulateSeason } from './monte-carlo';
+import { storage } from '../storage';
+import { getMarketFrictionModifier } from './market-psychology-service';
 
 function findProjection(
   playerId: string,
@@ -248,7 +250,7 @@ function computeConfidence(
   return Math.round(confidence * 100) / 100;
 }
 
-export function evaluateTrade(
+export async function evaluateTrade(
   givePlayerIds: string[],
   getPlayerIds: string[],
   leagueContext: LeagueContext,
@@ -259,7 +261,7 @@ export function evaluateTrade(
   correlationMatrix: CorrelationMatrix,
   allPlayers: Record<string, any>,
   scarcity: PositionalScarcity[]
-): TradeEvalResult {
+): Promise<TradeEvalResult> {
   const giveProjections: PlayerProjection[] = givePlayerIds
     .map(id => findProjection(id, playerProjectionsByRoster, allPlayers))
     .filter((p): p is PlayerProjection => p !== null);
@@ -307,6 +309,54 @@ export function evaluateTrade(
     projectedROS: Math.round(p.median * (leagueContext.totalRegularSeasonWeeks - leagueContext.currentWeek + 1) * 100) / 100,
   }));
 
+  let marketPsychology: TradeEvalResult['marketPsychology'] = undefined;
+  try {
+    const allTradePlayerIds = [...givePlayerIds, ...getPlayerIds];
+    const marketMetrics = await storage.getPlayerMarketMetricsBatch(allTradePlayerIds);
+    const metricsMap = new Map(marketMetrics.map(m => [m.playerId, m]));
+
+    if (marketMetrics.length > 0) {
+      const giveMetrics = givePlayerIds.map(id => metricsMap.get(id)).filter(Boolean);
+      const getMetrics = getPlayerIds.map(id => metricsMap.get(id)).filter(Boolean);
+
+      const avgGiveSentiment = giveMetrics.length > 0
+        ? giveMetrics.reduce((s, m) => s + (m!.sentimentScore ?? 50), 0) / giveMetrics.length
+        : 50;
+      const avgGetSentiment = getMetrics.length > 0
+        ? getMetrics.reduce((s, m) => s + (m!.sentimentScore ?? 50), 0) / getMetrics.length
+        : 50;
+      const sentimentDelta = Math.round((avgGetSentiment - avgGiveSentiment) * 100) / 100;
+
+      const avgGiveHypePremium = giveMetrics.length > 0
+        ? giveMetrics.reduce((s, m) => s + (m!.hypePremiumPct ?? 0), 0) / giveMetrics.length
+        : 0;
+      const avgGetHypePremium = getMetrics.length > 0
+        ? getMetrics.reduce((s, m) => s + (m!.hypePremiumPct ?? 0), 0) / getMetrics.length
+        : 0;
+      const hypePremiumDelta = Math.round((avgGetHypePremium - avgGiveHypePremium) * 1000) / 1000;
+
+      const marketHeatGive = giveMetrics.map(m => m!.marketHeatLevel || 'NEUTRAL');
+      const marketHeatReceive = getMetrics.map(m => m!.marketHeatLevel || 'NEUTRAL');
+
+      const avgGetDemand = getMetrics.length > 0
+        ? getMetrics.reduce((s, m) => s + (m!.demandIndex ?? 50), 0) / getMetrics.length
+        : 50;
+      const avgGetSupply = getMetrics.length > 0
+        ? getMetrics.reduce((s, m) => s + (m!.supplyIndex ?? 50), 0) / getMetrics.length
+        : 50;
+      const frictionMod = getMarketFrictionModifier(avgGetDemand, avgGetSupply);
+
+      marketPsychology = {
+        sentimentDelta,
+        hypePremiumDelta,
+        marketHeatGive,
+        marketHeatReceive,
+        marketFrictionModifier: Math.round(frictionMod * 1000) / 1000,
+      };
+    }
+  } catch {
+  }
+
   return {
     rosPointDelta,
     playoffWeightedDelta,
@@ -318,5 +368,6 @@ export function evaluateTrade(
     confidence,
     givePlayers,
     getPlayers,
+    marketPsychology,
   };
 }

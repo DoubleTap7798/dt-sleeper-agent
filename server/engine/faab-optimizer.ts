@@ -5,6 +5,8 @@ import {
   LeagueContext,
   PositionalScarcity,
 } from './types';
+import { storage } from '../storage';
+import { getHypeInflationMultiplier } from './market-psychology-service';
 
 function normalSample(): number {
   const u1 = Math.random();
@@ -167,9 +169,19 @@ export interface EnhancedFAABResult extends FAABResult {
   contenderScore: number;
   remainingWeeks: number;
   opportunityCost: number;
+  marketAdjustment?: {
+    hypeInflationMultiplier: number;
+    demandIndex: number;
+    supplyIndex: number;
+    adjustedBids: {
+      optimalBid: number;
+      minimumViableBid: number;
+      aggressiveBid: number;
+    };
+  };
 }
 
-export function optimizeFAABBid(
+export async function optimizeFAABBid(
   targetPlayerId: string,
   targetProjection: PlayerProjection,
   userRoster: RosterContext,
@@ -177,7 +189,7 @@ export function optimizeFAABBid(
   leagueContext: LeagueContext,
   scarcity: PositionalScarcity[],
   allPlayers: Record<string, any>
-): EnhancedFAABResult {
+): Promise<EnhancedFAABResult> {
   const targetPosition = targetProjection.position;
   const waiverBudget = leagueContext.waiverBudget || 100;
   const maxBid = userRoster.faabRemaining;
@@ -317,6 +329,36 @@ export function optimizeFAABBid(
   const leagueAvgPct = waiverBudget > 0 ? leagueAvgBudget / waiverBudget : 0;
   const opportunityCostFinal = (optimalBid / Math.max(waiverBudget, 1)) * budgetScarcityFactor * adjustedValue * 0.3;
 
+  let marketAdjustment: EnhancedFAABResult['marketAdjustment'] = undefined;
+  try {
+    const playerMetrics = await storage.getPlayerMarketMetrics(targetPlayerId);
+    if (playerMetrics) {
+      const demIdx = playerMetrics.demandIndex ?? 50;
+      const supIdx = playerMetrics.supplyIndex ?? 50;
+      const multiplier = getHypeInflationMultiplier(demIdx, supIdx);
+
+      const adjustedOptimal = Math.min(Math.round(optimalBid * multiplier), maxBid);
+      const adjustedMinViable = Math.min(Math.round(minimumViableBid * multiplier), maxBid);
+      const adjustedAggressive = Math.min(Math.round(aggressiveBid * multiplier), maxBid);
+
+      optimalBid = adjustedOptimal;
+      minimumViableBid = adjustedMinViable;
+      aggressiveBid = adjustedAggressive;
+
+      marketAdjustment = {
+        hypeInflationMultiplier: multiplier,
+        demandIndex: demIdx,
+        supplyIndex: supIdx,
+        adjustedBids: {
+          optimalBid: adjustedOptimal,
+          minimumViableBid: adjustedMinViable,
+          aggressiveBid: adjustedAggressive,
+        },
+      };
+    }
+  } catch {
+  }
+
   return {
     playerId: targetPlayerId,
     playerName: targetProjection.playerName,
@@ -344,5 +386,6 @@ export function optimizeFAABBid(
     contenderScore: Math.round(userContenderScore * 1000) / 1000,
     remainingWeeks,
     opportunityCost: Math.round(opportunityCostFinal * 100) / 100,
+    marketAdjustment,
   };
 }

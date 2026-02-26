@@ -386,7 +386,7 @@ export async function runWaiverAnalysis(
 
   if (!targetProj) throw new Error('Target player projection not found');
 
-  const faabResult = optimizeFAABBid(
+  const faabResult = await optimizeFAABBid(
     targetPlayerId,
     targetProj,
     userRoster,

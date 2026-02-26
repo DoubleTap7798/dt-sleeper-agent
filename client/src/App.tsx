@@ -69,6 +69,7 @@ import DecisionEnginePage from "@/pages/decision-engine";
 import LineupLabPage from "@/pages/lineup-lab";
 import GameContextPage from "@/pages/game-context";
 import FeaturesPage from "@/pages/features";
+import MarketPsychologyPage from "@/pages/market-psychology";
 
 import UserProfilePage from "@/pages/user-profile";
 import LeaderboardPage from "@/pages/leaderboard";
@@ -394,6 +395,13 @@ function Router() {
         <AuthenticatedRoute>
           <LeagueLayout>
             <GameContextPage />
+          </LeagueLayout>
+        </AuthenticatedRoute>
+      </Route>
+      <Route path="/league/market-psychology">
+        <AuthenticatedRoute>
+          <LeagueLayout>
+            <MarketPsychologyPage />
           </LeagueLayout>
         </AuthenticatedRoute>
       </Route>

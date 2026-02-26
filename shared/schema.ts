@@ -434,3 +434,30 @@ export const insertPowerRankingSnapshotSchema = createInsertSchema(powerRankingS
 
 export type PowerRankingSnapshot = typeof powerRankingSnapshots.$inferSelect;
 export type InsertPowerRankingSnapshot = z.infer<typeof insertPowerRankingSnapshotSchema>;
+
+export const playerMarketMetrics = pgTable("player_market_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  playerId: varchar("player_id").notNull(),
+  playerName: text("player_name"),
+  position: text("position"),
+  team: text("team"),
+  sentimentScore: real("sentiment_score").notNull().default(50),
+  hypeVelocity: real("hype_velocity").notNull().default(0),
+  demandIndex: real("demand_index").notNull().default(50),
+  supplyIndex: real("supply_index").notNull().default(50),
+  hypePremiumPct: real("hype_premium_pct").notNull().default(0),
+  adjustedMarketValue: real("adjusted_market_value").notNull().default(0),
+  baseDynastyValue: real("base_dynasty_value").notNull().default(0),
+  marketHeatLevel: text("market_heat_level").notNull().default("NEUTRAL"),
+  searchRank: integer("search_rank"),
+  rosterPct: real("roster_pct"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export const insertPlayerMarketMetricsSchema = createInsertSchema(playerMarketMetrics).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export type PlayerMarketMetrics = typeof playerMarketMetrics.$inferSelect;
+export type InsertPlayerMarketMetrics = z.infer<typeof insertPlayerMarketMetricsSchema>;

@@ -26,6 +26,8 @@ import {
   Minus,
   ChevronLeft,
   ChevronRight,
+  Flame,
+  Thermometer,
 } from "lucide-react";
 import { PlayerProfileModal } from "@/components/player-profile-modal";
 import { getNFLTeamLogo } from "@/lib/team-logos";
@@ -50,6 +52,29 @@ interface DynastyPlayer {
   archetypeCluster: string;
   longevityScore: number;
   dnpv: number;
+  marketHeatLevel?: string;
+}
+
+interface MarketMetricsMap {
+  [playerId: string]: { marketHeatLevel: string };
+}
+
+const HEAT_DISPLAY: Record<string, { icon: any; label: string; color: string }> = {
+  HOT: { icon: Flame, label: "Hot", color: "text-red-500 dark:text-red-400" },
+  HEATING: { icon: TrendingUp, label: "Heating", color: "text-amber-500 dark:text-amber-400" },
+  NEUTRAL: { icon: Thermometer, label: "Neutral", color: "text-muted-foreground" },
+  COLD: { icon: TrendingDown, label: "Cold", color: "text-blue-500 dark:text-blue-400" },
+};
+
+function getHeatDisplay(level?: string) {
+  const cfg = HEAT_DISPLAY[level || "NEUTRAL"] || HEAT_DISPLAY.NEUTRAL;
+  const Icon = cfg.icon;
+  return (
+    <div className={`flex items-center gap-1 ${cfg.color}`}>
+      <Icon className="h-3.5 w-3.5" />
+      <span className="text-xs font-medium">{cfg.label}</span>
+    </div>
+  );
 }
 
 interface DynastyPlayersResponse {
@@ -155,6 +180,35 @@ export default function PlayersPage() {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
+
+  const { data: marketData } = useQuery<{ metrics: Array<{ playerId: string; marketHeatLevel: string }> }>({
+    queryKey: ["/api/market-psychology"],
+    queryFn: async () => {
+      const res = await fetch("/api/market-psychology?limit=500");
+      if (!res.ok) return { metrics: [] };
+      return res.json();
+    },
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+
+  const marketHeatMap = useMemo(() => {
+    const map: MarketMetricsMap = {};
+    if (marketData?.metrics) {
+      for (const m of marketData.metrics) {
+        map[m.playerId] = { marketHeatLevel: m.marketHeatLevel };
+      }
+    }
+    return map;
+  }, [marketData]);
+
+  const playersWithHeat = useMemo(() => {
+    if (!data?.players) return [];
+    return data.players.map(p => ({
+      ...p,
+      marketHeatLevel: marketHeatMap[p.playerId]?.marketHeatLevel || p.marketHeatLevel || "NEUTRAL",
+    }));
+  }, [data, marketHeatMap]);
 
   const handleSort = useCallback((key: SortKey) => {
     if (sortKey === key) {
@@ -305,7 +359,7 @@ export default function PlayersPage() {
         <>
           {viewDensity === "compact" ? (
             <CompactTable
-              players={data.players}
+              players={playersWithHeat}
               sortKey={sortKey}
               sortOrder={sortOrder}
               onSort={handleSort}
@@ -314,7 +368,7 @@ export default function PlayersPage() {
             />
           ) : (
             <ExpandedCards
-              players={data.players}
+              players={playersWithHeat}
               onPlayerClick={openProfile}
               pageOffset={page * PAGE_SIZE}
             />
@@ -423,6 +477,9 @@ function CompactTable({
             <th className="text-center py-2 px-2 hidden lg:table-cell">
               <span className="text-[10px] font-medium text-muted-foreground uppercase">Trend</span>
             </th>
+            <th className="text-center py-2 px-2 hidden lg:table-cell">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase">Heat</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -486,6 +543,9 @@ function CompactTable({
               </td>
               <td className="py-2 px-2 text-center hidden lg:table-cell">
                 {getTrajectoryIcon(player.trajectory)}
+              </td>
+              <td className="py-2 px-2 text-center hidden lg:table-cell" data-testid={`heat-${player.playerId}`}>
+                {getHeatDisplay(player.marketHeatLevel)}
               </td>
             </tr>
           ))}
@@ -578,6 +638,10 @@ function ExpandedCards({
             <div className="shrink-0 text-center min-w-[50px]">
               <div className="text-[10px] text-muted-foreground">Longevity</div>
               <div className="font-mono font-medium">{player.longevityScore}</div>
+            </div>
+            <div className="shrink-0 text-center min-w-[50px]" data-testid={`heat-expanded-${player.playerId}`}>
+              <div className="text-[10px] text-muted-foreground">Heat</div>
+              <div className="mt-0.5">{getHeatDisplay(player.marketHeatLevel)}</div>
             </div>
           </div>
         </Card>

@@ -110,6 +110,13 @@ export interface TradeEvalResult {
   confidence: number;
   givePlayers: { id: string; name: string; projectedROS: number }[];
   getPlayers: { id: string; name: string; projectedROS: number }[];
+  marketPsychology?: {
+    sentimentDelta: number;
+    hypePremiumDelta: number;
+    marketHeatGive: string[];
+    marketHeatReceive: string[];
+    marketFrictionModifier: number;
+  };
 }
 
 export interface FAABResult {

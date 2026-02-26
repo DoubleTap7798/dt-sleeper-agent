@@ -36,6 +36,10 @@ import {
   LineChart,
   ChevronUp,
   ChevronDown,
+  Flame,
+  Thermometer,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 import { getNFLTeamLogo } from "@/lib/team-logos";
 import {
@@ -147,6 +151,28 @@ interface DynastyCardResponse {
     peakYearValue: number;
   };
 }
+
+interface MarketPsychologyData {
+  playerId: string;
+  playerName: string | null;
+  position: string | null;
+  team: string | null;
+  sentimentScore: number;
+  hypeVelocity: number;
+  demandIndex: number;
+  supplyIndex: number;
+  hypePremiumPct: number;
+  adjustedMarketValue: number;
+  baseDynastyValue: number;
+  marketHeatLevel: string;
+}
+
+const HEAT_CONFIG: Record<string, { icon: any; label: string; color: string; badgeClass: string }> = {
+  HOT: { icon: Flame, label: "Hot", color: "text-red-500 dark:text-red-400", badgeClass: "bg-red-500/15 text-red-500 dark:text-red-400 border-red-500/30" },
+  HEATING: { icon: TrendingUp, label: "Heating", color: "text-amber-500 dark:text-amber-400", badgeClass: "bg-amber-500/15 text-amber-500 dark:text-amber-400 border-amber-500/30" },
+  NEUTRAL: { icon: Thermometer, label: "Neutral", color: "text-muted-foreground", badgeClass: "bg-muted text-muted-foreground border-border" },
+  COLD: { icon: TrendingDown, label: "Cold", color: "text-blue-500 dark:text-blue-400", badgeClass: "bg-blue-500/15 text-blue-500 dark:text-blue-400 border-blue-500/30" },
+};
 
 const POSITION_COLORS: Record<string, string> = {
   QB: "bg-red-500/20 text-red-400 dark:text-red-300 border-red-500/30",
@@ -350,7 +376,7 @@ function DynastyTabs({ card }: { card: DynastyCardResponse }) {
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="grid w-full gap-1" style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }} data-testid="dynasty-tabs">
+      <TabsList className="grid w-full gap-1" style={{ gridTemplateColumns: "repeat(6, minmax(0, 1fr))" }} data-testid="dynasty-tabs">
         <TabsTrigger value="overview" className="text-xs" data-testid="tab-overview">
           <Crown className="h-3 w-3 mr-1" />
           <span className="hidden sm:inline">Overview</span>
@@ -366,6 +392,10 @@ function DynastyTabs({ card }: { card: DynastyCardResponse }) {
         <TabsTrigger value="projection" className="text-xs" data-testid="tab-projection">
           <LineChart className="h-3 w-3 mr-1" />
           <span className="hidden sm:inline">Projection</span>
+        </TabsTrigger>
+        <TabsTrigger value="market" className="text-xs" data-testid="tab-market">
+          <Flame className="h-3 w-3 mr-1" />
+          <span className="hidden sm:inline">Market</span>
         </TabsTrigger>
         <TabsTrigger value="context" className="text-xs" data-testid="tab-context">
           <MapPin className="h-3 w-3 mr-1" />
@@ -385,6 +415,9 @@ function DynastyTabs({ card }: { card: DynastyCardResponse }) {
         </TabsContent>
         <TabsContent value="projection" className="mt-0">
           <ProjectionTab card={card} />
+        </TabsContent>
+        <TabsContent value="market" className="mt-0">
+          <MarketPsychologyTab playerId={card.playerId} />
         </TabsContent>
         <TabsContent value="context" className="mt-0">
           <ContextTab card={card} />
@@ -943,6 +976,203 @@ function ContextTab({ card }: { card: DynastyCardResponse }) {
           </div>
         </div>
       </Card>
+    </div>
+  );
+}
+
+function MarketPsychologyTab({ playerId }: { playerId: string }) {
+  const { data: metrics, isLoading } = useQuery<MarketPsychologyData>({
+    queryKey: ["/api/market-psychology", playerId],
+    queryFn: async () => {
+      const res = await fetch(`/api/market-psychology/${playerId}`);
+      if (!res.ok) throw new Error("Failed to fetch market data");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3" data-testid="market-tab-loading">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  if (!metrics) {
+    return (
+      <div className="py-8 text-center text-muted-foreground text-sm" data-testid="market-tab-empty">
+        No market psychology data available for this player.
+      </div>
+    );
+  }
+
+  const heatCfg = HEAT_CONFIG[metrics.marketHeatLevel] || HEAT_CONFIG.NEUTRAL;
+  const HeatIcon = heatCfg.icon;
+
+  const premiumLabel = metrics.hypePremiumPct > 0.15
+    ? "Overhyped"
+    : metrics.hypePremiumPct < -0.10
+      ? "Discount"
+      : "Fair";
+  const premiumColor = metrics.hypePremiumPct > 0.15
+    ? "text-red-500 dark:text-red-400"
+    : metrics.hypePremiumPct < -0.10
+      ? "text-green-500 dark:text-green-400"
+      : "text-muted-foreground";
+
+  return (
+    <div className="space-y-3" data-testid="market-tab">
+      <Card className="p-3" data-testid="market-heat-card">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-1.5">
+            <Flame className="h-3.5 w-3.5 text-amber-400" />
+            <span className="text-xs font-semibold">Market Psychology</span>
+          </div>
+          <Badge variant="outline" className={`text-xs ${heatCfg.badgeClass}`} data-testid="badge-market-heat">
+            <HeatIcon className="h-3 w-3 mr-1" />
+            {heatCfg.label}
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="text-center" data-testid="market-adjusted-value">
+            <div className="text-2xl font-bold text-amber-400">{Math.round(metrics.adjustedMarketValue).toLocaleString()}</div>
+            <div className="text-[10px] text-muted-foreground">Adjusted Market Value</div>
+          </div>
+          <div className="text-center" data-testid="market-hype-premium">
+            <div className={`text-2xl font-bold ${premiumColor}`}>
+              {metrics.hypePremiumPct >= 0 ? "+" : ""}{(metrics.hypePremiumPct * 100).toFixed(1)}%
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              Hype Premium
+              <span className={`ml-1 font-semibold ${premiumColor}`}>({premiumLabel})</span>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-3" data-testid="market-sentiment-card">
+        <div className="flex items-center gap-1.5 mb-3">
+          <Thermometer className="h-3.5 w-3.5 text-amber-400" />
+          <span className="text-xs font-semibold">Sentiment & Velocity</span>
+        </div>
+
+        <div className="space-y-3">
+          <MetricBar
+            label="Sentiment Score"
+            value={metrics.sentimentScore}
+            min={0}
+            max={100}
+            testId="market-sentiment-score"
+          />
+          <HypeVelocityBar
+            value={metrics.hypeVelocity}
+            testId="market-hype-velocity"
+          />
+        </div>
+      </Card>
+
+      <Card className="p-3" data-testid="market-supply-demand-card">
+        <div className="flex items-center gap-1.5 mb-3">
+          <BarChart3 className="h-3.5 w-3.5 text-amber-400" />
+          <span className="text-xs font-semibold">Supply & Demand</span>
+        </div>
+
+        <div className="space-y-3">
+          <MetricBar
+            label="Demand Index"
+            value={metrics.demandIndex}
+            min={0}
+            max={100}
+            color="bg-green-500"
+            testId="market-demand-index"
+          />
+          <MetricBar
+            label="Supply Index"
+            value={metrics.supplyIndex}
+            min={0}
+            max={100}
+            color="bg-blue-500"
+            testId="market-supply-index"
+          />
+        </div>
+
+        <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Base Dynasty Value</span>
+          <span className="font-mono font-semibold" data-testid="market-base-value">
+            {Math.round(metrics.baseDynastyValue).toLocaleString()}
+          </span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function MetricBar({ label, value, min, max, color = "bg-amber-500", testId }: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  color?: string;
+  testId: string;
+}) {
+  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+  const barColor = color === "bg-amber-500"
+    ? value >= 70 ? "bg-green-500" : value >= 40 ? "bg-amber-500" : "bg-red-500"
+    : color;
+
+  return (
+    <div data-testid={testId}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="text-xs font-mono font-semibold">{value.toFixed(1)}</span>
+      </div>
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${barColor}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HypeVelocityBar({ value, testId }: { value: number; testId: string }) {
+  const normalizedPct = ((value + 100) / 200) * 100;
+  const isPositive = value >= 0;
+
+  return (
+    <div data-testid={testId}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-muted-foreground">Hype Velocity</span>
+        <div className="flex items-center gap-1">
+          {isPositive ? (
+            <ArrowUpRight className="h-3 w-3 text-green-500 dark:text-green-400" />
+          ) : (
+            <ArrowDownRight className="h-3 w-3 text-red-500 dark:text-red-400" />
+          )}
+          <span className={`text-xs font-mono font-semibold ${isPositive ? "text-green-500 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
+            {value >= 0 ? "+" : ""}{value.toFixed(1)}
+          </span>
+        </div>
+      </div>
+      <div className="h-2 bg-muted rounded-full overflow-hidden relative">
+        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-border z-10" />
+        {isPositive ? (
+          <div
+            className="absolute top-0 bottom-0 bg-green-500 rounded-r-full"
+            style={{ left: "50%", width: `${(value / 100) * 50}%` }}
+          />
+        ) : (
+          <div
+            className="absolute top-0 bottom-0 bg-red-500 rounded-l-full"
+            style={{ right: "50%", width: `${(Math.abs(value) / 100) * 50}%` }}
+          />
+        )}
+      </div>
     </div>
   );
 }
