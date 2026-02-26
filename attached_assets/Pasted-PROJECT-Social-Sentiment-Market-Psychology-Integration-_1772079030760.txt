@@ -1,0 +1,232 @@
+PROJECT: Social Sentiment + Market Psychology Integration
+APP: DTsleeperAgent.com
+OBJECTIVE: Integrate social sentiment, hype premium, and supply/demand modeling into dynasty player valuation, trade engine, and FAAB optimizer.
+
+===========================================================
+1) NEW DATA MODELS
+===========================================================
+
+Create new database table: player_market_metrics
+
+Fields:
+- player_id (string, indexed)
+- sentiment_score (float 0-100)
+- hype_velocity (float -100 to +100)
+- demand_index (float 0-100)
+- supply_index (float 0-100)
+- hype_premium_pct (float -0.25 to +0.25)
+- adjusted_market_value (float)
+- market_heat_level (enum: COLD, NEUTRAL, HEATING, HOT)
+- last_updated (timestamp)
+
+Update daily via background job.
+
+===========================================================
+2) SENTIMENT SCORE CALCULATION
+===========================================================
+
+Inputs:
+- Twitter/X mentions (7 day volume)
+- Reddit post/comment count
+- News headline tone
+- YouTube title mentions
+- Google Trends score
+
+Run NLP polarity scoring (VADER or equivalent).
+
+Compute:
+weighted_sentiment =
+(0.35 * twitter_sentiment +
+ 0.20 * reddit_sentiment +
+ 0.20 * news_sentiment +
+ 0.15 * youtube_sentiment +
+ 0.10 * google_trends_scaled)
+
+Normalize to 0-100 scale.
+
+Store as sentiment_score.
+
+===========================================================
+3) HYPE VELOCITY
+===========================================================
+
+Compute:
+hype_velocity =
+(7_day_sentiment_avg - 30_day_sentiment_avg)
+
+Scale to -100 to +100.
+
+If > +20 = accelerating hype
+If < -20 = cooling off
+
+===========================================================
+4) MARKET DEMAND INDEX (MDI)
+===========================================================
+
+Inputs:
+- Add % change (weekly delta)
+- Trade inquiries count
+- FAAB bids submitted
+- Roster % delta
+- Trade block frequency
+
+Compute weighted score:
+demand_index =
+(0.30 * add_drop_velocity +
+ 0.25 * trade_inquiries +
+ 0.20 * faab_activity +
+ 0.15 * roster_delta +
+ 0.10 * trade_block_count)
+
+Scale to 0-100.
+
+===========================================================
+5) SUPPLY INDEX
+===========================================================
+
+Inputs:
+- % rostered
+- % on trade block
+- Injury IR status
+- FA eligibility
+- Depth chart redundancy
+
+Compute:
+supply_index =
+(0.40 * trade_block_pct +
+ 0.25 * fa_eligibility +
+ 0.20 * injury_availability +
+ 0.15 * position_depth_supply)
+
+Scale 0-100.
+
+Higher = more available.
+
+===========================================================
+6) HYPE PREMIUM CALCULATION
+===========================================================
+
+true_talent_score = base dynasty projection score (BDV normalized 0-100)
+
+raw_hype_signal =
+(0.40 * sentiment_score +
+ 0.30 * hype_velocity +
+ 0.30 * demand_index)
+
+hype_premium_pct =
+(raw_hype_signal - true_talent_score) / 100
+
+Clamp between -0.25 and +0.25.
+
+===========================================================
+7) ADJUSTED MARKET VALUE
+===========================================================
+
+adjusted_market_value =
+base_dynasty_value * (1 + hype_premium_pct)
+
+Store in player_market_metrics.
+
+===========================================================
+8) TRADE ENGINE MODIFIER
+===========================================================
+
+When evaluating trade fairness:
+
+If demand_index > 70 AND supply_index < 40:
+    require +5% to +12% premium
+
+If demand_index < 40 AND supply_index > 60:
+    apply -5% to -15% discount
+
+Add to trade negotiation logic:
+market_friction_modifier
+
+===========================================================
+9) FAAB OPTIMIZER INTEGRATION
+===========================================================
+
+Add inflation multiplier:
+
+hype_inflation_multiplier =
+1 + ((demand_index - supply_index) / 200)
+
+adjusted_optimal_bid =
+base_optimal_bid * hype_inflation_multiplier
+
+Cap multiplier between 0.80 and 1.35.
+
+===========================================================
+10) UI ADDITIONS
+===========================================================
+
+PLAYER PROFILE PAGE:
+
+Add new card:
+"Market Psychology"
+
+Display:
+- Sentiment Score (0-100)
+- Hype Velocity
+- Demand Index
+- Supply Index
+- Hype Premium %
+- Adjusted Market Value
+- Market Heat Level (color coded)
+
+Color logic:
+Hype Premium > +15% = Red (Overhyped)
+Hype Premium < -10% = Green (Discount)
+Else = Neutral
+
+-----------------------------------------------------------
+
+RANKINGS PAGE:
+
+Add "Market Heat" column:
+🔥 HOT
+🟠 HEATING
+⚪ NEUTRAL
+🔵 COLD
+
+Based on hype_velocity thresholds.
+
+-----------------------------------------------------------
+
+NEW PAGE:
+"/market-psychology"
+
+Filters:
+- Most Overhyped
+- Undervalued
+- Rising Fast
+- Panic Sells
+- Artificial Scarcity (low supply + high demand)
+
+===========================================================
+11) BACKGROUND JOB
+===========================================================
+
+Create daily cron job:
+
+- Pull social data
+- Update sentiment
+- Recalculate hype velocity
+- Update demand/supply
+- Recompute hype premium
+- Store metrics
+
+Run at 3am UTC.
+
+===========================================================
+12) SAFETY CONTROLS
+===========================================================
+
+- Cap hype premium at +/-25%
+- Never allow market value to override true talent anchor
+- Add bot filtering on social spikes
+- Smooth volatility using 3-day rolling average
+
+===========================================================
+END SPEC
+===========================================================
