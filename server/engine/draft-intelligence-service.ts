@@ -1,8 +1,9 @@
 import { db } from "../db";
-import { drafts, draftPicks, draftAdp, pickValueCurve, userProfiles } from "@shared/schema";
+import { drafts, draftPicks, draftAdp, pickValueCurve, userProfiles, externalRankings } from "@shared/schema";
 import { eq, sql, and, isNotNull } from "drizzle-orm";
 import * as sleeperApi from "../sleeper-api";
 import { getQuickPlayerValue } from "../dynasty-value-engine";
+import { fetchDynastyProcessRankings } from "./external-rankings-service";
 
 const RATE_LIMIT_DELAY = 250;
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -179,6 +180,20 @@ export async function ingestAllDrafts(): Promise<DraftIngestionStats> {
   return totalStats;
 }
 
+function computeConsensusRank(
+  sleeperAdpRank: number | null,
+  ecrRank: number | null,
+  sleeperSampleSize: number
+): number | null {
+  if (sleeperAdpRank != null && ecrRank != null) {
+    const w = Math.min(sleeperSampleSize / 20, 1.0);
+    return sleeperAdpRank * w + ecrRank * (1 - w);
+  }
+  if (ecrRank != null) return ecrRank;
+  if (sleeperAdpRank != null) return sleeperAdpRank;
+  return null;
+}
+
 export async function computeADP(): Promise<number> {
   console.log("[DraftIntel] Computing ADP...");
 
@@ -202,31 +217,93 @@ export async function computeADP(): Promise<number> {
     HAVING COUNT(*) >= 1
   `);
 
-  const rows = results.rows as any[];
+  const sleeperRows = results.rows as any[];
+
+  const extRows = await db.select().from(externalRankings).where(eq(externalRankings.source, "dynastyprocess"));
+  const extBySleeperIdMap = new Map<string, typeof extRows[0]>();
+  for (const ext of extRows) {
+    if (ext.sleeperId) {
+      extBySleeperIdMap.set(ext.sleeperId, ext);
+    }
+  }
 
   await db.delete(draftAdp);
 
+  const insertedPlayerIds = new Set<string>();
   let count = 0;
-  for (let i = 0; i < rows.length; i += 100) {
-    const batch = rows.slice(i, i + 100);
-    const values = batch.map((row: any) => ({
-      playerId: row.player_id,
-      playerName: row.player_name,
-      position: row.position,
-      adpOverall: row.adp_overall,
-      adp1qb: row.adp_1qb || null,
-      adpSf: row.adp_sf || null,
-      adpTep: row.adp_tep || null,
-      sampleSize: row.sample_size || 0,
-      sample1qb: row.sample_1qb || 0,
-      sampleSf: row.sample_sf || 0,
-      sampleTep: row.sample_tep || 0,
-    }));
+
+  const sleeperRankMap = new Map<string, number>();
+  const sortedSleeper = [...sleeperRows].sort((a: any, b: any) => (a.adp_overall || 999) - (b.adp_overall || 999));
+  sortedSleeper.forEach((row: any, idx: number) => {
+    sleeperRankMap.set(row.player_id, idx + 1);
+  });
+
+  for (let i = 0; i < sleeperRows.length; i += 100) {
+    const batch = sleeperRows.slice(i, i + 100);
+    const values = batch.map((row: any) => {
+      const ext = extBySleeperIdMap.get(row.player_id);
+      const sleeperRank = sleeperRankMap.get(row.player_id) || null;
+      const ecr1qb = ext?.ecr1qb || null;
+      const ecrSf = ext?.ecrSf || null;
+      const ecrForConsensus = ecr1qb || ecrSf;
+      const consensus = computeConsensusRank(sleeperRank, ecrForConsensus, row.sample_size || 0);
+      const sources: string[] = ["sleeper"];
+      if (ext) sources.push("dynastyprocess");
+
+      insertedPlayerIds.add(row.player_id);
+
+      return {
+        playerId: row.player_id,
+        playerName: row.player_name,
+        position: row.position,
+        adpOverall: row.adp_overall,
+        adp1qb: row.adp_1qb || null,
+        adpSf: row.adp_sf || null,
+        adpTep: row.adp_tep || null,
+        sampleSize: row.sample_size || 0,
+        sample1qb: row.sample_1qb || 0,
+        sampleSf: row.sample_sf || 0,
+        sampleTep: row.sample_tep || 0,
+        ecr1qb,
+        ecrSf,
+        consensusRank: consensus,
+        dataSources: sources.join(","),
+      };
+    });
     await db.insert(draftAdp).values(values);
     count += values.length;
   }
 
-  console.log(`[DraftIntel] ADP computed for ${count} players`);
+  const externalOnly = extRows.filter(ext => ext.sleeperId && !insertedPlayerIds.has(ext.sleeperId));
+  console.log(`[DraftIntel] Adding ${externalOnly.length} players from external sources only`);
+
+  for (let i = 0; i < externalOnly.length; i += 100) {
+    const batch = externalOnly.slice(i, i + 100);
+    const values = batch.map((ext) => {
+      const consensus = computeConsensusRank(null, ext.ecr1qb, 0);
+      return {
+        playerId: ext.sleeperId!,
+        playerName: ext.playerName,
+        position: ext.position,
+        adpOverall: null,
+        adp1qb: null,
+        adpSf: null,
+        adpTep: null,
+        sampleSize: 0,
+        sample1qb: 0,
+        sampleSf: 0,
+        sampleTep: 0,
+        ecr1qb: ext.ecr1qb,
+        ecrSf: ext.ecrSf,
+        consensusRank: consensus,
+        dataSources: "dynastyprocess",
+      };
+    });
+    await db.insert(draftAdp).values(values);
+    count += values.length;
+  }
+
+  console.log(`[DraftIntel] ADP computed for ${count} players (${sleeperRows.length} from Sleeper, ${externalOnly.length} from external)`);
   return count;
 }
 
@@ -409,6 +486,13 @@ export async function runFullDraftIntelPipeline(): Promise<void> {
   console.log("[DraftIntel] ====== Starting full Draft Intelligence pipeline ======");
 
   try {
+    try {
+      const extStats = await fetchDynastyProcessRankings();
+      console.log(`[DraftIntel] External: ${extStats.matched}/${extStats.total} DynastyProcess players matched`);
+    } catch (e) {
+      console.error("[DraftIntel] External rankings fetch failed (continuing):", e);
+    }
+
     const ingestionStats = await ingestAllDrafts();
     console.log(`[DraftIntel] Ingestion: ${ingestionStats.draftsProcessed} drafts, ${ingestionStats.picksStored} picks`);
 
@@ -438,22 +522,25 @@ export async function getCachedADP(options?: {
   search?: string;
   page?: number;
   limit?: number;
+  sort?: string;
 }): Promise<{ players: any[]; total: number }> {
-  const cacheKey = JSON.stringify(options || {});
-  
   const format = options?.format || "all";
   const position = options?.position;
   const search = options?.search;
   const page = options?.page || 1;
   const limit = options?.limit || 50;
   const offset = (page - 1) * limit;
+  const sort = options?.sort || "consensus";
 
-  const conditions: any[] = [];
-
-  let orderCol = "adp_overall";
-  if (format === "1QB") orderCol = "adp_1qb";
-  else if (format === "SF") orderCol = "adp_sf";
-  else if (format === "TEP") orderCol = "adp_tep";
+  let orderCol = "consensus_rank";
+  if (sort === "sleeper") {
+    orderCol = "adp_overall";
+    if (format === "1QB") orderCol = "adp_1qb";
+    else if (format === "SF") orderCol = "adp_sf";
+    else if (format === "TEP") orderCol = "adp_tep";
+  } else if (sort === "ecr") {
+    orderCol = format === "SF" ? "ecr_sf" : "ecr_1qb";
+  }
 
   let whereClause = sql`1=1`;
 
@@ -464,8 +551,14 @@ export async function getCachedADP(options?: {
     whereClause = sql`${whereClause} AND LOWER(player_name) LIKE ${`%${search.toLowerCase()}%`}`;
   }
   if (format !== "all") {
-    const colName = format === "1QB" ? "adp_1qb" : format === "SF" ? "adp_sf" : "adp_tep";
-    whereClause = sql`${whereClause} AND ${sql.raw(colName)} IS NOT NULL`;
+    if (sort === "ecr") {
+      const ecrCol = format === "SF" ? "ecr_sf" : "ecr_1qb";
+      whereClause = sql`${whereClause} AND ${sql.raw(ecrCol)} IS NOT NULL`;
+    } else {
+      const adpCol = format === "1QB" ? "adp_1qb" : format === "SF" ? "adp_sf" : "adp_tep";
+      const ecrCol = format === "SF" ? "ecr_sf" : "ecr_1qb";
+      whereClause = sql`${whereClause} AND (${sql.raw(adpCol)} IS NOT NULL OR ${sql.raw(ecrCol)} IS NOT NULL)`;
+    }
   }
 
   const countResult = await db.execute(sql`
@@ -481,6 +574,13 @@ export async function getCachedADP(options?: {
   `);
 
   return { players: dataResult.rows as any[], total };
+}
+
+export async function getSleeperPlayerCount(): Promise<number> {
+  const result = await db.execute(sql`
+    SELECT COUNT(*)::int AS cnt FROM draft_adp WHERE data_sources LIKE '%sleeper%'
+  `);
+  return (result.rows[0] as any)?.cnt || 0;
 }
 
 export async function getPlayerADP(playerId: string): Promise<any | null> {

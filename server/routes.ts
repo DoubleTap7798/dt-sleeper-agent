@@ -28,6 +28,7 @@ import { detectRegressionAlerts } from "./engine/regression-detector";
 import { buildEliteProfile } from "./engine/player-profile-engine";
 import type { PlayerProjection } from "./engine/types";
 import * as draftIntelService from "./engine/draft-intelligence-service";
+import { getExternalRankingsSummary } from "./engine/external-rankings-service";
 import * as playerValuationService from "./engine/player-valuation-service";
 import * as devyProjectionService from "./engine/devy-projection-service";
 import * as franchiseModelingService from "./engine/franchise-modeling-service";
@@ -17631,12 +17632,31 @@ Respond in JSON format:
       const search = req.query.search as string | undefined;
       const page = parseInt(req.query.page as string) || 1;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const sort = (req.query.sort as string) || "consensus";
 
-      const result = await draftIntelService.getCachedADP({ format, position, search, page, limit });
+      const result = await draftIntelService.getCachedADP({ format, position, search, page, limit, sort });
       res.json(result);
     } catch (error: any) {
       console.error("Draft ADP error:", error);
       res.status(500).json({ error: "Failed to fetch ADP data" });
+    }
+  });
+
+  app.get("/api/draft-intelligence/sources", isAuthenticated, async (_req: any, res: Response) => {
+    try {
+      const sources = await getExternalRankingsSummary();
+      const sleeperCount = await draftIntelService.getSleeperPlayerCount();
+      sources.unshift({
+        source: "sleeper",
+        playerCount: sleeperCount,
+        matchedCount: sleeperCount,
+        lastUpdated: new Date().toISOString(),
+        description: "Community ADP from real Sleeper league drafts across all registered users. Grows as more users connect their accounts.",
+      });
+      res.json(sources);
+    } catch (error: any) {
+      console.error("Draft sources error:", error);
+      res.status(500).json({ error: "Failed to fetch data sources" });
     }
   });
 

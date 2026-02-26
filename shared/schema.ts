@@ -541,6 +541,10 @@ export const draftAdp = pgTable("draft_adp", {
   sampleTep: integer("sample_tep").notNull().default(0),
   rookiePickEq: text("rookie_pick_eq"),
   startupPickEq: text("startup_pick_eq"),
+  ecr1qb: real("ecr_1qb"),
+  ecrSf: real("ecr_sf"),
+  consensusRank: real("consensus_rank"),
+  dataSources: text("data_sources"),
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
@@ -568,3 +572,27 @@ export const insertPickValueCurveSchema = createInsertSchema(pickValueCurve).omi
 
 export type PickValueCurve = typeof pickValueCurve.$inferSelect;
 export type InsertPickValueCurve = z.infer<typeof insertPickValueCurveSchema>;
+
+export const externalRankings = pgTable("external_rankings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  playerName: text("player_name").notNull(),
+  position: text("position"),
+  team: text("team"),
+  source: text("source").notNull(),
+  ecr1qb: real("ecr_1qb"),
+  ecrSf: real("ecr_sf"),
+  ecrPositional: real("ecr_positional"),
+  value1qb: real("value_1qb"),
+  valueSf: real("value_sf"),
+  fpId: text("fp_id"),
+  sleeperId: text("sleeper_id"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export const insertExternalRankingsSchema = createInsertSchema(externalRankings).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export type ExternalRanking = typeof externalRankings.$inferSelect;
+export type InsertExternalRanking = z.infer<typeof insertExternalRankingsSchema>;

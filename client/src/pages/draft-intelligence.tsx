@@ -25,6 +25,9 @@ import {
   Crosshair,
   ArrowUpDown,
   Users,
+  Database,
+  Globe,
+  CircleDot,
 } from "lucide-react";
 import { PremiumGate } from "@/components/premium-gate";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -46,6 +49,10 @@ interface ADPPlayer {
   sample_tep: number;
   rookie_pick_eq: string | null;
   startup_pick_eq: string | null;
+  ecr_1qb: number | null;
+  ecr_sf: number | null;
+  consensus_rank: number | null;
+  data_sources: string | null;
 }
 
 interface ADPResponse {
@@ -61,6 +68,14 @@ interface PickCurveEntry {
   sampleSize: number;
 }
 
+interface DataSource {
+  source: string;
+  playerCount: number;
+  matchedCount: number;
+  lastUpdated: string | null;
+  description: string;
+}
+
 type TabKey = "adp" | "curve" | "overview";
 
 const TABS: { key: TabKey; label: string; icon: typeof BarChart3 }[] = [
@@ -68,6 +83,11 @@ const TABS: { key: TabKey; label: string; icon: typeof BarChart3 }[] = [
   { key: "curve", label: "Pick Value Curve", icon: TrendingDown },
   { key: "overview", label: "Draft Overview", icon: BarChart3 },
 ];
+
+const SOURCE_COLORS: Record<string, { dot: string; bg: string; label: string }> = {
+  sleeper: { dot: "bg-amber-500", bg: "bg-amber-500/10 border-amber-500/30", label: "Sleeper Community" },
+  dynastyprocess: { dot: "bg-emerald-500", bg: "bg-emerald-500/10 border-emerald-500/30", label: "DynastyProcess ECR" },
+};
 
 function getPositionColor(pos: string | null) {
   switch (pos) {
@@ -84,6 +104,11 @@ function formatADP(value: number | null): string {
   return value.toFixed(1);
 }
 
+function formatECR(value: number | null): string {
+  if (value === null || value === undefined) return "—";
+  return value.toFixed(1);
+}
+
 function PickEquivalentBadge({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
   return (
@@ -91,6 +116,61 @@ function PickEquivalentBadge({ label, value }: { label: string; value: string | 
       <span className="text-muted-foreground">{label}:</span>
       <span className="font-mono font-semibold text-amber-500 dark:text-amber-400">{value}</span>
     </span>
+  );
+}
+
+function SourceDots({ sources }: { sources: string | null }) {
+  if (!sources) return null;
+  const sourceList = sources.split(",");
+  return (
+    <div className="flex items-center gap-0.5">
+      {sourceList.map((s) => {
+        const config = SOURCE_COLORS[s.trim()];
+        if (!config) return null;
+        return (
+          <div
+            key={s}
+            className={`w-1.5 h-1.5 rounded-full ${config.dot}`}
+            title={config.label}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function DataSourcesBanner() {
+  const { data: sources } = useQuery<DataSource[]>({
+    queryKey: ["/api/draft-intelligence/sources"],
+    queryFn: async () => {
+      const res = await fetch("/api/draft-intelligence/sources", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (!sources || sources.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs" data-testid="data-sources-banner">
+      <Database className="h-3.5 w-3.5 text-muted-foreground" />
+      <span className="text-muted-foreground">Sources:</span>
+      {sources.map((s) => {
+        const config = SOURCE_COLORS[s.source] || { dot: "bg-gray-500", bg: "bg-gray-500/10 border-gray-500/30", label: s.source };
+        return (
+          <Badge
+            key={s.source}
+            variant="outline"
+            className={`text-[10px] px-2 py-0.5 ${config.bg}`}
+            data-testid={`badge-source-${s.source}`}
+          >
+            <span className={`inline-block w-1.5 h-1.5 rounded-full ${config.dot} mr-1.5`} />
+            {config.label} ({s.playerCount.toLocaleString()})
+          </Badge>
+        );
+      })}
+    </div>
   );
 }
 
@@ -119,16 +199,18 @@ function ADPTable({
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState("consensus");
   const limit = 30;
   const isMobile = useIsMobile();
 
   const { data, isLoading } = useQuery<ADPResponse>({
-    queryKey: ["/api/draft-intelligence/adp", { format, position: position === "ALL" ? undefined : position, search: search || undefined, page, limit }],
+    queryKey: ["/api/draft-intelligence/adp", { format, position: position === "ALL" ? undefined : position, search: search || undefined, page, limit, sort }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("format", format);
       params.set("page", page.toString());
       params.set("limit", limit.toString());
+      params.set("sort", sort);
       if (position !== "ALL") params.set("position", position);
       if (search) params.set("search", search);
       const res = await fetch(`/api/draft-intelligence/adp?${params}`, { credentials: "include" });
@@ -154,8 +236,15 @@ function ADPTable({
     return player.sample_size;
   };
 
+  const getEcrForFormat = (player: ADPPlayer) => {
+    if (format === "SF") return player.ecr_sf;
+    return player.ecr_1qb;
+  };
+
   return (
     <div className="space-y-4">
+      <DataSourcesBanner />
+
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -167,6 +256,16 @@ function ADPTable({
             data-testid="input-adp-search"
           />
         </div>
+        <Select value={sort} onValueChange={(v) => { setSort(v); setPage(1); }}>
+          <SelectTrigger className="w-[150px]" data-testid="select-sort">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="consensus" data-testid="option-sort-consensus">Consensus Rank</SelectItem>
+            <SelectItem value="sleeper" data-testid="option-sort-sleeper">Sleeper ADP</SelectItem>
+            <SelectItem value="ecr" data-testid="option-sort-ecr">Expert ECR</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={format} onValueChange={(v) => { onFormatChange(v); setPage(1); }}>
           <SelectTrigger className="w-[120px]" data-testid="select-format">
             <SelectValue />
@@ -205,17 +304,21 @@ function ADPTable({
         </div>
       ) : !data?.players?.length ? (
         <Card className="p-8 text-center">
-          <p className="text-muted-foreground" data-testid="text-adp-empty">No ADP data available yet. The pipeline processes drafts from all connected Sleeper leagues.</p>
+          <p className="text-muted-foreground" data-testid="text-adp-empty">No ADP data available yet. The pipeline processes drafts from all connected Sleeper leagues and external ranking sources.</p>
         </Card>
       ) : (
         <>
           <div className="rounded-lg border border-border overflow-x-auto">
-            <table className="w-full min-w-[500px]">
+            <table className="w-full min-w-[560px]">
               <thead>
                 <tr className="bg-muted/50 text-xs text-muted-foreground">
                   <th className="text-left p-3 w-10">#</th>
                   <th className="text-left p-3">Player</th>
+                  <th className="text-center p-3 w-8" title="Data Sources">
+                    <CircleDot className="h-3 w-3 mx-auto" />
+                  </th>
                   <th className="text-right p-3">ADP</th>
+                  <th className="text-right p-3 hidden sm:table-cell">ECR</th>
                   <th className="text-right p-3 hidden sm:table-cell">Samples</th>
                   <th className="text-right p-3 hidden md:table-cell">Rookie Eq</th>
                   <th className="text-right p-3 hidden md:table-cell">Startup Eq</th>
@@ -223,7 +326,6 @@ function ADPTable({
                     <>
                       <th className="text-right p-3 hidden lg:table-cell">1QB</th>
                       <th className="text-right p-3 hidden lg:table-cell">SF</th>
-                      <th className="text-right p-3 hidden lg:table-cell">TEP</th>
                     </>
                   )}
                 </tr>
@@ -231,6 +333,9 @@ function ADPTable({
               <tbody>
                 {data.players.map((player, idx) => {
                   const rank = (page - 1) * limit + idx + 1;
+                  const adp = getAdpForFormat(player);
+                  const ecr = getEcrForFormat(player);
+                  const hasSleeperData = player.data_sources?.includes("sleeper");
                   return (
                     <tr
                       key={player.id}
@@ -249,13 +354,29 @@ function ADPTable({
                           </span>
                         </div>
                       </td>
+                      <td className="p-3 text-center">
+                        <SourceDots sources={player.data_sources} />
+                      </td>
                       <td className="p-3 text-right">
-                        <span className="font-mono font-bold text-sm text-amber-500 dark:text-amber-400" data-testid={`text-adp-${player.player_id}`}>
-                          {formatADP(getAdpForFormat(player))}
-                        </span>
+                        {hasSleeperData ? (
+                          <span className="font-mono font-bold text-sm text-amber-500 dark:text-amber-400" data-testid={`text-adp-${player.player_id}`}>
+                            {formatADP(adp)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic" data-testid={`text-adp-${player.player_id}`}>—</span>
+                        )}
                       </td>
                       <td className="p-3 text-right hidden sm:table-cell">
-                        <span className="text-xs text-muted-foreground">{getSampleForFormat(player)}</span>
+                        {ecr != null ? (
+                          <span className="font-mono text-sm text-emerald-500 dark:text-emerald-400" data-testid={`text-ecr-${player.player_id}`}>
+                            {formatECR(ecr)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right hidden sm:table-cell">
+                        <span className="text-xs text-muted-foreground">{getSampleForFormat(player) || "—"}</span>
                       </td>
                       <td className="p-3 text-right hidden md:table-cell">
                         <span className="font-mono text-xs text-green-500 dark:text-green-400">{player.rookie_pick_eq || "—"}</span>
@@ -267,7 +388,6 @@ function ADPTable({
                         <>
                           <td className="p-3 text-right hidden lg:table-cell text-xs text-muted-foreground">{formatADP(player.adp_1qb)}</td>
                           <td className="p-3 text-right hidden lg:table-cell text-xs text-muted-foreground">{formatADP(player.adp_sf)}</td>
-                          <td className="p-3 text-right hidden lg:table-cell text-xs text-muted-foreground">{formatADP(player.adp_tep)}</td>
                         </>
                       )}
                     </tr>
@@ -423,6 +543,16 @@ function OverviewPanel() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: sources } = useQuery<DataSource[]>({
+    queryKey: ["/api/draft-intelligence/sources"],
+    queryFn: async () => {
+      const res = await fetch("/api/draft-intelligence/sources", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   const isLoading = adpLoading || curveLoading;
   const totalPlayers = adpData?.total || 0;
   const topPlayers = adpData?.players || [];
@@ -445,7 +575,7 @@ function OverviewPanel() {
     { label: "Players Tracked", value: totalPlayers.toLocaleString(), icon: Users, color: "text-amber-500 dark:text-amber-400" },
     { label: "Rookie Curve Slots", value: curveEntries.length.toString(), icon: TrendingDown, color: "text-green-500 dark:text-green-400" },
     { label: "Avg Samples / Pick", value: avgCurveSamples.toString(), icon: Layers, color: "text-blue-500 dark:text-blue-400" },
-    { label: "Top ADP", value: topPlayers[0]?.player_name || "—", icon: Crosshair, color: "text-purple-500 dark:text-purple-400" },
+    { label: "Data Sources", value: (sources?.length || 0).toString(), icon: Globe, color: "text-purple-500 dark:text-purple-400" },
   ];
 
   return (
@@ -462,10 +592,43 @@ function OverviewPanel() {
         ))}
       </div>
 
+      {sources && sources.length > 0 && (
+        <Card className="p-4 border-border" data-testid="card-data-sources">
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <Database className="h-4 w-4 text-amber-500" />
+            Data Sources
+          </h3>
+          <div className="space-y-3">
+            {sources.map((s) => {
+              const config = SOURCE_COLORS[s.source] || { dot: "bg-gray-500", bg: "bg-gray-500/10 border-gray-500/30", label: s.source };
+              return (
+                <div key={s.source} className={`rounded-lg border p-3 ${config.bg}`} data-testid={`source-detail-${s.source}`}>
+                  <div className="flex items-start justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-block w-2 h-2 rounded-full ${config.dot}`} />
+                      <span className="text-sm font-semibold">{config.label}</span>
+                    </div>
+                    <Badge variant="outline" className="text-[10px]">
+                      {s.playerCount.toLocaleString()} players
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{s.description}</p>
+                  {s.lastUpdated && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Last updated: {new Date(s.lastUpdated).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       <Card className="p-4 border-border">
         <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
           <Target className="h-4 w-4 text-amber-500" />
-          Top 5 by Overall ADP
+          Top 5 by Consensus Rank
         </h3>
         <div className="space-y-2">
           {topPlayers.map((p, i) => (
@@ -475,14 +638,16 @@ function OverviewPanel() {
                 {p.position}
               </Badge>
               <span className="font-medium flex-1 truncate">{p.player_name}</span>
-              <span className="font-mono font-bold text-amber-500 dark:text-amber-400">
-                {formatADP(p.adp_overall)}
-              </span>
-              <span className="text-xs text-muted-foreground hidden sm:inline">
-                ({p.sample_size} samples)
-              </span>
-              {p.rookie_pick_eq && (
-                <PickEquivalentBadge label="R" value={p.rookie_pick_eq} />
+              <SourceDots sources={p.data_sources} />
+              {p.adp_overall != null && (
+                <span className="font-mono text-xs text-amber-500 dark:text-amber-400">
+                  ADP {formatADP(p.adp_overall)}
+                </span>
+              )}
+              {p.ecr_1qb != null && (
+                <span className="font-mono text-xs text-emerald-500 dark:text-emerald-400 hidden sm:inline">
+                  ECR {formatECR(p.ecr_1qb)}
+                </span>
               )}
             </div>
           ))}
@@ -495,19 +660,23 @@ function OverviewPanel() {
           How It Works
         </h3>
         <div className="space-y-2 text-xs text-muted-foreground">
-          <p>The Draft Intelligence Engine ingests real draft data from all connected Sleeper leagues to build institutional-grade draft pricing.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+          <p>The Draft Intelligence Engine combines multiple data sources to build institutional-grade draft pricing. Sleeper community ADP grows as more users connect their accounts, while DynastyProcess provides expert consensus rankings updated weekly.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
             <div className="bg-muted/30 rounded-lg p-3">
-              <p className="font-semibold text-foreground mb-1">ADP Rankings</p>
-              <p>Average Draft Position computed across all completed drafts, segmented by format (1QB, Superflex, TEP).</p>
+              <p className="font-semibold text-foreground mb-1">Consensus Rank</p>
+              <p>Blended rank combining Sleeper community ADP with expert ECR, weighted by sample size for accuracy.</p>
             </div>
             <div className="bg-muted/30 rounded-lg p-3">
-              <p className="font-semibold text-foreground mb-1">Pick Value Curve</p>
-              <p>Average dynasty value of players selected at each pick slot, showing how value decays across rounds.</p>
+              <p className="font-semibold text-foreground mb-1">Sleeper ADP</p>
+              <p>Average Draft Position from real drafts across all connected Sleeper leagues, by format.</p>
+            </div>
+            <div className="bg-muted/30 rounded-lg p-3">
+              <p className="font-semibold text-foreground mb-1">Expert ECR</p>
+              <p>Expert Consensus Ranking from DynastyProcess aggregating industry expert opinions.</p>
             </div>
             <div className="bg-muted/30 rounded-lg p-3">
               <p className="font-semibold text-foreground mb-1">Pick Equivalents</p>
-              <p>Each player mapped to their closest rookie and startup pick equivalent based on dynasty value.</p>
+              <p>Each player mapped to their closest rookie and startup pick based on dynasty value.</p>
             </div>
           </div>
         </div>
@@ -538,7 +707,7 @@ function DraftIntelligenceContent() {
           Draft Intelligence Engine
         </h1>
         <p className="text-sm text-muted-foreground mt-1" data-testid="text-page-subtitle">
-          Institutional-grade draft pricing from real Sleeper draft data
+          Multi-source draft pricing from Sleeper community data and expert consensus rankings
         </p>
       </div>
 
