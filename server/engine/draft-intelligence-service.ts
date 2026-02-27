@@ -183,14 +183,22 @@ export async function ingestAllDrafts(): Promise<DraftIngestionStats> {
 function computeConsensusRank(
   sleeperAdpRank: number | null,
   ecrRank: number | null,
-  sleeperSampleSize: number
+  sleeperSampleSize: number,
+  hasEcr: boolean = true
 ): number | null {
   if (sleeperAdpRank != null && ecrRank != null) {
     const w = Math.min(sleeperSampleSize / 20, 1.0);
     return sleeperAdpRank * w + ecrRank * (1 - w);
   }
   if (ecrRank != null) return ecrRank;
-  if (sleeperAdpRank != null) return sleeperAdpRank;
+  if (sleeperAdpRank != null) {
+    if (!hasEcr) {
+      const confidence = Math.min(sleeperSampleSize / 20, 1.0);
+      const penalty = 200 * (1 - confidence);
+      return sleeperAdpRank + penalty;
+    }
+    return sleeperAdpRank;
+  }
   return null;
 }
 
@@ -214,7 +222,7 @@ export async function computeADP(): Promise<number> {
     JOIN drafts d ON dp.draft_id = d.draft_id
     WHERE d.status = 'complete'
     GROUP BY dp.player_id, dp.player_name, dp.position
-    HAVING COUNT(*) >= 1
+    HAVING COUNT(*) >= 3
   `);
 
   const sleeperRows = results.rows as any[];
@@ -246,7 +254,8 @@ export async function computeADP(): Promise<number> {
       const ecr1qb = ext?.ecr1qb || null;
       const ecrSf = ext?.ecrSf || null;
       const ecrForConsensus = ecr1qb || ecrSf;
-      const consensus = computeConsensusRank(sleeperRank, ecrForConsensus, row.sample_size || 0);
+      const hasEcr = !!ext;
+      const consensus = computeConsensusRank(sleeperRank, ecrForConsensus, row.sample_size || 0, hasEcr);
       const sources: string[] = ["sleeper"];
       if (ext) sources.push("dynastyprocess");
 
@@ -558,7 +567,7 @@ export async function getCachedADP(options?: {
 
   const orderCol = ALLOWED_ORDER_COLS[orderKey] || "consensus_rank";
 
-  let whereClause = sql`1=1`;
+  let whereClause = sql`1=1 AND (da.sample_size >= 3 OR da.data_sources LIKE '%dynastyprocess%')`;
 
   if (category === "offense") {
     whereClause = sql`${whereClause} AND da.position IN ('QB', 'RB', 'WR', 'TE')`;
