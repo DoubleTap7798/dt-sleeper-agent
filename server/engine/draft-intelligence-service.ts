@@ -263,10 +263,7 @@ export async function computeADP(): Promise<number> {
 
       insertedPlayerIds.add(row.player_id);
 
-      const rookiePicks = row.rookie_picks || 0;
-      const startupPicks = row.startup_picks || 0;
-      let playerDraftType = "startup";
-      if (rookiePicks > startupPicks) playerDraftType = "rookie";
+      const playerDraftType = "startup";
 
       return {
         playerId: row.player_id,
@@ -314,7 +311,7 @@ export async function computeADP(): Promise<number> {
         ecrSf: ext.ecrSf,
         consensusRank: consensus,
         dataSources: "dynastyprocess",
-        draftType: "startup",
+        draftType: (!ext.team || ext.team === "FA") ? "rookie" : "startup",
       };
     });
     await db.insert(draftAdp).values(values);
