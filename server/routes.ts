@@ -17693,8 +17693,10 @@ Respond in JSON format:
       const rawType = (req.query.type as string) || "rookie";
       const draftType = rawType === "startup" ? "startup" : "rookie";
       const enhanced = req.query.enhanced === "true";
+      const rawMode = (req.query.mode as string) || "unique";
+      const mode = draftType === "rookie" ? "raw" : rawMode;
       if (enhanced) {
-        const curve = await draftIntelService.getEnhancedPickValueCurve(draftType);
+        const curve = await draftIntelService.getEnhancedPickValueCurve(draftType, mode);
         res.json(curve);
       } else {
         const curve = await draftIntelService.getCachedPickValueCurve(draftType);

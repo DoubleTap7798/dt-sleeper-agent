@@ -481,8 +481,11 @@ interface PickDistribution {
   playerName: string;
   position: string | null;
   totalPicked: number;
+  avgPick: number | null;
+  medianPick: number | null;
   draftType: string;
   distribution: { pickNo: number; pickLabel: string; count: number }[];
+  formatBreakdown: { format: string; count: number; avgPick: number | null }[];
 }
 
 function PlayerPickDistributionModal({
@@ -509,11 +512,17 @@ function PlayerPickDistributionModal({
 
   const maxCount = data?.distribution ? Math.max(...data.distribution.map(d => d.count)) : 1;
 
+  const fmtPick = (pickNum: number) => {
+    const round = Math.ceil(pickNum / 12);
+    const pick = ((pickNum - 1) % 12) + 1;
+    return `${round}.${pick.toString().padStart(2, "0")}`;
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
       <Card
-        className="relative z-10 w-full max-w-sm border-amber-500/30 bg-background p-0 overflow-hidden"
+        className="relative z-10 w-full max-w-md border-amber-500/30 bg-background p-0 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         data-testid="modal-pick-distribution"
       >
@@ -538,7 +547,38 @@ function PlayerPickDistributionModal({
             </p>
           )}
         </div>
-        <div className="p-4 max-h-72 overflow-y-auto">
+
+        {data && (
+          <div className="px-4 pt-3 pb-1 flex gap-4 border-b border-border">
+            {data.avgPick != null && (
+              <div data-testid="text-avg-pick">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Pick</p>
+                <p className="font-mono text-sm font-bold text-amber-500 dark:text-amber-400">{fmtPick(Math.round(data.avgPick))}</p>
+              </div>
+            )}
+            {data.medianPick != null && (
+              <div data-testid="text-median-pick">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Median</p>
+                <p className="font-mono text-sm font-bold">{fmtPick(data.medianPick)}</p>
+              </div>
+            )}
+            {data.formatBreakdown && data.formatBreakdown.length > 0 && (
+              <div className="ml-auto flex gap-3">
+                {data.formatBreakdown.map((fb) => (
+                  <div key={fb.format} data-testid={`text-format-${fb.format}`}>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{fb.format}</p>
+                    <p className="font-mono text-xs">
+                      {fb.avgPick != null ? fmtPick(Math.round(fb.avgPick)) : "—"}
+                      <span className="text-muted-foreground ml-1">({fb.count})</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="p-4 max-h-64 overflow-y-auto">
           {isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -578,12 +618,15 @@ function PlayerPickDistributionModal({
 
 function PickValueCurvePanel() {
   const [curveType, setCurveType] = useState<string>("rookie");
+  const [startupMode, setStartupMode] = useState<string>("unique");
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
 
+  const mode = curveType === "startup" ? startupMode : "raw";
+
   const { data: curveData, isLoading } = useQuery<PickCurveEntry[]>({
-    queryKey: ["/api/draft-intelligence/pick-value-curve", { type: curveType, enhanced: "true" }],
+    queryKey: ["/api/draft-intelligence/pick-value-curve", { type: curveType, enhanced: "true", mode }],
     queryFn: async () => {
-      const res = await fetch(`/api/draft-intelligence/pick-value-curve?type=${curveType}&enhanced=true`, { credentials: "include" });
+      const res = await fetch(`/api/draft-intelligence/pick-value-curve?type=${curveType}&enhanced=true&mode=${mode}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch curve");
       return res.json();
     },
@@ -592,6 +635,7 @@ function PickValueCurvePanel() {
 
   const filteredData = (curveData || []).filter(d => d.draftType === curveType);
   const maxValue = Math.max(...filteredData.map(d => d.avgDynastyValue), 1);
+  const draftCount = (filteredData[0] as any)?.draftCount || 0;
 
   const formatPickLabel = (pickNum: number) => {
     const round = Math.ceil(pickNum / 12);
@@ -605,14 +649,19 @@ function PickValueCurvePanel() {
         <div className="flex items-start gap-3">
           <Info className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="text-sm font-medium">What is the Pick Value Curve?</p>
-            <p className="text-xs text-muted-foreground">
-              Shows the most commonly selected player at each draft pick across all completed drafts.
+            <p className="text-sm font-medium">
               {curveType === "rookie"
-                ? " Rookie drafts cover incoming draft class players (2026 NFL Draft eligible)."
-                : " Startup drafts include all players — current NFL veterans and incoming rookies."
+                ? `Draft Class: 2026 — ${draftCount} drafts analyzed`
+                : `Startup Drafts — ${draftCount} drafts analyzed`
               }
-              {" "}Tap a player to see their full pick distribution.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {curveType === "rookie"
+                ? "Shows the most commonly selected player at each pick slot across completed rookie drafts. The same player can appear at multiple slots since different leagues draft differently. Tap any player to see their full pick distribution."
+                : startupMode === "unique"
+                  ? "Unique Pick Leader mode: each player appears only once, assigned to their highest-frequency pick slot. This shows a clean draft board without duplication. Tap any player to see their full distribution."
+                  : "Raw Frequency mode: shows the most-picked player at each slot regardless of duplication. The same player may appear at multiple picks. Tap any player to see their full distribution."
+              }
             </p>
           </div>
         </div>
@@ -637,8 +686,28 @@ function PickValueCurvePanel() {
             Startup Drafts
           </Button>
         </div>
+        {curveType === "startup" && (
+          <div className="flex gap-1">
+            <Button
+              variant={startupMode === "unique" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setStartupMode("unique"); setSelectedPlayer(null); }}
+              data-testid="button-mode-unique"
+            >
+              Unique Pick Leader
+            </Button>
+            <Button
+              variant={startupMode === "raw" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setStartupMode("raw"); setSelectedPlayer(null); }}
+              data-testid="button-mode-raw"
+            >
+              Raw Frequency
+            </Button>
+          </div>
+        )}
         <span className="text-xs text-muted-foreground" data-testid="text-curve-count">
-          {filteredData.length} pick slots &middot; {curveType === "rookie" ? "2026 draft class" : "All players"}
+          {filteredData.length} pick slots
         </span>
       </div>
 
@@ -658,7 +727,7 @@ function PickValueCurvePanel() {
             <thead>
               <tr className="bg-muted/50 text-xs text-muted-foreground">
                 <th className="text-left p-3 w-16">Pick</th>
-                <th className="text-left p-3">Most Common Selection</th>
+                <th className="text-left p-3">{curveType === "startup" && startupMode === "unique" ? "Pick Leader" : "Most Common Selection"}</th>
                 <th className="text-right p-3 w-24 hidden sm:table-cell">Value</th>
                 <th className="text-right p-3 w-16 hidden sm:table-cell">% of Top</th>
                 <th className="p-3 w-32 hidden md:table-cell">Relative Value</th>

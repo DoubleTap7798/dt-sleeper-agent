@@ -651,33 +651,90 @@ export async function getCachedPickValueCurve(draftType?: string): Promise<any[]
   return sorted;
 }
 
-export async function getEnhancedPickValueCurve(draftType: string): Promise<any[]> {
+export async function getEnhancedPickValueCurve(draftType: string, mode: string = "unique"): Promise<any[]> {
   const curveRows = await db.select()
     .from(pickValueCurve)
     .where(eq(pickValueCurve.draftType, draftType));
-  
+
   const sorted = curveRows.sort((a, b) => a.pickNumber - b.pickNumber);
-  
+
   const topPlayerResult = await db.execute(sql`
     SELECT dp.pick_no, dp.player_name, dp.position, COUNT(*)::int AS times_picked
     FROM draft_picks dp
     JOIN drafts d ON dp.draft_id = d.draft_id
     WHERE d.type = ${draftType}
+      AND d.status = 'complete'
       AND dp.position IN ('QB', 'RB', 'WR', 'TE')
     GROUP BY dp.pick_no, dp.player_name, dp.position
     ORDER BY dp.pick_no ASC, times_picked DESC
   `);
-  
-  const topPlayerByPick: Record<number, { name: string; position: string; count: number }> = {};
+
+  const playersByPick: Record<number, { name: string; position: string; count: number }[]> = {};
   for (const row of topPlayerResult.rows as any[]) {
     const pickNo = row.pick_no;
-    if (!topPlayerByPick[pickNo]) {
-      topPlayerByPick[pickNo] = { name: row.player_name, position: row.position, count: row.times_picked };
+    if (!playersByPick[pickNo]) playersByPick[pickNo] = [];
+    playersByPick[pickNo].push({ name: row.player_name, position: row.position, count: row.times_picked });
+  }
+
+  let topPlayerByPick: Record<number, { name: string; position: string; count: number }> = {};
+
+  const useUnique = draftType === "startup" && mode === "unique";
+
+  if (useUnique) {
+    const playerBestPick: Record<string, { pickNo: number; count: number; position: string }> = {};
+    for (const [pickNoStr, candidates] of Object.entries(playersByPick)) {
+      const pickNo = Number(pickNoStr);
+      for (const c of candidates) {
+        const existing = playerBestPick[c.name];
+        if (!existing || c.count > existing.count || (c.count === existing.count && pickNo < existing.pickNo)) {
+          playerBestPick[c.name] = { pickNo, count: c.count, position: c.position };
+        }
+      }
+    }
+
+    const assignedPicks = new Set<number>();
+    const assignments = Object.entries(playerBestPick)
+      .map(([name, info]) => ({ name, ...info }))
+      .sort((a, b) => b.count - a.count || a.pickNo - b.pickNo);
+
+    for (const player of assignments) {
+      if (!assignedPicks.has(player.pickNo)) {
+        topPlayerByPick[player.pickNo] = { name: player.name, position: player.position, count: player.count };
+        assignedPicks.add(player.pickNo);
+      }
+    }
+
+    const pickNumbers = Object.keys(playersByPick).map(Number).sort((a, b) => a - b);
+    const assignedPlayers = new Set(Object.values(topPlayerByPick).map(p => p.name));
+    for (const pickNo of pickNumbers) {
+      if (topPlayerByPick[pickNo]) continue;
+      const candidates = playersByPick[pickNo] || [];
+      for (const candidate of candidates) {
+        if (!assignedPlayers.has(candidate.name)) {
+          topPlayerByPick[pickNo] = candidate;
+          assignedPlayers.add(candidate.name);
+          break;
+        }
+      }
+    }
+  } else {
+    for (const [pickNoStr, players] of Object.entries(playersByPick)) {
+      const pickNo = Number(pickNoStr);
+      if (players.length > 0) {
+        topPlayerByPick[pickNo] = players[0];
+      }
     }
   }
-  
+
+  const draftCountResult = await db.execute(sql`
+    SELECT COUNT(DISTINCT d.draft_id)::int AS draft_count
+    FROM drafts d
+    WHERE d.type = ${draftType} AND d.status = 'complete'
+  `);
+  const draftCount = (draftCountResult.rows[0] as any)?.draft_count || 0;
+
   const maxValue = sorted.length > 0 ? Math.max(...sorted.map(s => s.avgDynastyValue)) : 1;
-  
+
   return sorted.map((entry) => {
     const topPlayer = topPlayerByPick[entry.pickNumber];
     const valuePct = maxValue > 0 ? Math.round((entry.avgDynastyValue / maxValue) * 100) : 0;
@@ -687,6 +744,7 @@ export async function getEnhancedPickValueCurve(draftType: string): Promise<any[
       topPlayerPosition: topPlayer?.position || null,
       topPlayerCount: topPlayer?.count || 0,
       valuePctOfTop: valuePct,
+      draftCount,
     };
   });
 }
@@ -695,8 +753,11 @@ export async function getPlayerPickDistribution(playerName: string, draftType: s
   playerName: string;
   position: string | null;
   totalPicked: number;
+  avgPick: number | null;
+  medianPick: number | null;
   draftType: string;
   distribution: { pickNo: number; pickLabel: string; count: number }[];
+  formatBreakdown: { format: string; count: number; avgPick: number | null }[];
 }> {
   const validType = draftType === "startup" ? "startup" : "rookie";
 
@@ -705,6 +766,7 @@ export async function getPlayerPickDistribution(playerName: string, draftType: s
     FROM draft_picks dp
     JOIN drafts d ON dp.draft_id = d.draft_id
     WHERE d.type = ${validType}
+      AND d.status = 'complete'
       AND dp.player_name = ${playerName}
       AND dp.position IN ('QB', 'RB', 'WR', 'TE')
     GROUP BY dp.player_name, dp.position, dp.pick_no
@@ -713,7 +775,41 @@ export async function getPlayerPickDistribution(playerName: string, draftType: s
 
   const rows = result.rows as any[];
   const position = rows.length > 0 ? rows[0].position : null;
-  const totalPicked = rows.reduce((sum, r) => sum + r.times_picked, 0);
+  const totalPicked = rows.reduce((sum: number, r: any) => sum + r.times_picked, 0);
+
+  const allPicks: number[] = [];
+  for (const r of rows) {
+    for (let i = 0; i < r.times_picked; i++) {
+      allPicks.push(r.pick_no);
+    }
+  }
+  allPicks.sort((a, b) => a - b);
+
+  const avgPick = allPicks.length > 0
+    ? Math.round((allPicks.reduce((s, p) => s + p, 0) / allPicks.length) * 100) / 100
+    : null;
+  const medianPick = allPicks.length > 0
+    ? allPicks[Math.floor(allPicks.length / 2)]
+    : null;
+
+  const formatResult = await db.execute(sql`
+    SELECT d.format, COUNT(*)::int AS times_picked,
+      ROUND(AVG(dp.pick_no)::numeric, 2)::float AS avg_pick
+    FROM draft_picks dp
+    JOIN drafts d ON dp.draft_id = d.draft_id
+    WHERE d.type = ${validType}
+      AND d.status = 'complete'
+      AND dp.player_name = ${playerName}
+      AND dp.position IN ('QB', 'RB', 'WR', 'TE')
+    GROUP BY d.format
+    ORDER BY times_picked DESC
+  `);
+
+  const formatBreakdown = (formatResult.rows as any[]).map((r) => ({
+    format: r.format || "1QB",
+    count: r.times_picked,
+    avgPick: r.avg_pick,
+  }));
 
   const formatPickLabel = (pickNum: number) => {
     const round = Math.ceil(pickNum / 12);
@@ -725,11 +821,14 @@ export async function getPlayerPickDistribution(playerName: string, draftType: s
     playerName,
     position,
     totalPicked,
+    avgPick,
+    medianPick,
     draftType: validType,
-    distribution: rows.map((r) => ({
+    distribution: rows.map((r: any) => ({
       pickNo: r.pick_no,
       pickLabel: formatPickLabel(r.pick_no),
       count: r.times_picked,
     })),
+    formatBreakdown,
   };
 }
