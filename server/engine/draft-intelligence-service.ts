@@ -217,7 +217,9 @@ export async function computeADP(): Promise<number> {
       AVG(CASE WHEN d.format = 'SF' THEN dp.pick_no END)::real AS adp_sf,
       COUNT(CASE WHEN d.format = 'SF' THEN 1 END)::int AS sample_sf,
       AVG(CASE WHEN d.format = 'TEP' THEN dp.pick_no END)::real AS adp_tep,
-      COUNT(CASE WHEN d.format = 'TEP' THEN 1 END)::int AS sample_tep
+      COUNT(CASE WHEN d.format = 'TEP' THEN 1 END)::int AS sample_tep,
+      COUNT(CASE WHEN d.type = 'rookie' THEN 1 END)::int AS rookie_picks,
+      COUNT(CASE WHEN d.type != 'rookie' THEN 1 END)::int AS startup_picks
     FROM draft_picks dp
     JOIN drafts d ON dp.draft_id = d.draft_id
     WHERE d.status = 'complete'
@@ -261,6 +263,11 @@ export async function computeADP(): Promise<number> {
 
       insertedPlayerIds.add(row.player_id);
 
+      const rookiePicks = row.rookie_picks || 0;
+      const startupPicks = row.startup_picks || 0;
+      let playerDraftType = "startup";
+      if (rookiePicks > startupPicks) playerDraftType = "rookie";
+
       return {
         playerId: row.player_id,
         playerName: row.player_name,
@@ -277,6 +284,7 @@ export async function computeADP(): Promise<number> {
         ecrSf,
         consensusRank: consensus,
         dataSources: sources.join(","),
+        draftType: playerDraftType,
       };
     });
     await db.insert(draftAdp).values(values);
@@ -306,6 +314,7 @@ export async function computeADP(): Promise<number> {
         ecrSf: ext.ecrSf,
         consensusRank: consensus,
         dataSources: "dynastyprocess",
+        draftType: "startup",
       };
     });
     await db.insert(draftAdp).values(values);
@@ -535,6 +544,7 @@ export async function getCachedADP(options?: {
   limit?: number;
   sort?: string;
   category?: string;
+  draftType?: string;
 }): Promise<{ players: any[]; total: number }> {
   const format = options?.format || "all";
   const position = options?.position;
@@ -544,6 +554,7 @@ export async function getCachedADP(options?: {
   const offset = (page - 1) * limit;
   const sort = options?.sort || "consensus";
   const category = options?.category || "offense";
+  const draftType = options?.draftType || "all";
 
   const ALLOWED_ORDER_COLS: Record<string, string> = {
     "consensus_rank": "consensus_rank",
@@ -568,6 +579,12 @@ export async function getCachedADP(options?: {
   const orderCol = ALLOWED_ORDER_COLS[orderKey] || "consensus_rank";
 
   let whereClause = sql`1=1 AND (da.sample_size >= 3 OR da.data_sources LIKE '%dynastyprocess%')`;
+
+  if (draftType === "rookie") {
+    whereClause = sql`${whereClause} AND da.draft_type = 'rookie'`;
+  } else if (draftType === "startup") {
+    whereClause = sql`${whereClause} AND da.draft_type IN ('startup', 'both')`;
+  }
 
   if (category === "offense") {
     whereClause = sql`${whereClause} AND da.position IN ('QB', 'RB', 'WR', 'TE')`;

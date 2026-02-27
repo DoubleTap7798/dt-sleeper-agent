@@ -17634,8 +17634,9 @@ Respond in JSON format:
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
       const sort = (req.query.sort as string) || "consensus";
       const category = (req.query.category as string) || "offense";
+      const draftType = (req.query.draftType as string) || "all";
 
-      const result = await draftIntelService.getCachedADP({ format, position, search, page, limit, sort, category });
+      const result = await draftIntelService.getCachedADP({ format, position, search, page, limit, sort, category, draftType });
       res.json(result);
     } catch (error: any) {
       console.error("Draft ADP error:", error);

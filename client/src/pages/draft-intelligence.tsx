@@ -235,12 +235,16 @@ function ADPTable({
   position,
   onPositionChange,
   onPlayerClick,
+  draftType,
+  onDraftTypeChange,
 }: {
   format: string;
   onFormatChange: (v: string) => void;
   position: string;
   onPositionChange: (v: string) => void;
   onPlayerClick: (id: string, name: string, pos: string) => void;
+  draftType: string;
+  onDraftTypeChange: (v: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -249,13 +253,14 @@ function ADPTable({
   const isMobile = useIsMobile();
 
   const { data, isLoading } = useQuery<ADPResponse>({
-    queryKey: ["/api/draft-intelligence/adp", { format, position: position === "ALL" ? undefined : position, search: search || undefined, page, limit, sort }],
+    queryKey: ["/api/draft-intelligence/adp", { format, position: position === "ALL" ? undefined : position, search: search || undefined, page, limit, sort, draftType }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("format", format);
       params.set("page", page.toString());
       params.set("limit", limit.toString());
       params.set("sort", sort);
+      if (draftType !== "all") params.set("draftType", draftType);
       if (position !== "ALL") params.set("position", position);
       if (search) params.set("search", search);
       const res = await fetch(`/api/draft-intelligence/adp?${params}`, { credentials: "include" });
@@ -301,6 +306,16 @@ function ADPTable({
             data-testid="input-adp-search"
           />
         </div>
+        <Select value={draftType} onValueChange={(v) => { onDraftTypeChange(v); setPage(1); }}>
+          <SelectTrigger className="w-[140px]" data-testid="select-draft-type">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" data-testid="option-dtype-all">All Players</SelectItem>
+            <SelectItem value="rookie" data-testid="option-dtype-rookie">Rookie Class</SelectItem>
+            <SelectItem value="startup" data-testid="option-dtype-startup">Dynasty Startup</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={sort} onValueChange={(v) => { setSort(v); setPage(1); }}>
           <SelectTrigger className="w-[150px]" data-testid="select-sort">
             <SelectValue />
@@ -929,9 +944,9 @@ function OverviewPanel() {
                 <span className="font-medium flex-1 truncate">{p.player_name}</span>
                 <MarketHeatIcon level={p.market_heat_level} label={p.market_label} />
                 <SourceDots sources={p.data_sources} />
-                {p.adp_overall != null && (
-                  <span className="font-mono text-xs text-amber-500 dark:text-amber-400">
-                    ADP {formatADP(p.adp_overall)}
+                {p.sample_size > 0 && (
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {p.sample_size} drafts
                   </span>
                 )}
                 {p.ecr_1qb != null && (
@@ -980,6 +995,7 @@ function DraftIntelligenceContent() {
   const [activeTab, setActiveTab] = useState<TabKey>("adp");
   const [format, setFormat] = useState("all");
   const [position, setPosition] = useState("ALL");
+  const [draftType, setDraftType] = useState("all");
   const [profilePlayerId, setProfilePlayerId] = useState<string | null>(null);
   const [profilePlayerName, setProfilePlayerName] = useState("");
   const [profilePosition, setProfilePosition] = useState("");
@@ -1025,6 +1041,8 @@ function DraftIntelligenceContent() {
           position={position}
           onPositionChange={setPosition}
           onPlayerClick={handlePlayerClick}
+          draftType={draftType}
+          onDraftTypeChange={setDraftType}
         />
       )}
 

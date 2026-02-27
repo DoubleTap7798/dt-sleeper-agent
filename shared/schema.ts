@@ -545,6 +545,7 @@ export const draftAdp = pgTable("draft_adp", {
   ecrSf: real("ecr_sf"),
   consensusRank: real("consensus_rank"),
   dataSources: text("data_sources"),
+  draftType: text("draft_type"),
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
