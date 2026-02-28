@@ -10,8 +10,8 @@ const sizeClasses = {
   sm: "w-12 h-12",
   md: "w-16 h-16",
   lg: "w-36 h-36",
-  xl: "w-[40rem] h-[40rem]",
-  "2xl": "w-[50rem] h-[50rem]",
+  xl: "w-[20rem] h-[20rem]",
+  "2xl": "w-[28rem] h-[28rem]",
 };
 
 const textSizeClasses = {
