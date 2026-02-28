@@ -7,11 +7,11 @@ interface LogoProps {
 }
 
 const sizeClasses = {
-  sm: "w-10 h-10",
+  sm: "w-12 h-12",
   md: "w-16 h-16",
   lg: "w-36 h-36",
-  xl: "w-72 h-72",
-  "2xl": "w-96 h-96",
+  xl: "w-[28rem] h-[28rem]",
+  "2xl": "w-[36rem] h-[36rem]",
 };
 
 const textSizeClasses = {

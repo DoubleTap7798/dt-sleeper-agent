@@ -116,7 +116,7 @@ export default function LandingPage() {
                 <span className="text-sm text-[hsl(var(--accent))]">AI-Powered Fantasy Football Companion</span>
               </div>
               
-              <Logo size="xl" className="mb-8" />
+              <Logo size="xl" showText={false} className="mb-4" />
               
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
                 Win Your Dynasty League with{" "}
