@@ -378,53 +378,5 @@ app.use((req, res, next) => {
     console.log(`Server running on port ${port}`);
 
     log(`serving on port ${port}`);
-
-    setTimeout(() => {
-      refreshMarketPsychologyData().catch((err) =>
-        console.error(
-          "[MarketPsychology] Initial refresh failed:",
-          err.message,
-        ),
-      );
-    }, 30000);
-
-    setInterval(
-      () => {
-        refreshMarketPsychologyData().catch((err) =>
-          console.error(
-            "[MarketPsychology] Scheduled refresh failed:",
-            err.message,
-          ),
-        );
-      },
-      24 * 60 * 60 * 1000,
-    );
-
-    setInterval(
-      () => {
-        refreshMarketIndices().catch((err) =>
-          console.error(
-            "[MarketPsychology] Index cache refresh failed:",
-            err.message,
-          ),
-        );
-      },
-      5 * 60 * 1000,
-    );
-
-    setTimeout(() => {
-      runFullDraftIntelPipeline().catch((err) =>
-        console.error("[DraftIntel] Initial pipeline failed:", err.message),
-      );
-    }, 60000);
-
-    setInterval(
-      () => {
-        runFullDraftIntelPipeline().catch((err) =>
-          console.error("[DraftIntel] Scheduled pipeline failed:", err.message),
-        );
-      },
-      6 * 60 * 60 * 1000,
-    );
   });
 })();
