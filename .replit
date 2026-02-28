@@ -10,10 +10,6 @@ packages = ["lsof"]
 localPort = 3000
 externalPort = 3000
 
-[[ports]]
-localPort = 3000
-externalPort = 80
-
 [env]
 PORT = "3000"
 

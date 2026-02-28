@@ -1,4 +1,4 @@
-import dtLogo from "@assets/5C7727FF-7D55-4538-97DE-3A329A1D5F25_1771180481564.png";
+import dtLogo from "@assets/ChatGPT_Image_Feb_28,_2026,_12_50_07_PM_1772304722286.png";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg" | "xl" | "2xl";
@@ -26,11 +26,11 @@ export function Logo({ size = "md", showText = true, className = "" }: LogoProps
   const isLarge = size === "xl" || size === "2xl" || size === "lg";
   return (
     <div className={`flex flex-col items-center gap-2 ${className}`} data-testid="logo">
-      <div className={`${sizeClasses[size]} rounded-full overflow-hidden flex-shrink-0 ${isLarge ? "shadow-[0_0_24px_rgba(217,169,78,0.2)] ring-1 ring-primary/20" : "ring-1 ring-primary/10"}`}>
+      <div className={`${sizeClasses[size]} flex-shrink-0`}>
         <img 
           src={dtLogo} 
           alt="DT Sleeper Agent Logo" 
-          className="w-full h-full object-cover scale-110"
+          className="w-full h-full object-contain"
           data-testid="logo-icon"
         />
       </div>
