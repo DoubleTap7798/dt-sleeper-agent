@@ -2,43 +2,61 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { runMigrations } from 'stripe-replit-sync';
-import { getStripeSync, getUncachableStripeClient, getLiveStripeClient } from './stripeClient';
-import { WebhookHandlers } from './webhookHandlers';
+import { runMigrations } from "stripe-replit-sync";
+import {
+  getStripeSync,
+  getUncachableStripeClient,
+  getLiveStripeClient,
+} from "./stripeClient";
+import { WebhookHandlers } from "./webhookHandlers";
 import { db } from "./db";
 import * as schema from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
-import { refreshMarketPsychologyData, refreshMarketIndices } from "./engine/market-psychology-refresh";
+import {
+  refreshMarketPsychologyData,
+  refreshMarketIndices,
+} from "./engine/market-psychology-refresh";
 import { runFullDraftIntelPipeline } from "./engine/draft-intelligence-service";
 
 async function syncSubscriptionToProfile(customerId: string) {
   console.log(`[syncSub] Starting sync for Stripe customer: ${customerId}`);
-  
+
   let subscription: any = null;
   let workingStripe: any = null;
 
   const stripeClients: { stripe: any; label: string }[] = [];
   try {
     const connectorStripe = await getUncachableStripeClient();
-    stripeClients.push({ stripe: connectorStripe, label: 'connector' });
+    stripeClients.push({ stripe: connectorStripe, label: "connector" });
   } catch (e) {}
   const liveStripe = await getLiveStripeClient();
   if (liveStripe) {
-    stripeClients.push({ stripe: liveStripe, label: 'live' });
+    stripeClients.push({ stripe: liveStripe, label: "live" });
   }
 
   for (const { stripe, label } of stripeClients) {
     try {
-      const stripeSubs = await stripe.subscriptions.list({ customer: customerId, limit: 1 });
+      const stripeSubs = await stripe.subscriptions.list({
+        customer: customerId,
+        limit: 1,
+      });
       if (stripeSubs.data.length > 0) {
         const s = stripeSubs.data[0] as any;
-        subscription = { id: s.id, status: s.status, current_period_end: s.current_period_end };
+        subscription = {
+          id: s.id,
+          status: s.status,
+          current_period_end: s.current_period_end,
+        };
         workingStripe = stripe;
-        console.log(`[syncSub] Found subscription via ${label}: ${s.id}, status: ${s.status}`);
+        console.log(
+          `[syncSub] Found subscription via ${label}: ${s.id}, status: ${s.status}`,
+        );
         break;
       }
     } catch (e: any) {
-      console.log(`[syncSub] Could not query ${label} Stripe for customer ${customerId}: ${e.message}`);
+      console.log(
+        `[syncSub] Could not query ${label} Stripe for customer ${customerId}: ${e.message}`,
+      );
     }
   }
 
@@ -58,47 +76,68 @@ async function syncSubscriptionToProfile(customerId: string) {
     return;
   }
 
-  console.log(`[syncSub] Found subscription: ${subscription.id}, status: ${subscription.status}`);
+  console.log(
+    `[syncSub] Found subscription: ${subscription.id}, status: ${subscription.status}`,
+  );
 
-  const profileByCustomer = await db.select().from(schema.userProfiles)
-    .where(eq(schema.userProfiles.stripeCustomerId, customerId)).limit(1);
+  const profileByCustomer = await db
+    .select()
+    .from(schema.userProfiles)
+    .where(eq(schema.userProfiles.stripeCustomerId, customerId))
+    .limit(1);
 
   if (profileByCustomer[0]) {
-    console.log(`[syncSub] Matched profile by stripeCustomerId, userId: ${profileByCustomer[0].userId}`);
-    await db.update(schema.userProfiles)
+    console.log(
+      `[syncSub] Matched profile by stripeCustomerId, userId: ${profileByCustomer[0].userId}`,
+    );
+    await db
+      .update(schema.userProfiles)
       .set({
         stripeSubscriptionId: subscription.id,
         subscriptionStatus: subscription.status,
-        subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null,
-        subscriptionSource: 'stripe'
+        subscriptionPeriodEnd: subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000)
+          : null,
+        subscriptionSource: "stripe",
       })
       .where(eq(schema.userProfiles.stripeCustomerId, customerId));
     return;
   }
 
-  console.log(`[syncSub] No profile matched by stripeCustomerId, trying email lookup...`);
+  console.log(
+    `[syncSub] No profile matched by stripeCustomerId, trying email lookup...`,
+  );
   let customerEmail: string | null = null;
 
   for (const { stripe, label } of stripeClients) {
     try {
-      const customer = await stripe.customers.retrieve(customerId) as any;
+      const customer = (await stripe.customers.retrieve(customerId)) as any;
       if (customer?.email) {
         customerEmail = customer.email;
-        console.log(`[syncSub] Got email from ${label} Stripe: ${customerEmail}`);
+        console.log(
+          `[syncSub] Got email from ${label} Stripe: ${customerEmail}`,
+        );
         break;
       }
     } catch (e: any) {
-      console.log(`[syncSub] Could not retrieve customer from ${label}: ${e.message}`);
+      console.log(
+        `[syncSub] Could not retrieve customer from ${label}: ${e.message}`,
+      );
     }
   }
 
   if (!customerEmail) {
-    console.log(`[syncSub] Stripe customer ${customerId} has no email, cannot link to user`);
+    console.log(
+      `[syncSub] Stripe customer ${customerId} has no email, cannot link to user`,
+    );
     return;
   }
 
-  const userByEmail = await db.select().from(schema.users)
-    .where(eq(schema.users.email, customerEmail.toLowerCase())).limit(1);
+  const userByEmail = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.email, customerEmail.toLowerCase()))
+    .limit(1);
 
   if (!userByEmail[0]) {
     console.log(`[syncSub] No user found with email: ${customerEmail}`);
@@ -108,20 +147,28 @@ async function syncSubscriptionToProfile(customerId: string) {
   const matchedUserId = userByEmail[0].id;
   console.log(`[syncSub] Found user by email, userId: ${matchedUserId}`);
 
-  const profileByUser = await db.select().from(schema.userProfiles)
-    .where(eq(schema.userProfiles.userId, matchedUserId)).limit(1);
+  const profileByUser = await db
+    .select()
+    .from(schema.userProfiles)
+    .where(eq(schema.userProfiles.userId, matchedUserId))
+    .limit(1);
 
   if (profileByUser[0]) {
-    await db.update(schema.userProfiles)
+    await db
+      .update(schema.userProfiles)
       .set({
         stripeCustomerId: customerId,
         stripeSubscriptionId: subscription.id,
         subscriptionStatus: subscription.status,
-        subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null,
-        subscriptionSource: 'stripe'
+        subscriptionPeriodEnd: subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000)
+          : null,
+        subscriptionSource: "stripe",
       })
       .where(eq(schema.userProfiles.userId, matchedUserId));
-    console.log(`[syncSub] Updated existing profile for userId: ${matchedUserId}`);
+    console.log(
+      `[syncSub] Updated existing profile for userId: ${matchedUserId}`,
+    );
   } else {
     await db.insert(schema.userProfiles).values({
       id: crypto.randomUUID(),
@@ -129,8 +176,10 @@ async function syncSubscriptionToProfile(customerId: string) {
       stripeCustomerId: customerId,
       stripeSubscriptionId: subscription.id,
       subscriptionStatus: subscription.status,
-      subscriptionPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : null,
-      subscriptionSource: 'stripe'
+      subscriptionPeriodEnd: subscription.current_period_end
+        ? new Date(subscription.current_period_end * 1000)
+        : null,
+      subscriptionSource: "stripe",
     });
     console.log(`[syncSub] Created new profile for userId: ${matchedUserId}`);
   }
@@ -150,65 +199,71 @@ async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
 
   if (!databaseUrl) {
-    console.warn('DATABASE_URL not found - Stripe integration disabled');
+    console.warn("DATABASE_URL not found - Stripe integration disabled");
     return;
   }
 
   try {
-    console.log('Initializing Stripe schema...');
+    console.log("Initializing Stripe schema...");
     await runMigrations({ databaseUrl });
-    console.log('Stripe schema ready');
+    console.log("Stripe schema ready");
 
     let stripeSync;
     try {
       stripeSync = await getStripeSync();
     } catch (credErr: any) {
-      console.warn('Stripe credentials unavailable, skipping sync:', credErr.message);
+      console.warn(
+        "Stripe credentials unavailable, skipping sync:",
+        credErr.message,
+      );
       return;
     }
 
-    console.log('Setting up managed webhook...');
-    const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+    console.log("Setting up managed webhook...");
+    const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
     try {
       const result = await stripeSync.findOrCreateManagedWebhook(
-        `${webhookBaseUrl}/api/stripe/webhook`
+        `${webhookBaseUrl}/api/stripe/webhook`,
       );
-      console.log(`Webhook configured: ${result?.webhook?.url || 'webhook created'}`);
+      console.log(
+        `Webhook configured: ${result?.webhook?.url || "webhook created"}`,
+      );
     } catch (webhookError: any) {
-      console.warn('Webhook setup warning:', webhookError.message);
+      console.warn("Webhook setup warning:", webhookError.message);
     }
 
-    console.log('Syncing Stripe data...');
-    stripeSync.syncBackfill()
+    console.log("Syncing Stripe data...");
+    stripeSync
+      .syncBackfill()
       .then(() => {
-        console.log('Stripe data synced');
+        console.log("Stripe data synced");
       })
       .catch((err: any) => {
-        console.warn('Stripe data sync warning:', err.message || err);
+        console.warn("Stripe data sync warning:", err.message || err);
       });
   } catch (error: any) {
-    console.warn('Stripe initialization skipped:', error.message || error);
+    console.warn("Stripe initialization skipped:", error.message || error);
   }
 }
 
 initStripe().catch(console.error);
 
 app.post(
-  '/api/stripe/webhook',
-  express.raw({ type: 'application/json' }),
+  "/api/stripe/webhook",
+  express.raw({ type: "application/json" }),
   async (req, res) => {
-    const signature = req.headers['stripe-signature'];
+    const signature = req.headers["stripe-signature"];
 
     if (!signature) {
-      return res.status(400).json({ error: 'Missing stripe-signature' });
+      return res.status(400).json({ error: "Missing stripe-signature" });
     }
 
     try {
       const sig = Array.isArray(signature) ? signature[0] : signature;
 
       if (!Buffer.isBuffer(req.body)) {
-        console.error('STRIPE WEBHOOK ERROR: req.body is not a Buffer');
-        return res.status(500).json({ error: 'Webhook processing error' });
+        console.error("STRIPE WEBHOOK ERROR: req.body is not a Buffer");
+        return res.status(500).json({ error: "Webhook processing error" });
       }
 
       await WebhookHandlers.processWebhook(req.body as Buffer, sig);
@@ -216,12 +271,15 @@ app.post(
       // After processing webhook, try to sync subscription data to user profiles
       try {
         const event = JSON.parse(req.body.toString());
-        if (event.type?.startsWith('customer.subscription.') || event.type === 'checkout.session.completed') {
+        if (
+          event.type?.startsWith("customer.subscription.") ||
+          event.type === "checkout.session.completed"
+        ) {
           const customerId = event.data?.object?.customer;
           if (customerId) {
             // Async sync - don't block webhook response
-            syncSubscriptionToProfile(customerId).catch(err => 
-              console.error('Auto-sync after webhook failed:', err.message)
+            syncSubscriptionToProfile(customerId).catch((err) =>
+              console.error("Auto-sync after webhook failed:", err.message),
             );
           }
         }
@@ -231,10 +289,10 @@ app.post(
 
       res.status(200).json({ received: true });
     } catch (error: any) {
-      console.error('Webhook error:', error.message);
-      res.status(400).json({ error: 'Webhook processing error' });
+      console.error("Webhook error:", error.message);
+      res.status(400).json({ error: "Webhook processing error" });
     }
-  }
+  },
 );
 
 app.use(
@@ -314,46 +372,59 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
+  const port = process.env.PORT || 3000;
 
-      setTimeout(() => {
-        refreshMarketPsychologyData().catch(err =>
-          console.error("[MarketPsychology] Initial refresh failed:", err.message)
-        );
-      }, 30_000);
+  httpServer.listen(port, "0.0.0.0", () => {
+    console.log(`Server running on port ${port}`);
 
-      setInterval(() => {
-        refreshMarketPsychologyData().catch(err =>
-          console.error("[MarketPsychology] Scheduled refresh failed:", err.message)
-        );
-      }, 24 * 60 * 60 * 1000);
+    log(`serving on port ${port}`);
 
-      setInterval(() => {
-        refreshMarketIndices().catch(err =>
-          console.error("[MarketPsychology] Index cache refresh failed:", err.message)
-        );
-      }, 5 * 60 * 1000);
+    setTimeout(() => {
+      refreshMarketPsychologyData().catch((err) =>
+        console.error(
+          "[MarketPsychology] Initial refresh failed:",
+          err.message,
+        ),
+      );
+    }, 30000);
 
-      setTimeout(() => {
-        runFullDraftIntelPipeline().catch(err =>
-          console.error("[DraftIntel] Initial pipeline failed:", err.message)
+    setInterval(
+      () => {
+        refreshMarketPsychologyData().catch((err) =>
+          console.error(
+            "[MarketPsychology] Scheduled refresh failed:",
+            err.message,
+          ),
         );
-      }, 60_000);
+      },
+      24 * 60 * 60 * 1000,
+    );
 
-      setInterval(() => {
-        runFullDraftIntelPipeline().catch(err =>
-          console.error("[DraftIntel] Scheduled pipeline failed:", err.message)
+    setInterval(
+      () => {
+        refreshMarketIndices().catch((err) =>
+          console.error(
+            "[MarketPsychology] Index cache refresh failed:",
+            err.message,
+          ),
         );
-      }, 6 * 60 * 60 * 1000);
-    },
-  );
+      },
+      5 * 60 * 1000,
+    );
+
+    setTimeout(() => {
+      runFullDraftIntelPipeline().catch((err) =>
+        console.error("[DraftIntel] Initial pipeline failed:", err.message),
+      );
+    }, 60000);
+
+    setInterval(
+      () => {
+        runFullDraftIntelPipeline().catch((err) =>
+          console.error("[DraftIntel] Scheduled pipeline failed:", err.message),
+        );
+      },
+      6 * 60 * 60 * 1000,
+    );
+  });
 })();
-
