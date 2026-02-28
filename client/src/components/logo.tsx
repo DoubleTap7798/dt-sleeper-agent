@@ -9,9 +9,9 @@ interface LogoProps {
 const sizeClasses = {
   sm: "w-10 h-10",
   md: "w-16 h-16",
-  lg: "w-28 h-28",
-  xl: "w-48 h-48",
-  "2xl": "w-64 h-64",
+  lg: "w-36 h-36",
+  xl: "w-72 h-72",
+  "2xl": "w-96 h-96",
 };
 
 const textSizeClasses = {
