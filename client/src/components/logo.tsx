@@ -1,4 +1,4 @@
-import dtLogo from "@assets/ChatGPT_Image_Feb_28,_2026,_12_50_07_PM_1772304722286.png";
+import dtLogo from "@assets/dt-sleeper-agent-logo.png";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg" | "xl" | "2xl";
@@ -10,8 +10,8 @@ const sizeClasses = {
   sm: "w-12 h-12",
   md: "w-16 h-16",
   lg: "w-36 h-36",
-  xl: "w-[28rem] h-[28rem]",
-  "2xl": "w-[36rem] h-[36rem]",
+  xl: "w-80 h-80",
+  "2xl": "w-96 h-96",
 };
 
 const textSizeClasses = {
