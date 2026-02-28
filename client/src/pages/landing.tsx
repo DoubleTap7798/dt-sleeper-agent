@@ -16,7 +16,13 @@ import {
   ChevronRight,
   Sparkles,
   LineChart,
-  Eye
+  Eye,
+  TrendingUp,
+  BarChart3,
+  Crosshair,
+  Gamepad2,
+  GraduationCap,
+  Swords
 } from "lucide-react";
 
 export default function LandingPage() {
@@ -26,33 +32,63 @@ export default function LandingPage() {
   const features = [
     {
       icon: Brain,
-      title: "AI-Powered Trade Analysis",
-      description: "Get instant trade grades with our custom dynasty value engine. Never lose a trade again with AI insights that analyze fairness and long-term value.",
+      title: "AI Trade Lab",
+      description: "Instant trade grades powered by a custom dynasty value engine. AI analyzes fairness, long-term impact, and suggests counter-offers to maximize every deal.",
+    },
+    {
+      icon: TrendingUp,
+      title: "Dynasty Market Terminal",
+      description: "Quant-trading analytics for fantasy football. Track sentiment scores, hype velocity, volatility, and arbitrage gaps to buy low and sell high like a pro.",
+    },
+    {
+      icon: BarChart3,
+      title: "Draft Intelligence Engine",
+      description: "Multi-source ADP blending from Sleeper drafts and expert consensus rankings. Pick value curves, format-specific data, and 2026 prospect rankings.",
+    },
+    {
+      icon: GraduationCap,
+      title: "Devy Command Center",
+      description: "Predictive intelligence for dynasty prospect modeling. College stats, transfer portal tracking, portfolio analysis, and draft value projections.",
+    },
+    {
+      icon: Crosshair,
+      title: "Decision Engine",
+      description: "5-layer optimization system covering championship pathing, FAAB strategy, portfolio risk analysis, exploit reports, and title equity tracking.",
+    },
+    {
+      icon: Gamepad2,
+      title: "Game Day War Room",
+      description: "Matchup simulator, lineup optimizer, boom/bust probability cards, and real-time scoring. Make the right start/sit calls every week.",
+    },
+    {
+      icon: Swords,
+      title: "Power Rankings & Rivalries",
+      description: "Dual-mode power rankings for dynasty and in-season play. Head-to-head rivalry tracking, manager profiles, and AI behavioral analysis.",
     },
     {
       icon: Target,
-      title: "Smart Trade Ideas",
-      description: "AI scans your roster weaknesses and finds league-wide opportunities. Get personalized trade suggestions with fairness scores to maximize your team.",
-    },
-    {
-      icon: Users,
-      title: "Personalized Waiver Picks",
-      description: "See fit scores for every available player based on YOUR roster needs. Know exactly who to target before your leaguemates do.",
-    },
-    {
-      icon: Eye,
-      title: "Player Watchlist",
-      description: "Track players and monitor dynasty value changes over time. Get alerted when values shift so you can buy low and sell high.",
+      title: "Smart Waiver Wire",
+      description: "FAAB optimizer with hype-inflation adjustments and roster-fit scoring. Know exactly who to target and how much to bid before your leaguemates.",
     },
     {
       icon: LineChart,
       title: "Advanced Projections",
-      description: "AI-generated rest-of-season projections with confidence ratings, upside/floor analysis, and schedule strength considerations.",
+      description: "3-year projection model with position-specific aging curves. Monte Carlo simulations, season projections, and playoff probability forecasting.",
+    },
+    {
+      icon: Eye,
+      title: "Elite Player Profiles",
+      description: "9-module structured analysis per player including archetype engine, Dynasty Asset Score, Monte Carlo distribution, and AI executive summary.",
+    },
+    {
+      icon: Users,
+      title: "Live Draft Board",
+      description: "Real-time draft companion with pick tracking, value recommendations, positional run alerts, and instant post-draft grades.",
     },
     {
       icon: Trophy,
-      title: "League History & Records",
-      description: "Explore your trophy room with all-time champions, rivalry records, and career stats across every season.",
+      title: "Trophy Room & History",
+      description: "All-time champions, rivalry records, career stats, league accounting, and shareable team reports across every season.",
     },
   ];
 
@@ -171,7 +207,7 @@ export default function LandingPage() {
               </p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 max-w-7xl mx-auto">
               {features.map((feature, index) => (
                 <Card
                   key={index}
