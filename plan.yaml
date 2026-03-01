@@ -1,1 +1,143 @@
+meta:
+  calendar_name: "DT Sleeper Planner 2027"
+  timezone: "UTC"
+
+events:
+  - id: kickoff-anchor
+    title: "Project Anchor — Start Tracking"
+    start: "2026-03-01T16:00:00Z"
+    end: "2026-03-01T17:00:00Z"
+    description: "Set up repo files, enable Pages workflow, and confirm calendar subscription works."
+
+  - id: enable-backups
+    title: "Enable Postgres Backups & Verify Restore"
+    start: "2026-03-02T15:00:00Z"
+    end: "2026-03-02T16:00:00Z"
+    description: "Enable automatic snapshots; perform a test restore to a throwaway DB; document retention policy."
+    alarms:
+      - trigger: "-PT12H"
+        action: "DISPLAY"
+        description: "Reminder — Enable backups today"
+
+  - id: ssh-git-setup
+    title: "SSH Git Setup in Replit + Update Deploy Script"
+    start: "2026-03-03T14:00:00Z"
+    end: "2026-03-03T15:00:00Z"
+    description: "Generate SSH key, add to GitHub, switch remote to SSH, verify one-line deploy."
+
+  - id: fix-league-state
+    title: "Fix Draft Command Center to use URL param"
+    start: "2026-03-05T14:00:00Z"
+    end: "2026-03-06T18:00:00Z"
+    description: "Force leagueId from URL; clear stale client state on logout; add admin reset button."
+
+  - id: admin-seed
+    title: "Admin Seed + Smoke Test"
+    start: "2026-03-08T15:00:00Z"
+    end: "2026-03-08T16:00:00Z"
+    description: "Create admin/test accounts and run smoke tests across core flows."
+
+  - id: sprint-cadence-start
+    title: "Sprint Cadence: 2-week sprints begin"
+    start: "2026-03-09T14:00:00Z"
+    end: "2026-03-09T14:15:00Z"
+    description: "Start biweekly sprints. Each sprint ends with staging release and user test window."
+
+  - id: telemetry-add
+    title: "Add Sentry + Analytics"
+    start: "2026-03-16T15:00:00Z"
+    end: "2026-03-16T17:00:00Z"
+    description: "Integrate Sentry for errors and Plausible/Mixpanel for product metrics."
+
+  - id: monthly-backup-test
+    title: "Monthly Backup Restore Test"
+    start: "2026-03-15T08:00:00Z"
+    end: "2026-03-15T09:00:00Z"
+    rrule: "FREQ=MONTHLY;COUNT=17"
+    description: "Restore latest snapshot to a new DB and verify user data integrity."
+
+  - id: sprint-review
+    title: "Sprint Review & Staging Release"
+    start: "2026-03-23T14:00:00Z"
+    end: "2026-03-23T14:30:00Z"
+    rrule: "FREQ=WEEKLY;INTERVAL=2;COUNT=70"
+    description: "Sprint review, staging deploy, QA notes, and user feedback collection."
+
+  - id: ics-api
+    title: "ICS Feed API Implementation"
+    start: "2026-04-01T14:00:00Z"
+    end: "2026-04-07T18:00:00Z"
+    description: "Implement per-league ICS generator; secure feeds with tokenized URLs; add timezone tests."
+
+  - id: mobile-calendar-qa
+    title: "Mobile Calendar Integration QA"
+    start: "2026-04-15T15:00:00Z"
+    end: "2026-04-15T17:00:00Z"
+    rrule: "FREQ=WEEKLY;COUNT=20"
+    description: "Test EventKit (iOS) and Android Calendar Provider; verify add-to-calendar and subscribe flows."
+
+  - id: push-setup
+    title: "Push Notifications Setup (FCM + APNs)"
+    start: "2026-05-01T15:00:00Z"
+    end: "2026-05-01T17:00:00Z"
+    description: "Configure push, integrate with backend, test draft reminders."
+
+  - id: stripe-integration
+    title: "Stripe Billing Integration & QA"
+    start: "2026-06-01T15:00:00Z"
+    end: "2026-06-15T17:00:00Z"
+    description: "Implement subscriptions, trials, coupons, webhooks; test billing flows in sandbox."
+
+  - id: legal-llc
+    title: "Form LLC in Texas and Open Business Bank Account"
+    start: "2026-06-20T15:00:00Z"
+    end: "2026-06-20T16:00:00Z"
+    description: "File LLC, obtain EIN, open business bank account, and set up Stripe under LLC."
+
+  - id: accounting-setup
+    title: "Accounting & Bookkeeping Setup"
+    start: "2026-06-21T15:00:00Z"
+    end: "2026-06-21T16:00:00Z"
+    description: "Set up QuickBooks or Wave, connect bank/Stripe, define chart of accounts."
+
+  - id: beta-recruit
+    title: "Beta Tester Recruitment Window"
+    start: "2026-07-01T14:00:00Z"
+    end: "2026-07-15T14:00:00Z"
+    description: "Invite list, onboarding email, Discord event, feedback form. Target 50–200 testers."
+
+  - id: appstore-prep
+    title: "App Store & Play Store Submission Prep"
+    start: "2026-09-01T15:00:00Z"
+    end: "2026-09-15T17:00:00Z"
+    description: "Prepare metadata, privacy policy, screenshots, in-app purchase setup, and testflight tracks."
+
+  - id: appstore-submit
+    title: "Submit Mobile Apps to Stores"
+    start: "2026-11-01T15:00:00Z"
+    end: "2026-11-01T17:00:00Z"
+    description: "Submit iOS and Android builds; monitor review; prepare staged rollout."
+
+  - id: weekly-deploy-review
+    title: "Weekly Deploy & Metrics Review"
+    start: "2026-03-08T09:00:00Z"
+    end: "2026-03-08T09:30:00Z"
+    rrule: "FREQ=WEEKLY;COUNT=75"
+    description: "Review recent deploys, error rates, key metrics, and rollback readiness."
+
+  - id: pre-monetization
+    title: "Pre-Monetization Readiness Review"
+    start: "2027-07-01T15:00:00Z"
+    end: "2027-07-01T16:00:00Z"
+    description: "Final checklist: backups, analytics, billing, legal, support docs, mobile release plan."
+
+  - id: monetization-launch
+    title: "Monetization Launch — Pro / Elite Tiers Live"
+    start: "2027-08-01T14:00:00Z"
+    end: "2027-08-01T15:00:00Z"
+    description: "Enable paid tiers, monitor billing, customer support, and conversion metrics. Launch marketing push."
+    alarms:
+      - trigger: "-PT24H"
+        action: "DISPLAY"
+        description: "Reminder — Monetization Launch tomorrow"
 
