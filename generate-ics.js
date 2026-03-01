@@ -1,4 +1,6 @@
 const fs = require('fs');
+fs.writeFileSync('site/dtsleeper-planner-2027.ics', icsContent);
+
 const path = require('path');
 const YAML = require('yaml');
 
