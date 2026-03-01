@@ -3,39 +3,67 @@ meta:
   timezone: "UTC"
 
 events:
-  - id: kickoff-anchor
-    title: "Project Anchor — Start Tracking"
-    start: "2026-03-01T16:00:00Z"
-    end: "2026-03-01T17:00:00Z"
-    description: "Set up repo files, enable Pages workflow, and confirm calendar subscription works."
-
-  - id: enable-backups
-    title: "Enable Postgres Backups & Verify Restore"
-    start: "2026-03-02T15:00:00Z"
-    end: "2026-03-02T16:00:00Z"
-    description: "Enable automatic snapshots; perform a test restore to a throwaway DB; document retention policy."
+  - id: daily-top3
+    title: "Daily Top 3 Tasks"
+    start: "2026-03-01T14:00:00Z"
+    end: "2026-03-01T14:15:00Z"
+    rrule: "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20270801T000000Z"
+    description: "Review and set your top 3 tasks for today; block time and update ticket statuses."
     alarms:
-      - trigger: "-PT12H"
+      - trigger: "-PT30M"
         action: "DISPLAY"
-        description: "Reminder — Enable backups today"
+        description: "Prepare your Top 3 for today"
 
-  - id: ssh-git-setup
-    title: "SSH Git Setup in Replit + Update Deploy Script"
-    start: "2026-03-03T14:00:00Z"
-    end: "2026-03-03T15:00:00Z"
-    description: "Generate SSH key, add to GitHub, switch remote to SSH, verify one-line deploy."
+  - id: daily-code-commit
+    title: "Daily Code Commit and Deploy Check"
+    start: "2026-03-01T15:00:00Z"
+    end: "2026-03-01T15:20:00Z"
+    rrule: "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20270801T000000Z"
+    description: "Commit small changes, run tests, and verify staging deploys; note any regressions."
+    alarms:
+      - trigger: "-PT15M"
+        action: "DISPLAY"
+        description: "Run quick tests before deploy"
 
-  - id: fix-league-state
-    title: "Fix Draft Command Center to use URL param"
-    start: "2026-03-05T14:00:00Z"
-    end: "2026-03-06T18:00:00Z"
-    description: "Force leagueId from URL; clear stale client state on logout; add admin reset button."
+  - id: daily-metrics-check
+    title: "Daily Metrics and Errors Check"
+    start: "2026-03-01T15:30:00Z"
+    end: "2026-03-01T15:45:00Z"
+    rrule: "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20270801T000000Z"
+    description: "Open Sentry and analytics; record critical errors and weekly trends."
+    alarms:
+      - trigger: "-PT10M"
+        action: "DISPLAY"
+        description: "Open Sentry and analytics dashboard"
 
-  - id: admin-seed
-    title: "Admin Seed + Smoke Test"
-    start: "2026-03-08T15:00:00Z"
-    end: "2026-03-08T16:00:00Z"
-    description: "Create admin/test accounts and run smoke tests across core flows."
+  - id: daily-support-inbox
+    title: "Daily Support and Inbox Triage"
+    start: "2026-03-01T16:00:00Z"
+    end: "2026-03-01T16:30:00Z"
+    rrule: "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20270801T000000Z"
+    description: "Process support messages, triage bugs, and reply to testers; escalate urgent items."
+    alarms:
+      - trigger: "-PT15M"
+        action: "DISPLAY"
+        description: "Prepare to triage support inbox"
+
+  - id: daily-calendar-update
+    title: "Daily Plan Update"
+    start: "2026-03-01T16:45:00Z"
+    end: "2026-03-01T17:00:00Z"
+    rrule: "FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20270801T000000Z"
+    description: "Update plan.yaml for any schedule changes; commit small edits and push to publish calendar."
+    alarms:
+      - trigger: "-PT10M"
+        action: "DISPLAY"
+        description: "Open plan.yaml to apply quick edits"
+
+  - id: weekly-planning
+    title: "Weekly Planning and Prioritization"
+    start: "2026-03-01T18:00:00Z"
+    end: "2026-03-01T19:00:00Z"
+    rrule: "FREQ=WEEKLY;BYDAY=MO;COUNT=75"
+    description: "Set sprint goals for the coming 2 weeks; pick top 3 product priorities."
 
   - id: sprint-cadence-start
     title: "Sprint Cadence: 2-week sprints begin"
@@ -43,11 +71,12 @@ events:
     end: "2026-03-09T14:15:00Z"
     description: "Start biweekly sprints. Each sprint ends with staging release and user test window."
 
-  - id: telemetry-add
-    title: "Add Sentry + Analytics"
-    start: "2026-03-16T15:00:00Z"
-    end: "2026-03-16T17:00:00Z"
-    description: "Integrate Sentry for errors and Plausible/Mixpanel for product metrics."
+  - id: sprint-review
+    title: "Sprint Review & Staging Release"
+    start: "2026-03-23T14:00:00Z"
+    end: "2026-03-23T14:30:00Z"
+    rrule: "FREQ=WEEKLY;INTERVAL=2;COUNT=70"
+    description: "Sprint review, staging deploy, QA notes, and user feedback collection."
 
   - id: monthly-backup-test
     title: "Monthly Backup Restore Test"
@@ -55,13 +84,6 @@ events:
     end: "2026-03-15T09:00:00Z"
     rrule: "FREQ=MONTHLY;COUNT=17"
     description: "Restore latest snapshot to a new DB and verify user data integrity."
-
-  - id: sprint-review
-    title: "Sprint Review & Staging Release"
-    start: "2026-03-23T14:00:00Z"
-    end: "2026-03-23T14:30:00Z"
-    rrule: "FREQ=WEEKLY;INTERVAL=2;COUNT=70"
-    description: "Sprint review, staging deploy, QA notes, and user feedback collection."
 
   - id: ics-api
     title: "ICS Feed API Implementation"
@@ -106,25 +128,6 @@ events:
     end: "2026-07-15T14:00:00Z"
     description: "Invite list, onboarding email, Discord event, feedback form. Target 50–200 testers."
 
-  - id: appstore-prep
-    title: "App Store & Play Store Submission Prep"
-    start: "2026-09-01T15:00:00Z"
-    end: "2026-09-15T17:00:00Z"
-    description: "Prepare metadata, privacy policy, screenshots, in-app purchase setup, and testflight tracks."
-
-  - id: appstore-submit
-    title: "Submit Mobile Apps to Stores"
-    start: "2026-11-01T15:00:00Z"
-    end: "2026-11-01T17:00:00Z"
-    description: "Submit iOS and Android builds; monitor review; prepare staged rollout."
-
-  - id: weekly-deploy-review
-    title: "Weekly Deploy & Metrics Review"
-    start: "2026-03-08T09:00:00Z"
-    end: "2026-03-08T09:30:00Z"
-    rrule: "FREQ=WEEKLY;COUNT=75"
-    description: "Review recent deploys, error rates, key metrics, and rollback readiness."
-
   - id: pre-monetization
     title: "Pre-Monetization Readiness Review"
     start: "2027-07-01T15:00:00Z"
@@ -135,9 +138,8 @@ events:
     title: "Monetization Launch — Pro / Elite Tiers Live"
     start: "2027-08-01T14:00:00Z"
     end: "2027-08-01T15:00:00Z"
-    description: "Enable paid tiers, monitor billing, customer support, and conversion metrics. Launch marketing push."
+    description: "Enable paid tiers, monitor billing, customer support, and conversion metrics."
     alarms:
       - trigger: "-PT24H"
         action: "DISPLAY"
         description: "Reminder — Monetization Launch tomorrow"
-
