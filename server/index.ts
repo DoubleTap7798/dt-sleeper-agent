@@ -184,13 +184,6 @@ async function syncSubscriptionToProfile(customerId: string) {
     console.log(`[syncSub] Created new profile for userId: ${matchedUserId}`);
   }
 }
-
-const app = express();
-app.set("trust proxy", 1);
-const httpServer = createServer(app);
-
-
-
 const app = express();
 app.set("trust proxy", 1);
 const httpServer = createServer(app);
