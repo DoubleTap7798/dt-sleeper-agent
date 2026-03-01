@@ -1,3 +1,4 @@
+# force cache refresh
 name: Deploy ICS to GitHub Pages
 
 on:
