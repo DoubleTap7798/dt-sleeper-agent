@@ -1,12 +1,4 @@
 const fs = require('fs');
-
-if (!fs.existsSync('site')) {
-  fs.mkdirSync('site');
-}
-
-fs.writeFileSync('site/dtsleeper-planner-2027.ics', icsContent);
-
-
 const path = require('path');
 const YAML = require('yaml');
 
@@ -18,7 +10,10 @@ function escapeText(s) {
   return (s || '').replace(/\n/g, '\\n').replace(/,/g, '\\,');
 }
 
+// Load plan.yaml
 const plan = YAML.parse(fs.readFileSync('plan.yaml', 'utf8'));
+
+// Build ICS content
 let out = [];
 out.push('BEGIN:VCALENDAR');
 out.push('VERSION:2.0');
@@ -33,6 +28,7 @@ for (const e of plan.events) {
   if (e.rrule) out.push(`RRULE:${e.rrule}`);
   out.push(`SUMMARY:${escapeText(e.title)}`);
   if (e.description) out.push(`DESCRIPTION:${escapeText(e.description)}`);
+
   if (e.alarms && Array.isArray(e.alarms)) {
     for (const a of e.alarms) {
       out.push('BEGIN:VALARM');
@@ -42,20 +38,17 @@ for (const e of plan.events) {
       out.push('END:VALARM');
     }
   }
+
   out.push('END:VEVENT');
 }
 
 out.push('END:VCALENDAR');
 
+// Ensure site/ exists
 fs.mkdirSync('site', { recursive: true });
-fs.writeFileSync(path.join('site', 'dtsleeper-planner-2027.ics'), out.join('\r\n'));
-console.log('ICS generated to site/dtsleeper-planner-2027.ics');
-const fs = require('fs');
 
-// Ensure the site folder exists
-if (!fs.existsSync('site')) {
-  fs.mkdirSync('site');
-}
+// Write ICS file
+const outputPath = path.join('site', 'dtsleeper-planner-2027.ics');
+fs.writeFileSync(outputPath, out.join('\r\n'));
 
-// Write the ICS file into the site folder
-fs.writeFileSync('site/dtsleeper-planner-2027.ics', icsContent);
+console.log(`ICS generated → ${outputPath}`);
