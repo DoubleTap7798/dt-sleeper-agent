@@ -50,3 +50,12 @@ out.push('END:VCALENDAR');
 fs.mkdirSync('site', { recursive: true });
 fs.writeFileSync(path.join('site', 'dtsleeper-planner-2027.ics'), out.join('\r\n'));
 console.log('ICS generated to site/dtsleeper-planner-2027.ics');
+const fs = require('fs');
+
+// Ensure the site folder exists
+if (!fs.existsSync('site')) {
+  fs.mkdirSync('site');
+}
+
+// Write the ICS file into the site folder
+fs.writeFileSync('site/dtsleeper-planner-2027.ics', icsContent);
