@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -33,7 +34,6 @@ async function syncSubscriptionToProfile(customerId: string) {
   if (liveStripe) {
     stripeClients.push({ stripe: liveStripe, label: "live" });
   }
-
   for (const { stripe, label } of stripeClients) {
     try {
       const stripeSubs = await stripe.subscriptions.list({
@@ -189,6 +189,24 @@ const app = express();
 app.set("trust proxy", 1);
 const httpServer = createServer(app);
 
+
+
+const app = express();
+app.set("trust proxy", 1);
+const httpServer = createServer(app);
+app.post("/admin/run-pipeline", async (_req, res) => {
+  try {
+    await db.execute(sql`
+      INSERT INTO jobs (id, type, status)
+      VALUES (${randomUUID()}, 'full_pipeline', 'pending')
+    `);
+
+    res.json({ message: "Pipeline job queued" });
+  } catch (err: any) {
+    console.error("[jobs] Failed to queue pipeline job:", err?.message || err);
+    res.status(500).json({ error: "Failed to queue job" });
+  }
+});
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
