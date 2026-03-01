@@ -14884,25 +14884,6 @@ Respond in JSON format:
             }
           }
 
-          const stillNoActive = !drafts.some((d: any) => d.status === "drafting" || d.status === "paused");
-          if (stillNoActive) {
-            for (const lg of allLeagues) {
-              if (lg.league_id === leagueId || lg.league_id === effectiveLeagueId) continue;
-              if (lg.status !== "drafting" && lg.status !== "pre_draft") continue;
-              try {
-                const altDraftsRes = await fetch(`https://api.sleeper.app/v1/league/${lg.league_id}/drafts`);
-                const altDrafts = await altDraftsRes.json();
-                if (Array.isArray(altDrafts)) {
-                  const activeDraft = altDrafts.find((d: any) => d.status === "drafting" || d.status === "paused");
-                  if (activeDraft) {
-                    drafts = altDrafts;
-                    effectiveLeagueId = lg.league_id;
-                    break;
-                  }
-                }
-              } catch {}
-            }
-          }
         } catch (e) {
           console.error("[DraftCommand] Error resolving league chain:", e);
         }
