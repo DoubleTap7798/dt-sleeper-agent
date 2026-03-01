@@ -1,12 +1,11 @@
 const fs = require('fs');
 
-// Make sure the folder exists
 if (!fs.existsSync('site')) {
   fs.mkdirSync('site');
 }
 
-// Write the ICS file into the site/ folder
 fs.writeFileSync('site/dtsleeper-planner-2027.ics', icsContent);
+
 
 const path = require('path');
 const YAML = require('yaml');
