@@ -11,9 +11,15 @@ permissions:
 
 jobs:
   build-and-deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
     runs-on: ubuntu-latest
     environment:
       name: github-pages
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,10 +44,15 @@ jobs:
 
   deploy:
     needs: build-and-deploy
+    permissions:
+      pages: write
+      id-token: write
+
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
